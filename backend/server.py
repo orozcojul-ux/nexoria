@@ -338,6 +338,10 @@ async def login(req: LoginReq, response: Response):
 @api.post("/auth/logout")
 async def logout(request: Request, response: Response):
     token = request.cookies.get("session_token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
     if token:
         await db.user_sessions.delete_one({"session_token": token})
     clear_session_cookie(response)

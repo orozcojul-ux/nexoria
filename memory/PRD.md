@@ -33,7 +33,24 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 15. Chronique vivante (timeline RPG personnelle).
 16. Effets sonores WebAudio synthétisés (clic, succès, level-up, coffre, oracle, faille).
 
-## What's Been Implemented (2026-02-10) — v1 MVP
+## What's Been Implemented
+
+### v2 — Refonte "Anti-Look IA" (2026-02-10)
+Transformation complète en codex RPG vivant. Aucune ressemblance SaaS.
+- ✅ Nav renommée (Place Publique, Mon Héros, Constellation, Royaume, Reliques, Tableau de Chasse, Sanctuaire, Hall des Légendes, Panthéon, Conseil)
+- ✅ Composants RPG custom (Ornaments.js, StarField.js) : sceaux hexagonaux, dividers runiques, ornements de coins, cercles arcaniques, brume animée, étoiles scintillantes
+- ✅ Sanctuaire (Oracle) — "Voix du Sanctuaire", aucune mention IA/Claude/algorithme (prompt anti-IA renforcé, vérifié runtime)
+- ✅ Tableau de Chasse — parchemins avec sceaux de cire rouge
+- ✅ Reliques — cabinet de curiosités, modal "Sceau brisé"
+- ✅ Constellation — sceaux hexagonaux, "Étoiles à allumer"
+- ✅ Carte du Héros — rune-border animé, "Empreinte éthérique", "Sceaux gravés"
+- ✅ Panthéon — pierre cosmique sculptée
+- ✅ Conseil — tabs renommés (Présage, Héros enregistrés, Chroniques)
+- ✅ Style typo : Unbounded (display) + Outfit (body) + JetBrains Mono (stats), ancient-text gradient doré, eldritch-glow
+- ✅ Auth migrée cookie → Bearer token (localStorage) pour contourner CORS wildcard sur ingress
+- ✅ Tests V2 : 36/36 backend (100%), frontend 100%
+
+### v1 — MVP (2026-02-10)
 - ✅ Auth JWT + Emergent Google Auth (unified session_token cookie)
 - ✅ Landing page premium avec particules + hero card animée
 - ✅ Inscription en 2 étapes (identité → sélection de classe)
