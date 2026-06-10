@@ -35,6 +35,18 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v2.1 — Code Quality fixes (2026-02-10)
+- ✅ Test file `ADMIN_PASSWORD` déplacé en env var (`os.environ.get`)
+- ✅ `is True/False` → `==` dans les tests pytest
+- ✅ Backend RNG sensible (coffres, failles, items) migré `random` → `secrets` (CSPRNG)
+- ✅ Empty catch blocks loggués : `Feed.js`, `sfx.js`, `AuthContext.js` (warn/error)
+- ✅ Array index as key remplacés par clés stables (chronicle_id, composite) — `Profile.js`, `Hero.js`, `Admin.js`, `Oracle.js`
+- ✅ `Profile.js` `useEffect` dependency manquante `load` corrigée avec `useCallback`
+- ✅ `AuthContext` refactorisé : tous les setters mémoizés via `useCallback`, `setUserState` séparé, logging d'erreurs
+- ✅ Note XSS détaillée dans `api.js` expliquant pourquoi localStorage (contrainte ingress CORS wildcard) et mitigations
+- ✅ `/api/auth/logout` accepte aussi le header Bearer pour invalider la session serveur
+- ⏭ Refactor des composants longs (Hero, Feed, Layout, Admin) volontairement reporté — code lisible, pas de bug, risque non justifié
+
 ### v2 — Refonte "Anti-Look IA" (2026-02-10)
 Transformation complète en codex RPG vivant. Aucune ressemblance SaaS.
 - ✅ Nav renommée (Place Publique, Mon Héros, Constellation, Royaume, Reliques, Tableau de Chasse, Sanctuaire, Hall des Légendes, Panthéon, Conseil)

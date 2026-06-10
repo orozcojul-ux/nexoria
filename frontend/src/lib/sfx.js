@@ -5,7 +5,9 @@ function getCtx() {
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (Ctx) ctx = new Ctx();
-    } catch {}
+    } catch (err) {
+      console.warn("WebAudio not available", err?.message);
+    }
   }
   return ctx;
 }

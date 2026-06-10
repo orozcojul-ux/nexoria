@@ -108,7 +108,7 @@ export default function Feed() {
 
   const react = async (postId) => {
     try { await api.post(`/posts/${postId}/react`); sfx.click(); await loadFeed(); }
-    catch {}
+    catch (err) { console.error("React failed", err); }
   };
 
   const openComments = async (postId) => {

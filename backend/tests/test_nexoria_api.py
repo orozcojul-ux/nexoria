@@ -8,8 +8,8 @@ import requests
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://nexoria-hero.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN_EMAIL = "admin@nexoria.com"
-ADMIN_PASSWORD = "NexoriaAdmin2026!"
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@nexoria.com")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")  # required: must be set via env
 
 
 # ---------- Fixtures ----------
@@ -202,10 +202,10 @@ class TestPosts:
         pid = post["post_id"]
         r = s_user.post(f"{API}/posts/{pid}/react", timeout=15)
         assert r.status_code == 200
-        assert r.json().get("reacted") is True
+        assert r.json().get("reacted") == True
         # toggle
         r2 = s_user.post(f"{API}/posts/{pid}/react", timeout=15)
-        assert r2.json().get("reacted") is False
+        assert r2.json().get("reacted") == False
         # comment
         r3 = s_user.post(f"{API}/posts/{pid}/comments", json={"content": "TEST comment"}, timeout=15)
         assert r3.status_code == 200

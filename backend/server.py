@@ -9,7 +9,7 @@ load_dotenv(ROOT_DIR / ".env")
 
 import os
 import uuid
-import random
+import secrets as _secrets
 import logging
 import httpx
 from datetime import datetime, timezone, timedelta
@@ -141,26 +141,42 @@ async def progress_quests(user_id: str, action: str, amount: int = 1):
             await db.user_quests.update_one({"_id": q["_id"]}, {"$set": update})
 
 
+def _secure_choice(seq):
+    return seq[_secrets.randbelow(len(seq))]
+
+
+def _secure_weighted_choice(items, weights):
+    """Cryptographically secure weighted choice."""
+    total = sum(weights)
+    # Scale weights to ints for precision
+    scaled = [int(w * 10000) for w in weights]
+    total_scaled = sum(scaled)
+    r = _secrets.randbelow(total_scaled)
+    cumulative = 0
+    for item, w in zip(items, scaled):
+        cumulative += w
+        if r < cumulative:
+            return item
+    return items[-1]
+
+
 def pick_random_item():
-    """Weighted random item from templates."""
-    template = random.choice(ITEM_TEMPLATES)
-    return template
+    """Weighted random item from templates (game RNG)."""
+    return _secure_choice(ITEM_TEMPLATES)
 
 
 async def open_chest(user_id: str):
     """Generate 1-3 random items based on rarity weights."""
     items = []
-    count = random.choices([1, 2, 3], weights=[60, 30, 10])[0]
+    count = _secure_weighted_choice([1, 2, 3], [60, 30, 10])
     for _ in range(count):
-        # pick rarity by weight
         rarity_ids = list(RARITIES.keys())
         weights = [RARITIES[r]["weight"] for r in rarity_ids]
-        rarity = random.choices(rarity_ids, weights=weights)[0]
-        # pick item of that rarity
+        rarity = _secure_weighted_choice(rarity_ids, weights)
         candidates = [t for t in ITEM_TEMPLATES if t["rarity"] == rarity]
         if not candidates:
             candidates = ITEM_TEMPLATES
-        tmpl = random.choice(candidates)
+        tmpl = _secure_choice(candidates)
         item = {
             "item_id": f"item_{uuid.uuid4().hex[:12]}",
             "user_id": user_id,
@@ -804,7 +820,7 @@ async def check_rift(user: dict = Depends(get_user_dep)):
         if now_utc() - last_time < timedelta(hours=4):
             return {"rift": None}
 
-    if random.random() > 0.35:
+    if _secrets.randbelow(100) >= 35:
         return {"rift": None}
 
     rift_types = [
@@ -813,7 +829,7 @@ async def check_rift(user: dict = Depends(get_user_dep)):
         {"type": "aether", "name": "Faille Dorée", "description": "Une pluie d'Aether vous bénit", "reward": "+150 Aether"},
         {"type": "badge", "name": "Faille Mystique", "description": "Vous traversez la dimension", "reward": "Badge Marcheur des Failles"},
     ]
-    rift = random.choice(rift_types)
+    rift = _secure_choice(rift_types)
     rift_doc = {
         "rift_id": f"rift_{uuid.uuid4().hex[:12]}",
         "user_id": user["user_id"],

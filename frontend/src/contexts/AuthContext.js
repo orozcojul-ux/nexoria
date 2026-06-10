@@ -1,17 +1,15 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import api, { setToken } from "@/lib/api";
+import api, { setToken, getToken } from "@/lib/api";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUserState] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const setUserAndToken = useCallback((u) => {
-    if (u?.session_token) {
-      setToken(u.session_token);
-    }
-    setUser(u);
+  const setUser = useCallback((u) => {
+    if (u?.session_token) setToken(u.session_token);
+    setUserState(u);
   }, []);
 
   const checkAuth = useCallback(async () => {
@@ -20,16 +18,17 @@ export function AuthProvider({ children }) {
       setLoading(false);
       return;
     }
-    if (!localStorage.getItem("nexoria_token")) {
+    if (!getToken()) {
       setLoading(false);
       return;
     }
     try {
       const { data } = await api.get("/auth/me");
-      setUser(data);
-    } catch {
+      setUserState(data);
+    } catch (err) {
+      console.warn("Auth check failed, clearing token", err?.response?.status);
       setToken(null);
-      setUser(null);
+      setUserState(null);
     } finally {
       setLoading(false);
     }
@@ -42,22 +41,27 @@ export function AuthProvider({ children }) {
   const refresh = useCallback(async () => {
     try {
       const { data } = await api.get("/auth/me");
-      setUser(data);
+      setUserState(data);
       return data;
-    } catch {
-      setUser(null);
+    } catch (err) {
+      console.error("Refresh failed", err);
+      setUserState(null);
       return null;
     }
   }, []);
 
-  const logout = async () => {
-    try { await api.post("/auth/logout"); } catch {}
+  const logout = useCallback(async () => {
+    try {
+      await api.post("/auth/logout");
+    } catch (err) {
+      console.warn("Logout request failed (clearing token anyway)", err?.message);
+    }
     setToken(null);
-    setUser(null);
-  };
+    setUserState(null);
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, setUser: setUserAndToken, loading, refresh, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, setUser, loading, refresh, logout, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );

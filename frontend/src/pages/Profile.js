@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import * as Lucide from "lucide-react";
@@ -18,7 +18,7 @@ export default function Profile() {
   const [allBadges, setAllBadges] = useState([]);
   const [following, setFollowing] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const [p, c, ab] = await Promise.all([
         api.get(`/profile/${username}`),
@@ -29,9 +29,12 @@ export default function Profile() {
       setBadges(p.data.badges);
       setChronicle(c.data);
       setAllBadges(ab.data);
-    } catch { toast.error("Héros introuvable"); }
-  };
-  useEffect(() => { load(); }, [username]);
+    } catch (err) {
+      console.error("Profile load failed", err);
+      toast.error("Héros introuvable");
+    }
+  }, [username]);
+  useEffect(() => { load(); }, [load]);
 
   const toggleFollow = async () => {
     try {
@@ -138,8 +141,8 @@ export default function Profile() {
       <div className="glass rounded-2xl p-6">
         <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-bold mb-4">Chronique</div>
         <div className="space-y-2 max-h-80 overflow-y-auto" data-testid="profile-chronicle">
-          {chronicle.map((c, i) => (
-            <div key={i} className="flex gap-3 py-2 border-b border-white/5 last:border-0">
+          {chronicle.map((c) => (
+            <div key={c.chronicle_id || c.created_at} className="flex gap-3 py-2 border-b border-white/5 last:border-0">
               <div className="w-1 bg-gradient-to-b from-violet-500 to-cyan-400 rounded-full" />
               <div className="flex-1">
                 <div className="text-sm text-zinc-200">{c.text}</div>

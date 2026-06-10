@@ -120,8 +120,8 @@ export default function Admin() {
 
       {tab === "logs" && (
         <div className="glass rounded-2xl p-4 max-h-[600px] overflow-y-auto" data-testid="admin-logs">
-          {logs.map((l, i) => (
-            <div key={i} className="py-2 border-b border-white/5 last:border-0 flex gap-3">
+          {logs.map((l) => (
+            <div key={l.chronicle_id || `${l.created_at}-${l.kind}`} className="py-2 border-b border-white/5 last:border-0 flex gap-3">
               <div className="w-1 bg-gradient-to-b from-violet-500 to-cyan-400 rounded-full" />
               <div className="flex-1">
                 <div className="text-sm text-zinc-200 scroll-paragraph">{l.text}</div>

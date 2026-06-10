@@ -74,7 +74,7 @@ export default function Oracle() {
       >
         {messages.map((m, i) => (
           <motion.div
-            key={i}
+            key={`msg-${i}-${m.from}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className={`flex ${m.from === "user" ? "justify-end" : "justify-start"}`}

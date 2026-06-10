@@ -268,8 +268,8 @@ export default function Hero() {
         <div className="font-display font-bold text-xl ancient-text mb-4">Le récit de votre voyage</div>
         <div className="space-y-2 max-h-80 overflow-y-auto pr-2" data-testid="chronicle-list">
           {chronicle.length === 0 && <div className="text-sm text-zinc-500 italic">Le parchemin attend votre première trace...</div>}
-          {chronicle.map((c, i) => (
-            <div key={i} className="flex gap-3 py-2 border-b border-yellow-500/10 last:border-0">
+          {chronicle.map((c) => (
+            <div key={c.chronicle_id || c.created_at} className="flex gap-3 py-2 border-b border-yellow-500/10 last:border-0">
               <div className="w-1 bg-gradient-to-b from-yellow-500 to-cyan-400 rounded-full" />
               <div className="flex-1">
                 <div className="text-sm text-zinc-200 scroll-paragraph">{c.text}</div>
