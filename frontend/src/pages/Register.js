@@ -58,7 +58,7 @@ export default function Register() {
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 w-full max-w-4xl">
         <Link to="/" className="flex items-center gap-2 justify-center mb-8" data-testid="register-logo">
-          <Sword className="w-7 h-7 text-cyan-400 drop-shadow-[0_0_10px_rgba(0,229,255,0.8)]" />
+          <img src="/logo.png" alt="NEXORIA" className="w-9 h-9 object-contain" style={{filter:"drop-shadow(0 0 10px rgba(157,76,221,0.7))"}}/>
           <span className="font-display font-black text-2xl text-gradient">NEXORIA</span>
         </Link>
 

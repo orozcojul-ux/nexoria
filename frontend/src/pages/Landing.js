@@ -27,7 +27,7 @@ export default function Landing() {
       <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-[#030305]/70 border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sword className="w-6 h-6 text-cyan-400 drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" />
+            <img src="/logo.png" alt="NEXORIA" className="w-7 h-7 object-contain" style={{filter:"drop-shadow(0 0 8px rgba(157,76,221,0.6))"}}/>
             <span className="font-display font-black text-xl text-gradient tracking-tight">NEXORIA</span>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">

@@ -35,6 +35,22 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3 — Features pack (2026-02-10)
+- ✅ Logo PNG officiel intégré (sidebar, landing, login, register, maintenance)
+- ✅ Système de ban temporaire complet : `banned_until` + `ban_reason` sur user, check dans `get_current_user` → 403 banned, sessions invalidées immédiatement, BannedScreen UI avec countdown, `ban_history` collection auditée
+- ✅ Admin edit user (level/xp/aether/reputation/role) + dialog Bannir avec presets de durée (1h, 1j, 1sem, 1mois)
+- ✅ Page Maintenance avec logo cosmique pulsant + accès staff (admin/moderator)
+- ✅ Mode maintenance togglable depuis le Conseil admin → `system_settings.maintenance` collection, MaintenanceGate dans App.js redirige les non-staff
+- ✅ Boutique d'Aether (14 items, 4 catégories) — cosmétiques, élixirs (boosts temps-limité), consommables (parchemin de renommée, clé cosmique, catalyseur de faille), améliorations royaume
+- ✅ Système boosts actifs (`user_boosts` avec expires_at), cosmétiques (`user_cosmetics`), consommables (`user_consumables`), perks (`user_perks`), purchases (`shop_purchases`)
+- ✅ Settings ultra-complet : Profil (bio/quote/story/avatar/banner), Compte (change email avec password confirm, change username via Parchemin de Renommée), Sécurité (change password révoque toutes sessions), Préférences (langue), Zone Dangereuse (suppression compte irréversible)
+- ✅ i18n 5 langues : FR/EN/ES/DE/IT, switcher dropdown, persisté localStorage, 60+ clés traduites
+- ✅ Notifications Bell (polling 30s, son ding sur nouveaux messages, mark-all-read)
+- ✅ Widgets backend : `/api/widgets/kingdom-weather` (joueurs actifs, posts du jour, nouveaux héros, top héros, météo aléatoire), `/api/widgets/events`, `/api/widgets/rifts-map`
+- ✅ Discord OAuth complet (endpoints `/auth/discord/url` + `/auth/discord/exchange` + DiscordCallback page) — nécessite DISCORD_CLIENT_ID/SECRET/REDIRECT_URI dans .env
+- ✅ Roles étendus : user / moderator / admin (staff = admin OU moderator pour accès maintenance)
+- ✅ 5 nouvelles collections : `notifications`, `user_boosts`, `user_cosmetics`, `user_consumables`, `user_perks`, `shop_purchases`, `ban_history`, `system_settings`, `scheduled_events`
+
 ### v2.1 — Code Quality fixes (2026-02-10)
 - ✅ Test file `ADMIN_PASSWORD` déplacé en env var (`os.environ.get`)
 - ✅ `is True/False` → `==` dans les tests pytest

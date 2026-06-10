@@ -1,65 +1,78 @@
 import React, { useEffect, useState } from "react";
-import { Shield, Trash2, Users, MessageSquare, Trophy, Package, ScrollText, Eye, Sparkles } from "lucide-react";
-import { motion } from "framer-motion";
+import { Shield, Trash2, Users, MessageSquare, Trophy, Package, ScrollText, Eye, Sparkles, Ban, Edit3, Hammer } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { useI18n } from "@/contexts/I18nContext";
 import { RuneSeal, RuneDivider } from "@/components/Ornaments";
 
 export default function Admin() {
+  const { t } = useI18n();
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [banHistory, setBanHistory] = useState([]);
+  const [maintenance, setMaintenance] = useState({ enabled: false, message: "" });
   const [tab, setTab] = useState("overview");
+  const [banTarget, setBanTarget] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
 
   const load = async () => {
     try {
-      const [s, u, l] = await Promise.all([
+      const [s, u, l, bh, m] = await Promise.all([
         api.get("/admin/stats"),
         api.get("/admin/users"),
         api.get("/admin/logs"),
+        api.get("/admin/ban-history"),
+        api.get("/system/maintenance"),
       ]);
-      setStats(s.data); setUsers(u.data); setLogs(l.data);
-    } catch { toast.error("Accès refusé par le Conseil"); }
+      setStats(s.data); setUsers(u.data); setLogs(l.data); setBanHistory(bh.data);
+      setMaintenance(m.data);
+    } catch { toast.error("Accès refusé"); }
   };
   useEffect(() => { load(); }, []);
 
-  const deleteUser = async (id) => {
-    if (!window.confirm("Bannir cet héros du royaume ?")) return;
-    try { await api.delete(`/admin/users/${id}`); toast.success("Banni"); await load(); }
+  const toggleMaintenance = async () => {
+    const newState = !maintenance.enabled;
+    try {
+      await api.post("/admin/maintenance", { enabled: newState, message: maintenance.message || "Royaume en maintenance" });
+      toast.success(newState ? "Maintenance ACTIVÉE" : "Maintenance désactivée");
+      await load();
+    } catch { toast.error("Erreur"); }
+  };
+
+  const unban = async (uid) => {
+    try { await api.post(`/admin/users/${uid}/unban`); toast.success("Ban levé"); await load(); }
     catch { toast.error("Erreur"); }
   };
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8" data-testid="admin-page">
       <div className="text-center mb-8">
-        <div className="flex justify-center mb-3">
-          <RuneSeal icon={Shield} color="#9D4CDD" size={48} />
-        </div>
-        <div className="text-[10px] uppercase tracking-[0.4em] text-violet-300 font-bold mb-2">Chambre des Anciens</div>
+        <div className="flex justify-center mb-3"><RuneSeal icon={Shield} color="#9D4CDD" size={48} /></div>
         <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight">
           Salle du <span className="text-gradient">Conseil</span>
         </h1>
-        <p className="text-zinc-400 text-sm mt-2 italic scroll-paragraph max-w-xl mx-auto">
-          « Ici se prennent les décisions qui régissent le royaume. Veillez sur la lumière. »
-        </p>
         <RuneDivider className="mt-6 mb-6" />
       </div>
 
       <div className="flex gap-2 mb-6 flex-wrap justify-center">
         {[
           { id: "overview", label: "Présage" },
-          { id: "users", label: "Héros enregistrés" },
+          { id: "users", label: "Héros" },
+          { id: "bans", label: "Bannissements" },
           { id: "logs", label: "Chroniques" },
-        ].map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} data-testid={`admin-tab-${t.id}`}
-            className={`px-4 py-2 rounded-md text-sm font-bold font-display tracking-wide border transition-all ${tab === t.id ? "border-violet-500/60 text-violet-300 bg-violet-500/10 shadow-[0_0_14px_rgba(157,76,221,0.2)]" : "border-white/10 text-zinc-400"}`}>
-            {t.label}
+          { id: "system", label: "Système" },
+        ].map((tb) => (
+          <button key={tb.id} onClick={() => setTab(tb.id)} data-testid={`admin-tab-${tb.id}`}
+            className={`px-4 py-2 rounded-md text-sm font-bold font-display tracking-wide border transition-all ${tab === tb.id ? "border-violet-500/60 text-violet-300 bg-violet-500/10 shadow-[0_0_14px_rgba(157,76,221,0.2)]" : "border-white/10 text-zinc-400"}`}>
+            {tb.label}
           </button>
         ))}
       </div>
 
       {tab === "overview" && stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4" data-testid="admin-stats">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: "Héros", value: stats.users, icon: Users, color: "#00E5FF" },
             { label: "Missives", value: stats.posts, icon: MessageSquare, color: "#9D4CDD" },
@@ -71,10 +84,9 @@ export default function Admin() {
             { label: "Sceaux actifs", value: stats.sessions, icon: Sparkles, color: "#3B82F6" },
           ].map((s, i) => (
             <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-              className="glass rounded-xl p-5 relative overflow-hidden group">
-              <span className="absolute top-1 right-1 w-2 h-2 border-t border-r border-current opacity-30" style={{ color: s.color }} />
+              className="glass rounded-xl p-5">
               <s.icon className="w-6 h-6 mb-3" style={{ color: s.color, filter: `drop-shadow(0 0 6px ${s.color}66)` }} />
-              <div className="font-mono-stat text-3xl font-bold text-white" data-testid={`stat-${s.label}`}>{s.value}</div>
+              <div className="font-mono-stat text-3xl font-bold text-white">{s.value}</div>
               <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mt-1">{s.label}</div>
             </motion.div>
           ))}
@@ -90,47 +102,205 @@ export default function Admin() {
                 <th className="p-3 hidden sm:table-cell">Classe</th>
                 <th className="p-3">Niveau</th>
                 <th className="p-3 hidden md:table-cell">Statut</th>
-                <th className="p-3"></th>
+                <th className="p-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
-                <tr key={u.user_id} className="border-b border-white/5 hover:bg-white/[0.03]" data-testid={`admin-user-${u.user_id}`}>
-                  <td className="p-3 font-display font-bold">{u.username}</td>
+              {users.map((u) => {
+                const banned = u.banned_until && new Date(u.banned_until) > new Date();
+                return (
+                <tr key={u.user_id} className={`border-b border-white/5 hover:bg-white/[0.03] ${banned ? "bg-red-500/5" : ""}`} data-testid={`admin-user-${u.user_id}`}>
+                  <td className="p-3 font-display font-bold">{u.username} {banned && <span className="text-red-400 text-xs ml-1">[banni]</span>}</td>
                   <td className="p-3 hidden sm:table-cell text-zinc-400">{u.class_name}</td>
                   <td className="p-3 font-mono-stat text-cyan-300">{u.level}</td>
                   <td className="p-3 hidden md:table-cell">
-                    <span className={`text-[10px] uppercase tracking-[0.25em] font-bold ${u.role === "admin" ? "text-violet-300" : "text-zinc-400"}`}>
-                      {u.role === "admin" ? "Sage" : "Voyageur"}
+                    <span className={`text-[10px] uppercase tracking-[0.25em] font-bold ${u.role === "admin" ? "text-violet-300" : u.role === "moderator" ? "text-orange-300" : "text-zinc-400"}`}>
+                      {u.role === "admin" ? "Sage" : u.role === "moderator" ? "Modérateur" : "Voyageur"}
                     </span>
                   </td>
                   <td className="p-3 text-right">
-                    {u.role !== "admin" && (
-                      <button onClick={() => deleteUser(u.user_id)} className="text-red-400 hover:text-red-300" data-testid={`delete-user-${u.user_id}`}>
-                        <Trash2 className="w-4 h-4" />
+                    <div className="flex gap-1 justify-end">
+                      <button onClick={() => setEditTarget(u)} className="text-cyan-400 hover:text-cyan-300 p-1" title="Modifier" data-testid={`edit-user-${u.user_id}`}>
+                        <Edit3 className="w-3.5 h-3.5" />
                       </button>
-                    )}
+                      {u.role !== "admin" && (banned ? (
+                        <button onClick={() => unban(u.user_id)} className="text-orange-400 hover:text-orange-300 p-1" title="Lever ban" data-testid={`unban-${u.user_id}`}>
+                          <Ban className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button onClick={() => setBanTarget(u)} className="text-red-400 hover:text-red-300 p-1" title="Bannir" data-testid={`ban-${u.user_id}`}>
+                          <Ban className="w-3.5 h-3.5" />
+                        </button>
+                      ))}
+                    </div>
                   </td>
-                </tr>
-              ))}
+                </tr>);
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-      {tab === "logs" && (
-        <div className="glass rounded-2xl p-4 max-h-[600px] overflow-y-auto" data-testid="admin-logs">
-          {logs.map((l) => (
-            <div key={l.chronicle_id || `${l.created_at}-${l.kind}`} className="py-2 border-b border-white/5 last:border-0 flex gap-3">
-              <div className="w-1 bg-gradient-to-b from-violet-500 to-cyan-400 rounded-full" />
-              <div className="flex-1">
-                <div className="text-sm text-zinc-200 scroll-paragraph">{l.text}</div>
-                <div className="text-[10px] font-mono-stat text-zinc-500 uppercase tracking-widest">[{l.kind}] {new Date(l.created_at).toLocaleString("fr-FR")}</div>
+      {tab === "bans" && (
+        <div className="glass rounded-2xl p-4 space-y-2 max-h-[600px] overflow-y-auto" data-testid="ban-history">
+          {banHistory.length === 0 && <div className="text-center text-zinc-500 italic py-12">Aucun bannissement enregistré</div>}
+          {banHistory.map((b) => (
+            <div key={b.ban_id} className={`p-3 rounded border ${b.lifted ? "border-white/5 opacity-50" : "border-red-500/30 bg-red-500/5"}`}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="font-display font-bold">{b.username}</div>
+                  <div className="text-xs text-zinc-400">Par {b.banned_by} · {b.duration_hours}h · « {b.reason} »</div>
+                  <div className="text-[10px] font-mono-stat text-zinc-500 mt-1">Jusqu'au {new Date(b.banned_until).toLocaleString()}</div>
+                </div>
+                <span className={`text-[10px] uppercase tracking-widest font-bold ${b.lifted ? "text-zinc-500" : "text-red-400"}`}>
+                  {b.lifted ? "Levé" : "Actif"}
+                </span>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {tab === "logs" && (
+        <div className="glass rounded-2xl p-4 max-h-[600px] overflow-y-auto">
+          {logs.map((l) => (
+            <div key={l.chronicle_id || `${l.created_at}-${l.kind}`} className="py-2 border-b border-white/5 last:border-0 flex gap-3">
+              <div className="w-1 bg-gradient-to-b from-violet-500 to-cyan-400 rounded-full" />
+              <div className="flex-1">
+                <div className="text-sm text-zinc-200">{l.text}</div>
+                <div className="text-[10px] font-mono-stat text-zinc-500 uppercase tracking-widest">[{l.kind}] {new Date(l.created_at).toLocaleString()}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "system" && (
+        <div className="glass rounded-2xl p-6 max-w-2xl">
+          <h2 className="font-display font-bold text-xl ancient-text mb-4 flex items-center gap-2">
+            <Hammer className="w-5 h-5 text-yellow-400" /> {t("admin.maintenance_mode")}
+          </h2>
+          <div className="space-y-3">
+            <label className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold block">Message affiché</label>
+            <textarea
+              value={maintenance.message || ""}
+              onChange={(e) => setMaintenance({ ...maintenance, message: e.target.value })}
+              className="w-full bg-[#0A0A0E] border border-white/10 rounded-md px-3 py-2 text-sm"
+              rows={3}
+              data-testid="maintenance-message"
+            />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={toggleMaintenance}
+                data-testid="maintenance-toggle"
+                className={`px-5 py-2.5 rounded-md font-bold font-display tracking-wide border transition-all ${maintenance.enabled ? "border-green-500/50 text-green-300 hover:shadow-[0_0_16px_rgba(34,197,94,0.3)]" : "border-yellow-500/50 text-yellow-300 hover:shadow-[0_0_16px_rgba(234,179,8,0.3)]"}`}>
+                {maintenance.enabled ? "Désactiver la maintenance" : "ACTIVER la maintenance"}
+              </button>
+              <span className={`text-xs font-mono-stat ${maintenance.enabled ? "text-yellow-400" : "text-zinc-500"}`}>
+                Statut: {maintenance.enabled ? "ON 🔧" : "OFF"}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ban dialog */}
+      <AnimatePresence>
+        {banTarget && <BanDialog target={banTarget} onClose={() => setBanTarget(null)} onDone={async () => { setBanTarget(null); await load(); }} t={t} />}
+        {editTarget && <EditDialog target={editTarget} onClose={() => setEditTarget(null)} onDone={async () => { setEditTarget(null); await load(); }} t={t} />}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function BanDialog({ target, onClose, onDone, t }) {
+  const [hours, setHours] = useState(24);
+  const [reason, setReason] = useState("");
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!reason.trim()) { toast.error("Raison requise"); return; }
+    try {
+      await api.post(`/admin/users/${target.user_id}/ban`, { duration_hours: hours, reason });
+      toast.success(`${target.username} banni pour ${hours}h`);
+      onDone();
+    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+  };
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose} className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <motion.form onClick={(e) => e.stopPropagation()} onSubmit={submit}
+        initial={{ scale: 0.9 }} animate={{ scale: 1 }}
+        className="rune-border rounded-2xl p-6 max-w-md w-full space-y-4" data-testid="ban-dialog">
+        <h3 className="font-display font-black text-2xl text-red-300">Bannir {target.username}</h3>
+        <div>
+          <label className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-2 block">{t("admin.ban_duration")}</label>
+          <input type="number" min="1" max="87600" value={hours} onChange={(e) => setHours(parseInt(e.target.value) || 1)}
+            className="w-full bg-[#0A0A0E] border border-red-500/30 rounded-md px-3 py-2" data-testid="ban-duration-input" />
+          <div className="flex gap-2 mt-2">
+            {[1, 24, 168, 720].map((h) => (
+              <button key={h} type="button" onClick={() => setHours(h)} className="px-2 py-1 text-xs border border-white/10 rounded hover:border-red-500/40">
+                {h < 24 ? `${h}h` : h < 168 ? `${h/24}j` : h < 720 ? `${h/168}sem` : `${h/720}mois`}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-2 block">{t("admin.ban_reason")}</label>
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)}
+            className="w-full bg-[#0A0A0E] border border-red-500/30 rounded-md px-3 py-2" rows={3} data-testid="ban-reason-input" />
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded border border-white/10 text-sm">{t("common.cancel")}</button>
+          <button type="submit" data-testid="confirm-ban-btn" className="px-4 py-2 rounded border border-red-500/50 text-red-300 hover:bg-red-500/10 font-bold text-sm">
+            <Ban className="w-3 h-3 inline mr-1" /> Bannir
+          </button>
+        </div>
+      </motion.form>
+    </motion.div>
+  );
+}
+
+function EditDialog({ target, onClose, onDone, t }) {
+  const [form, setForm] = useState({
+    level: target.level, xp: target.xp, aether: target.aether, reputation: target.reputation, role: target.role,
+  });
+  const submit = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put(`/admin/users/${target.user_id}`, form);
+      toast.success("Héros modifié"); onDone();
+    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+  };
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose} className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <motion.form onClick={(e) => e.stopPropagation()} onSubmit={submit}
+        initial={{ scale: 0.9 }} animate={{ scale: 1 }}
+        className="rune-border rounded-2xl p-6 max-w-md w-full space-y-3" data-testid="edit-dialog">
+        <h3 className="font-display font-black text-xl text-gradient">{t("admin.edit_user")} — {target.username}</h3>
+        {["level", "xp", "aether", "reputation"].map((f) => (
+          <div key={f}>
+            <label className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-1 block">{f}</label>
+            <input type="number" value={form[f]} onChange={(e) => setForm({ ...form, [f]: parseInt(e.target.value) || 0 })}
+              className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid={`edit-${f}`} />
+          </div>
+        ))}
+        <div>
+          <label className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-1 block">Rôle</label>
+          <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
+            className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="edit-role">
+            <option value="user">Voyageur</option>
+            <option value="moderator">Modérateur</option>
+            <option value="admin">Sage (admin)</option>
+          </select>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded border border-white/10 text-sm">{t("common.cancel")}</button>
+          <button type="submit" data-testid="confirm-edit-btn" className="px-4 py-2 rounded border border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/10 font-bold text-sm">
+            {t("common.save")}
+          </button>
+        </div>
+      </motion.form>
+    </motion.div>
   );
 }

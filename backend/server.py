@@ -30,6 +30,9 @@ from game_data import (
     QUEST_TEMPLATES, ITEM_TEMPLATES, xp_for_level, level_from_xp, rank_from_level,
 )
 from oracle import consult_oracle, generate_personalized_quest
+from shop_data import SHOP_ITEMS, get_shop_item
+from notifications import push_notification
+import discord_auth
 
 # ---------- DB ----------
 mongo_url = os.environ["MONGO_URL"]
@@ -970,6 +973,401 @@ async def admin_logs(user: dict = Depends(get_admin_dep)):
     return chronicles
 
 
+# ---------- Maintenance Mode (admin toggle) ----------
+async def get_maintenance() -> dict:
+    doc = await db.system_settings.find_one({"key": "maintenance"}, {"_id": 0})
+    return doc or {"enabled": False, "message": "", "updated_at": None}
+
+
+@api.get("/system/maintenance")
+async def maintenance_status():
+    """Public endpoint — frontend polls this to render the maintenance overlay."""
+    return await get_maintenance()
+
+
+@api.post("/admin/maintenance")
+async def set_maintenance(payload: dict, user: dict = Depends(get_admin_dep)):
+    enabled = bool(payload.get("enabled", False))
+    message = str(payload.get("message", "Royaume en maintenance — revenez bientôt."))[:300]
+    await db.system_settings.update_one(
+        {"key": "maintenance"},
+        {"$set": {"enabled": enabled, "message": message, "updated_at": now_utc().isoformat(), "updated_by": user["username"]}},
+        upsert=True,
+    )
+    return {"enabled": enabled, "message": message}
+
+
+# ---------- Profile self-management (ultra-complete) ----------
+class PasswordChangeReq(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class EmailChangeReq(BaseModel):
+    current_password: str
+    new_email: EmailStr
+
+
+class UsernameChangeReq(BaseModel):
+    new_username: str
+
+
+@api.post("/profile/change-password")
+async def change_password(req: PasswordChangeReq, user: dict = Depends(get_user_dep)):
+    full = await db.users.find_one({"user_id": user["user_id"]})
+    if not full.get("password_hash") or not verify_password(req.current_password, full["password_hash"]):
+        raise HTTPException(400, "Mot de passe actuel incorrect")
+    if len(req.new_password) < 6:
+        raise HTTPException(400, "Nouveau mot de passe trop court (6 caractères min)")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"password_hash": hash_password(req.new_password)}})
+    # invalidate all other sessions
+    await db.user_sessions.delete_many({"user_id": user["user_id"]})
+    return {"ok": True, "note": "Toutes les sessions ont été révoquées — reconnectez-vous."}
+
+
+@api.post("/profile/change-email")
+async def change_email(req: EmailChangeReq, user: dict = Depends(get_user_dep)):
+    full = await db.users.find_one({"user_id": user["user_id"]})
+    if full.get("password_hash") and not verify_password(req.current_password, full["password_hash"]):
+        raise HTTPException(400, "Mot de passe incorrect")
+    if await db.users.find_one({"email": req.new_email.lower(), "user_id": {"$ne": user["user_id"]}}):
+        raise HTTPException(400, "Email déjà utilisé")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"email": req.new_email.lower()}})
+    return {"ok": True, "email": req.new_email.lower()}
+
+
+@api.post("/profile/change-username")
+async def change_username(req: UsernameChangeReq, user: dict = Depends(get_user_dep)):
+    new_name = req.new_username.strip().replace(" ", "")
+    if len(new_name) < 3 or len(new_name) > 20:
+        raise HTTPException(400, "Pseudo doit faire entre 3 et 20 caractères")
+    if await db.users.find_one({"username": new_name, "user_id": {"$ne": user["user_id"]}}):
+        raise HTTPException(400, "Pseudo déjà pris")
+    # Consume a rename scroll if present
+    scroll = await db.user_consumables.find_one({"user_id": user["user_id"], "sku": "scroll_rename", "used": False})
+    if not scroll:
+        raise HTTPException(400, "Un « Parchemin de Renommée » est nécessaire (achetez-en un à la Boutique)")
+    await db.user_consumables.update_one({"_id": scroll["_id"]}, {"$set": {"used": True, "used_at": now_utc().isoformat()}})
+    old = user["username"]
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"username": new_name}})
+    await add_chronicle(user["user_id"], f"A changé de nom : {old} → {new_name}", "rename")
+    return {"ok": True, "username": new_name}
+
+
+@api.delete("/profile")
+async def delete_account(user: dict = Depends(get_user_dep)):
+    """Hard delete the user's account and all related data."""
+    uid = user["user_id"]
+    if user.get("role") == "admin":
+        raise HTTPException(400, "Un admin ne peut pas auto-supprimer son compte")
+    for col in ("users", "user_sessions", "posts", "comments", "reactions", "follows",
+                "user_badges", "inventory", "user_quests", "chronicles", "rifts",
+                "oracle_logs", "notifications", "user_boosts", "user_consumables", "shop_purchases"):
+        await db[col].delete_many({"user_id": uid})
+    return {"ok": True}
+
+
+# ---------- Shop ----------
+@api.get("/shop/items")
+async def list_shop_items():
+    return SHOP_ITEMS
+
+
+@api.post("/shop/purchase/{sku}")
+async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
+    item = get_shop_item(sku)
+    if not item:
+        raise HTTPException(404, "Article introuvable")
+    full = await db.users.find_one({"user_id": user["user_id"]})
+    if full["aether"] < item["price"]:
+        raise HTTPException(400, f"Aether insuffisant ({item['price']} requis)")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": -item["price"]}})
+
+    purchase_doc = {
+        "purchase_id": f"buy_{uuid.uuid4().hex[:12]}",
+        "user_id": user["user_id"],
+        "sku": sku,
+        "name": item["name"],
+        "category": item["category"],
+        "price": item["price"],
+        "created_at": now_utc().isoformat(),
+    }
+    await db.shop_purchases.insert_one(purchase_doc)
+    purchase_doc.pop("_id", None)
+
+    # Apply effect based on category
+    applied = {}
+    if item["category"] == "cosmetic":
+        await db.user_cosmetics.insert_one({"user_id": user["user_id"], "sku": sku, "obtained_at": now_utc().isoformat()})
+        applied["unlocked"] = sku
+    elif item["category"] == "boost":
+        expires = (now_utc() + timedelta(minutes=item["duration_minutes"])).isoformat()
+        await db.user_boosts.insert_one({
+            "user_id": user["user_id"], "sku": sku,
+            "boost_type": item["boost_type"], "boost_value": item["boost_value"],
+            "expires_at": expires, "created_at": now_utc().isoformat(),
+        })
+        applied["expires_at"] = expires
+    elif item["category"] == "consumable":
+        if sku == "summon_rift":
+            # Force a rift to appear next time the user checks
+            rift_types = [
+                {"type": "double_xp", "name": "Faille Invoquée", "description": "Catalysée par votre volonté", "reward": "+200 XP"},
+                {"type": "chest", "name": "Faille de Trésor", "description": "Un coffre apparaît", "reward": "Coffre offert"},
+            ]
+            r = _secure_choice(rift_types)
+            await db.rifts.insert_one({
+                "rift_id": f"rift_{uuid.uuid4().hex[:12]}",
+                "user_id": user["user_id"],
+                **r, "claimed": False,
+                "created_at": now_utc().isoformat(),
+            })
+            applied["rift_summoned"] = True
+        else:
+            await db.user_consumables.insert_one({
+                "user_id": user["user_id"], "sku": sku, "name": item["name"],
+                "used": False, "obtained_at": now_utc().isoformat(),
+            })
+            applied["consumable_added"] = sku
+    elif item["category"] == "kingdom":
+        await db.user_perks.insert_one({"user_id": user["user_id"], "sku": sku, "obtained_at": now_utc().isoformat()})
+        applied["perk_unlocked"] = sku
+
+    await add_chronicle(user["user_id"], f"A acquis « {item['name']} » à la Boutique d'Aether", "shop")
+    await push_notification(db, user["user_id"], "shop", "Achat confirmé", f"« {item['name']} » est à vous", "ding", "ShoppingBag")
+
+    return {"purchase": purchase_doc, "applied": applied}
+
+
+@api.get("/shop/inventory")
+async def my_shop_inventory(user: dict = Depends(get_user_dep)):
+    """Items the user has bought from the shop (cosmetics, active boosts, consumables, perks)."""
+    cosmetics = await db.user_cosmetics.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(200)
+    consumables = await db.user_consumables.find({"user_id": user["user_id"], "used": False}, {"_id": 0}).to_list(200)
+    perks = await db.user_perks.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(50)
+    now = now_utc()
+    boosts_raw = await db.user_boosts.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(50)
+    active_boosts = []
+    for b in boosts_raw:
+        exp = b.get("expires_at")
+        if isinstance(exp, str):
+            exp_dt = datetime.fromisoformat(exp)
+            if exp_dt.tzinfo is None:
+                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+            if exp_dt > now:
+                active_boosts.append(b)
+    return {"cosmetics": cosmetics, "consumables": consumables, "perks": perks, "boosts": active_boosts}
+
+
+# ---------- Notifications ----------
+@api.get("/notifications")
+async def my_notifications(user: dict = Depends(get_user_dep)):
+    items = await db.notifications.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
+    unread = await db.notifications.count_documents({"user_id": user["user_id"], "read": False})
+    return {"items": items, "unread": unread}
+
+
+@api.post("/notifications/{notif_id}/read")
+async def mark_notif_read(notif_id: str, user: dict = Depends(get_user_dep)):
+    await db.notifications.update_one({"notif_id": notif_id, "user_id": user["user_id"]}, {"$set": {"read": True}})
+    return {"ok": True}
+
+
+@api.post("/notifications/read-all")
+async def mark_all_read(user: dict = Depends(get_user_dep)):
+    await db.notifications.update_many({"user_id": user["user_id"], "read": False}, {"$set": {"read": True}})
+    return {"ok": True}
+
+
+# ---------- Widgets (live community stats) ----------
+@api.get("/widgets/kingdom-weather")
+async def kingdom_weather():
+    """Live stats of the realm."""
+    now = now_utc()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    # active users = sessions from last 15 min
+    cutoff = (now - timedelta(minutes=15)).isoformat()
+    active_session_count = await db.user_sessions.count_documents({"created_at": {"$gte": cutoff}})
+    posts_today = await db.posts.count_documents({"created_at": {"$gte": today_start.isoformat()}})
+    new_heroes = await db.users.count_documents({"created_at": {"$gte": today_start.isoformat()}})
+    top = await db.users.find({}, {"_id": 0, "username": 1, "level": 1, "class_name": 1, "avatar_url": 1}).sort("xp", -1).limit(1).to_list(1)
+    return {
+        "active_now": active_session_count,
+        "posts_today": posts_today,
+        "new_heroes_today": new_heroes,
+        "top_hero": top[0] if top else None,
+        "weather": _secure_choice(["clear", "mystical", "stormy", "aurora", "eclipse"]),
+        "as_of": now.isoformat(),
+    }
+
+
+@api.get("/widgets/events")
+async def upcoming_events():
+    """Scheduled events visible to all."""
+    events = await db.scheduled_events.find({}, {"_id": 0}).sort("starts_at", 1).limit(20).to_list(20)
+    return events
+
+
+@api.get("/widgets/rifts-map")
+async def rifts_map():
+    """Last 20 dimensional rifts globally with type/timestamp (no user_id leaked)."""
+    rifts = await db.rifts.find({}, {"_id": 0, "user_id": 0}).sort("created_at", -1).limit(20).to_list(20)
+    return rifts
+
+
+# ---------- Admin: edit / ban / unban users ----------
+class UserEditReq(BaseModel):
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
+    role: Optional[str] = None
+    level: Optional[int] = None
+    xp: Optional[int] = None
+    aether: Optional[int] = None
+    reputation: Optional[int] = None
+    active_title: Optional[str] = None
+
+
+class BanReq(BaseModel):
+    duration_hours: int  # 0 = permanent (use large number)
+    reason: str
+
+
+@api.put("/admin/users/{user_id}")
+async def admin_edit_user(user_id: str, req: UserEditReq, user: dict = Depends(get_admin_dep)):
+    update = {k: v for k, v in req.model_dump().items() if v is not None}
+    if "role" in update and update["role"] not in ("user", "admin", "moderator"):
+        raise HTTPException(400, "Rôle invalide")
+    if "level" in update:
+        update["rank"] = rank_from_level(update["level"])
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    await db.users.update_one({"user_id": user_id}, {"$set": update})
+    await add_chronicle(user_id, f"Le Conseil a modifié son profil ({', '.join(update.keys())})", "admin")
+    return {"ok": True, "updated_fields": list(update.keys())}
+
+
+@api.post("/admin/users/{user_id}/ban")
+async def admin_ban_user(user_id: str, req: BanReq, user: dict = Depends(get_admin_dep)):
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    if target.get("role") == "admin":
+        raise HTTPException(400, "Impossible de bannir un admin")
+    if user_id == user["user_id"]:
+        raise HTTPException(400, "Impossible de s'auto-bannir")
+    if req.duration_hours <= 0 or req.duration_hours > 24 * 365 * 10:
+        raise HTTPException(400, "Durée invalide")
+
+    banned_until = (now_utc() + timedelta(hours=req.duration_hours)).isoformat()
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"banned_until": banned_until, "ban_reason": req.reason[:300]}},
+    )
+    # immediately invalidate all sessions
+    await db.user_sessions.delete_many({"user_id": user_id})
+    # log
+    await db.ban_history.insert_one({
+        "ban_id": f"ban_{uuid.uuid4().hex[:12]}",
+        "user_id": user_id,
+        "username": target["username"],
+        "banned_by": user["username"],
+        "duration_hours": req.duration_hours,
+        "banned_until": banned_until,
+        "reason": req.reason[:300],
+        "created_at": now_utc().isoformat(),
+        "lifted": False,
+    })
+    await add_chronicle(user_id, f"Banni par le Conseil pour {req.duration_hours}h — raison : {req.reason}", "ban")
+    return {"ok": True, "banned_until": banned_until}
+
+
+@api.post("/admin/users/{user_id}/unban")
+async def admin_unban_user(user_id: str, user: dict = Depends(get_admin_dep)):
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$unset": {"banned_until": "", "ban_reason": ""}},
+    )
+    await db.ban_history.update_many({"user_id": user_id, "lifted": False}, {"$set": {"lifted": True, "lifted_at": now_utc().isoformat()}})
+    await add_chronicle(user_id, "Banni levé par le Conseil", "unban")
+    return {"ok": True}
+
+
+@api.get("/admin/ban-history")
+async def admin_ban_history(user: dict = Depends(get_admin_dep)):
+    return await db.ban_history.find({}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
+
+
+# ---------- Discord OAuth ----------
+@api.get("/auth/discord/url")
+async def discord_url():
+    if not discord_auth.is_configured():
+        raise HTTPException(503, "Discord OAuth non configuré côté serveur")
+    return {"url": discord_auth.build_authorize_url()}
+
+
+@api.post("/auth/discord/exchange")
+async def discord_exchange(payload: dict, response: Response):
+    code = payload.get("code")
+    if not code:
+        raise HTTPException(400, "Code manquant")
+    try:
+        profile = await discord_auth.exchange_code(code)
+    except Exception as e:
+        raise HTTPException(401, f"Échec Discord OAuth: {str(e)[:120]}")
+
+    email = profile["email"].lower()
+    existing = await db.users.find_one({"$or": [{"email": email}, {"discord_id": profile["discord_id"]}]})
+    if existing:
+        user = existing
+        if not existing.get("discord_id"):
+            await db.users.update_one({"user_id": existing["user_id"]}, {"$set": {"discord_id": profile["discord_id"]}})
+    else:
+        user_id = generate_user_id()
+        username = profile["username"].replace(" ", "") or f"Heros{uuid.uuid4().hex[:6]}"
+        base = username
+        i = 0
+        while await db.users.find_one({"username": username}):
+            i += 1
+            username = f"{base}{i}"
+        cls = CLASSES["explorer"]
+        user = {
+            "user_id": user_id, "email": email, "username": username,
+            "password_hash": None,
+            "discord_id": profile["discord_id"],
+            "class_id": "explorer", "class_name": cls["name"],
+            "secondary_class_id": None,
+            "avatar_url": profile.get("avatar_url"), "banner_url": None,
+            "bio": "", "story": "", "quote": "",
+            "level": 1, "xp": 0, "rank": "Novice",
+            "reputation": 0, "aether": 100, "skill_points": 1,
+            "active_title": "novice",
+            "role": "admin" if email == os.environ.get("ADMIN_EMAIL", "").lower() else "user",
+            "auth_provider": "discord",
+            "created_at": now_utc().isoformat(),
+            "dna": {"creativity": 15, "ambition": 10, "sociability": 10, "curiosity": 13, "persistence": 10, "influence": 10},
+            "kingdom": {b["id"]: {"level": 1 if b["id"] == "castle" else 0} for b in KINGDOM_BUILDINGS},
+            "skills_allocated": {}, "followers": 0, "following": 0,
+            "needs_class_selection": True,
+        }
+        await db.users.insert_one(user)
+        await add_chronicle(user_id, f"Le héros {username} a rejoint NEXORIA via Discord", "creation")
+        await grant_badge(user_id, "founder")
+
+    token = create_session_token()
+    await db.user_sessions.insert_one({
+        "session_token": token,
+        "user_id": user["user_id"],
+        "expires_at": session_expiry().isoformat(),
+        "created_at": now_utc().isoformat(),
+        "provider": "discord",
+    })
+    set_session_cookie(response, token)
+    result = public_user(user)
+    result["session_token"] = token
+    return result
+
+
 # ---------- Mount ----------
 app.include_router(api)
 
@@ -994,8 +1392,6 @@ async def startup():
     await db.user_badges.create_index([("user_id", 1), ("badge_id", 1)], unique=True)
     await db.chronicles.create_index([("user_id", 1), ("created_at", -1)])
     await db.user_quests.create_index("user_id_quest_id", unique=True, sparse=True)
-    await db.inventory.create_index([("user_id", 1), ("obtained_at", -1)])
-
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@nexoria.com").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")

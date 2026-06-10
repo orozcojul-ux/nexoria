@@ -78,6 +78,33 @@ async def get_current_user(request: Request, db) -> dict:
     user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0, "password_hash": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+
+    # Check ban
+    banned_until = user.get("banned_until")
+    if banned_until:
+        if isinstance(banned_until, str):
+            banned_until = datetime.fromisoformat(banned_until)
+        if banned_until.tzinfo is None:
+            banned_until = banned_until.replace(tzinfo=timezone.utc)
+        if banned_until > datetime.now(timezone.utc):
+            reason = user.get("ban_reason", "Violation des règles")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "banned": True,
+                    "reason": reason,
+                    "until": banned_until.isoformat(),
+                },
+            )
+        else:
+            # Ban expired — auto-unban
+            await db.users.update_one(
+                {"user_id": user["user_id"]},
+                {"$unset": {"banned_until": "", "ban_reason": ""}},
+            )
+            user.pop("banned_until", None)
+            user.pop("ban_reason", None)
+
     return user
 
 
