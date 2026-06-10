@@ -52,4 +52,25 @@ export const sfx = {
     tone(110, 0.4, "sawtooth", 0.04);
     setTimeout(() => tone(880, 0.2, "sine"), 200);
   },
+  fanfare: () => {
+    // Royal medieval fanfare
+    tone(392, 0.18, "sawtooth", 0.05); // G4
+    setTimeout(() => tone(523, 0.18, "sawtooth", 0.05), 180);  // C5
+    setTimeout(() => tone(659, 0.18, "sawtooth", 0.05), 360);  // E5
+    setTimeout(() => tone(784, 0.4,  "sawtooth", 0.06), 540);  // G5 hold
+    setTimeout(() => tone(659, 0.4,  "sawtooth", 0.04), 540);  // E5 harmony
+  },
+  horn: () => {
+    // Low war horn
+    tone(110, 0.5, "sawtooth", 0.06);
+    setTimeout(() => tone(82,  0.6, "sawtooth", 0.05), 100);
+    setTimeout(() => tone(110, 0.5, "sawtooth", 0.05), 400);
+  },
+  bell: () => {
+    // Church bell toll
+    tone(440, 0.6, "sine", 0.05);
+    setTimeout(() => tone(220, 0.6, "sine", 0.04), 50);
+    setTimeout(() => tone(440, 0.6, "sine", 0.05), 700);
+    setTimeout(() => tone(220, 0.6, "sine", 0.04), 750);
+  },
 };

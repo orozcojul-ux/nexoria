@@ -86,6 +86,12 @@ BADGES = [
     {"id": "divine_keeper", "name": "Gardien Divin", "category": "collection", "icon": "ShieldCheck", "rarity": "divine", "description": "Posséder un objet divin", "color": "#00E5FF"},
     {"id": "cosmic_chosen", "name": "Élu Cosmique", "category": "collection", "icon": "Atom", "rarity": "cosmic", "description": "Posséder un objet cosmique", "color": "#FF0080"},
     # Class
+    {"id": "shapeshifter", "name": "Métamorphe", "category": "creation", "icon": "Repeat", "rarity": "rare", "description": "A modifié son apparence (avatar/bannière)", "color": "#3B82F6"},
+    {"id": "renamed", "name": "Renaissance", "category": "creation", "icon": "Sparkle", "rarity": "epic", "description": "A changé de pseudo via un Parchemin de Renommée", "color": "#A855F7"},
+    {"id": "storyteller", "name": "Conteur", "category": "creation", "icon": "ScrollText", "rarity": "rare", "description": "A écrit l'histoire de son personnage", "color": "#3B82F6"},
+    {"id": "polyglot", "name": "Polyglotte", "category": "secrets", "icon": "Globe", "rarity": "rare", "description": "A exploré le royaume en plusieurs langues", "color": "#3B82F6"},
+    {"id": "merchant", "name": "Marchand Avisé", "category": "collection", "icon": "ShoppingBag", "rarity": "rare", "description": "Premier achat à la Boutique d'Aether", "color": "#3B82F6"},
+    {"id": "big_spender", "name": "Mécène", "category": "collection", "icon": "Coins", "rarity": "epic", "description": "5000 Aether dépensés à la Boutique", "color": "#A855F7"},
     {"id": "class_master", "name": "Maître de Classe", "category": "creation", "icon": "Award", "rarity": "epic", "description": "Atteindre niveau 50 dans votre classe", "color": "#A855F7"},
     {"id": "skill_tree_5", "name": "Apprenti", "category": "creation", "icon": "Sprout", "rarity": "common", "description": "5 points de compétence dépensés", "color": "#9CA3AF"},
     {"id": "skill_tree_50", "name": "Spécialiste", "category": "creation", "icon": "Network", "rarity": "epic", "description": "50 points de compétence dépensés", "color": "#A855F7"},

@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { Shield, Trash2, Users, MessageSquare, Trophy, Package, ScrollText, Eye, Sparkles, Ban, Edit3, Hammer } from "lucide-react";
+import { Shield, Trash2, Users, MessageSquare, Trophy, Package, ScrollText, Eye, Sparkles, Ban, Edit3, Hammer, Megaphone, Crown, ShieldCheck, UserCog } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import { RuneSeal, RuneDivider } from "@/components/Ornaments";
+import StaffChat from "@/components/StaffChat";
+import BroadcastPanel from "@/components/BroadcastPanel";
 
 export default function Admin() {
   const { t } = useI18n();
@@ -62,6 +64,9 @@ export default function Admin() {
           { id: "users", label: "Héros" },
           { id: "bans", label: "Bannissements" },
           { id: "logs", label: "Chroniques" },
+          { id: "broadcast", label: "Proclamation" },
+          { id: "chat", label: "Chat Staff" },
+          { id: "roles", label: "Rôles" },
           { id: "system", label: "Système" },
         ].map((tb) => (
           <button key={tb.id} onClick={() => setTab(tb.id)} data-testid={`admin-tab-${tb.id}`}
@@ -175,6 +180,10 @@ export default function Admin() {
         </div>
       )}
 
+      {tab === "broadcast" && <BroadcastPanel />}
+      {tab === "chat" && <StaffChat />}
+      {tab === "roles" && <RolesGuide />}
+
       {tab === "system" && (
         <div className="glass rounded-2xl p-6 max-w-2xl">
           <h2 className="font-display font-bold text-xl ancient-text mb-4 flex items-center gap-2">
@@ -209,6 +218,62 @@ export default function Admin() {
         {banTarget && <BanDialog target={banTarget} onClose={() => setBanTarget(null)} onDone={async () => { setBanTarget(null); await load(); }} t={t} />}
         {editTarget && <EditDialog target={editTarget} onClose={() => setEditTarget(null)} onDone={async () => { setEditTarget(null); await load(); }} t={t} />}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function RolesGuide() {
+  const roles = [
+    {
+      id: "user", name: "Voyageur", icon: Users, color: "#9CA3AF",
+      desc: "L'utilisateur standard de NEXORIA.",
+      perms: ["Poster, commenter, réagir", "Compléter quêtes et gagner XP", "Acheter à la Boutique d'Aether", "Consulter le Sanctuaire", "Construire son royaume"],
+    },
+    {
+      id: "moderator", name: "Modérateur", icon: ShieldCheck, color: "#F97316",
+      desc: "Veille sur la communauté. Accès partiel au Conseil.",
+      perms: [
+        "Tous les droits du Voyageur",
+        "Accès à la Salle du Conseil (lecture)",
+        "Accès Chat Staff (lecture + écriture)",
+        "Accès à la page Maintenance",
+        "PAS de droit : bannir, modifier des héros, lancer une proclamation, basculer la maintenance",
+      ],
+    },
+    {
+      id: "admin", name: "Sage (Admin)", icon: Crown, color: "#9D4CDD",
+      desc: "Autorité suprême. Tous les pouvoirs.",
+      perms: [
+        "Tous les droits du Modérateur",
+        "Bannir / lever ban (1h → 10 ans)",
+        "Modifier tout héros (niveau, XP, Aether, réputation, rôle)",
+        "Supprimer des héros",
+        "Activer / désactiver le mode Maintenance",
+        "Lancer des Proclamations Royales (alertes broadcast)",
+        "Voir tous les logs et l'historique des bans",
+      ],
+    },
+  ];
+  return (
+    <div className="grid md:grid-cols-3 gap-4" data-testid="roles-guide">
+      {roles.map((r) => (
+        <div key={r.id} className="glass rounded-2xl p-5" style={{ borderColor: `${r.color}40` }}>
+          <div className="flex items-center gap-2 mb-2">
+            <r.icon className="w-6 h-6" style={{ color: r.color, filter: `drop-shadow(0 0 8px ${r.color}66)` }} />
+            <div className="font-display font-bold text-xl ancient-text">{r.name}</div>
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.3em] font-bold mb-3" style={{ color: r.color }}>{r.id}</div>
+          <p className="text-sm text-zinc-300 italic mb-4 scroll-paragraph">{r.desc}</p>
+          <ul className="space-y-1.5 text-xs">
+            {r.perms.map((p, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-cyan-400 shrink-0">▸</span>
+                <span className={p.startsWith("PAS") ? "text-red-300" : "text-zinc-300"}>{p}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }

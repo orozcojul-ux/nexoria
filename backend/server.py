@@ -99,6 +99,13 @@ async def get_admin_dep(request: Request):
     return user
 
 
+async def get_staff_dep(request: Request):
+    user = await get_current_user(request, db)
+    if user.get("role") not in ("admin", "moderator"):
+        raise HTTPException(403, "Staff only")
+    return user
+
+
 async def add_chronicle(user_id: str, text: str, kind: str = "event"):
     await db.chronicles.insert_one({
         "chronicle_id": f"chr_{uuid.uuid4().hex[:12]}",
@@ -365,7 +372,6 @@ async def register(req: RegisterReq, response: Response):
     set_session_cookie(response, token)
 
     await add_chronicle(user_id, f"Le héros {req.username} ({cls['name']}) a rejoint NEXORIA", "creation")
-    await grant_badge(user_id, "founder")
 
     result = public_user(user_doc)
     result["session_token"] = token
@@ -460,7 +466,6 @@ async def google_session(req: SessionExchangeReq, response: Response):
         }
         await db.users.insert_one(user_doc)
         await add_chronicle(user_id, f"Le héros {username} a rejoint NEXORIA via Google", "creation")
-        await grant_badge(user_id, "founder")
         user = user_doc
     else:
         # update avatar if missing
@@ -504,6 +509,15 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
     if "secondary_class_id" in update and update["secondary_class_id"] not in CLASSES:
         raise HTTPException(400, "Classe secondaire invalide")
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": update})
+
+    # Badges + XP for customization
+    if "avatar_url" in update or "banner_url" in update:
+        await grant_badge(user["user_id"], "shapeshifter")
+        await grant_xp(user["user_id"], 30, "customization")
+    if "story" in update and update.get("story", "").strip():
+        await grant_badge(user["user_id"], "storyteller")
+        await grant_xp(user["user_id"], 50, "story_written")
+
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     return public_user(fresh)
 
@@ -1051,6 +1065,8 @@ async def change_username(req: UsernameChangeReq, user: dict = Depends(get_user_
     old = user["username"]
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"username": new_name}})
     await add_chronicle(user["user_id"], f"A changé de nom : {old} → {new_name}", "rename")
+    await grant_badge(user["user_id"], "renamed")
+    await grant_xp(user["user_id"], 100, "renamed")
     return {"ok": True, "username": new_name}
 
 
@@ -1094,6 +1110,17 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
     }
     await db.shop_purchases.insert_one(purchase_doc)
     purchase_doc.pop("_id", None)
+
+    # Badges for shop activity
+    total_purchases = await db.shop_purchases.count_documents({"user_id": user["user_id"]})
+    if total_purchases == 1:
+        await grant_badge(user["user_id"], "merchant")
+    total_spent = await db.shop_purchases.aggregate([
+        {"$match": {"user_id": user["user_id"]}},
+        {"$group": {"_id": None, "sum": {"$sum": "$price"}}},
+    ]).to_list(1)
+    if total_spent and total_spent[0]["sum"] >= 5000:
+        await grant_badge(user["user_id"], "big_spender")
 
     # Apply effect based on category
     applied = {}
@@ -1352,7 +1379,6 @@ async def discord_exchange(payload: dict, response: Response):
         }
         await db.users.insert_one(user)
         await add_chronicle(user_id, f"Le héros {username} a rejoint NEXORIA via Discord", "creation")
-        await grant_badge(user_id, "founder")
 
     token = create_session_token()
     await db.user_sessions.insert_one({
@@ -1366,6 +1392,71 @@ async def discord_exchange(payload: dict, response: Response):
     result = public_user(user)
     result["session_token"] = token
     return result
+
+
+# ---------- Staff Chat & Broadcasts ----------
+class StaffMsgReq(BaseModel):
+    content: str
+
+
+class BroadcastReq(BaseModel):
+    title: str
+    message: str
+    sound: str = "fanfare"  # fanfare | horn | bell
+
+
+@api.get("/staff/chat")
+async def staff_chat_list(user: dict = Depends(get_staff_dep)):
+    msgs = await db.staff_chat.find({}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
+    msgs.reverse()
+    return msgs
+
+
+@api.post("/staff/chat")
+async def staff_chat_post(req: StaffMsgReq, user: dict = Depends(get_staff_dep)):
+    if not req.content.strip():
+        raise HTTPException(400, "Message vide")
+    doc = {
+        "msg_id": f"smsg_{uuid.uuid4().hex[:12]}",
+        "author_id": user["user_id"],
+        "author_username": user["username"],
+        "author_role": user["role"],
+        "author_avatar": user.get("avatar_url"),
+        "content": req.content.strip()[:1000],
+        "created_at": now_utc().isoformat(),
+    }
+    await db.staff_chat.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.post("/admin/broadcast")
+async def broadcast_alert(req: BroadcastReq, user: dict = Depends(get_admin_dep)):
+    """Push an alert visible to ALL connected users with sound."""
+    doc = {
+        "alert_id": f"alert_{uuid.uuid4().hex[:12]}",
+        "title": req.title[:120],
+        "message": req.message[:500],
+        "sound": req.sound,
+        "issued_by": user["username"],
+        "created_at": now_utc().isoformat(),
+        "expires_at": (now_utc() + timedelta(minutes=10)).isoformat(),
+    }
+    await db.broadcasts.insert_one(doc)
+    doc.pop("_id", None)
+    # Also push to each user's notification feed
+    cursor = db.users.find({}, {"user_id": 1, "_id": 0})
+    async for u in cursor:
+        await push_notification(db, u["user_id"], "broadcast", req.title, req.message, req.sound, "Megaphone")
+    return doc
+
+
+@api.get("/broadcasts/active")
+async def active_broadcasts():
+    """Return broadcasts issued in the last 10 minutes (for the live alert overlay)."""
+    cutoff = (now_utc() - timedelta(minutes=10)).isoformat()
+    items = await db.broadcasts.find({"created_at": {"$gte": cutoff}}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(5)
+    return items
 
 
 # ---------- Mount ----------

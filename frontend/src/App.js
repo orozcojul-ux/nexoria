@@ -28,6 +28,7 @@ import Shop from "@/pages/Shop";
 import Settings from "@/pages/Settings";
 import Maintenance from "@/pages/Maintenance";
 import BannedScreen from "@/pages/BannedScreen";
+import BroadcastOverlay from "@/components/BroadcastOverlay";
 
 function MaintenanceGate({ children }) {
   const { user } = useAuth();
@@ -59,6 +60,7 @@ function AppRouter() {
 
   return (
     <MaintenanceGate>
+      <BroadcastOverlay />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
