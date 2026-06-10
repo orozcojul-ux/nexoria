@@ -25,8 +25,8 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   if (!user) return children;
 
-  const xpNext = user.level < 999 ? Math.floor(100 * Math.pow(user.level + 1, 1.5)) : user.xp;
-  const xpPercent = user.level < 999 ? Math.min(100, (user.xp / xpNext) * 100) : 100;
+  // XP curve values come from backend (xp_next, xp_pct) — no client-side math.
+  const xpPercent = user.xp_pct ?? 0;
 
   return (
     <div className="min-h-screen bg-[#030305] text-white flex relative">

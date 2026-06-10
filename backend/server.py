@@ -53,13 +53,35 @@ def iso(dt):
 
 
 def public_user(user: dict) -> dict:
-    """Strip sensitive fields and ensure clean serialization."""
+    """Strip sensitive fields, enrich with derived RPG values, and serialize cleanly.
+
+    Derived fields (computed by backend — frontend MUST NOT recompute):
+    - xp_next: XP cumulatif requis pour passer au niveau suivant
+    - xp_pct: pourcentage de progression vers le niveau suivant (0-100)
+    - xp_current_level: XP cumulatif au début du niveau actuel
+    """
     if not user:
         return {}
     user = {k: v for k, v in user.items() if k not in ("password_hash", "_id")}
     for k, v in list(user.items()):
         if isinstance(v, datetime):
             user[k] = v.isoformat()
+
+    # Derive XP curve data (single source of truth)
+    lvl = user.get("level", 1)
+    xp = user.get("xp", 0)
+    if lvl >= 999:
+        user["xp_next"] = xp
+        user["xp_current_level"] = xp
+        user["xp_pct"] = 100.0
+    else:
+        # Level N starts at xp_for_level(N) for N>=2; level 1 starts at 0
+        xp_curr = xp_for_level(lvl) if lvl >= 2 else 0
+        xp_next = xp_for_level(lvl + 1)
+        span = max(1, xp_next - xp_curr)
+        user["xp_current_level"] = xp_curr
+        user["xp_next"] = xp_next
+        user["xp_pct"] = round(min(100.0, max(0.0, (xp - xp_curr) / span * 100)), 2)
     return user
 
 
@@ -264,6 +286,21 @@ async def get_titles():
 @api.get("/game/badges")
 async def get_badges():
     return BADGES
+
+
+@api.get("/game/xp-rules")
+async def get_xp_rules():
+    """Source of truth for XP rewards per action — frontend MUST NOT hardcode these."""
+    return {
+        "post": 20,
+        "react": 2,
+        "reaction_received": 5,
+        "comment": 10,
+        "rift_claim": 200,
+        "reputation_per_reaction": 2,
+        "chest_cost_aether": 50,
+        "max_level": 999,
+    }
 
 
 # ---------- Auth: register / login ----------
@@ -591,7 +628,8 @@ async def create_post(req: PostReq, user: dict = Depends(get_user_dep)):
     }
     await db.posts.insert_one(post)
     post.pop("_id", None)
-    await grant_xp(user["user_id"], 20, "post")
+    XP_PER_POST = 20
+    await grant_xp(user["user_id"], XP_PER_POST, "post")
     await progress_quests(user["user_id"], "post", 1)
     # badges
     count = await db.posts.count_documents({"user_id": user["user_id"]})
@@ -605,30 +643,34 @@ async def create_post(req: PostReq, user: dict = Depends(get_user_dep)):
         await grant_badge(user["user_id"], "chatter_100")
     if count >= 1000:
         await grant_badge(user["user_id"], "chatter_1000")
+    post["xp_gained"] = XP_PER_POST
     return post
 
 
 @api.post("/posts/{post_id}/react")
 async def react_to_post(post_id: str, user: dict = Depends(get_user_dep)):
+    XP_REACT = 2
+    XP_REACTION_RECEIVED = 5
+    REP_REACTION_RECEIVED = 2
     existing = await db.reactions.find_one({"post_id": post_id, "user_id": user["user_id"]})
     if existing:
         await db.reactions.delete_one({"_id": existing["_id"]})
         await db.posts.update_one({"post_id": post_id}, {"$inc": {"reactions": -1}})
-        return {"reacted": False}
+        return {"reacted": False, "xp_gained": 0}
     await db.reactions.insert_one({"post_id": post_id, "user_id": user["user_id"], "created_at": now_utc().isoformat()})
     await db.posts.update_one({"post_id": post_id}, {"$inc": {"reactions": 1}})
     post = await db.posts.find_one({"post_id": post_id})
     if post:
-        await grant_xp(post["user_id"], 5, "reaction_received")
-        await grant_reputation(post["user_id"], 2)
-    await grant_xp(user["user_id"], 2, "react")
+        await grant_xp(post["user_id"], XP_REACTION_RECEIVED, "reaction_received")
+        await grant_reputation(post["user_id"], REP_REACTION_RECEIVED)
+    await grant_xp(user["user_id"], XP_REACT, "react")
     await progress_quests(user["user_id"], "react", 1)
     count = await db.reactions.count_documents({"user_id": user["user_id"]})
     if count >= 50:
         await grant_badge(user["user_id"], "social_butterfly")
     if post and post.get("reactions", 0) + 1 >= 100:
         await grant_badge(post["user_id"], "viral_post")
-    return {"reacted": True}
+    return {"reacted": True, "xp_gained": XP_REACT}
 
 
 @api.get("/posts/{post_id}/comments")
@@ -646,6 +688,7 @@ async def get_comments(post_id: str):
 async def add_comment(post_id: str, req: CommentReq, user: dict = Depends(get_user_dep)):
     if not req.content.strip():
         raise HTTPException(400, "Commentaire vide")
+    XP_PER_COMMENT = 10
     comment = {
         "comment_id": f"cmt_{uuid.uuid4().hex[:12]}",
         "post_id": post_id,
@@ -656,8 +699,9 @@ async def add_comment(post_id: str, req: CommentReq, user: dict = Depends(get_us
     await db.comments.insert_one(comment)
     comment.pop("_id", None)
     await db.posts.update_one({"post_id": post_id}, {"$inc": {"comments_count": 1}})
-    await grant_xp(user["user_id"], 10, "comment")
+    await grant_xp(user["user_id"], XP_PER_COMMENT, "comment")
     await progress_quests(user["user_id"], "comment", 1)
+    comment["xp_gained"] = XP_PER_COMMENT
     return comment
 
 

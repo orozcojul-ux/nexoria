@@ -35,9 +35,9 @@ export default function Hero() {
 
   if (!user) return null;
 
-  const xpForLevel = (l) => Math.floor(100 * Math.pow(l, 1.5));
-  const xpNext = user.level < 999 ? xpForLevel(user.level + 1) : user.xp;
-  const xpPct = user.level < 999 ? Math.min(100, (user.xp / xpNext) * 100) : 100;
+  // XP progression comes from backend (single source of truth)
+  const xpNext = user.xp_next ?? user.xp;
+  const xpPct = user.xp_pct ?? 0;
 
   const dna = user.dna || {};
   const radarData = [

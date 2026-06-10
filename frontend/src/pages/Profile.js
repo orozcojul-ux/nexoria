@@ -62,9 +62,8 @@ export default function Profile() {
     { stat: "Influence", value: dna.influence || 0 },
   ];
 
-  const xpForLevel = (l) => Math.floor(100 * Math.pow(l, 1.5));
-  const xpNext = profile.level < 999 ? xpForLevel(profile.level + 1) : profile.xp;
-  const xpPct = profile.level < 999 ? Math.min(100, (profile.xp / xpNext) * 100) : 100;
+  const xpNext = profile.xp_next ?? profile.xp;
+  const xpPct = profile.xp_pct ?? 0;
   const badgeMap = Object.fromEntries(allBadges.map((b) => [b.id, b]));
   const isSelf = user?.username === username;
 

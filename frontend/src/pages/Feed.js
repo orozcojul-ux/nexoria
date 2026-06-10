@@ -79,6 +79,7 @@ export default function Feed() {
   const [comments, setComments] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [boss, setBoss] = useState(null);
+  const [xpPerPost, setXpPerPost] = useState(null);
 
   const loadFeed = async () => {
     const { data } = await api.get("/feed");
@@ -89,6 +90,7 @@ export default function Feed() {
     loadFeed();
     api.get("/leaderboard/xp").then((r) => setLeaderboard(r.data.slice(0, 5)));
     api.get("/boss").then((r) => setBoss(r.data));
+    api.get("/game/xp-rules").then((r) => setXpPerPost(r.data.post)).catch((err) => console.warn("xp-rules", err?.message));
   }, []);
 
   const publish = async (e) => {
@@ -96,13 +98,17 @@ export default function Feed() {
     if (!content.trim()) return;
     setPosting(true);
     try {
-      await api.post("/posts", { content });
+      const { data } = await api.post("/posts", { content });
       sfx.success();
-      toast.success("Votre voix résonne dans le royaume (+20 XP)");
+      const gained = data?.xp_gained ?? xpPerPost ?? 0;
+      toast.success(`Votre voix résonne dans le royaume (+${gained} XP)`);
       setContent("");
       await loadFeed();
       await refresh();
-    } catch { toast.error("Le scribe est troublé..."); }
+    } catch (err) {
+      console.error("Publish failed", err);
+      toast.error("Le scribe est troublé...");
+    }
     finally { setPosting(false); }
   };
 
@@ -163,7 +169,7 @@ export default function Feed() {
               </div>
               <div className="flex justify-between items-center pt-2 mt-2 border-t border-cyan-500/10">
                 <span className="text-xs font-mono-stat text-zinc-500 flex items-center gap-1">
-                  <Feather className="w-3 h-3" /> {content.length}/1000 · +20 XP par missive
+                  <Feather className="w-3 h-3" /> {content.length}/1000{xpPerPost ? ` · +${xpPerPost} XP par missive` : ""}
                 </span>
                 <button type="submit" disabled={posting || !content.trim()}
                   className="px-5 py-2 rounded-md border border-cyan-500/50 text-cyan-300 font-bold font-display tracking-wide hover:shadow-[0_0_20px_rgba(0,229,255,0.4)] disabled:opacity-40 transition-all flex items-center gap-2"
