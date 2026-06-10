@@ -5,10 +5,26 @@ export const API_URL = `${BASE}/api`;
 
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true,
+  // Use Bearer-token auth (cookies blocked by wildcard CORS on credentials)
+  withCredentials: false,
+});
+
+// Attach session_token from localStorage automatically
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("nexoria_token");
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 export default api;
+
+export function setToken(token) {
+  if (token) localStorage.setItem("nexoria_token", token);
+  else localStorage.removeItem("nexoria_token");
+}
 
 export function formatApiError(err) {
   const detail = err?.response?.data?.detail;

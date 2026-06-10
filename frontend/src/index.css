@@ -139,6 +139,114 @@ body {
   clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
 }
 
+/* Parchment / Grimoire textures */
+.parchment {
+  background:
+    radial-gradient(ellipse at top, rgba(255, 196, 100, 0.04), transparent 60%),
+    linear-gradient(135deg, rgba(40, 25, 15, 0.6), rgba(20, 15, 25, 0.7));
+  border: 1px solid rgba(255, 196, 100, 0.15);
+  position: relative;
+}
+.parchment::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(255,196,100,0.04) 0%, transparent 30%),
+    radial-gradient(circle at 80% 70%, rgba(255,196,100,0.04) 0%, transparent 30%);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.rune-border {
+  position: relative;
+  background:
+    linear-gradient(rgba(10,8,15,0.7), rgba(10,8,15,0.7)) padding-box,
+    linear-gradient(135deg, #9D4CDD, #00E5FF, #FF0080, #9D4CDD) border-box;
+  border: 1px solid transparent;
+  background-size: 100% 100%, 300% 300%;
+  animation: rune-shift 12s linear infinite;
+}
+@keyframes rune-shift {
+  0% { background-position: 0% 0%, 0% 0%; }
+  100% { background-position: 0% 0%, 300% 300%; }
+}
+
+/* Ancient text glow */
+.ancient-text {
+  background: linear-gradient(180deg, #f0e6c8 0%, #c9a565 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 20px rgba(201, 165, 101, 0.3);
+  letter-spacing: 0.05em;
+}
+
+.eldritch-glow {
+  text-shadow:
+    0 0 10px rgba(157, 76, 221, 0.5),
+    0 0 20px rgba(157, 76, 221, 0.3),
+    0 0 30px rgba(0, 229, 255, 0.2);
+}
+
+/* Floating mystical orbs */
+@keyframes orb-drift {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(15px, -10px); }
+  66% { transform: translate(-10px, 12px); }
+}
+.mystical-orb {
+  animation: orb-drift 8s ease-in-out infinite;
+}
+
+/* Slow rotation for arcane circles */
+@keyframes slow-spin {
+  to { transform: rotate(360deg); }
+}
+.slow-spin { animation: slow-spin 60s linear infinite; }
+.slow-spin-reverse { animation: slow-spin 80s linear infinite reverse; }
+
+/* Mist effect */
+@keyframes mist-flow {
+  0% { transform: translateX(-100%) skewX(-10deg); opacity: 0; }
+  50% { opacity: 0.4; }
+  100% { transform: translateX(100%) skewX(-10deg); opacity: 0; }
+}
+.mist::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(0,229,255,0.04), rgba(157,76,221,0.04), transparent);
+  animation: mist-flow 12s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Card "open" reveal */
+@keyframes card-unfurl {
+  0% { transform: scale(0.9) rotateX(20deg); opacity: 0; }
+  100% { transform: scale(1) rotateX(0); opacity: 1; }
+}
+.unfurl { animation: card-unfurl 0.6s ease-out; }
+
+/* Embossed parchment paragraph */
+.scroll-paragraph {
+  font-family: 'Outfit', sans-serif;
+  line-height: 1.8;
+  color: rgba(232, 220, 195, 0.9);
+}
+
+.scroll-heading {
+  font-family: 'Unbounded', sans-serif;
+  letter-spacing: 0.04em;
+}
+
+/* Constellation lines pulse */
+@keyframes constellation-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+.constellation-line { animation: constellation-pulse 3s ease-in-out infinite; }
+
 @layer base {
   * { border-color: rgba(255, 255, 255, 0.08); }
 }

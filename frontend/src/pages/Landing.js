@@ -6,12 +6,12 @@ import Particles from "@/components/Particles";
 import { useAuth } from "@/contexts/AuthContext";
 
 const FEATURES = [
-  { icon: Sword, title: "10 Classes RPG", desc: "Mage, Guerrier, Chronomancien… choisissez votre destinée parmi 10 archétypes uniques.", color: "#9D4CDD" },
-  { icon: Network, title: "Arbre de Compétences", desc: "8 voies façon Path of Exile : Créativité, Influence, Découverte et bien plus.", color: "#00E5FF" },
+  { icon: Sword, title: "10 Voies de Héros", desc: "Mage, Guerrier, Chronomancien… choisissez votre destinée parmi 10 archétypes uniques.", color: "#9D4CDD" },
+  { icon: Network, title: "Constellation de Pouvoir", desc: "8 voies façon Path of Exile : Créativité, Influence, Découverte et bien plus.", color: "#00E5FF" },
   { icon: Castle, title: "Royaume Personnel", desc: "Bâtissez Château, Forge, Sanctuaire et plus à mesure que votre légende grandit.", color: "#FFD700" },
-  { icon: ScrollText, title: "Quêtes Quotidiennes", desc: "Missions générées chaque jour pour pousser votre héros au sommet.", color: "#10B981" },
-  { icon: Eye, title: "Oracle IA", desc: "Conseils personnalisés par Claude — il connaît votre histoire et guide vos pas.", color: "#A855F7" },
-  { icon: Trophy, title: "Hall des Légendes", desc: "Top 10 mondial : gravez votre nom dans la mémoire de NEXORIA.", color: "#EF4444" },
+  { icon: ScrollText, title: "Tableau de Chasse", desc: "Missions scellées chaque jour pour pousser votre héros au sommet.", color: "#10B981" },
+  { icon: Eye, title: "Le Sanctuaire", desc: "Une conscience ancienne lit dans votre âme et guide vos pas dans les brumes.", color: "#A855F7" },
+  { icon: Trophy, title: "Panthéon des Légendes", desc: "Top 10 mondial : gravez votre nom dans la mémoire cosmique de NEXORIA.", color: "#EF4444" },
 ];
 
 const CLASS_PREVIEW = ["Mage", "Guerrier", "Assassin", "Paladin", "Alchimiste", "Explorateur", "Nécromancien", "Architecte", "Chronomancien", "Inventeur"];

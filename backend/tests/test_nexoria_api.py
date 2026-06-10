@@ -18,9 +18,17 @@ def s_anon():
     return requests.Session()
 
 
+def _bearer_session(token: str) -> requests.Session:
+    sess = requests.Session()
+    sess.headers.update({"Authorization": f"Bearer {token}"})
+    # Clear any cookies to prove Bearer-only flow works
+    sess.cookies.clear()
+    return sess
+
+
 @pytest.fixture(scope="session")
 def s_user():
-    """Register a fresh test user once for all tests."""
+    """Register a fresh test user once for all tests using Bearer token (no cookies)."""
     sess = requests.Session()
     uniq = uuid.uuid4().hex[:8]
     payload = {
@@ -31,9 +39,12 @@ def s_user():
     }
     r = sess.post(f"{API}/auth/register", json=payload, timeout=30)
     assert r.status_code == 200, f"register failed: {r.status_code} {r.text}"
-    sess.user_payload = payload
-    sess.user_data = r.json()
-    return sess
+    data = r.json()
+    assert "session_token" in data, "register response missing session_token in body"
+    bearer = _bearer_session(data["session_token"])
+    bearer.user_payload = payload
+    bearer.user_data = data
+    return bearer
 
 
 @pytest.fixture(scope="session")
@@ -42,8 +53,11 @@ def s_admin():
     r = sess.post(f"{API}/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD}, timeout=30)
     if r.status_code != 200:
         pytest.skip(f"Admin login failed: {r.status_code} {r.text}")
-    sess.user_data = r.json()
-    return sess
+    data = r.json()
+    assert "session_token" in data, "login response missing session_token in body"
+    bearer = _bearer_session(data["session_token"])
+    bearer.user_data = data
+    return bearer
 
 
 # ---------- Health / Game data ----------
@@ -84,13 +98,24 @@ class TestAuth:
         assert u["email"] == s_user.user_payload["email"].lower()
         assert u["class_id"] == "mage"
         assert "password_hash" not in u
-        # cookie set
-        assert "session_token" in s_user.cookies.get_dict()
+        # V2: session_token MUST be returned in body
+        assert "session_token" in u and isinstance(u["session_token"], str) and len(u["session_token"]) > 10
 
-    def test_me(self, s_user):
+    def test_me_with_bearer_only(self, s_user):
+        """V2 critical: /auth/me must work with Authorization: Bearer (no cookie)."""
+        assert "session_token" not in s_user.cookies.get_dict()
         r = s_user.get(f"{API}/auth/me", timeout=15)
-        assert r.status_code == 200
+        assert r.status_code == 200, r.text
         assert r.json()["email"] == s_user.user_payload["email"].lower()
+
+    def test_login_returns_token_in_body(self, s_user):
+        r = requests.post(f"{API}/auth/login", json={
+            "email": s_user.user_payload["email"],
+            "password": s_user.user_payload["password"],
+        }, timeout=15)
+        assert r.status_code == 200
+        body = r.json()
+        assert "session_token" in body and len(body["session_token"]) > 10
 
     def test_me_unauth(self, s_anon):
         sess = requests.Session()
@@ -118,11 +143,15 @@ class TestAuth:
             "class_id": "warrior",
         }, timeout=15)
         assert reg.status_code == 200
+        token = reg.json()["session_token"]
+        bearer = _bearer_session(token)
+        # me works
+        assert bearer.get(f"{API}/auth/me", timeout=15).status_code == 200
+        # logout uses cookies still — call with original sess (has cookie)
         r = sess.post(f"{API}/auth/logout", timeout=15)
         assert r.status_code == 200
-        # session_token cookie cleared
-        me = sess.get(f"{API}/auth/me", timeout=15)
-        # Cookie may still be present locally but invalid - or cleared
+        # The Bearer token's underlying session should now be invalid
+        me = bearer.get(f"{API}/auth/me", timeout=15)
         assert me.status_code in (401, 403)
 
     def test_google_session_invalid(self, s_anon):
@@ -214,15 +243,17 @@ class TestQuests:
 # ---------- Skills ----------
 class TestSkills:
     def test_allocate_skill(self):
-        """Use a fresh user with 1 skill_point."""
-        sess = requests.Session()
+        """Use a fresh user with 1 skill_point — Bearer token only."""
+        reg_sess = requests.Session()
         uniq = uuid.uuid4().hex[:8]
-        sess.post(f"{API}/auth/register", json={
+        reg = reg_sess.post(f"{API}/auth/register", json={
             "email": f"TEST_skill_{uniq}@nexoria-test.com",
             "username": f"TEST_sk_{uniq}",
             "password": "Test123!",
             "class_id": "explorer",
         }, timeout=15)
+        assert reg.status_code == 200
+        sess = _bearer_session(reg.json()["session_token"])
         # fetch a skill_id
         skills = sess.get(f"{API}/game/skills", timeout=15).json()
         skill_id = (skills[0]["id"] if isinstance(skills, list) else list(skills.keys())[0])
@@ -312,8 +343,11 @@ class TestOracle:
         resp = r.json().get("response", "")
         assert isinstance(resp, str)
         assert len(resp) > 30, f"Oracle response too short (fallback?): {resp!r}"
-        # heuristic: a real Claude response will mostly not contain the literal phrase "indisponible" or empty fallback
-        # we just ensure it's substantial
+        # V2 critical: Oracle response MUST NOT mention AI/Claude/algorithm
+        lower = resp.lower()
+        forbidden = ["intelligence artificielle", "modèle de langage", "claude", "anthropic", "algorithme", " ia ", " ia.", " ia,"]
+        bad = [w for w in forbidden if w in lower]
+        assert not bad, f"Oracle response contains forbidden AI terms {bad}: {resp[:300]!r}"
         print(f"Oracle response sample: {resp[:200]}")
 
     def test_oracle_quest(self, s_user):

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import api from "@/lib/api";
+import api, { setToken } from "@/lib/api";
 
 const AuthContext = createContext(null);
 
@@ -7,9 +7,20 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const setUserAndToken = useCallback((u) => {
+    if (u?.session_token) {
+      setToken(u.session_token);
+    }
+    setUser(u);
+  }, []);
+
   const checkAuth = useCallback(async () => {
-    // CRITICAL: skip /me if returning from Google OAuth callback
+    // Skip /me if we're handling Google OAuth callback hash
     if (window.location.hash?.includes("session_id=")) {
+      setLoading(false);
+      return;
+    }
+    if (!localStorage.getItem("nexoria_token")) {
       setLoading(false);
       return;
     }
@@ -17,6 +28,7 @@ export function AuthProvider({ children }) {
       const { data } = await api.get("/auth/me");
       setUser(data);
     } catch {
+      setToken(null);
       setUser(null);
     } finally {
       setLoading(false);
@@ -39,14 +51,13 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = async () => {
-    try {
-      await api.post("/auth/logout");
-    } catch {}
+    try { await api.post("/auth/logout"); } catch {}
+    setToken(null);
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, refresh, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, setUser: setUserAndToken, loading, refresh, logout, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );

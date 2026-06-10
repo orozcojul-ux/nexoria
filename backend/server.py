@@ -311,7 +311,9 @@ async def register(req: RegisterReq, response: Response):
     await add_chronicle(user_id, f"Le héros {req.username} ({cls['name']}) a rejoint NEXORIA", "creation")
     await grant_badge(user_id, "founder")
 
-    return public_user(user_doc)
+    result = public_user(user_doc)
+    result["session_token"] = token
+    return result
 
 
 @api.post("/auth/login")
@@ -328,7 +330,9 @@ async def login(req: LoginReq, response: Response):
         "created_at": now_utc().isoformat(),
     })
     set_session_cookie(response, token)
-    return public_user(user)
+    result = public_user(user)
+    result["session_token"] = token
+    return result
 
 
 @api.post("/auth/logout")
@@ -413,7 +417,9 @@ async def google_session(req: SessionExchangeReq, response: Response):
         "provider": "google",
     })
     set_session_cookie(response, emergent_token)
-    return public_user(user)
+    result = public_user(user)
+    result["session_token"] = emergent_token
+    return result
 
 
 # ---------- Profile ----------
