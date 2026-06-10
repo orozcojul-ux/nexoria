@@ -1,0 +1,104 @@
+{
+  "project_name": "NEXORIA",
+  "theme": {
+    "mode": "dark",
+    "archetype": "Hybrid: Electric & Neon + Luxury Dark Mode",
+    "description": "A premium, dark-mode MMORPG AAA UI. It uses 'Electric & Neon' for the gaming energy but grounds it in 'Luxury' (deep obsidian backgrounds, generous negative space, crystal glassmorphism) to ensure it doesn't look cheap, chaotic, or muddy. Gradients are used strictly for borders, accents, and glows, never as full block backgrounds."
+  },
+  "colors": {
+    "backgrounds": {
+      "void": "#030305",
+      "obsidian": "#0A0A0E",
+      "surface": "#12121A",
+      "surface_elevated": "#1A1A24"
+    },
+    "accents": {
+      "violet": "#9D4CDD",
+      "electric_blue": "#00E5FF",
+      "cyan": "#00BFFF",
+      "aether_gold": "#FFD700"
+    },
+    "rarities": {
+      "common": "#9CA3AF",
+      "rare": "#3B82F6",
+      "epic": "#A855F7",
+      "legendary": "#EAB308",
+      "mythic": "#EF4444",
+      "divine": "#00E5FF",
+      "cosmic": "linear-gradient(45deg, #FF0080, #7928CA, #00E5FF)"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "muted": "#71717A",
+      "accent": "#00E5FF"
+    },
+    "glassmorphism": {
+      "background": "rgba(18, 18, 26, 0.6)",
+      "backdrop_blur": "blur(16px)",
+      "border": "1px solid rgba(255, 255, 255, 0.08)",
+      "shadow": "0 8px 32px 0 rgba(0, 0, 0, 0.37)"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "headings": "Unbounded, sans-serif",
+      "body": "Outfit, sans-serif",
+      "stats_and_hud": "JetBrains Mono, monospace"
+    },
+    "hierarchy": {
+      "h1": "text-5xl sm:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-cyan-400",
+      "h2": "text-3xl sm:text-4xl font-bold tracking-tight text-white",
+      "h3": "text-xl sm:text-2xl font-semibold text-gray-100",
+      "body": "text-base leading-relaxed text-gray-300 font-light",
+      "labels": "text-xs font-bold uppercase tracking-[0.2em] text-cyan-400",
+      "stats": "text-2xl font-mono text-electric_blue font-bold tracking-tight"
+    }
+  },
+  "layout_and_spacing": {
+    "spacing_scale": "Generous. Use p-6, p-8, p-12 for containers. Let the dark void breathe.",
+    "grid_system": {
+      "dashboard": "Control Room Grid. grid-cols-1 md:grid-cols-4 gap-6. Dense but organized.",
+      "inventory": "Bento Tetris Grid. grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4. Square ratio items.",
+      "social_feed": "Single central column (max-w-2xl) flanked by sticky widgets (Leaderboards, Quests) on desktop."
+    },
+    "borders_and_radius": {
+      "radius": "rounded-xl to rounded-2xl for main cards. rounded-md for inner elements. Avoid fully pill-shaped items unless it's a specific badge.",
+      "borders": "1px solid border-white/5. Active elements get 1px solid cyan/50 with a subtle drop-shadow glow."
+    }
+  },
+  "components_instructions": {
+    "buttons": "Crystal clear. Dark background with a 1px solid cyan or violet border. On hover, the border thickens or glows (box-shadow). Primary CTAs use a dark fill with a subtle gradient text and heavy glowing shadow. NEVER use a solid bright purple or cyan block.",
+    "cards": "Glassmorphism default. bg-[#12121A]/60 backdrop-blur-xl border border-white/10. Include an inner glow (box-shadow inset 0 1px 0 rgba(255,255,255,0.05)).",
+    "skill_tree": "Interactive SVG-based or absolute positioned nodes. Background: very subtle animated particles or glowing lines. Nodes are circles with class icons. Connected by SVGs. Active nodes glow cyan, locked nodes are dim with white/10 borders.",
+    "kingdom_view": "Immersive scenic background (dark fantasy castle/landscape). 6 floating UI widgets (Castle, Village, Library, Forge, Trophy Tower, Sanctuary) positioned asymmetrically over the background. Hovering over a building widget highlights it with a particle effect.",
+    "inventory_grid": "7-column grid for the 7 rarities. Each slot uses a 'Tracing Beam' or glowing border matching its rarity color. Cosmic items must have a CSS animated gradient border.",
+    "player_dna_radar": "Recharts RadarChart component. Transparent background, sharp geometric lines. Fill color is electric_blue with 20% opacity. Points glow.",
+    "oracle_ia": "Floating chat UI. Oracle's messages appear with a typewriter effect and a subtle violet text-shadow. Input field is a sleek bottom border only (no heavy box).",
+    "social_feed": "Clean, cardless layout for posts. Separated by 1px horizontal lines (border-white/10). Rich interactions (likes, mentions) use SVG icons that pop with neon colors when clicked.",
+    "badges": "SVG-heavy, intricate geometric shapes. Categorized into tabs (Participation, Social, Création, Collection, Secrets). Hovering flips the badge to show lore/acquire date."
+  },
+  "animation_and_motion": {
+    "particles": "Use lightweight canvas particles (e.g., tsparticles) for the Hero and Kingdom backgrounds to simulate magical dust or Aether energy.",
+    "transitions": "Framer Motion for page transitions. 0.3s ease-out. Fade in and slide up (y: 20 -> y: 0) for lists and dashboard items.",
+    "microinteractions": "Buttons scale down slightly on active (scale: 0.98). Hovering over an inventory item reveals a tooltip with a fast snap animation. Skill nodes pulse slowly when ready to upgrade."
+  },
+  "media_and_assets": {
+    "hero_background": "https://images.unsplash.com/photo-1709137405692-374c12e36609?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwyfHxkYXJrJTIwZmFudGFzeSUyMGxhbmRzY2FwZXxlbnwwfHx8fDE3ODEwOTI4NDV8MA&ixlib=rb-4.1.0&q=85",
+    "kingdom_castle": "https://images.unsplash.com/photo-1514539079130-25950c84af65?crop=entropy&cs=srgb&fm=jpg&ixid=M3w8NjA1MDZ8MHwxfHNlYXJjaHwxfHxtZWRpZXZhbCUyMGNhc3RsZSUyMGRhcmt8ZW58MHx8fHwxNzgxMDkyODQ1fDA&ixlib=rb-4.1.0&q=85",
+    "avatar_placeholder_1": "https://images.unsplash.com/photo-1779589897308-3d0c71acefdc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwzfHxmYW50YXN5JTIwY2hhcmFjdGVyJTIwcG9ydHJhaXQlMjBkYXJrfGVufDB8fHx8MTc4MTA5Mjg2M3ww&ixlib=rb-4.1.0&q=85",
+    "avatar_placeholder_2": "https://images.unsplash.com/photo-1773432661163-351c473345e5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwyfHxmYW50YXN5JTIwY2hhcmFjdGVyJTIwcG9ydHJhaXQlMjBkYXJrfGVufDB8fHx8MTc4MTA5Mjg2Mnww&ixlib=rb-4.1.0&q=85",
+    "abstract_magic_energy": "https://images.unsplash.com/photo-1594267100238-fd7b1925d6a3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwxfHxnbG93aW5nJTIwY3J5c3RhbCUyMGFic3RyYWN0fGVufDB8fHx8MTc4MTA5Mjg0NXww&ixlib=rb-4.1.0&q=85",
+    "cyber_city_accent": "https://images.unsplash.com/photo-1535391879778-3bae11d29a24?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzZ8MHwxfHNlYXJjaHwzfHxuZW9uJTIwZnV0dXJpc3RpYyUyMGNpdHklMjBkYXJrfGVufDB8fHx8MTc4MTA5Mjg2Mnww&ixlib=rb-4.1.0&q=85"
+  },
+  "testing_requirements": {
+    "data_testid_rules": "All interactive and key informational elements MUST include a data-testid attribute in kebab-case format, representing the role (e.g., data-testid='hero-profile-level', data-testid='skill-tree-node-mage', data-testid='inventory-item-cosmic', data-testid='social-feed-post-like')."
+  },
+  "instructions_to_main_agent": {
+    "framework": "Use React, Tailwind CSS, and shadcn/ui. NOTE: Files should be created as .js files, NOT .tsx. Strip TypeScript types when adapting Shadcn components.",
+    "fonts": "Include Unbounded, Outfit, and JetBrains Mono from Google Fonts in the index.html or global CSS.",
+    "icons": "Use lucide-react. Apply custom classes to icons to make them glow (e.g., text-cyan-400 drop-shadow-[0_0_8px_rgba(0,191,255,0.8)]).",
+    "shadcn_customization": "Radically modify Shadcn components. Strip out the 'Vercel white/gray' default look. Enforce the glassmorphism dark theme, use 1px borders of white/10, and eliminate excessive padding. Tables and lists should have minimal borders and use hover states with subtle violet/cyan tinted backgrounds.",
+    "page_structure": "Ensure every view handles responsive layouts. The dashboard should be mobile-first but expand into a glorious multi-column command center on desktop."
+  }
+}
