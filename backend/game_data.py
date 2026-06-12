@@ -98,6 +98,11 @@ BADGES = [
     # Quests
     {"id": "quest_finisher", "name": "Finisseur", "category": "participation", "icon": "CheckCircle2", "rarity": "rare", "description": "10 quêtes accomplies", "color": "#3B82F6"},
     {"id": "quest_champion", "name": "Champion des Quêtes", "category": "participation", "icon": "Medal", "rarity": "legendary", "description": "100 quêtes accomplies", "color": "#EAB308"},
+    # Guilds & Forum & Seasons
+    {"id": "founder_guild", "name": "Fondateur d'Ordre", "category": "social", "icon": "Castle", "rarity": "epic", "description": "Fondateur d'un Ordre mystique", "color": "#A855F7"},
+    {"id": "scholar", "name": "Érudit", "category": "creation", "icon": "BookOpen", "rarity": "rare", "description": "Premier sujet ouvert sur la Tribune", "color": "#3B82F6"},
+    {"id": "season_champion", "name": "Champion de la Saison", "category": "secrets", "icon": "Trophy", "rarity": "mythic", "description": "1ᵉʳ d'une saison clôturée", "color": "#EF4444"},
+    {"id": "season_elite", "name": "Élite de la Saison", "category": "secrets", "icon": "Star", "rarity": "legendary", "description": "Top 10 d'une saison clôturée", "color": "#EAB308"},
     # Secrets / Events
     {"id": "founder", "name": "Fondateur", "category": "secrets", "icon": "Diamond", "rarity": "mythic", "description": "Compte créé durant la bêta", "color": "#EF4444"},
     {"id": "rift_walker", "name": "Marcheur des Failles", "category": "secrets", "icon": "Aperture", "rarity": "divine", "description": "Survécu à une faille dimensionnelle", "color": "#00E5FF"},

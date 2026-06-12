@@ -2115,6 +2115,7 @@ async def get_forum_thread(thread_id: str, user: dict = Depends(get_user_dep)):
     if not thread:
         raise HTTPException(404, "Sujet introuvable")
     await db.forum_threads.update_one({"thread_id": thread_id}, {"$inc": {"views": 1}})
+    thread["views"] = thread.get("views", 0) + 1
     replies = await db.forum_replies.find({"thread_id": thread_id}, {"_id": 0}) \
         .sort("created_at", 1).to_list(500)
     user_ids = list({thread["user_id"]} | {r["user_id"] for r in replies})

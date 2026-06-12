@@ -35,6 +35,14 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3.4 — Phase 2 Big Features (2026-02-12)
+- ⚔️ **Système de Guildes complet** : création (L10 + 1000 Aether, max 50 membres), rôles chef/officier/membre, invitations bilatérales (accept/decline), promotion/rétrogradation, exclusion, chat temps réel (polling 5s, 1-500 chars), coffre commun (dépôt → +XP guilde + contribution_xp), récompenses chef/officier vers membres, niveau de guilde (1 + xp//1000), passation auto du chef à un officier sinon dissolution. Badge `founder_guild`.
+- 📜 **Forum (Tribune)** : 6 catégories statiques (Salle Commune, Stratégies, Mythes, Comptoir, Recrutement, Conseil). Threads avec titre 5-120 + contenu 10-5000 → +30 XP + badge `scholar`. Replies 2-2000 → +10 XP + notif auteur. Pin/lock staff seulement. Suppression auteur ou staff. Cascade delete. Views++ avec valeur corrigée immédiate.
+- 📅 **Saisons** : panel admin → `SeasonsAdmin`. Création d'une saison auto-clôture la précédente. `grant_xp()` mirrore l'XP dans `db.season_scores` (upsert idempotent) tant qu'une saison est active. À la clôture : distribution automatique — Top 1 → 5000 Aether + badge `season_champion`, Top 10 → 1500 + `season_elite`, Top 50 → 500. Notifications à tous au lancement, aux gagnants à la fin.
+- 🆕 **6 nouveaux badges** : founder_guild, scholar, season_champion, season_elite (+ corrections sur grant_badge silent no-op).
+- 🧭 **Nav** : nouvelles entrées « Ordres » et « Tribune » ajoutées à la sidebar (i18n FR/EN/ES/DE/IT).
+- ✅ **Tests batch6** : 30/30 backend pass (`test_phase2_guilds_forum_seasons.py`). 2 bugs mineurs trouvés et corrigés (badges manquants + views post-increment).
+
 ### v3.3 — Security + Mod tools + Unified Inventory + Level gate (2026-02-12)
 - 🔒 **Ban enforcement complète** : `enforce_ban_or_raise()` appelé sur les 3 chemins d'auth (login, Discord OAuth, Google session). Lors d'un bannissement, `db.user_sessions.delete_many()` invalide TOUS les tokens vivants immédiatement → impossible de bypass par OAuth ou par session existante.
 - 🛡️ **Modérateurs** : nouvel accès au Conseil. `get_staff_dep` (admin+mod) sur `/admin/users`, `/admin/stats`, `/admin/logs`, `/admin/ban-history`, ban/unban. Garde-fou : un mod ne peut bannir qu'un héros standard (403 si cible mod/admin). Frontend gate les onglets admin-only (Proclamation, Boutique, Rôles, Système) et masque Edit. Bannière "Mode Modérateur" affichée.
