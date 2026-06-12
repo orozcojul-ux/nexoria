@@ -35,6 +35,21 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3.2 — World Map + Shop CRUD + Profile cosmetics (2026-02-12)
+- ✅ **Carte du Monde** (`/world`) : Atlas Éthérique interactif. Héros tracés sur grille runique avec positions déterministes (hash user_id), couleurs par classe, pulsation pour héros actifs (15min), tooltips au survol, modal de profil au clic. Filtres par classe + actifs uniquement. Auto-refresh 30s.
+- ✅ **Admin Shop CRUD** : Onglet "Boutique" dans le Conseil. Liste statique + custom items groupés par catégorie. Création/édition/suppression d'items custom via dialog complet (SKU, nom, description, catégorie, rareté, prix, icône, boost). Items statiques verrouillés.
+- ✅ **Maintenance hidden login** : Logo agrandi (w-72/96), bouton "Accès Staff" supprimé. Trigger caché : 5 clics rapides sur le logo (fenêtre 3s) OU raccourci `Ctrl+Shift+S` révèlent le formulaire de connexion staff.
+- ✅ **Anti-doublon reliques** : `open_chest()` précharge le set `(name, rarity)` possédé par l'utilisateur et exclut ces items des tirages. Si tout est possédé, 50 Aether sont remboursés (`{items:[], refunded:50, reason:"all_owned"}`).
+- ✅ **Raretés rééquilibrées** : weights ajustés — common 70 (vs 60), cosmic 0.02. Items légendaire/mythique/divin/cosmique nettement plus rares.
+- ✅ **HeroName partout** : nouveau composant avec couleurs/icônes par rôle (admin doré + couronne, modérateur orange + bouclier). Intégré dans Feed (posts + commentaires), Leaderboards, Profile header, Admin user list, Ban history.
+- ✅ **Shop optimistic update** : après achat cosmétique/royaume, bouton bascule sur "Acquis" sans attendre le refresh. Backend rejette désormais les achats en doublon (400 "Vous possédez déjà cet item").
+- ✅ **Profile customization** : nouveau bouton caméra sur l'avatar (modal URL avec preview), nouveau bouton "Bannière" (dialog listant les bannières possédées, équipement via `PUT /profile {active_banner}`). Backend valide la possession.
+- ✅ **Badge Polyglotte** : tracking via `user_languages` collection (upsert sur changement de langue). Badge attribué automatiquement à partir de 2 langues distinctes utilisées.
+- ✅ **Notifications de badges** : `grant_badge()` push systématiquement une notification (kind=badge, sound=ding, icon dynamique) en plus de l'entrée chronique.
+- ✅ **Badges Quest Finisher / Champion** : déclenchés automatiquement à 10 et 100 quêtes accomplies.
+- ✅ **Quests help banner** : explication visible sur `/quests` listant les actions qui font progresser chaque type de quête.
+- ✅ **Backend tests batch3** : 12/12 pass (`test_batch3_features.py`).
+
 ### v3 — Features pack (2026-02-10)
 - ✅ Logo PNG officiel intégré (sidebar, landing, login, register, maintenance)
 - ✅ Système de ban temporaire complet : `banned_until` + `ban_reason` sur user, check dans `get_current_user` → 403 banned, sessions invalidées immédiatement, BannedScreen UI avec countdown, `ban_history` collection auditée
