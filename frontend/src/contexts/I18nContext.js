@@ -24,6 +24,8 @@ const TR = {
   "nav.legends":     { fr: "Panthéon", en: "Pantheon", es: "Panteón", de: "Pantheon", it: "Pantheon" },
   "nav.shop":        { fr: "Boutique d'Aether", en: "Aether Shop", es: "Tienda de Éter", de: "Aether-Shop", it: "Bottega d'Etere" },
   "nav.world":       { fr: "Carte du Monde", en: "World Map", es: "Mapa del Mundo", de: "Weltkarte", it: "Mappa del Mondo" },
+  "nav.guilds":      { fr: "Ordres", en: "Guilds", es: "Órdenes", de: "Orden", it: "Ordini" },
+  "nav.forum":       { fr: "Tribune", en: "Forum", es: "Foro", de: "Forum", it: "Forum" },
   "nav.settings":    { fr: "Paramètres", en: "Settings", es: "Ajustes", de: "Einstellungen", it: "Impostazioni" },
   "nav.admin":       { fr: "Conseil", en: "Council", es: "Consejo", de: "Rat", it: "Consiglio" },
 

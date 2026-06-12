@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import {
   ScrollText, User as UserIcon, Network, Castle, Gem, Crosshair, Eye,
-  Trophy, Flame, Shield, LogOut, ShoppingBag, Settings as SettingsIcon, Globe
+  Trophy, Flame, Shield, LogOut, ShoppingBag, Settings as SettingsIcon, Globe, MessageSquare
 } from "lucide-react";
 import StarField from "./StarField";
 import Logo from "./Logo";
@@ -22,6 +22,8 @@ const NAV = [
   { to: "/leaderboards", tkey: "nav.leaderboards", icon: Trophy,     testid: "nav-leaderboards" },
   { to: "/legends",      tkey: "nav.legends",      icon: Flame,      testid: "nav-legends" },
   { to: "/world",        tkey: "nav.world",        icon: Globe,      testid: "nav-world" },
+  { to: "/guilds",       tkey: "nav.guilds",       icon: Castle,     testid: "nav-guilds" },
+  { to: "/forum",        tkey: "nav.forum",        icon: MessageSquare, testid: "nav-forum" },
   { to: "/shop",         tkey: "nav.shop",         icon: ShoppingBag, testid: "nav-shop" },
 ];
 

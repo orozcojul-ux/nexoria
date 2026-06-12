@@ -72,6 +72,7 @@ export default function Admin() {
           ...(isAdmin ? [{ id: "broadcast", label: "Proclamation" }] : []),
           { id: "chat", label: "Chat Staff" },
           ...(isAdmin ? [{ id: "shop", label: "Boutique" }] : []),
+          ...(isAdmin ? [{ id: "seasons", label: "Saisons" }] : []),
           ...(isAdmin ? [{ id: "roles", label: "Rôles" }] : []),
           ...(isAdmin ? [{ id: "system", label: "Système" }] : []),
         ].map((tb) => (
@@ -201,6 +202,7 @@ export default function Admin() {
       {tab === "broadcast" && <BroadcastPanel />}
       {tab === "chat" && <StaffChat />}
       {tab === "shop" && <ShopAdmin />}
+      {tab === "seasons" && <SeasonsAdmin />}
       {tab === "roles" && <RolesGuide />}
 
       {tab === "system" && (
@@ -649,3 +651,139 @@ function Field({ label, required, children }) {
     </div>
   );
 }
+
+// ---------- Seasons Admin ----------
+function SeasonsAdmin() {
+  const [seasons, setSeasons] = useState([]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [leaderboard, setLeaderboard] = useState({ rows: [], seasonId: null });
+
+  const load = async () => {
+    try {
+      const { data } = await api.get("/seasons");
+      setSeasons(data);
+    } catch { toast.error("Erreur chargement saisons"); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const loadLB = async (sid) => {
+    const { data } = await api.get(`/seasons/${sid}/leaderboard`);
+    setLeaderboard({ rows: data, seasonId: sid });
+  };
+
+  const endSeason = async (sid) => {
+    if (!window.confirm("Clôturer cette saison ? Les récompenses seront distribuées immédiatement.")) return;
+    try {
+      const { data } = await api.post(`/admin/seasons/${sid}/end`);
+      toast.success(`Saison clôturée — ${data.ranked} héros récompensés`);
+      load();
+    } catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
+  };
+
+  return (
+    <div className="space-y-6" data-testid="seasons-admin">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="font-display font-bold text-xl ancient-text">📅 Cycles du Cosmos</h2>
+          <p className="text-xs text-zinc-500 italic mt-1">Une seule saison peut être active à la fois. Démarrer une nouvelle clôture la précédente sans distribuer ses récompenses.</p>
+        </div>
+        <button onClick={() => setShowCreate(true)} data-testid="open-create-season"
+          className="px-4 py-2 rounded-md border border-cyan-500/50 text-cyan-300 font-bold flex items-center gap-2 text-sm">
+          <Plus className="w-4 h-4" /> Nouvelle saison
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        {seasons.length === 0 && <div className="text-center text-zinc-500 italic py-12">Aucune saison enregistrée</div>}
+        {seasons.map((s) => (
+          <div key={s.season_id} className={`glass rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap ${s.active ? "border-2 border-green-500/40" : ""}`} data-testid={`season-row-${s.season_id}`}>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-2">
+                <h3 className="font-display font-bold">{s.name}</h3>
+                {s.active && <span className="text-[10px] uppercase tracking-widest font-bold text-green-400">● Active</span>}
+              </div>
+              <div className="text-xs text-zinc-400 italic">{s.description || "—"}</div>
+              <div className="text-[10px] font-mono-stat text-zinc-500 mt-1">
+                {new Date(s.started_at).toLocaleDateString("fr-FR")} → {new Date(s.ends_at).toLocaleDateString("fr-FR")} ({s.duration_days}j)
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => loadLB(s.season_id)} className="px-3 py-1.5 rounded border border-cyan-500/40 text-cyan-300 text-xs font-bold" data-testid={`view-lb-${s.season_id}`}>Classement</button>
+              {s.active && (
+                <button onClick={() => endSeason(s.season_id)} className="px-3 py-1.5 rounded border border-red-500/40 text-red-300 text-xs font-bold" data-testid={`end-season-${s.season_id}`}>Clôturer</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {leaderboard.seasonId && (
+        <div className="glass rounded-xl p-4">
+          <div className="flex justify-between mb-3">
+            <h3 className="font-display font-bold">Classement</h3>
+            <button onClick={() => setLeaderboard({ rows: [], seasonId: null })}><X className="w-4 h-4 text-zinc-500" /></button>
+          </div>
+          {leaderboard.rows.length === 0 ? (
+            <div className="text-center text-zinc-500 italic py-4">Aucun score enregistré</div>
+          ) : (
+            <div className="space-y-1">
+              {leaderboard.rows.map((r, i) => (
+                <div key={r.user_id} className="flex justify-between items-center py-1.5 px-2 rounded hover:bg-white/[0.02]">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono-stat text-cyan-300 font-bold w-6">#{i + 1}</span>
+                    <HeroName user={r.user} size="sm" />
+                  </div>
+                  <span className="font-mono-stat text-violet-300 font-bold">{r.season_xp} XP</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <AnimatePresence>
+        {showCreate && <CreateSeasonDialog onClose={() => setShowCreate(false)} onCreated={async () => { setShowCreate(false); await load(); }} />}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function CreateSeasonDialog({ onClose, onCreated }) {
+  const [form, setForm] = useState({ name: "", description: "", duration_days: 30 });
+  const submit = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post("/admin/seasons", { ...form, duration_days: parseInt(form.duration_days) || 30 });
+      toast.success("Saison ouverte — tous les héros notifiés");
+      await onCreated();
+    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+  };
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose} className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <motion.form onClick={(e) => e.stopPropagation()} onSubmit={submit}
+        className="rune-border rounded-2xl p-6 max-w-md w-full space-y-3" data-testid="create-season-dialog">
+        <h3 className="font-display font-black text-xl text-gradient">Ouvrir une saison</h3>
+        <input value={form.name} required minLength={3} placeholder="Nom (ex: L'Éveil du Dragon)"
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="season-name" />
+        <textarea value={form.description} rows={3} placeholder="Présage de cette saison..."
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="season-desc" />
+        <div>
+          <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Durée (jours)</label>
+          <input type="number" min="1" max="365" value={form.duration_days} onChange={(e) => setForm({ ...form, duration_days: e.target.value })}
+            className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm font-mono-stat mt-1" data-testid="season-days" />
+        </div>
+        <div className="text-[10px] text-zinc-500 italic">
+          Récompenses automatiques à la clôture : Top 1 → 5000 ✦ + badge Champion · Top 10 → 1500 ✦ + badge Elite · Top 50 → 500 ✦
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button type="button" onClick={onClose} className="px-3 py-2 rounded border border-white/10 text-xs">Annuler</button>
+          <button type="submit" className="px-4 py-2 rounded border border-cyan-500/40 text-cyan-300 font-bold text-sm" data-testid="season-create-submit">Ouvrir</button>
+        </div>
+      </motion.form>
+    </motion.div>
+  );
+}
+

@@ -180,6 +180,15 @@ async def grant_xp(user_id: str, amount: int, reason: str = ""):
         update["skill_points"] = user.get("skill_points", 0) + (new_level - old_level)
         await add_chronicle(user_id, f"A atteint le niveau {new_level} — Rang {new_rank}", "level_up")
     await db.users.update_one({"user_id": user_id}, {"$set": update})
+    # Mirror to active season score (idempotent upsert)
+    active_season = await db.seasons.find_one({"active": True}, {"_id": 0, "season_id": 1})
+    if active_season:
+        await db.season_scores.update_one(
+            {"season_id": active_season["season_id"], "user_id": user_id},
+            {"$inc": {"season_xp": amount},
+             "$setOnInsert": {"first_seen_at": now_utc().isoformat()}},
+            upsert=True,
+        )
 
 
 async def grant_aether(user_id: str, amount: int):
@@ -1739,6 +1748,530 @@ async def world_heroes():
         u["x"] = (h * 17) % 100  # 0-100 (percentage)
         u["y"] = (h * 31 + 13) % 100
     return users
+
+
+
+# ============================================================================
+# GUILDS — Ordres mystiques
+# ============================================================================
+GUILD_MAX_MEMBERS = 50
+GUILD_CREATE_LEVEL = 10
+GUILD_CREATE_COST = 1000  # Aether
+
+class GuildCreateReq(BaseModel):
+    name: str
+    tag: str  # 2-5 chars
+    description: str = ""
+    banner_color: str = "#7C3AED"
+
+
+@api.post("/guilds")
+async def create_guild(req: GuildCreateReq, user: dict = Depends(get_user_dep)):
+    full = await db.users.find_one({"user_id": user["user_id"]})
+    if full.get("level", 1) < GUILD_CREATE_LEVEL:
+        raise HTTPException(403, f"Niveau {GUILD_CREATE_LEVEL} requis pour fonder un ordre")
+    if full.get("aether", 0) < GUILD_CREATE_COST:
+        raise HTTPException(400, f"{GUILD_CREATE_COST} Aether requis pour fonder un ordre")
+    if await db.guild_members.find_one({"user_id": user["user_id"]}):
+        raise HTTPException(400, "Vous appartenez déjà à un ordre")
+    name = req.name.strip()
+    tag = req.tag.strip().upper()
+    if len(name) < 3 or len(name) > 30:
+        raise HTTPException(400, "Nom : 3 à 30 caractères")
+    if len(tag) < 2 or len(tag) > 5:
+        raise HTTPException(400, "Tag : 2 à 5 caractères")
+    if await db.guilds.find_one({"$or": [{"name": name}, {"tag": tag}]}):
+        raise HTTPException(400, "Ce nom ou ce tag est déjà pris")
+    guild_id = f"guild_{uuid.uuid4().hex[:12]}"
+    guild = {
+        "guild_id": guild_id,
+        "name": name, "tag": tag,
+        "description": req.description[:500],
+        "banner_color": req.banner_color,
+        "founder_id": user["user_id"],
+        "level": 1, "xp": 0,
+        "vault_aether": 0,
+        "member_count": 1,
+        "max_members": GUILD_MAX_MEMBERS,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.guilds.insert_one(guild)
+    await db.guild_members.insert_one({
+        "guild_id": guild_id, "user_id": user["user_id"],
+        "role": "chef",
+        "joined_at": now_utc().isoformat(),
+        "contribution_xp": 0,
+    })
+    await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": -GUILD_CREATE_COST}})
+    await add_chronicle(user["user_id"], f"A fondé l'ordre « {name} » [{tag}]", "guild")
+    await grant_badge(user["user_id"], "founder_guild")
+    guild.pop("_id", None)
+    return guild
+
+
+@api.get("/guilds")
+async def list_guilds(user: dict = Depends(get_user_dep)):
+    return await db.guilds.find({}, {"_id": 0}).sort("level", -1).limit(100).to_list(100)
+
+
+@api.get("/guilds/mine")
+async def get_my_guild(user: dict = Depends(get_user_dep)):
+    membership = await db.guild_members.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not membership:
+        return {"guild": None, "membership": None}
+    guild = await db.guilds.find_one({"guild_id": membership["guild_id"]}, {"_id": 0})
+    return {"guild": guild, "membership": membership}
+
+
+@api.get("/guilds/{guild_id}")
+async def get_guild_detail(guild_id: str, user: dict = Depends(get_user_dep)):
+    guild = await db.guilds.find_one({"guild_id": guild_id}, {"_id": 0})
+    if not guild:
+        raise HTTPException(404, "Ordre introuvable")
+    members = await db.guild_members.find({"guild_id": guild_id}, {"_id": 0}).to_list(100)
+    user_ids = [m["user_id"] for m in members]
+    udocs = await db.users.find({"user_id": {"$in": user_ids}},
+        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1, "avatar_url": 1, "role": 1}).to_list(100)
+    umap = {u["user_id"]: u for u in udocs}
+    for m in members:
+        m["user"] = umap.get(m["user_id"], {})
+    return {"guild": guild, "members": members}
+
+
+class GuildInviteReq(BaseModel):
+    target_username: str
+
+
+def _guild_role_required(membership: dict, allowed: tuple):
+    if not membership or membership["role"] not in allowed:
+        raise HTTPException(403, "Action réservée aux officiers/chef")
+
+
+@api.post("/guilds/{guild_id}/invite")
+async def invite_to_guild(guild_id: str, req: GuildInviteReq, user: dict = Depends(get_user_dep)):
+    membership = await db.guild_members.find_one({"user_id": user["user_id"], "guild_id": guild_id})
+    _guild_role_required(membership, ("chef", "officier"))
+    target = await db.users.find_one({"username": req.target_username}, {"_id": 0, "user_id": 1, "username": 1})
+    if not target:
+        raise HTTPException(404, "Héros introuvable")
+    if await db.guild_members.find_one({"user_id": target["user_id"]}):
+        raise HTTPException(400, "Ce héros appartient déjà à un ordre")
+    guild = await db.guilds.find_one({"guild_id": guild_id})
+    if guild["member_count"] >= guild["max_members"]:
+        raise HTTPException(400, "Ordre plein")
+    if await db.guild_invites.find_one({"guild_id": guild_id, "user_id": target["user_id"], "status": "pending"}):
+        raise HTTPException(400, "Invitation déjà envoyée")
+    invite_id = f"ginv_{uuid.uuid4().hex[:10]}"
+    await db.guild_invites.insert_one({
+        "invite_id": invite_id, "guild_id": guild_id,
+        "user_id": target["user_id"], "invited_by": user["user_id"],
+        "status": "pending", "created_at": now_utc().isoformat(),
+    })
+    await push_notification(db, target["user_id"], "guild_invite",
+        f"L'ordre « {guild['name']} » vous invite", f"Tag [{guild['tag']}]", "ding", "Castle")
+    return {"ok": True, "invite_id": invite_id}
+
+
+@api.get("/guilds/invites/mine")
+async def my_guild_invites(user: dict = Depends(get_user_dep)):
+    invites = await db.guild_invites.find({"user_id": user["user_id"], "status": "pending"}, {"_id": 0}).to_list(20)
+    gids = [i["guild_id"] for i in invites]
+    guilds = await db.guilds.find({"guild_id": {"$in": gids}}, {"_id": 0}).to_list(20)
+    gmap = {g["guild_id"]: g for g in guilds}
+    for inv in invites:
+        inv["guild"] = gmap.get(inv["guild_id"], {})
+    return invites
+
+
+@api.post("/guilds/invites/{invite_id}/accept")
+async def accept_guild_invite(invite_id: str, user: dict = Depends(get_user_dep)):
+    inv = await db.guild_invites.find_one({"invite_id": invite_id, "user_id": user["user_id"]})
+    if not inv or inv["status"] != "pending":
+        raise HTTPException(404, "Invitation introuvable")
+    if await db.guild_members.find_one({"user_id": user["user_id"]}):
+        raise HTTPException(400, "Vous appartenez déjà à un ordre")
+    guild = await db.guilds.find_one({"guild_id": inv["guild_id"]})
+    if guild["member_count"] >= guild["max_members"]:
+        raise HTTPException(400, "Ordre plein")
+    await db.guild_members.insert_one({
+        "guild_id": inv["guild_id"], "user_id": user["user_id"],
+        "role": "membre", "joined_at": now_utc().isoformat(), "contribution_xp": 0,
+    })
+    await db.guilds.update_one({"guild_id": inv["guild_id"]}, {"$inc": {"member_count": 1}})
+    await db.guild_invites.update_one({"invite_id": invite_id}, {"$set": {"status": "accepted", "responded_at": now_utc().isoformat()}})
+    await add_chronicle(user["user_id"], f"A rejoint l'ordre « {guild['name']} »", "guild")
+    return {"ok": True, "guild_id": inv["guild_id"]}
+
+
+@api.post("/guilds/invites/{invite_id}/decline")
+async def decline_guild_invite(invite_id: str, user: dict = Depends(get_user_dep)):
+    inv = await db.guild_invites.find_one({"invite_id": invite_id, "user_id": user["user_id"]})
+    if not inv or inv["status"] != "pending":
+        raise HTTPException(404, "Invitation introuvable")
+    await db.guild_invites.update_one({"invite_id": invite_id}, {"$set": {"status": "declined", "responded_at": now_utc().isoformat()}})
+    return {"ok": True}
+
+
+@api.post("/guilds/{guild_id}/leave")
+async def leave_guild(guild_id: str, user: dict = Depends(get_user_dep)):
+    membership = await db.guild_members.find_one({"user_id": user["user_id"], "guild_id": guild_id})
+    if not membership:
+        raise HTTPException(404, "Vous n'appartenez pas à cet ordre")
+    if membership["role"] == "chef":
+        candidate = await db.guild_members.find_one({"guild_id": guild_id, "user_id": {"$ne": user["user_id"]}, "role": "officier"})
+        if not candidate:
+            candidate = await db.guild_members.find_one({"guild_id": guild_id, "user_id": {"$ne": user["user_id"]}})
+        if candidate:
+            await db.guild_members.update_one({"_id": candidate["_id"]}, {"$set": {"role": "chef"}})
+        else:
+            await db.guilds.delete_one({"guild_id": guild_id})
+            await db.guild_members.delete_many({"guild_id": guild_id})
+            await db.guild_chat.delete_many({"guild_id": guild_id})
+            return {"ok": True, "disbanded": True}
+    await db.guild_members.delete_one({"guild_id": guild_id, "user_id": user["user_id"]})
+    await db.guilds.update_one({"guild_id": guild_id}, {"$inc": {"member_count": -1}})
+    return {"ok": True}
+
+
+@api.post("/guilds/{guild_id}/kick/{target_user_id}")
+async def kick_member(guild_id: str, target_user_id: str, user: dict = Depends(get_user_dep)):
+    membership = await db.guild_members.find_one({"user_id": user["user_id"], "guild_id": guild_id})
+    _guild_role_required(membership, ("chef", "officier"))
+    target_m = await db.guild_members.find_one({"user_id": target_user_id, "guild_id": guild_id})
+    if not target_m:
+        raise HTTPException(404, "Membre introuvable")
+    if target_m["role"] == "chef":
+        raise HTTPException(400, "Impossible d'exclure le chef")
+    if target_m["role"] == "officier" and membership["role"] != "chef":
+        raise HTTPException(403, "Seul le chef peut exclure un officier")
+    await db.guild_members.delete_one({"guild_id": guild_id, "user_id": target_user_id})
+    await db.guilds.update_one({"guild_id": guild_id}, {"$inc": {"member_count": -1}})
+    return {"ok": True}
+
+
+class GuildRoleReq(BaseModel):
+    role: str
+
+
+@api.put("/guilds/{guild_id}/members/{target_user_id}/role")
+async def set_member_role(guild_id: str, target_user_id: str, req: GuildRoleReq, user: dict = Depends(get_user_dep)):
+    membership = await db.guild_members.find_one({"user_id": user["user_id"], "guild_id": guild_id})
+    _guild_role_required(membership, ("chef",))
+    if req.role not in ("officier", "membre"):
+        raise HTTPException(400, "Rôle invalide")
+    await db.guild_members.update_one({"guild_id": guild_id, "user_id": target_user_id}, {"$set": {"role": req.role}})
+    return {"ok": True}
+
+
+class GuildChatReq(BaseModel):
+    content: str
+
+
+@api.get("/guilds/{guild_id}/chat")
+async def get_guild_chat(guild_id: str, user: dict = Depends(get_user_dep)):
+    if not await db.guild_members.find_one({"user_id": user["user_id"], "guild_id": guild_id}):
+        raise HTTPException(403, "Accès réservé aux membres")
+    msgs = await db.guild_chat.find({"guild_id": guild_id}, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
+    msgs.reverse()
+    user_ids = list({m["user_id"] for m in msgs})
+    udocs = await db.users.find({"user_id": {"$in": user_ids}},
+        {"_id": 0, "user_id": 1, "username": 1, "role": 1, "level": 1}).to_list(100)
+    umap = {u["user_id"]: u for u in udocs}
+    for m in msgs:
+        m["author"] = umap.get(m["user_id"], {})
+    return msgs
+
+
+@api.post("/guilds/{guild_id}/chat")
+async def post_guild_chat(guild_id: str, req: GuildChatReq, user: dict = Depends(get_user_dep)):
+    if not await db.guild_members.find_one({"user_id": user["user_id"], "guild_id": guild_id}):
+        raise HTTPException(403, "Accès réservé aux membres")
+    content = req.content.strip()
+    if not content or len(content) > 500:
+        raise HTTPException(400, "Message invalide (1-500 caractères)")
+    msg = {
+        "message_id": f"gmsg_{uuid.uuid4().hex[:10]}",
+        "guild_id": guild_id, "user_id": user["user_id"],
+        "content": content, "created_at": now_utc().isoformat(),
+    }
+    await db.guild_chat.insert_one(msg)
+    msg.pop("_id", None)
+    return msg
+
+
+class GuildVaultReq(BaseModel):
+    amount: int
+
+
+@api.post("/guilds/{guild_id}/deposit")
+async def deposit_vault(guild_id: str, req: GuildVaultReq, user: dict = Depends(get_user_dep)):
+    if not await db.guild_members.find_one({"user_id": user["user_id"], "guild_id": guild_id}):
+        raise HTTPException(403, "Accès réservé aux membres")
+    if req.amount < 1:
+        raise HTTPException(400, "Montant invalide")
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    if fresh.get("aether", 0) < req.amount:
+        raise HTTPException(400, "Aether insuffisant")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": -req.amount}})
+    await db.guilds.update_one({"guild_id": guild_id}, {"$inc": {"vault_aether": req.amount, "xp": req.amount // 10}})
+    await db.guild_members.update_one({"guild_id": guild_id, "user_id": user["user_id"]}, {"$inc": {"contribution_xp": req.amount}})
+    g = await db.guilds.find_one({"guild_id": guild_id})
+    new_level = 1 + (g.get("xp", 0) // 1000)
+    if new_level != g.get("level", 1):
+        await db.guilds.update_one({"guild_id": guild_id}, {"$set": {"level": new_level}})
+    return {"ok": True, "vault_aether": g["vault_aether"]}
+
+
+@api.post("/guilds/{guild_id}/withdraw/{target_user_id}")
+async def withdraw_vault(guild_id: str, target_user_id: str, req: GuildVaultReq, user: dict = Depends(get_user_dep)):
+    membership = await db.guild_members.find_one({"user_id": user["user_id"], "guild_id": guild_id})
+    _guild_role_required(membership, ("chef", "officier"))
+    if not await db.guild_members.find_one({"user_id": target_user_id, "guild_id": guild_id}):
+        raise HTTPException(404, "Membre introuvable")
+    g = await db.guilds.find_one({"guild_id": guild_id})
+    if g.get("vault_aether", 0) < req.amount or req.amount < 1:
+        raise HTTPException(400, "Coffre insuffisant")
+    await db.guilds.update_one({"guild_id": guild_id}, {"$inc": {"vault_aether": -req.amount}})
+    await db.users.update_one({"user_id": target_user_id}, {"$inc": {"aether": req.amount}})
+    await push_notification(db, target_user_id, "guild_reward",
+        f"Récompense de l'ordre « {g['name']} »", f"+{req.amount} Aether", "coin", "Coins")
+    return {"ok": True}
+
+
+# ============================================================================
+# FORUM — Tribune des Héros
+# ============================================================================
+FORUM_CATEGORIES = [
+    {"id": "general", "name": "Salle Commune", "icon": "Users", "description": "Discussions générales du royaume"},
+    {"id": "strategy", "name": "Stratégies de Combat", "icon": "Sword", "description": "Tactiques, builds, conseils"},
+    {"id": "lore", "name": "Mythes & Légendes", "icon": "BookOpen", "description": "Lore, histoires, théories"},
+    {"id": "trade", "name": "Comptoir d'Échanges", "icon": "Coins", "description": "Discussions sur les reliques"},
+    {"id": "guilds", "name": "Recrutement d'Ordres", "icon": "Castle", "description": "Recherches de membres et d'ordres"},
+    {"id": "support", "name": "Conseil & Entraide", "icon": "Heart", "description": "Questions, problèmes, retours"},
+]
+
+
+class ForumThreadReq(BaseModel):
+    category: str
+    title: str
+    content: str
+
+
+@api.get("/forum/categories")
+async def list_forum_categories():
+    cats = []
+    for c in FORUM_CATEGORIES:
+        thread_count = await db.forum_threads.count_documents({"category": c["id"]})
+        last = await db.forum_threads.find_one({"category": c["id"]}, sort=[("last_activity_at", -1)])
+        cats.append({**c, "thread_count": thread_count, "last_activity_at": last["last_activity_at"] if last else None})
+    return cats
+
+
+@api.get("/forum/threads")
+async def list_forum_threads(category: str, user: dict = Depends(get_user_dep)):
+    if not any(c["id"] == category for c in FORUM_CATEGORIES):
+        raise HTTPException(404, "Catégorie introuvable")
+    threads = await db.forum_threads.find({"category": category}, {"_id": 0}) \
+        .sort([("pinned", -1), ("last_activity_at", -1)]).limit(50).to_list(50)
+    user_ids = list({t["user_id"] for t in threads})
+    udocs = await db.users.find({"user_id": {"$in": user_ids}},
+        {"_id": 0, "user_id": 1, "username": 1, "role": 1, "level": 1, "class_name": 1}).to_list(100)
+    umap = {u["user_id"]: u for u in udocs}
+    for t in threads:
+        t["author"] = umap.get(t["user_id"], {})
+    return threads
+
+
+@api.post("/forum/threads")
+async def create_forum_thread(req: ForumThreadReq, user: dict = Depends(get_user_dep)):
+    if not any(c["id"] == req.category for c in FORUM_CATEGORIES):
+        raise HTTPException(404, "Catégorie introuvable")
+    title = req.title.strip()
+    content = req.content.strip()
+    if len(title) < 5 or len(title) > 120:
+        raise HTTPException(400, "Titre 5-120 caractères")
+    if len(content) < 10 or len(content) > 5000:
+        raise HTTPException(400, "Message 10-5000 caractères")
+    thread_id = f"thr_{uuid.uuid4().hex[:12]}"
+    now_iso = now_utc().isoformat()
+    thread = {
+        "thread_id": thread_id, "category": req.category,
+        "user_id": user["user_id"], "title": title, "content": content,
+        "replies_count": 0, "views": 0,
+        "pinned": False, "locked": False,
+        "created_at": now_iso, "last_activity_at": now_iso,
+    }
+    await db.forum_threads.insert_one(thread)
+    await grant_xp(user["user_id"], 30, "forum_thread")
+    await add_chronicle(user["user_id"], f"A ouvert le débat « {title} »", "forum")
+    await grant_badge(user["user_id"], "scholar")
+    thread.pop("_id", None)
+    return thread
+
+
+@api.get("/forum/threads/{thread_id}")
+async def get_forum_thread(thread_id: str, user: dict = Depends(get_user_dep)):
+    thread = await db.forum_threads.find_one({"thread_id": thread_id}, {"_id": 0})
+    if not thread:
+        raise HTTPException(404, "Sujet introuvable")
+    await db.forum_threads.update_one({"thread_id": thread_id}, {"$inc": {"views": 1}})
+    replies = await db.forum_replies.find({"thread_id": thread_id}, {"_id": 0}) \
+        .sort("created_at", 1).to_list(500)
+    user_ids = list({thread["user_id"]} | {r["user_id"] for r in replies})
+    udocs = await db.users.find({"user_id": {"$in": list(user_ids)}},
+        {"_id": 0, "user_id": 1, "username": 1, "role": 1, "level": 1, "class_name": 1}).to_list(500)
+    umap = {u["user_id"]: u for u in udocs}
+    thread["author"] = umap.get(thread["user_id"], {})
+    for r in replies:
+        r["author"] = umap.get(r["user_id"], {})
+    return {"thread": thread, "replies": replies}
+
+
+class ForumReplyReq(BaseModel):
+    content: str
+
+
+@api.post("/forum/threads/{thread_id}/replies")
+async def reply_thread(thread_id: str, req: ForumReplyReq, user: dict = Depends(get_user_dep)):
+    thread = await db.forum_threads.find_one({"thread_id": thread_id})
+    if not thread:
+        raise HTTPException(404, "Sujet introuvable")
+    if thread.get("locked"):
+        raise HTTPException(403, "Sujet verrouillé")
+    content = req.content.strip()
+    if len(content) < 2 or len(content) > 2000:
+        raise HTTPException(400, "Message 2-2000 caractères")
+    reply = {
+        "reply_id": f"rpl_{uuid.uuid4().hex[:12]}",
+        "thread_id": thread_id, "user_id": user["user_id"],
+        "content": content, "created_at": now_utc().isoformat(),
+    }
+    await db.forum_replies.insert_one(reply)
+    await db.forum_threads.update_one({"thread_id": thread_id},
+        {"$inc": {"replies_count": 1}, "$set": {"last_activity_at": now_utc().isoformat()}})
+    await grant_xp(user["user_id"], 10, "forum_reply")
+    if thread["user_id"] != user["user_id"]:
+        await push_notification(db, thread["user_id"], "forum_reply",
+            f"{user['username']} a répondu à votre sujet",
+            thread["title"][:100], "ding", "MessageCircle")
+    reply.pop("_id", None)
+    return reply
+
+
+@api.delete("/forum/threads/{thread_id}")
+async def delete_thread(thread_id: str, user: dict = Depends(get_user_dep)):
+    thread = await db.forum_threads.find_one({"thread_id": thread_id})
+    if not thread:
+        raise HTTPException(404, "Sujet introuvable")
+    is_staff = user.get("role") in ("admin", "moderator")
+    if not is_staff and thread["user_id"] != user["user_id"]:
+        raise HTTPException(403, "Action interdite")
+    await db.forum_threads.delete_one({"thread_id": thread_id})
+    await db.forum_replies.delete_many({"thread_id": thread_id})
+    return {"ok": True}
+
+
+@api.post("/forum/threads/{thread_id}/pin")
+async def pin_thread(thread_id: str, user: dict = Depends(get_staff_dep)):
+    thread = await db.forum_threads.find_one({"thread_id": thread_id})
+    if not thread:
+        raise HTTPException(404, "Sujet introuvable")
+    await db.forum_threads.update_one({"thread_id": thread_id}, {"$set": {"pinned": not thread.get("pinned", False)}})
+    return {"ok": True}
+
+
+@api.post("/forum/threads/{thread_id}/lock")
+async def lock_thread(thread_id: str, user: dict = Depends(get_staff_dep)):
+    thread = await db.forum_threads.find_one({"thread_id": thread_id})
+    if not thread:
+        raise HTTPException(404, "Sujet introuvable")
+    await db.forum_threads.update_one({"thread_id": thread_id}, {"$set": {"locked": not thread.get("locked", False)}})
+    return {"ok": True}
+
+
+# ============================================================================
+# SAISONS — Cycles du Cosmos
+# ============================================================================
+class SeasonCreateReq(BaseModel):
+    name: str
+    description: str = ""
+    duration_days: int = 30
+
+
+@api.get("/seasons/current")
+async def current_season():
+    return await db.seasons.find_one({"active": True}, {"_id": 0})
+
+
+@api.get("/seasons")
+async def list_seasons(user: dict = Depends(get_user_dep)):
+    return await db.seasons.find({}, {"_id": 0}).sort("started_at", -1).limit(20).to_list(20)
+
+
+@api.get("/seasons/{season_id}/leaderboard")
+async def season_leaderboard(season_id: str, user: dict = Depends(get_user_dep)):
+    rows = await db.season_scores.find({"season_id": season_id}, {"_id": 0}) \
+        .sort("season_xp", -1).limit(50).to_list(50)
+    user_ids = [r["user_id"] for r in rows]
+    udocs = await db.users.find({"user_id": {"$in": user_ids}},
+        {"_id": 0, "user_id": 1, "username": 1, "class_name": 1, "level": 1, "role": 1, "avatar_url": 1}).to_list(100)
+    umap = {u["user_id"]: u for u in udocs}
+    for r in rows:
+        r["user"] = umap.get(r["user_id"], {})
+    return rows
+
+
+@api.post("/admin/seasons")
+async def create_season(req: SeasonCreateReq, user: dict = Depends(get_admin_dep)):
+    await db.seasons.update_many({"active": True}, {"$set": {"active": False, "ended_at": now_utc().isoformat()}})
+    season_id = f"season_{uuid.uuid4().hex[:10]}"
+    start = now_utc()
+    end = start + timedelta(days=req.duration_days)
+    season = {
+        "season_id": season_id, "name": req.name, "description": req.description,
+        "active": True, "duration_days": req.duration_days,
+        "started_at": start.isoformat(), "ends_at": end.isoformat(),
+        "rewards": {
+            "top_1": {"aether": 5000, "badge": "season_champion", "title": "Champion de la Saison"},
+            "top_10": {"aether": 1500, "badge": "season_elite"},
+            "top_50": {"aether": 500},
+        },
+        "created_by": user["user_id"],
+    }
+    await db.seasons.insert_one(season)
+    season.pop("_id", None)
+    all_users = await db.users.find({}, {"_id": 0, "user_id": 1}).to_list(5000)
+    for u in all_users:
+        await push_notification(db, u["user_id"], "season_start",
+            f"Saison « {req.name} » ouverte", req.description[:200], "ding", "Sparkles")
+    return season
+
+
+@api.post("/admin/seasons/{season_id}/end")
+async def end_season(season_id: str, user: dict = Depends(get_admin_dep)):
+    season = await db.seasons.find_one({"season_id": season_id})
+    if not season:
+        raise HTTPException(404, "Saison introuvable")
+    if not season.get("active"):
+        raise HTTPException(400, "Saison déjà clôturée")
+    rows = await db.season_scores.find({"season_id": season_id}).sort("season_xp", -1).limit(50).to_list(50)
+    for rank_idx, row in enumerate(rows):
+        rank = rank_idx + 1
+        reward_aether = 0
+        if rank == 1:
+            reward_aether = season["rewards"]["top_1"]["aether"]
+            await grant_badge(row["user_id"], "season_champion")
+        elif rank <= 10:
+            reward_aether = season["rewards"]["top_10"]["aether"]
+            await grant_badge(row["user_id"], "season_elite")
+        elif rank <= 50:
+            reward_aether = season["rewards"]["top_50"]["aether"]
+        if reward_aether:
+            await db.users.update_one({"user_id": row["user_id"]}, {"$inc": {"aether": reward_aether}})
+            await push_notification(db, row["user_id"], "season_reward",
+                f"Récompense saison #{rank}", f"+{reward_aether} Aether", "coin", "Coins")
+    await db.seasons.update_one({"season_id": season_id}, {"$set": {"active": False, "ended_at": now_utc().isoformat()}})
+    return {"ok": True, "ranked": len(rows)}
 
 
 # ---------- Mount ----------
