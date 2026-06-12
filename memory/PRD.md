@@ -35,6 +35,18 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3.3 — Security + Mod tools + Unified Inventory + Level gate (2026-02-12)
+- 🔒 **Ban enforcement complète** : `enforce_ban_or_raise()` appelé sur les 3 chemins d'auth (login, Discord OAuth, Google session). Lors d'un bannissement, `db.user_sessions.delete_many()` invalide TOUS les tokens vivants immédiatement → impossible de bypass par OAuth ou par session existante.
+- 🛡️ **Modérateurs** : nouvel accès au Conseil. `get_staff_dep` (admin+mod) sur `/admin/users`, `/admin/stats`, `/admin/logs`, `/admin/ban-history`, ban/unban. Garde-fou : un mod ne peut bannir qu'un héros standard (403 si cible mod/admin). Frontend gate les onglets admin-only (Proclamation, Boutique, Rôles, Système) et masque Edit. Bannière "Mode Modérateur" affichée.
+- 🗑️ **Suppression de publications** : `DELETE /api/posts/{id}` autorisé pour l'auteur OU le staff. Cascade comments+reactions. Trail audit chronique « Publication retirée par le Conseil ».
+- 🎚️ **Level gate boutique** : tous les SHOP_ITEMS ont un `unlock_level` (1-80). Achat bloqué 403 si niveau insuffisant. Cartes shop affichent "Verrouillé — Niveau X requis" + chip 🔒.
+- 🏰 **Nouveaux items Royaume** : Archives du Conseil (L25, ban_history), Lien à l'Oracle (L30, oracle_unlimited), Voûte des Chroniques (L35, chronicle_full), Salle du Trône (L50), Trésorerie Royale (L60), Constellation Personnelle (L80).
+- 📦 **Inventaire unifié** : 5 onglets (Reliques, Cosmétiques, Élixirs actifs, Consommables, Royaume). Tout ce que possède le héros au même endroit.
+- 🔔 **Notifications "Effacer tout"** : `DELETE /api/notifications/clear` (idempotent, bulk).
+- 🌍 **Carte du Monde 10s** : refresh toutes les 10s (vs 30s).
+- 👑 **Badge de rôle sur profil** : "Archonte" doré pour admin, "Sentinelle" orange pour mod.
+- ✅ **Tests batch5** : 15/15 pass.
+
 ### v3.2 — World Map + Shop CRUD + Profile cosmetics (2026-02-12)
 - ✅ **Carte du Monde** (`/world`) : Atlas Éthérique interactif. Héros tracés sur grille runique avec positions déterministes (hash user_id), couleurs par classe, pulsation pour héros actifs (15min), tooltips au survol, modal de profil au clic. Filtres par classe + actifs uniquement. Auto-refresh 30s.
 - ✅ **Admin Shop CRUD** : Onglet "Boutique" dans le Conseil. Liste statique + custom items groupés par catégorie. Création/édition/suppression d'items custom via dialog complet (SKU, nom, description, catégorie, rareté, prix, icône, boost). Items statiques verrouillés.
