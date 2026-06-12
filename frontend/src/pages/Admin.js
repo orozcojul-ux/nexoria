@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Shield, Trash2, Users, MessageSquare, Trophy, Package, ScrollText, Eye, Sparkles, Ban, Edit3, Hammer, Megaphone, Crown, ShieldCheck, UserCog } from "lucide-react";
+import { Shield, Trash2, Users, MessageSquare, Trophy, Package, ScrollText, Eye, Sparkles, Ban, Edit3, Hammer, Megaphone, Crown, ShieldCheck, UserCog, ShoppingBag, Plus, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -7,6 +7,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { RuneSeal, RuneDivider } from "@/components/Ornaments";
 import StaffChat from "@/components/StaffChat";
 import BroadcastPanel from "@/components/BroadcastPanel";
+import HeroName from "@/components/HeroName";
 
 export default function Admin() {
   const { t } = useI18n();
@@ -66,6 +67,7 @@ export default function Admin() {
           { id: "logs", label: "Chroniques" },
           { id: "broadcast", label: "Proclamation" },
           { id: "chat", label: "Chat Staff" },
+          { id: "shop", label: "Boutique" },
           { id: "roles", label: "Rôles" },
           { id: "system", label: "Système" },
         ].map((tb) => (
@@ -115,7 +117,7 @@ export default function Admin() {
                 const banned = u.banned_until && new Date(u.banned_until) > new Date();
                 return (
                 <tr key={u.user_id} className={`border-b border-white/5 hover:bg-white/[0.03] ${banned ? "bg-red-500/5" : ""}`} data-testid={`admin-user-${u.user_id}`}>
-                  <td className="p-3 font-display font-bold">{u.username} {banned && <span className="text-red-400 text-xs ml-1">[banni]</span>}</td>
+                  <td className="p-3"><HeroName user={u} size="sm" /> {banned && <span className="text-red-400 text-xs ml-1">[banni]</span>}</td>
                   <td className="p-3 hidden sm:table-cell text-zinc-400">{u.class_name}</td>
                   <td className="p-3 font-mono-stat text-cyan-300">{u.level}</td>
                   <td className="p-3 hidden md:table-cell">
@@ -153,7 +155,7 @@ export default function Admin() {
             <div key={b.ban_id} className={`p-3 rounded border ${b.lifted ? "border-white/5 opacity-50" : "border-red-500/30 bg-red-500/5"}`}>
               <div className="flex justify-between items-start">
                 <div>
-                  <div className="font-display font-bold">{b.username}</div>
+                  <div className="font-display font-bold"><HeroName user={b} size="sm" /></div>
                   <div className="text-xs text-zinc-400">Par {b.banned_by} · {b.duration_hours}h · « {b.reason} »</div>
                   <div className="text-[10px] font-mono-stat text-zinc-500 mt-1">Jusqu'au {new Date(b.banned_until).toLocaleString()}</div>
                 </div>
@@ -182,6 +184,7 @@ export default function Admin() {
 
       {tab === "broadcast" && <BroadcastPanel />}
       {tab === "chat" && <StaffChat />}
+      {tab === "shop" && <ShopAdmin />}
       {tab === "roles" && <RolesGuide />}
 
       {tab === "system" && (
@@ -367,5 +370,258 @@ function EditDialog({ target, onClose, onDone, t }) {
         </div>
       </motion.form>
     </motion.div>
+  );
+}
+
+
+// ---------- Shop Admin (CRUD) ----------
+function ShopAdmin() {
+  const [items, setItems] = useState([]);
+  const [editing, setEditing] = useState(null); // null | "new" | item object
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/admin/shop");
+      setItems(data);
+    } catch { toast.error("Erreur de chargement"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const removeItem = async (sku) => {
+    if (!window.confirm(`Supprimer définitivement « ${sku} » ?`)) return;
+    try {
+      await api.delete(`/admin/shop/${sku}`);
+      toast.success("Item supprimé");
+      load();
+    } catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
+  };
+
+  const byCat = items.reduce((acc, it) => {
+    (acc[it.category] = acc[it.category] || []).push(it);
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-6" data-testid="shop-admin">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="font-display font-bold text-xl ancient-text flex items-center gap-2">
+            <ShoppingBag className="w-5 h-5 text-yellow-400" /> Gestion de la Boutique
+          </h2>
+          <p className="text-xs text-zinc-500 italic mt-1">
+            Les items <span className="text-cyan-400 font-bold">statiques</span> sont immuables. Les items <span className="text-yellow-400 font-bold">custom</span> peuvent être modifiés / supprimés.
+          </p>
+        </div>
+        <button onClick={() => setEditing("new")} data-testid="shop-add-btn"
+          className="px-4 py-2 rounded-md border border-yellow-500/50 text-yellow-300 font-bold font-display tracking-wide hover:shadow-[0_0_18px_rgba(255,215,0,0.4)] flex items-center gap-2 text-sm">
+          <Plus className="w-4 h-4" /> Nouvel item
+        </button>
+      </div>
+
+      {loading && <div className="text-center py-8 text-zinc-500 italic">Chargement...</div>}
+
+      {Object.keys(byCat).sort().map((cat) => (
+        <div key={cat} className="glass rounded-2xl overflow-hidden">
+          <div className="px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-bold font-display border-b border-white/5 bg-white/[0.02]">
+            {cat} ({byCat[cat].length})
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-[9px] uppercase tracking-widest text-zinc-500 border-b border-white/5">
+                <th className="p-2">SKU</th>
+                <th className="p-2">Nom</th>
+                <th className="p-2">Rareté</th>
+                <th className="p-2 text-right">Prix</th>
+                <th className="p-2 text-center">Source</th>
+                <th className="p-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {byCat[cat].map((it) => (
+                <tr key={it.sku} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]" data-testid={`shop-admin-row-${it.sku}`}>
+                  <td className="p-2 font-mono-stat text-xs text-zinc-400">{it.sku}</td>
+                  <td className="p-2 font-display font-bold">{it.name}</td>
+                  <td className="p-2"><span className={`text-[9px] uppercase tracking-widest font-bold rarity-${it.rarity}`}>{it.rarity}</span></td>
+                  <td className="p-2 text-right font-mono-stat text-yellow-300 font-bold">{it.price}</td>
+                  <td className="p-2 text-center">
+                    <span className={`text-[9px] uppercase tracking-widest font-bold ${it.source === "custom" ? "text-yellow-400" : "text-cyan-400"}`}>
+                      {it.source || "static"}
+                    </span>
+                  </td>
+                  <td className="p-2 text-right">
+                    {it.source === "custom" ? (
+                      <div className="flex gap-1 justify-end">
+                        <button onClick={() => setEditing(it)} className="text-cyan-400 hover:text-cyan-300 p-1" title="Modifier" data-testid={`shop-edit-${it.sku}`}>
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => removeItem(it.sku)} className="text-red-400 hover:text-red-300 p-1" title="Supprimer" data-testid={`shop-delete-${it.sku}`}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[9px] uppercase tracking-widest text-zinc-600">verrouillé</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+
+      <AnimatePresence>
+        {editing && (
+          <ShopItemDialog
+            item={editing === "new" ? null : editing}
+            onClose={() => setEditing(null)}
+            onDone={() => { setEditing(null); load(); }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ShopItemDialog({ item, onClose, onDone }) {
+  const isNew = !item;
+  const [form, setForm] = useState({
+    sku: item?.sku || "",
+    name: item?.name || "",
+    category: item?.category || "cosmetic",
+    price: item?.price || 100,
+    icon: item?.icon || "Sparkles",
+    rarity: item?.rarity || "common",
+    description: item?.description || "",
+    boost_type: item?.boost_type || "",
+    boost_value: item?.boost_value || 0,
+    duration_minutes: item?.duration_minutes || 0,
+  });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const payload = { ...form, price: parseInt(form.price) || 0 };
+    if (payload.category === "boost") {
+      payload.boost_value = parseFloat(form.boost_value) || 1;
+      payload.duration_minutes = parseInt(form.duration_minutes) || 60;
+    } else {
+      payload.boost_type = null;
+      payload.boost_value = null;
+      payload.duration_minutes = null;
+    }
+    try {
+      if (isNew) {
+        await api.post("/admin/shop", payload);
+        toast.success(`« ${form.name} » ajouté à la boutique`);
+      } else {
+        await api.put(`/admin/shop/${item.sku}`, payload);
+        toast.success("Item mis à jour");
+      }
+      onDone();
+    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose} className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <motion.form onClick={(e) => e.stopPropagation()} onSubmit={submit}
+        initial={{ scale: 0.9 }} animate={{ scale: 1 }}
+        className="rune-border rounded-2xl p-6 max-w-lg w-full space-y-3 max-h-[90vh] overflow-y-auto" data-testid="shop-item-dialog">
+        <div className="flex justify-between items-start">
+          <h3 className="font-display font-black text-xl text-gradient">
+            {isNew ? "Nouvel item de boutique" : `Modifier « ${item.name} »`}
+          </h3>
+          <button type="button" onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+
+        <Field label="SKU (identifiant unique)" required>
+          <input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })}
+            disabled={!isNew} placeholder="ex: cosmic_aura_special"
+            className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm font-mono-stat disabled:opacity-50" data-testid="shop-sku" />
+        </Field>
+
+        <Field label="Nom affiché">
+          <input value={form.name} required onChange={(e) => setForm({ ...form, name: e.target.value })}
+            className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="shop-name" />
+        </Field>
+
+        <Field label="Description (poétique)">
+          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+            rows={2} className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="shop-desc" />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Catégorie">
+            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+              className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="shop-category">
+              <option value="cosmetic">Cosmétique</option>
+              <option value="boost">Élixir (boost)</option>
+              <option value="consumable">Consommable</option>
+              <option value="kingdom">Royaume</option>
+            </select>
+          </Field>
+          <Field label="Rareté">
+            <select value={form.rarity} onChange={(e) => setForm({ ...form, rarity: e.target.value })}
+              className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="shop-rarity">
+              {["common", "rare", "epic", "legendary", "mythic", "divine", "cosmic"].map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Prix (Aether)">
+            <input type="number" min="1" value={form.price} required onChange={(e) => setForm({ ...form, price: e.target.value })}
+              className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm font-mono-stat" data-testid="shop-price" />
+          </Field>
+          <Field label="Icône (Lucide)">
+            <input value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })}
+              placeholder="ex: Sparkles, Crown, Sword..." className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="shop-icon" />
+          </Field>
+        </div>
+
+        {form.category === "boost" && (
+          <div className="grid grid-cols-3 gap-2 p-3 rounded-md border border-violet-500/30 bg-violet-500/5">
+            <Field label="Type">
+              <select value={form.boost_type} onChange={(e) => setForm({ ...form, boost_type: e.target.value })}
+                className="w-full bg-[#0A0A0E] border border-white/10 rounded px-2 py-1.5 text-xs" data-testid="shop-boost-type">
+                <option value="xp_multiplier">XP x</option>
+                <option value="aether_multiplier">Aether x</option>
+                <option value="luck">Chance</option>
+              </select>
+            </Field>
+            <Field label="Valeur">
+              <input type="number" step="0.1" value={form.boost_value} onChange={(e) => setForm({ ...form, boost_value: e.target.value })}
+                className="w-full bg-[#0A0A0E] border border-white/10 rounded px-2 py-1.5 text-xs" data-testid="shop-boost-value" />
+            </Field>
+            <Field label="Durée (min)">
+              <input type="number" value={form.duration_minutes} onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })}
+                className="w-full bg-[#0A0A0E] border border-white/10 rounded px-2 py-1.5 text-xs" data-testid="shop-boost-duration" />
+            </Field>
+          </div>
+        )}
+
+        <div className="flex gap-2 justify-end pt-3">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded border border-white/10 text-sm">Annuler</button>
+          <button type="submit" data-testid="shop-save" className="px-4 py-2 rounded border border-yellow-500/50 text-yellow-300 hover:bg-yellow-500/10 font-bold text-sm">
+            {isNew ? "Créer" : "Enregistrer"}
+          </button>
+        </div>
+      </motion.form>
+    </motion.div>
+  );
+}
+
+function Field({ label, required, children }) {
+  return (
+    <div>
+      <label className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-1 block">
+        {label} {required && <span className="text-red-400">*</span>}
+      </label>
+      {children}
+    </div>
   );
 }

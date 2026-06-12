@@ -1,0 +1,49 @@
+{
+  "summary": "NEXORIA batch 3 verification — World Map, Admin Shop CRUD, optimistic shop ownership, merchant + polyglot + badge-notifications, chest no-duplicates + refund, profile customization (avatar/active_banner). Created /app/backend/tests/test_batch3_features.py — 12/12 pass (TestWorldMap×2, TestAdminShopCRUD×3, TestShopPurchase×1, TestPolyglotBadge×1, TestBadgeNotification×1, TestChestDuplicateAndRefund×2, TestProfileCustomization×2). Frontend smoke: admin login OK → /world renders 'Carte du Monde' with 12 heroes plotted as stars, class filter chips (mage/warrior/explorer/chronomancer), 'Actifs uniquement' toggle, stats bar (Héros recensés, Actifs, Affichés, Classes), region labels (Plaines du Nord, Cités de Cendre, Sanctuaire Central, Marais Brumeux, Forêts d'Émeraude), legend at bottom. /quests shows data-testid='quests-help' banner. /admin → Boutique tab renders 4 categories (BOOST, CONSUMABLE, COSMETIC, KINGDOM), each row has source='static' + 'VERROUILLÉ' chip, 'Nouvel item' button present. /hero loads cleanly. Avatar/banner edit buttons exist in Profile.js source with testids 'edit-avatar-btn' and 'edit-banner-btn' (visible only to profile owner on /profile/{username}). Pre-existing regression in test_nexoria_api.py (asserts 'founder' badge which is OG-only) is unrelated to this batch.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/notifications", "issue": "Field naming inconsistency: notification documents use 'kind' (not 'type') for the category. Frontend NotificationsBell must read .kind, not .type, when filtering by 'badge'/'shop'/'broadcast'. Test was adapted to accept either."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/hero (My Hero)", "issues": ["Recharts warning: 'The width(-1) and height(-1) of chart should be greater than 0' — a chart container has 0 dimensions during initial render. Likely a hidden Tab/animated parent. Non-blocking but suggests minWidth:0 / aspect prop missing on a ResponsiveContainer."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_batch3_features.py",
+    "/app/test_reports/pytest/batch3_results.xml",
+    "/app/backend/tests/test_nexoria_api.py"
+  ],
+  "action_items": [
+    "(Minor, optional) Standardize notification field naming: either rename DB field 'kind' → 'type', OR keep 'kind' and ensure all frontend code (NotificationsBell, filters) reads from 'kind'. Currently the test had to accept both.",
+    "(Minor, optional) Fix Recharts 'width(-1) height(-1)' warning on /hero — add minWidth:0 or aspect to the ResponsiveContainer that wraps the radar/area chart inside an initially-hidden tab.",
+    "(Carryover from iteration_2) /api/auth/logout still reads only the cookie — Bearer-only logouts leave session row in MongoDB until expiry. Non-blocking.",
+    "(Carryover) server.py is 1680 lines — split into routers (auth, social, game, shop, admin, world, notifications) for maintainability."
+  ],
+  "critical_code_review_comments": [
+    "open_chest() correctly preloads owned (name, rarity) set and excludes them — verified empirically (5 consecutive chest opens never returned a pre-owned item).",
+    "open-chest endpoint refunds the 50 Aether when items=[] (all-owned case) — verified in code path (line 633-635) and via TestChestDuplicateAndRefund.",
+    "RARITIES weights tuned correctly: common=70 (>60% of mass), mythic+divine+cosmic = 0.47 (<1% of mass) — rare items are now genuinely rare.",
+    "purchase_item() grants 'merchant' badge on first purchase (total_purchases==1) and 'big_spender' at 5000+ Aether spent — both tested.",
+    "/profile PUT validates cosmetic ownership for active_banner/active_frame (returns 400 if not owned) — solid security check.",
+    "grant_badge() pushes a notification with sound='ding' + icon — verified via /api/notifications.",
+    "Language change tracking uses upsert on user_languages collection + count_documents — clean and idempotent. Polyglot triggers at 2+ distinct languages — verified.",
+    "Admin shop CRUD: static items correctly protected from update/delete (returns 400 'Item statique non éditable/supprimable'). Duplicate SKU rejected.",
+    "/world/heroes returns deterministic x,y coords from hash(user_id) and online=bool based on session activity in last 15 min — clean design.",
+    "Maintenance page (Maintenance.js) has data-testid='maintenance-logo-trigger' for the 5-click hidden staff trigger AND Ctrl+Shift+S shortcut — code review confirms presence; functional UI test of toggling maintenance mode was skipped to avoid disrupting other tests."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_batch3_features.py (new)"
+  ],
+  "success_rate": {"backend": "100% (12/12 batch3) — pre-existing TestChronicleBadges.test_badges_mine still fails on stale 'founder' assertion unrelated to this batch", "frontend": "World Map, Admin Boutique, Quests help — all verified visually. Profile avatar/banner buttons exist by data-testid in source; visible to owner only on /profile/{username}. Maintenance hidden-login UI not actively toggled to avoid breaking admin session for parallel tests — code review confirmed."},
+  "test_credentials": "admin@nexoria.com / NexoriaAdmin2026! — verified. Tests spawn fresh TEST_b3_<hex>@nexoria-test.com users.",
+  "seed_data_creation": "Multiple TEST_b3_* and TEST_bn_* users + one TEST shop_item 'test_b3_<hex>' (created and then deleted in same test) + a few TEST posts. Cleanup of TEST users is NOT performed automatically.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run all backend tests: `ADMIN_EMAIL=admin@nexoria.com ADMIN_PASSWORD='NexoriaAdmin2026!' pytest /app/backend/tests/ -v --junitxml=/app/test_reports/pytest/all.xml`. NOTE: /api/notifications returns {items, unread} (NOT a bare list); notif objects use 'kind' field NOT 'type'. /admin/grant does NOT exist — use PUT /api/admin/users/{user_id} with {aether: N} to top up. Static shop SKUs (for testing edit/delete rejection): banner_dragon, banner_phoenix, frame_runic, frame_celestial, frame_cosmic. ProfilePage testids: edit-avatar-btn, edit-banner-btn, avatar-dialog, avatar-url-input, avatar-save. Admin Boutique tab in /admin (click 'Boutique' tab) — table rows have ACTIONS column with 'VERROUILLÉ' for static rows.",
+  "rca of the issue": "No bugs found. All batch3 features verified end-to-end: World Map endpoint + UI, Admin Shop CRUD with static-item protection, optimistic shop ownership update (frontend Shop.js triggers re-fetch + state update after purchase — backend correctly returns 400 'Vous possédez déjà cet item' for duplicate buy), merchant badge on first purchase, polyglot badge after 2 distinct language changes, badge-grant notifications (with kind='badge'), chest no-duplicate guarantee + 50 Aether refund when user owns everything, rarity weights tuned (common 70 / cosmic 0.02), profile avatar update + active_banner ownership validation. One minor naming inconsistency: notification DB field is 'kind' not 'type' — main agent should verify frontend NotificationsBell reads .kind."
+}

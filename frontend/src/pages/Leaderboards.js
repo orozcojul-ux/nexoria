@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Trophy, Crown } from "lucide-react";
 import api from "@/lib/api";
 import { RuneSeal, RuneDivider } from "@/components/Ornaments";
+import HeroName from "@/components/HeroName";
 
 const CATEGORIES = [
   { id: "xp", label: "Expérience", color: "#00E5FF" },
@@ -60,7 +61,7 @@ export default function Leaderboards() {
               {u.avatar_url ? <img src={u.avatar_url} alt="" className="w-full h-full rounded-full object-cover" /> : u.username[0]?.toUpperCase()}
             </Link>
             <Link to={`/profile/${u.username}`} className="flex-1 min-w-0">
-              <div className="font-display font-bold truncate tracking-wide">{u.username}</div>
+              <div className="truncate"><HeroName user={u} size="base" /></div>
               <div className="text-[10px] uppercase tracking-[0.25em] text-cyan-400 font-bold">{u.class_name} · {u.rank}</div>
             </Link>
             <div className="text-right font-mono-stat">

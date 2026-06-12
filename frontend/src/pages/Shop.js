@@ -31,6 +31,15 @@ export default function Shop() {
       const { data } = await api.post(`/shop/purchase/${sku}`);
       sfx.chest();
       toast.success(`« ${data.purchase.name} » acquis !`);
+      // Optimistic update — mark as owned immediately so the button switches without waiting
+      const item = items.find((i) => i.sku === sku);
+      if (item) {
+        if (item.category === "cosmetic") {
+          setOwned((o) => ({ ...o, cosmetics: [...o.cosmetics, { sku, obtained_at: new Date().toISOString() }] }));
+        } else if (item.category === "kingdom") {
+          setOwned((o) => ({ ...o, perks: [...o.perks, { sku, obtained_at: new Date().toISOString() }] }));
+        }
+      }
       await load();
       await refresh();
     } catch (e) {

@@ -28,7 +28,11 @@ export default function Inventory() {
     try {
       const { data } = await api.post("/inventory/open-chest");
       sfx.chest();
-      setNewItems(data.items);
+      if (!data.items || data.items.length === 0) {
+        toast.info(`Vous possédez déjà toutes ces reliques — ${data.refunded || 50} Aether restitué.`);
+      } else {
+        setNewItems(data.items);
+      }
       await load(); await refresh();
     } catch (e) { toast.error(e.response?.data?.detail || "Le coffre résiste..."); }
     finally { setOpening(false); }

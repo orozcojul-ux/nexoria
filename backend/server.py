@@ -129,6 +129,14 @@ async def grant_badge(user_id: str, badge_id: str):
         "obtained_at": now_utc().isoformat(),
     })
     await add_chronicle(user_id, f"A obtenu le badge « {badge_def['name']} »", "badge")
+    # Send a notification with sound + icon
+    await push_notification(
+        db, user_id, "badge",
+        f"Badge débloqué : {badge_def['name']}",
+        badge_def.get("description", ""),
+        "ding",
+        badge_def.get("icon", "Award"),
+    )
     return True
 
 
@@ -157,7 +165,6 @@ async def grant_reputation(user_id: str, amount: int):
 
 async def progress_quests(user_id: str, action: str, amount: int = 1):
     """Advance all active quests matching the action."""
-    today = now_utc().date().isoformat()
     quests = await db.user_quests.find({"user_id": user_id, "action": action, "completed": False}).to_list(100)
     for q in quests:
         new_progress = q.get("progress", 0) + amount
@@ -169,6 +176,12 @@ async def progress_quests(user_id: str, action: str, amount: int = 1):
             await grant_xp(user_id, q["xp"], f"quest:{q['quest_id']}")
             await grant_aether(user_id, q["aether"])
             await add_chronicle(user_id, f"A accompli la quête « {q['name']} »", "quest")
+            # Quest count badges
+            completed_count = await db.user_quests.count_documents({"user_id": user_id, "completed": True})
+            if completed_count >= 10:
+                await grant_badge(user_id, "quest_finisher")
+            if completed_count >= 100:
+                await grant_badge(user_id, "quest_champion")
         else:
             await db.user_quests.update_one({"_id": q["_id"]}, {"$set": update})
 
@@ -179,7 +192,6 @@ def _secure_choice(seq):
 
 def _secure_weighted_choice(items, weights):
     """Cryptographically secure weighted choice."""
-    total = sum(weights)
     # Scale weights to ints for precision
     scaled = [int(w * 10000) for w in weights]
     total_scaled = sum(scaled)
@@ -198,28 +210,45 @@ def pick_random_item():
 
 
 async def open_chest(user_id: str):
-    """Generate 1-3 random items based on rarity weights."""
+    """Generate 1-3 random items. If user already owns the (name, rarity), skip it (no duplicate).
+    If all items of the rolled rarity are already owned, fallback to another rarity. As last resort,
+    return the items the user got (may be fewer than rolled count)."""
     items = []
     count = _secure_weighted_choice([1, 2, 3], [60, 30, 10])
-    for _ in range(count):
-        rarity_ids = list(RARITIES.keys())
-        weights = [RARITIES[r]["weight"] for r in rarity_ids]
+    # Preload owned (name, rarity) pairs for this user once.
+    owned_docs = await db.inventory.find(
+        {"user_id": user_id}, {"_id": 0, "name": 1, "rarity": 1}
+    ).to_list(1000)
+    owned_set = {(d["name"], d["rarity"]) for d in owned_docs}
+
+    rarity_ids = list(RARITIES.keys())
+    weights = [RARITIES[r]["weight"] for r in rarity_ids]
+
+    attempts = 0
+    while len(items) < count and attempts < count * 6:
+        attempts += 1
         rarity = _secure_weighted_choice(rarity_ids, weights)
-        candidates = [t for t in ITEM_TEMPLATES if t["rarity"] == rarity]
+        # Filter templates NOT already owned, of this rarity
+        candidates = [t for t in ITEM_TEMPLATES if t["rarity"] == rarity and (t["name"], t["rarity"]) not in owned_set]
         if not candidates:
-            candidates = ITEM_TEMPLATES
+            # try any rarity not owned
+            candidates = [t for t in ITEM_TEMPLATES if (t["name"], t["rarity"]) not in owned_set]
+            if not candidates:
+                break  # User owns everything — stop, return what we have
         tmpl = _secure_choice(candidates)
+
         item = {
             "item_id": f"item_{uuid.uuid4().hex[:12]}",
             "user_id": user_id,
-            "name": tmpl["name"],
-            "type": tmpl["type"],
-            "rarity": tmpl["rarity"],
-            "icon": tmpl["icon"],
+            "name": tmpl["name"], "type": tmpl["type"], "rarity": tmpl["rarity"], "icon": tmpl["icon"],
+            "quantity": 1,
             "obtained_at": now_utc().isoformat(),
+            "last_obtained_at": now_utc().isoformat(),
         }
         await db.inventory.insert_one(item)
         item.pop("_id", None)
+        item["duplicate"] = False
+        owned_set.add((tmpl["name"], tmpl["rarity"]))
         items.append(item)
         await add_chronicle(user_id, f"A découvert {tmpl['name']} ({RARITIES[tmpl['rarity']]['name']})", "item")
     return items
@@ -496,6 +525,9 @@ class ProfileUpdateReq(BaseModel):
     banner_url: Optional[str] = None
     secondary_class_id: Optional[str] = None
     class_id: Optional[str] = None
+    active_banner: Optional[str] = None   # SKU of equipped banner cosmetic
+    active_frame: Optional[str] = None    # SKU of equipped frame cosmetic
+    language: Optional[str] = None        # User-selected language code (fr/en/es/de/it)
 
 
 @api.put("/profile")
@@ -508,9 +540,30 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         update["needs_class_selection"] = False
     if "secondary_class_id" in update and update["secondary_class_id"] not in CLASSES:
         raise HTTPException(400, "Classe secondaire invalide")
+    # Validate cosmetic ownership for active_* fields
+    if "active_banner" in update and update["active_banner"]:
+        owned = await db.user_cosmetics.find_one({"user_id": user["user_id"], "sku": update["active_banner"]})
+        if not owned:
+            raise HTTPException(400, "Cette bannière n'a pas été acquise")
+    if "active_frame" in update and update["active_frame"]:
+        owned = await db.user_cosmetics.find_one({"user_id": user["user_id"], "sku": update["active_frame"]})
+        if not owned:
+            raise HTTPException(400, "Ce cadre n'a pas été acquis")
+    # Language change tracking → polyglot badge after 2 distinct languages
+    if "language" in update and update["language"]:
+        await db.user_languages.update_one(
+            {"user_id": user["user_id"], "language": update["language"]},
+            {"$set": {"last_used_at": now_utc().isoformat()},
+             "$setOnInsert": {"user_id": user["user_id"], "language": update["language"], "first_used_at": now_utc().isoformat()}},
+            upsert=True,
+        )
+        distinct_count = await db.user_languages.count_documents({"user_id": user["user_id"]})
+        if distinct_count >= 2:
+            await grant_badge(user["user_id"], "polyglot")
+
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": update})
 
-    # Badges + XP for customization
+    # Badges + XP for customization (only for textual/avatar/banner_url changes)
     if "avatar_url" in update or "banner_url" in update:
         await grant_badge(user["user_id"], "shapeshifter")
         await grant_xp(user["user_id"], 30, "customization")
@@ -576,6 +629,10 @@ async def open_chest_endpoint(user: dict = Depends(get_user_dep)):
         raise HTTPException(400, f"Aether insuffisant ({cost} requis)")
     await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": -cost}})
     items = await open_chest(user["user_id"])
+    # If user owns everything → refund the cost (no items granted)
+    if not items:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": cost}})
+        return {"items": [], "refunded": cost, "reason": "all_owned"}
     # award badges for rarity collection
     for it in items:
         if it["rarity"] == "mythic":
@@ -624,7 +681,7 @@ async def get_feed():
     posts = await db.posts.find({}, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
     # enrich with author info
     user_ids = list({p["user_id"] for p in posts})
-    users = await db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0, "user_id": 1, "username": 1, "avatar_url": 1, "level": 1, "class_name": 1, "active_title": 1, "rank": 1}).to_list(500)
+    users = await db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0, "user_id": 1, "username": 1, "avatar_url": 1, "level": 1, "class_name": 1, "active_title": 1, "rank": 1, "role": 1}).to_list(500)
     umap = {u["user_id"]: u for u in users}
     for p in posts:
         p["author"] = umap.get(p["user_id"], {})
@@ -694,7 +751,7 @@ async def react_to_post(post_id: str, user: dict = Depends(get_user_dep)):
 async def get_comments(post_id: str):
     comments = await db.comments.find({"post_id": post_id}, {"_id": 0}).sort("created_at", 1).to_list(200)
     user_ids = list({c["user_id"] for c in comments})
-    users = await db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0, "user_id": 1, "username": 1, "avatar_url": 1, "level": 1}).to_list(500)
+    users = await db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0, "user_id": 1, "username": 1, "avatar_url": 1, "level": 1, "role": 1}).to_list(500)
     umap = {u["user_id"]: u for u in users}
     for c in comments:
         c["author"] = umap.get(c["user_id"], {})
@@ -1086,17 +1143,32 @@ async def delete_account(user: dict = Depends(get_user_dep)):
 # ---------- Shop ----------
 @api.get("/shop/items")
 async def list_shop_items():
-    return SHOP_ITEMS
+    """Static catalog + admin-created items."""
+    custom = await db.shop_items.find({}, {"_id": 0}).to_list(500)
+    return SHOP_ITEMS + custom
 
 
 @api.post("/shop/purchase/{sku}")
 async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
     item = get_shop_item(sku)
     if not item:
+        # Try DB items
+        custom = await db.shop_items.find_one({"sku": sku}, {"_id": 0})
+        if custom:
+            item = custom
+    if not item:
         raise HTTPException(404, "Article introuvable")
     full = await db.users.find_one({"user_id": user["user_id"]})
     if full["aether"] < item["price"]:
         raise HTTPException(400, f"Aether insuffisant ({item['price']} requis)")
+
+    # Prevent duplicate purchase for non-stackable categories
+    if item["category"] in ("cosmetic", "kingdom"):
+        already_owned = await db.user_cosmetics.find_one({"user_id": user["user_id"], "sku": sku}) \
+            or await db.user_perks.find_one({"user_id": user["user_id"], "sku": sku})
+        if already_owned:
+            raise HTTPException(400, "Vous possédez déjà cet item")
+
     await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": -item["price"]}})
 
     purchase_doc = {
@@ -1457,6 +1529,85 @@ async def active_broadcasts():
     cutoff = (now_utc() - timedelta(minutes=10)).isoformat()
     items = await db.broadcasts.find({"created_at": {"$gte": cutoff}}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(5)
     return items
+
+
+# ---------- Shop admin CRUD ----------
+class ShopItemReq(BaseModel):
+    sku: str
+    name: str
+    category: str
+    price: int
+    icon: str = "Sparkles"
+    rarity: str = "common"
+    description: str = ""
+    boost_type: Optional[str] = None
+    boost_value: Optional[float] = None
+    duration_minutes: Optional[int] = None
+
+
+@api.get("/admin/shop")
+async def admin_list_shop(user: dict = Depends(get_admin_dep)):
+    """Return STATIC items + DB-stored items, merged."""
+    db_items = await db.shop_items.find({}, {"_id": 0}).to_list(500)
+    static = [{**i, "source": "static"} for i in SHOP_ITEMS]
+    custom = [{**i, "source": "custom"} for i in db_items]
+    return static + custom
+
+
+@api.post("/admin/shop")
+async def admin_create_shop_item(req: ShopItemReq, user: dict = Depends(get_admin_dep)):
+    existing = await db.shop_items.find_one({"sku": req.sku})
+    if existing or any(s["sku"] == req.sku for s in SHOP_ITEMS):
+        raise HTTPException(400, "SKU déjà utilisé")
+    if req.category not in ("cosmetic", "boost", "consumable", "kingdom"):
+        raise HTTPException(400, "Catégorie invalide")
+    doc = req.model_dump()
+    doc["created_at"] = now_utc().isoformat()
+    doc["created_by"] = user["username"]
+    await db.shop_items.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.put("/admin/shop/{sku}")
+async def admin_update_shop_item(sku: str, req: ShopItemReq, user: dict = Depends(get_admin_dep)):
+    if any(s["sku"] == sku for s in SHOP_ITEMS):
+        raise HTTPException(400, "Item statique non éditable (seulement les custom)")
+    update = req.model_dump()
+    update.pop("sku", None)
+    result = await db.shop_items.update_one({"sku": sku}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(404, "Item introuvable")
+    return {"ok": True}
+
+
+@api.delete("/admin/shop/{sku}")
+async def admin_delete_shop_item(sku: str, user: dict = Depends(get_admin_dep)):
+    if any(s["sku"] == sku for s in SHOP_ITEMS):
+        raise HTTPException(400, "Item statique non supprimable")
+    await db.shop_items.delete_one({"sku": sku})
+    return {"ok": True}
+
+
+# ---------- World Map (live heroes) ----------
+@api.get("/world/heroes")
+async def world_heroes():
+    """All heroes for live map — deterministic position from user_id."""
+    users = await db.users.find({}, {
+        "_id": 0, "user_id": 1, "username": 1, "class_id": 1, "class_name": 1,
+        "level": 1, "rank": 1, "avatar_url": 1, "active_title": 1, "role": 1,
+    }).to_list(500)
+    # active = had a session in last 15 minutes
+    cutoff = (now_utc() - timedelta(minutes=15)).isoformat()
+    active_sessions = await db.user_sessions.distinct("user_id", {"created_at": {"$gte": cutoff}})
+    active_set = set(active_sessions)
+    for u in users:
+        u["online"] = u["user_id"] in active_set
+        # Deterministic pseudo-coordinates from hash of user_id
+        h = sum(ord(c) for c in u["user_id"])
+        u["x"] = (h * 17) % 100  # 0-100 (percentage)
+        u["y"] = (h * 31 + 13) % 100
+    return users
 
 
 # ---------- Mount ----------

@@ -53,6 +53,20 @@ export default function Quests() {
         <RuneDivider className="mt-6" />
       </div>
 
+      {/* Help banner — explains how to advance quests */}
+      <div className="parchment rounded-xl p-4 mb-6 border-yellow-500/20 max-w-3xl mx-auto" data-testid="quests-help">
+        <div className="text-[10px] uppercase tracking-[0.3em] text-yellow-400 font-bold font-display mb-2 flex items-center gap-2">
+          <Scroll className="w-3.5 h-3.5" /> Comment progresser ?
+        </div>
+        <ul className="text-xs text-zinc-300 space-y-1 leading-relaxed font-mono-stat">
+          <li>• <span className="text-cyan-300 font-bold">Publier</span> sur la Place Publique fait progresser les quêtes « Voix du Royaume » / « Plume Active ».</li>
+          <li>• <span className="text-cyan-300 font-bold">Réagir</span> aux publications fait progresser « Encourager les Héros » / « Soutien Fervent ».</li>
+          <li>• <span className="text-cyan-300 font-bold">Commenter</span> fait progresser « Conseil Sage ».</li>
+          <li>• <span className="text-cyan-300 font-bold">Consulter l'Oracle</span> au Sanctuaire fait progresser « Sagesse de l'Oracle ».</li>
+          <li>• Une quête accomplie verse automatiquement son XP et son Aether — surveillez la <span className="text-violet-300 font-bold">Chronique</span> sur votre profil.</li>
+        </ul>
+      </div>
+
       <div className="flex gap-2 mb-6 flex-wrap justify-center" data-testid="quest-tabs">
         {Object.entries(tabLabels).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} data-testid={`tab-${id}`}

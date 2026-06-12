@@ -1,6 +1,7 @@
 // i18n minimaliste — Context React, 5 langues (FR/EN/ES/DE/IT)
 // Pas de dépendance lourde, tout est dans ce module.
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import api, { getToken } from "@/lib/api";
 
 const LANGS = {
   fr: { code: "fr", label: "Français", flag: "🇫🇷" },
@@ -22,6 +23,7 @@ const TR = {
   "nav.leaderboards":{ fr: "Hall des Légendes", en: "Hall of Legends", es: "Salón de Leyendas", de: "Halle der Legenden", it: "Hall of Legends" },
   "nav.legends":     { fr: "Panthéon", en: "Pantheon", es: "Panteón", de: "Pantheon", it: "Pantheon" },
   "nav.shop":        { fr: "Boutique d'Aether", en: "Aether Shop", es: "Tienda de Éter", de: "Aether-Shop", it: "Bottega d'Etere" },
+  "nav.world":       { fr: "Carte du Monde", en: "World Map", es: "Mapa del Mundo", de: "Weltkarte", it: "Mappa del Mondo" },
   "nav.settings":    { fr: "Paramètres", en: "Settings", es: "Ajustes", de: "Einstellungen", it: "Impostazioni" },
   "nav.admin":       { fr: "Conseil", en: "Council", es: "Consejo", de: "Rat", it: "Consiglio" },
 
@@ -110,6 +112,10 @@ export function I18nProvider({ children }) {
     if (LANGS[l]) {
       localStorage.setItem("nexoria_lang", l);
       setLangState(l);
+      // Persist language to backend so the Polyglot badge can trigger.
+      if (getToken()) {
+        api.put("/profile", { language: l }).catch(() => {});
+      }
     }
   }, []);
 

@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { sfx } from "@/lib/sfx";
 import { RuneSeal, RuneDivider } from "@/components/Ornaments";
+import HeroName from "@/components/HeroName";
 
 function PostCard({ post, onReact, onOpenComments, comments, onComment, openId }) {
   const [text, setText] = useState("");
@@ -27,7 +28,9 @@ function PostCard({ post, onReact, onOpenComments, comments, onComment, openId }
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 mb-1 flex-wrap">
-            <Link to={`/profile/${post.author?.username || ''}`} className="font-display font-bold text-white hover:text-cyan-400 transition-colors tracking-wide">{post.author?.username || "Anonyme"}</Link>
+            <Link to={`/profile/${post.author?.username || ''}`} className="hover:opacity-80 transition-opacity">
+              <HeroName user={post.author} size="base" />
+            </Link>
             <span className="text-[9px] uppercase tracking-[0.25em] font-bold text-cyan-400">{post.author?.class_name}</span>
             <span className="text-xs text-zinc-600">· {new Date(post.created_at).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
           </div>
@@ -50,7 +53,7 @@ function PostCard({ post, onReact, onOpenComments, comments, onComment, openId }
             <div className="mt-4 pl-3 border-l-2 border-cyan-500/20 space-y-2.5" data-testid={`comments-list-${post.post_id}`}>
               {comments.map((c) => (
                 <div key={c.comment_id} className="text-sm">
-                  <span className="font-bold text-cyan-300 font-display">{c.author?.username}</span>
+                  <HeroName user={c.author} size="sm" />
                   <span className="text-zinc-300 ml-2">{c.content}</span>
                 </div>
               ))}

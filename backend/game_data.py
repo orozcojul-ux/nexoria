@@ -38,12 +38,12 @@ KINGDOM_BUILDINGS = [
 
 # 7 Rarities
 RARITIES = {
-    "common": {"id": "common", "name": "Commun", "color": "#9CA3AF", "weight": 60},
-    "rare": {"id": "rare", "name": "Rare", "color": "#3B82F6", "weight": 25},
-    "epic": {"id": "epic", "name": "Épique", "color": "#A855F7", "weight": 10},
-    "legendary": {"id": "legendary", "name": "Légendaire", "color": "#EAB308", "weight": 4},
-    "mythic": {"id": "mythic", "name": "Mythique", "color": "#EF4444", "weight": 0.8},
-    "divine": {"id": "divine", "name": "Divin", "color": "#00E5FF", "weight": 0.18},
+    "common": {"id": "common", "name": "Commun", "color": "#9CA3AF", "weight": 70},
+    "rare": {"id": "rare", "name": "Rare", "color": "#3B82F6", "weight": 22},
+    "epic": {"id": "epic", "name": "Épique", "color": "#A855F7", "weight": 6},
+    "legendary": {"id": "legendary", "name": "Légendaire", "color": "#EAB308", "weight": 1.5},
+    "mythic": {"id": "mythic", "name": "Mythique", "color": "#EF4444", "weight": 0.35},
+    "divine": {"id": "divine", "name": "Divin", "color": "#00E5FF", "weight": 0.10},
     "cosmic": {"id": "cosmic", "name": "Cosmique", "color": "#FF0080", "weight": 0.02},
 }
 
