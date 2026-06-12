@@ -615,10 +615,53 @@ async def allocate_skill(req: SkillReq, user: dict = Depends(get_user_dep)):
 
 
 # ---------- Inventory ----------
+async def dedupe_inventory(user_id: str) -> int:
+    """Collapse all (name, rarity) duplicates into a single row with summed quantity.
+    Returns the number of duplicate rows removed."""
+    pipeline = [
+        {"$match": {"user_id": user_id}},
+        {"$group": {
+            "_id": {"name": "$name", "rarity": "$rarity"},
+            "ids": {"$push": "$_id"},
+            "item_ids": {"$push": "$item_id"},
+            "qty_sum": {"$sum": {"$ifNull": ["$quantity", 1]}},
+            "first_obtained": {"$min": "$obtained_at"},
+            "last_obtained": {"$max": "$last_obtained_at"},
+            "count": {"$sum": 1},
+        }},
+        {"$match": {"count": {"$gt": 1}}},
+    ]
+    removed = 0
+    async for grp in db.inventory.aggregate(pipeline):
+        keep_id = grp["ids"][0]
+        rest_ids = grp["ids"][1:]
+        # Sum quantities into the kept row
+        await db.inventory.update_one(
+            {"_id": keep_id},
+            {"$set": {
+                "quantity": grp["qty_sum"],
+                "obtained_at": grp["first_obtained"],
+                "last_obtained_at": grp["last_obtained"] or grp["first_obtained"],
+            }},
+        )
+        result = await db.inventory.delete_many({"_id": {"$in": rest_ids}})
+        removed += result.deleted_count
+    return removed
+
+
 @api.get("/inventory")
 async def get_inventory(user: dict = Depends(get_user_dep)):
+    # Auto-dedupe on every read (idempotent, cheap when no dupes)
+    await dedupe_inventory(user["user_id"])
     items = await db.inventory.find({"user_id": user["user_id"]}, {"_id": 0}).sort("obtained_at", -1).to_list(500)
     return items
+
+
+@api.post("/inventory/dedupe")
+async def dedupe_inventory_endpoint(user: dict = Depends(get_user_dep)):
+    """Manual cleanup — collapse duplicates into a single row per (name, rarity)."""
+    removed = await dedupe_inventory(user["user_id"])
+    return {"removed": removed}
 
 
 @api.post("/inventory/open-chest")
@@ -627,6 +670,8 @@ async def open_chest_endpoint(user: dict = Depends(get_user_dep)):
     fresh = await db.users.find_one({"user_id": user["user_id"]})
     if fresh.get("aether", 0) < cost:
         raise HTTPException(400, f"Aether insuffisant ({cost} requis)")
+    # Defensive: collapse any existing duplicates before computing "already owned"
+    await dedupe_inventory(user["user_id"])
     await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": -cost}})
     items = await open_chest(user["user_id"])
     # If user owns everything → refund the cost (no items granted)
@@ -1200,6 +1245,18 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
         await db.user_cosmetics.insert_one({"user_id": user["user_id"], "sku": sku, "obtained_at": now_utc().isoformat()})
         applied["unlocked"] = sku
     elif item["category"] == "boost":
+        # One active boost per (user, boost_type) at a time — refuse re-buy if still active
+        now_iso = now_utc().isoformat()
+        active = await db.user_boosts.find_one({
+            "user_id": user["user_id"],
+            "boost_type": item["boost_type"],
+            "expires_at": {"$gt": now_iso},
+        })
+        if active:
+            # Refund the just-debited Aether and abort
+            await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": item["price"]}})
+            await db.shop_purchases.delete_one({"purchase_id": purchase_doc["purchase_id"]})
+            raise HTTPException(400, f"Un effet « {item['boost_type']} » est déjà actif jusqu'à {active['expires_at'][:16]}")
         expires = (now_utc() + timedelta(minutes=item["duration_minutes"])).isoformat()
         await db.user_boosts.insert_one({
             "user_id": user["user_id"], "sku": sku,
@@ -1223,10 +1280,16 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
             })
             applied["rift_summoned"] = True
         else:
-            await db.user_consumables.insert_one({
-                "user_id": user["user_id"], "sku": sku, "name": item["name"],
-                "used": False, "obtained_at": now_utc().isoformat(),
-            })
+            # Stack consumables into a single row with quantity++
+            await db.user_consumables.update_one(
+                {"user_id": user["user_id"], "sku": sku, "used": False},
+                {"$inc": {"quantity": 1},
+                 "$setOnInsert": {
+                     "user_id": user["user_id"], "sku": sku, "name": item["name"],
+                     "used": False, "obtained_at": now_utc().isoformat(),
+                 }},
+                upsert=True,
+            )
             applied["consumable_added"] = sku
     elif item["category"] == "kingdom":
         await db.user_perks.insert_one({"user_id": user["user_id"], "sku": sku, "obtained_at": now_utc().isoformat()})
@@ -1671,6 +1734,46 @@ async def startup():
         # ensure password is current
         if not verify_password(admin_password, existing.get("password_hash", "")):
             await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+
+    # One-time global cleanup of existing inventory duplicates (idempotent)
+    try:
+        user_ids = await db.inventory.distinct("user_id")
+        total_removed = 0
+        for uid in user_ids:
+            total_removed += await dedupe_inventory(uid)
+        if total_removed:
+            logger.info(f"NEXORIA: collapsed {total_removed} duplicate inventory rows across {len(user_ids)} users")
+    except Exception as e:
+        logger.warning(f"NEXORIA: inventory dedupe migration skipped — {e}")
+
+    # One-time cleanup of existing consumable duplicates (idempotent)
+    try:
+        pipeline = [
+            {"$match": {"used": False}},
+            {"$group": {
+                "_id": {"user_id": "$user_id", "sku": "$sku"},
+                "ids": {"$push": "$_id"},
+                "qty_sum": {"$sum": {"$ifNull": ["$quantity", 1]}},
+                "first_obtained": {"$min": "$obtained_at"},
+                "name": {"$first": "$name"},
+                "count": {"$sum": 1},
+            }},
+            {"$match": {"count": {"$gt": 1}}},
+        ]
+        consumable_removed = 0
+        async for grp in db.user_consumables.aggregate(pipeline):
+            keep_id = grp["ids"][0]
+            rest_ids = grp["ids"][1:]
+            await db.user_consumables.update_one(
+                {"_id": keep_id},
+                {"$set": {"quantity": grp["qty_sum"], "obtained_at": grp["first_obtained"]}},
+            )
+            r = await db.user_consumables.delete_many({"_id": {"$in": rest_ids}})
+            consumable_removed += r.deleted_count
+        if consumable_removed:
+            logger.info(f"NEXORIA: collapsed {consumable_removed} duplicate consumable rows")
+    except Exception as e:
+        logger.warning(f"NEXORIA: consumable dedupe migration skipped — {e}")
 
     logger.info("NEXORIA backend started")
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as Lucide from "lucide-react";
-import { Gem, Sparkles, Coins, Package } from "lucide-react";
+import { Gem, Sparkles, Coins, Package, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,6 +38,19 @@ export default function Inventory() {
     finally { setOpening(false); }
   };
 
+  const dedupe = async () => {
+    try {
+      const { data } = await api.post("/inventory/dedupe");
+      if (data.removed > 0) {
+        toast.success(`Coffre compacté — ${data.removed} doublon${data.removed > 1 ? "s" : ""} fusionné${data.removed > 1 ? "s" : ""}.`);
+        sfx.success();
+      } else {
+        toast.info("Aucun doublon à compacter.");
+      }
+      await load();
+    } catch (e) { toast.error("Compactage impossible"); }
+  };
+
   const filtered = filter === "all" ? items : items.filter((i) => i.rarity === filter);
 
   return (
@@ -54,12 +67,21 @@ export default function Inventory() {
           « {items.length} trésor{items.length > 1 ? "s" : ""} arraché{items.length > 1 ? "s" : ""} aux brumes oubliées. »
         </p>
         <RuneDivider className="mt-6 mb-6" />
-        <button onClick={openChest} disabled={opening || (user?.aether || 0) < 50}
-          className="px-6 py-3 rounded-md bg-[#0A0A0E] border border-yellow-500/50 text-yellow-300 font-display font-bold hover:shadow-[0_0_32px_rgba(255,215,0,0.5)] transition-all inline-flex items-center gap-2 disabled:opacity-40 tracking-wide"
-          data-testid="open-chest-btn">
-          <Sparkles className="w-4 h-4" />
-          Briser un sceau de coffre <span className="text-xs font-mono-stat opacity-70">— 50 ✦</span>
-        </button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button onClick={openChest} disabled={opening || (user?.aether || 0) < 50}
+            className="px-6 py-3 rounded-md bg-[#0A0A0E] border border-yellow-500/50 text-yellow-300 font-display font-bold hover:shadow-[0_0_32px_rgba(255,215,0,0.5)] transition-all inline-flex items-center gap-2 disabled:opacity-40 tracking-wide"
+            data-testid="open-chest-btn">
+            <Sparkles className="w-4 h-4" />
+            Briser un sceau de coffre <span className="text-xs font-mono-stat opacity-70">— 50 ✦</span>
+          </button>
+          <button onClick={dedupe}
+            className="px-4 py-3 rounded-md bg-[#0A0A0E] border border-violet-500/40 text-violet-300 font-display font-bold hover:shadow-[0_0_20px_rgba(157,76,221,0.4)] transition-all inline-flex items-center gap-2 tracking-wide text-sm"
+            data-testid="dedupe-chest-btn"
+            title="Fusionner les reliques en double en empilant leur quantité">
+            <Wand2 className="w-3.5 h-3.5" />
+            Compacter le coffre
+          </button>
+        </div>
       </div>
 
       {/* Rarity filters — small medallions */}

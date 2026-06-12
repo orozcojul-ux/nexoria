@@ -52,6 +52,18 @@ export default function Shop() {
     ...owned.perks.map((p) => p.sku),
   ]);
 
+  // Active boosts: map boost_type → expires_at (so we disable items sharing same type)
+  const now = Date.now();
+  const activeBoostTypes = new Set(
+    (owned.boosts || []).filter((b) => new Date(b.expires_at).getTime() > now).map((b) => b.boost_type),
+  );
+
+  // Consumables count per SKU (for display)
+  const consumableCount = (owned.consumables || []).reduce((acc, c) => {
+    acc[c.sku] = (acc[c.sku] || 0) + (c.quantity || 1);
+    return acc;
+  }, {});
+
   const filtered = items.filter((i) => i.category === cat);
 
   return (
@@ -85,6 +97,8 @@ export default function Shop() {
         {filtered.map((it, i) => {
           const Icon = Lucide[it.icon] || Lucide.Sparkles;
           const isOwned = ownedSkus.has(it.sku);
+          const boostActive = it.category === "boost" && it.boost_type && activeBoostTypes.has(it.boost_type);
+          const ownedCount = it.category === "consumable" ? (consumableCount[it.sku] || 0) : 0;
           const canAfford = (user?.aether || 0) >= it.price;
           return (
             <motion.div
@@ -93,6 +107,11 @@ export default function Shop() {
               className={`glass rounded-2xl p-5 border-2 relative overflow-hidden rarity-${it.rarity}`}
               data-testid={`shop-item-${it.sku}`}
             >
+              {ownedCount > 0 && (
+                <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full border border-violet-500/40 bg-violet-500/10 text-violet-300 text-[10px] font-mono-stat font-bold" data-testid={`owned-count-${it.sku}`}>
+                  x{ownedCount}
+                </span>
+              )}
               <div className="flex items-start justify-between mb-3">
                 <Icon className="w-9 h-9" style={{ filter: "drop-shadow(0 0 8px currentColor)" }} />
                 <div className="text-[9px] uppercase tracking-[0.25em] font-bold opacity-80">{it.rarity}</div>
@@ -105,8 +124,12 @@ export default function Shop() {
                   <span>{it.price}</span>
                 </div>
                 {isOwned ? (
-                  <span className="px-3 py-1.5 rounded-md border border-green-500/40 text-green-400 text-xs font-bold flex items-center gap-1">
+                  <span className="px-3 py-1.5 rounded-md border border-green-500/40 text-green-400 text-xs font-bold flex items-center gap-1" data-testid={`owned-${it.sku}`}>
                     <Check className="w-3 h-3" /> Acquis
+                  </span>
+                ) : boostActive ? (
+                  <span className="px-3 py-1.5 rounded-md border border-cyan-500/40 text-cyan-300 text-xs font-bold flex items-center gap-1" data-testid={`active-${it.sku}`}>
+                    <Check className="w-3 h-3" /> Effet actif
                   </span>
                 ) : (
                   <button
@@ -115,7 +138,7 @@ export default function Shop() {
                     data-testid={`buy-${it.sku}`}
                     className="px-3 py-1.5 rounded-md border border-yellow-500/40 text-yellow-300 hover:shadow-[0_0_14px_rgba(255,215,0,0.4)] text-xs font-bold font-display tracking-wide disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   >
-                    {!canAfford ? t("shop.insufficient") : t("shop.buy")}
+                    {!canAfford ? t("shop.insufficient") : (ownedCount > 0 ? "Acquérir +1" : t("shop.buy"))}
                   </button>
                 )}
               </div>

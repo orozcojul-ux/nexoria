@@ -1,0 +1,43 @@
+{
+  "summary": "NEXORIA batch 4 — inventory dedupe migration + endpoint, all-owned chest refund, boost re-buy block, consumable stacking, regression on cosmetic/kingdom duplicate blocking. Created /app/backend/tests/test_batch4_dedupe_boost_consumable.py — 7/7 pass after fixing one production bug (server.py line 1258 KeyError 'purchased_at'). Frontend smoke verified: /inventory has data-testid='dedupe-chest-btn' ('Compacter le coffre'), clicking calls POST /api/inventory/dedupe and toasts 'Aucun doublon à compacter.' (admin already deduped). /shop Consommables tab shows data-testid='owned-count-scroll_rename'='x3', 'owned-count-key_chest_cosmic'='x1', button label 'Acquérir +1' on owned consumables vs 'Acquérir' on un-owned (Catalyseur de Faille). /shop Élixirs tab shows data-testid='active-boost_xp_2x_1h' and 'active-boost_xp_2x_24h' both rendering 'Effet actif' chip in place of buy button. Migration logs confirmed in /var/log/supervisor/backend.err.log: 'NEXORIA: collapsed 12 duplicate inventory rows across 8 users' and 'NEXORIA: collapsed 2 duplicate consumable rows' — matches user's reported numbers exactly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/shop/purchase/{sku}", "issue": "FIXED — boost re-buy raised 500 KeyError 'purchased_at' (line 1258 referenced purchase_doc['purchased_at'] but purchase_doc uses key 'created_at'). Patched to delete_one by purchase_id instead. Without the fix, the refund path was broken: HTTPException 400 was never reached, and worse — the just-debited Aether was still refunded BUT the purchase_doc remained in shop_purchases, polluting badge counts."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_batch4_dedupe_boost_consumable.py",
+    "/app/test_reports/pytest/batch4_results.xml"
+  ],
+  "action_items": [
+    "(Already applied by testing agent) Bug fix in /app/backend/server.py line 1258: changed `delete_one({'sku': sku, 'user_id': ..., 'purchased_at': purchase_doc['purchased_at']})` → `delete_one({'purchase_id': purchase_doc['purchase_id']})`. Main agent please review/keep this fix.",
+    "(Carryover from iteration_3) Standardize notification field naming 'kind' vs 'type'; Recharts width=-1 warning on /hero; /api/auth/logout cookie-only; server.py at 1784 lines should be split into routers."
+  ],
+  "critical_code_review_comments": [
+    "dedupe_inventory() helper uses idiomatic Mongo aggregation ($group by name+rarity, $push _ids, $sum quantity), kept first row + sums quantities + deletes the rest — fully idempotent. Called on startup migration AND on every GET /api/inventory AND on every POST /api/inventory/open-chest. Defensive-by-design.",
+    "POST /api/inventory/dedupe is correctly auth-gated via get_user_dep and returns {removed:N} — easy contract for the frontend.",
+    "Open-chest all_owned path refunds the 50 Aether AND returns {items:[], refunded:50, reason:'all_owned'} — verified end-to-end with admin (balance unchanged on refund).",
+    "Boost re-buy: refunds the price AND deletes the just-inserted shop_purchases row before raising 400 — but the original delete filter used wrong field name 'purchased_at' (vs actual 'created_at') which caused 500 instead of 400. NOW FIXED.",
+    "Consumable stacking via update_one with $inc:{quantity:1} + $setOnInsert + upsert=True — clean, atomic, no race conditions. summon_rift correctly bypasses the stacking path (creates a rift row instead).",
+    "Startup migration runs in try/except and logs counts — non-fatal if it fails. Idempotent because aggregation pipeline only $matches count>1 groups.",
+    "Frontend Shop.js: ownedCount derived from owned.consumables map; activeBoostTypes Set built from active_boosts; 'Acquérir +1' label and 'Effet actif' chip both render conditionally — verified visually.",
+    "Regression preserved: cosmetic and kingdom duplicate buys still return 400 'Vous possédez déjà cet item' (lines 1208-1215)."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (line 1258 — boost rebuy delete_one field fix)",
+    "/app/backend/tests/test_batch4_dedupe_boost_consumable.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7 batch4 after 1-line server fix)", "frontend": "100% — all 4 expected testids rendered (dedupe-chest-btn, owned-count-{sku}, active-{sku}, Acquérir +1 / Effet actif labels) on live admin session"},
+  "test_credentials": "admin@nexoria.com / NexoriaAdmin2026! — verified working. Fresh users registered: TEST_b4boost_*, TEST_b4cons_*, TEST_b4cos_*, TEST_b4kgd_* — left in DB intentionally (per agent_to_agent_context_note).",
+  "seed_data_creation": "4 fresh TEST_b4_* users registered, each topped up to 5000 Aether via PUT /api/admin/users/{id}, each made 1-3 purchases. No test data cleanup (preserved for inspection).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: `ADMIN_EMAIL=admin@nexoria.com ADMIN_PASSWORD='NexoriaAdmin2026!' pytest /app/backend/tests/ -v --junitxml=/app/test_reports/pytest/all.xml`. NOTE: POST /api/shop/purchase/{sku} (path param, NOT /shop/buy with json body). Boost re-buy returns 400 with detail starting 'Un effet'. Cosmetic/kingdom dup returns 400 'Vous possédez déjà cet item'. Consumables stack as single row with quantity field (NOT one row per buy) — except summon_rift which creates a rift row. /api/inventory auto-dedupes on read; /api/inventory/dedupe is manual endpoint returning {removed:N}. /api/inventory/open-chest returns {items:[], refunded:50, reason:'all_owned'} when user owns every (name,rarity) combo. Auth/register response is FLAT (not nested under 'user' key) — contains user_id, username, session_token directly. server.py is now 1784 lines.",
+  "rca of the issue": "User-reported issues both resolved AND tested. (1) Existing duplicates: startup migration (lines 1738-1776) ran successfully on this DB — logs show 12 inventory rows + 2 consumable rows collapsed across 8 users. GET /api/inventory now returns zero (name,rarity) duplicates for admin. Migration is idempotent (only matches count>1 groups). (2) Boost/consumable re-buys: boost re-buy now correctly raises 400 with detail 'Un effet ... est déjà actif jusqu'à ...' and refunds the Aether (verified balance unchanged across rejection). Consumables stack atomically via $inc quantity (verified GET /shop/inventory shows ONE row per SKU with quantity incrementing 1→2→3 after 3 purchases, Aether debited each time). HOWEVER, found a latent bug: the boost-refund path was broken by a typo on line 1258 (`purchase_doc['purchased_at']` — key never existed, doc has `created_at`). This caused HTTPException 400 to be masked by a 500 KeyError, so the user would see 'Internal Server Error' and the orphan shop_purchases row would still inflate badge counts. FIXED to delete_one by purchase_id. Without this fix, the 'fix' for boost rebuy was only half-working: aether was refunded but the purchase_doc remained in DB."
+}
