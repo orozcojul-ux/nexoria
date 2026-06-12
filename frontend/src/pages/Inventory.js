@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as Lucide from "lucide-react";
-import { Gem, Sparkles, Coins, Package, Wand2 } from "lucide-react";
+import { Gem, Sparkles, Coins, Package, Wand2, Flag, Zap, Scroll, Castle } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,14 +11,22 @@ import { RuneSeal, RuneDivider } from "@/components/Ornaments";
 export default function Inventory() {
   const { user, refresh } = useAuth();
   const [items, setItems] = useState([]);
+  const [shopInv, setShopInv] = useState({ cosmetics: [], boosts: [], consumables: [], perks: [] });
+  const [shopItems, setShopItems] = useState([]);
   const [rarities, setRarities] = useState([]);
   const [opening, setOpening] = useState(false);
   const [newItems, setNewItems] = useState(null);
   const [filter, setFilter] = useState("all");
+  const [tab, setTab] = useState("relics"); // relics | cosmetics | boosts | consumables | perks
 
   const load = async () => {
-    const [a, b] = await Promise.all([api.get("/inventory"), api.get("/game/rarities")]);
-    setItems(a.data); setRarities(b.data);
+    const [a, b, c, d] = await Promise.all([
+      api.get("/inventory"),
+      api.get("/game/rarities"),
+      api.get("/shop/inventory"),
+      api.get("/shop/items"),
+    ]);
+    setItems(a.data); setRarities(b.data); setShopInv(c.data); setShopItems(d.data);
   };
   useEffect(() => { load(); }, []);
 
@@ -84,7 +92,25 @@ export default function Inventory() {
         </div>
       </div>
 
+      {/* Tabs — switch between asset types */}
+      <div className="flex flex-wrap gap-2 mb-4 justify-center" data-testid="inventory-tabs">
+        {[
+          { id: "relics", label: "Reliques", icon: Gem, count: items.length },
+          { id: "cosmetics", label: "Cosmétiques", icon: Flag, count: shopInv.cosmetics.length },
+          { id: "boosts", label: "Élixirs actifs", icon: Zap, count: shopInv.boosts.length },
+          { id: "consumables", label: "Consommables", icon: Scroll, count: shopInv.consumables.length },
+          { id: "perks", label: "Royaume", icon: Castle, count: shopInv.perks.length },
+        ].map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)} data-testid={`inv-tab-${t.id}`}
+            className={`px-4 py-2 rounded-md text-sm font-bold font-display tracking-wide border transition-all flex items-center gap-2 ${tab === t.id ? "border-cyan-500/60 text-cyan-300 bg-cyan-500/10 shadow-[0_0_14px_rgba(0,229,255,0.2)]" : "border-white/10 text-zinc-400 hover:border-white/30"}`}>
+            <t.icon className="w-3.5 h-3.5" />
+            {t.label} <span className="font-mono-stat text-[10px] opacity-70">({t.count})</span>
+          </button>
+        ))}
+      </div>
+
       {/* Rarity filters — small medallions */}
+      {tab === "relics" && (
       <div className="flex flex-wrap gap-2 mb-6 justify-center" data-testid="rarity-filters">
         <button onClick={() => setFilter("all")} className={`px-3 py-1.5 rounded text-xs font-bold font-display tracking-wide border ${filter === "all" ? "border-cyan-500/60 text-cyan-300" : "border-white/10 text-zinc-400"}`}>Tous</button>
         {rarities.map((r) => (
@@ -93,8 +119,9 @@ export default function Inventory() {
           </button>
         ))}
       </div>
+      )}
 
-      {/* Cabinet grid — items as ornate medallions */}
+      {tab === "relics" && (
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3" data-testid="inventory-grid">
         {filtered.length === 0 && (
           <div className="col-span-full parchment rounded-2xl p-12 text-center text-zinc-500">
@@ -114,7 +141,6 @@ export default function Inventory() {
               className={`aspect-square relative rounded-xl border-2 rarity-${item.rarity} bg-gradient-to-br from-[#0a0a0e] to-[#15101e] p-3 flex flex-col items-center justify-center text-center group cursor-pointer overflow-hidden`}
               data-testid={`item-${item.item_id}`}
             >
-              {/* Inner ornament corners */}
               <span className="absolute top-1 left-1 w-2 h-2 border-t border-l border-current opacity-50" />
               <span className="absolute top-1 right-1 w-2 h-2 border-t border-r border-current opacity-50" />
               <span className="absolute bottom-1 left-1 w-2 h-2 border-b border-l border-current opacity-50" />
@@ -122,10 +148,16 @@ export default function Inventory() {
               <I className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform" style={{ filter: "drop-shadow(0 0 8px currentColor)" }} />
               <div className="text-xs font-display font-bold text-white leading-tight">{item.name}</div>
               <div className="text-[8px] uppercase tracking-[0.2em] font-bold mt-1 opacity-80">{item.rarity}</div>
+              {item.quantity > 1 && (
+                <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-violet-500/30 text-violet-200 text-[9px] font-mono-stat font-bold">x{item.quantity}</div>
+              )}
             </motion.div>
           );
         })}
       </div>
+      )}
+
+      {tab !== "relics" && <ShopOwnedGrid tab={tab} owned={shopInv} shopItems={shopItems} />}
 
       {/* Chest unsealing modal */}
       <AnimatePresence>
@@ -162,6 +194,61 @@ export default function Inventory() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+
+function ShopOwnedGrid({ tab, owned, shopItems }) {
+  const itemsByKey = Object.fromEntries(shopItems.map((it) => [it.sku, it]));
+  const now = Date.now();
+  let list = [];
+  if (tab === "cosmetics") list = owned.cosmetics;
+  else if (tab === "boosts") list = (owned.boosts || []).filter((b) => new Date(b.expires_at).getTime() > now);
+  else if (tab === "consumables") list = owned.consumables;
+  else if (tab === "perks") list = owned.perks;
+
+  if (list.length === 0) {
+    return (
+      <div className="parchment rounded-2xl p-12 text-center text-zinc-500 max-w-xl mx-auto" data-testid={`empty-${tab}`}>
+        <Package className="w-12 h-12 mx-auto mb-3 opacity-40" />
+        <div className="italic">Aucun objet de cette catégorie pour le moment.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid={`grid-${tab}`}>
+      {list.map((row, i) => {
+        const sku = row.sku;
+        const meta = itemsByKey[sku] || {};
+        const I = Lucide[meta.icon] || Lucide.Package;
+        const rarity = meta.rarity || "common";
+        return (
+          <motion.div key={`${sku}-${i}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            className={`glass rounded-2xl p-4 border-2 rarity-${rarity} relative overflow-hidden`}
+            data-testid={`inv-row-${tab}-${sku}`}>
+            {row.quantity > 1 && (
+              <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full border border-violet-500/40 bg-violet-500/15 text-violet-200 text-[10px] font-mono-stat font-bold">x{row.quantity}</span>
+            )}
+            <div className="flex items-start gap-3">
+              <I className="w-10 h-10 shrink-0" style={{ filter: "drop-shadow(0 0 8px currentColor)" }} />
+              <div className="flex-1 min-w-0">
+                <div className="font-display font-bold text-base">{meta.name || sku}</div>
+                <div className="text-[9px] uppercase tracking-[0.25em] font-bold opacity-80 mt-0.5">{rarity}</div>
+                {meta.description && (
+                  <div className="text-xs text-zinc-400 italic mt-1.5 scroll-paragraph">{meta.description}</div>
+                )}
+                {tab === "boosts" && row.expires_at && (
+                  <div className="text-[10px] font-mono-stat text-cyan-300 mt-1.5">
+                    Expire le {new Date(row.expires_at).toLocaleString("fr-FR")}
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        );
+      })}
     </div>
   );
 }

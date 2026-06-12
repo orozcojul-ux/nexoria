@@ -60,7 +60,7 @@ export default function WorldMap() {
   };
   useEffect(() => {
     load();
-    const id = setInterval(load, 30000); // refresh every 30s
+    const id = setInterval(load, 10000); // refresh every 10s
     return () => clearInterval(id);
   }, []);
 

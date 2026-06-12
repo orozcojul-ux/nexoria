@@ -1,0 +1,41 @@
+{
+  "summary": "NEXORIA batch 5 — ban enforcement (login + Discord + Google paths), shop level gate (backend + UI), notifications clear-all, moderator permissions (staff endpoints accessible, admin-only blocked, mod cannot ban mod/admin), staff delete posts, profile role badge. Created /app/backend/tests/test_batch5_ban_mod_shop_level.py with 15 tests across 6 suites — ALL 15/15 PASS. Frontend smoke verified on admin session: role-badge-admin renders 'Archonte', profile-rank renders 'Cosmique', all 5 inventory tabs (relics/cosmetics/boosts/consumables/perks) present, admin (level 999) sees ZERO locked items in all 4 shop categories (Cosmétiques/Élixirs/Consommables/Royaume), mod-banner correctly hidden for admin, notif-bell-btn rendered. NO regressions introduced. NO bugs found in this batch.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_batch5_ban_mod_shop_level.py",
+    "/app/test_reports/pytest/batch5_results.xml"
+  ],
+  "action_items": [
+    "No action items — all 15 backend tests pass on first run (after 1 test-only assertion fix for nested profile.role key).",
+    "Carryover from earlier iterations still pending: split /app/backend/server.py (now 1852 lines) into routers; standardize notification 'kind' vs 'type'; Recharts width=-1 warning on /hero."
+  ],
+  "critical_code_review_comments": [
+    "enforce_ban_or_raise() correctly handles str/datetime + tz-aware/naive banned_until and raises HTTPException(403, detail={banned, reason, until}) — called from 3 entry points (login L444, google_session L497, discord_exchange L1550). Verified: banned user gets 403 with detail.banned=true, no session_token cookie set.",
+    "Ban-on-login path: `await db.user_sessions.delete_many({user_id})` runs inside admin_ban_user (L1495) — invalidates all live sessions IMMEDIATELY. Defensive, prevents the original bug (banned user keeps using existing token).",
+    "Mod-vs-admin guard at L1482-1483: `if user.role=='moderator' and target.role in ('admin','moderator')` returns 403 'Un modérateur ne peut bannir qu'un héros standard' — verified.",
+    "Shop level gate at L1259-1261: `if full.level < item.unlock_level: 403 'Niveau X requis ...'` runs BEFORE aether check — correct order (better error message). All 6 new kingdom SKUs verified in SHOP_ITEMS with unlock_level (25,30,35,50,60,80) + perk field.",
+    "DELETE /api/posts/{post_id} (L801) correctly checks `is_staff or is_author` and cascades comments+reactions delete. Adds chronicle 'Publication retirée par le Conseil' when staff deletes another user's post — nice audit trail.",
+    "DELETE /api/notifications/clear (L1399) uses delete_many({user_id}) — bulk, atomic, returns {removed:N}. Frontend confirms data-testid='notif-clear-all' visible when notifs.length>0 and calls window.confirm before fire.",
+    "get_staff_dep wraps admin+moderator roles uniformly; admin_edit_user/admin_create_shop_item/admin_delete_user still use get_admin_dep — correct privilege separation. Verified mod gets 403 on /admin/shop GET and PUT /admin/users/{id}.",
+    "Profile page returns user under `profile` key (not flat) — Profile.js binds {profile.role==='admin'} to render the Archonte badge. Verified live: badge text='Archonte', rank text='Cosmique'.",
+    "Inventory page has all 5 tabs with proper data-testid='inv-tab-{id}'; default tab 'relics' shows existing chest grid; other 4 tabs use ShopOwnedGrid component."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_batch5_ban_mod_shop_level.py (new — 15 tests / 6 suites)"
+  ],
+  "success_rate": {"backend": "100% (15/15 batch5)", "frontend": "100% — all expected testids rendered on admin session (role-badge-admin, profile-rank, inv-tab-*, no locked items for admin, no mod-banner for admin, notif-bell-btn present)"},
+  "test_credentials": "admin@nexoria.com / NexoriaAdmin2026! — verified working. Fresh users created during tests: TEST_b5ban_*, TEST_b5unban_*, TEST_b5lvl_*, TEST_b5mod_*, TEST_b5mod2_*, TEST_b5victim_*, TEST_b5post_*, TEST_b5author_*, TEST_b5intruder_* — left in DB (TEST_ prefix convention).",
+  "seed_data_creation": "Test users registered + promoted to moderator role via PUT /api/admin/users/{id} {role:'moderator'}, then re-login to get fresh session with mod role. One TEST_b5mod_* user remains as a moderator in DB if main agent wants to manually test mod UI flows.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: `pytest /app/backend/tests/ -v --junitxml=/app/test_reports/pytest/all.xml`. Critical contracts: (1) POST /api/auth/login with banned user → 403 with `detail={banned:true, reason, until}`, NO session_token cookie. (2) Banning a user calls `db.user_sessions.delete_many({user_id})` — kills all live tokens. (3) Mod cannot ban mod/admin → 403 'Un modérateur ne peut bannir qu'un héros standard'. (4) Shop purchase 403 when level<unlock_level, message format 'Niveau {X} requis pour acquérir cet article'. (5) DELETE /api/notifications/clear returns {removed:N}. (6) DELETE /api/posts/{id} allowed for author OR staff (admin/moderator), cascades comments+reactions. (7) Profile endpoint returns user under `profile` key (NOT flat). (8) Promoting user to mod via PUT /admin/users/{id} requires re-login to refresh session role.",
+  "rca of the issue": "User-reported issues all resolved AND tested. (1) Banned-user-bypasses-ban: enforce_ban_or_raise() now called at all 3 auth entry points (login L444, google_session L497, discord_exchange L1550). The 'slow ban via email login' issue is resolved because admin_ban_user also calls user_sessions.delete_many() at L1495 — so existing tokens are revoked instantly, and the next login attempt is blocked at L444. Verified: banned user gets 403 with detail.banned=true and no session_token cookie issued (regression test guarantees this). (2) Shop level gate: SHOP_ITEMS now have unlock_level on every entry + 6 new kingdom items (ban_archive L25, oracle_link L30, chronicle_vault L35, throne_room L50, treasury L60, constellation L80). Purchase endpoint at L1259-1261 blocks with 403 when full.level<item.unlock_level. (3) Mod permissions: get_staff_dep allows admin+mod to read /admin/stats|users|logs|ban-history and call ban/unban; admin-only endpoints (shop CRUD, edit user, delete user) still use get_admin_dep. Mod-vs-mod ban guard at L1482-1483 — verified. (4) Notif clear-all: DELETE /api/notifications/clear simple+atomic. (5) Profile badge: Profile.js renders distinct chips per role with data-testid='role-badge-admin' / 'role-badge-mod'. ALL 15/15 backend tests pass."
+}

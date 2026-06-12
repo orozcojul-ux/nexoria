@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import * as Lucide from "lucide-react";
-import { Bell, Check } from "lucide-react";
+import { Bell, Check, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
@@ -44,6 +44,12 @@ export default function NotificationsBell() {
     await load();
   };
 
+  const clearAll = async () => {
+    if (!window.confirm("Effacer toutes les notifications définitivement ?")) return;
+    await api.delete("/notifications/clear");
+    await load();
+  };
+
   return (
     <div className="relative" ref={ref}>
       <button
@@ -68,13 +74,20 @@ export default function NotificationsBell() {
             className="absolute right-0 mt-2 w-80 max-w-[90vw] glass glass-cyan rounded-xl shadow-[0_8px_40px_rgba(0,0,0,0.6)] z-50 overflow-hidden"
             data-testid="notif-dropdown"
           >
-            <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+            <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-2 flex-wrap">
               <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-bold font-display">{t("notif.title")}</div>
-              {unread > 0 && (
-                <button onClick={markAll} className="text-xs text-cyan-400 hover:text-cyan-300" data-testid="notif-mark-all">
-                  <Check className="w-3 h-3 inline mr-1" /> {t("notif.mark_all")}
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {unread > 0 && (
+                  <button onClick={markAll} className="text-xs text-cyan-400 hover:text-cyan-300" data-testid="notif-mark-all">
+                    <Check className="w-3 h-3 inline mr-1" /> {t("notif.mark_all")}
+                  </button>
+                )}
+                {notifs.length > 0 && (
+                  <button onClick={clearAll} className="text-xs text-red-400 hover:text-red-300" data-testid="notif-clear-all">
+                    <Trash2 className="w-3 h-3 inline mr-1" /> Effacer tout
+                  </button>
+                )}
+              </div>
             </div>
             <div className="max-h-96 overflow-y-auto">
               {notifs.length === 0 && (

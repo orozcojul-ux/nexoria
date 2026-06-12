@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { RuneSeal, RuneDivider } from "@/components/Ornaments";
 import StaffChat from "@/components/StaffChat";
 import BroadcastPanel from "@/components/BroadcastPanel";
@@ -11,6 +12,9 @@ import HeroName from "@/components/HeroName";
 
 export default function Admin() {
   const { t } = useI18n();
+  const { user: me } = useAuth();
+  const isAdmin = me?.role === "admin";
+  const isMod = me?.role === "moderator";
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -65,11 +69,11 @@ export default function Admin() {
           { id: "users", label: "Héros" },
           { id: "bans", label: "Bannissements" },
           { id: "logs", label: "Chroniques" },
-          { id: "broadcast", label: "Proclamation" },
+          ...(isAdmin ? [{ id: "broadcast", label: "Proclamation" }] : []),
           { id: "chat", label: "Chat Staff" },
-          { id: "shop", label: "Boutique" },
-          { id: "roles", label: "Rôles" },
-          { id: "system", label: "Système" },
+          ...(isAdmin ? [{ id: "shop", label: "Boutique" }] : []),
+          ...(isAdmin ? [{ id: "roles", label: "Rôles" }] : []),
+          ...(isAdmin ? [{ id: "system", label: "Système" }] : []),
         ].map((tb) => (
           <button key={tb.id} onClick={() => setTab(tb.id)} data-testid={`admin-tab-${tb.id}`}
             className={`px-4 py-2 rounded-md text-sm font-bold font-display tracking-wide border transition-all ${tab === tb.id ? "border-violet-500/60 text-violet-300 bg-violet-500/10 shadow-[0_0_14px_rgba(157,76,221,0.2)]" : "border-white/10 text-zinc-400"}`}>
@@ -77,6 +81,15 @@ export default function Admin() {
           </button>
         ))}
       </div>
+
+      {isMod && (
+        <div className="parchment rounded-xl p-3 mb-6 border-orange-500/30 max-w-2xl mx-auto text-center" data-testid="mod-banner">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-orange-400 font-bold font-display">
+            <ShieldCheck className="w-3 h-3 inline mr-1" /> Mode Modérateur
+          </div>
+          <div className="text-xs text-zinc-400 italic mt-1">Vous pouvez consulter, bannir et lever les bans des héros standards. L'édition complète est réservée aux Archontes.</div>
+        </div>
+      )}
 
       {tab === "overview" && stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -127,10 +140,13 @@ export default function Admin() {
                   </td>
                   <td className="p-3 text-right">
                     <div className="flex gap-1 justify-end">
-                      <button onClick={() => setEditTarget(u)} className="text-cyan-400 hover:text-cyan-300 p-1" title="Modifier" data-testid={`edit-user-${u.user_id}`}>
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      {u.role !== "admin" && (banned ? (
+                      {isAdmin && (
+                        <button onClick={() => setEditTarget(u)} className="text-cyan-400 hover:text-cyan-300 p-1" title="Modifier" data-testid={`edit-user-${u.user_id}`}>
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {/* Mods can ban regular users only — admins can ban anyone except other admins */}
+                      {u.role !== "admin" && (isMod ? u.role !== "moderator" : true) && (banned ? (
                         <button onClick={() => unban(u.user_id)} className="text-orange-400 hover:text-orange-300 p-1" title="Lever ban" data-testid={`unban-${u.user_id}`}>
                           <Ban className="w-3.5 h-3.5" />
                         </button>
@@ -434,6 +450,7 @@ function ShopAdmin() {
                 <th className="p-2">SKU</th>
                 <th className="p-2">Nom</th>
                 <th className="p-2">Rareté</th>
+                <th className="p-2 text-center">Niv.</th>
                 <th className="p-2 text-right">Prix</th>
                 <th className="p-2 text-center">Source</th>
                 <th className="p-2 text-right">Actions</th>
@@ -445,6 +462,7 @@ function ShopAdmin() {
                   <td className="p-2 font-mono-stat text-xs text-zinc-400">{it.sku}</td>
                   <td className="p-2 font-display font-bold">{it.name}</td>
                   <td className="p-2"><span className={`text-[9px] uppercase tracking-widest font-bold rarity-${it.rarity}`}>{it.rarity}</span></td>
+                  <td className="p-2 text-center font-mono-stat text-cyan-300 font-bold">{it.unlock_level || 1}</td>
                   <td className="p-2 text-right font-mono-stat text-yellow-300 font-bold">{it.price}</td>
                   <td className="p-2 text-center">
                     <span className={`text-[9px] uppercase tracking-widest font-bold ${it.source === "custom" ? "text-yellow-400" : "text-cyan-400"}`}>
@@ -498,11 +516,12 @@ function ShopItemDialog({ item, onClose, onDone }) {
     boost_type: item?.boost_type || "",
     boost_value: item?.boost_value || 0,
     duration_minutes: item?.duration_minutes || 0,
+    unlock_level: item?.unlock_level || 1,
   });
 
   const submit = async (e) => {
     e.preventDefault();
-    const payload = { ...form, price: parseInt(form.price) || 0 };
+    const payload = { ...form, price: parseInt(form.price) || 0, unlock_level: parseInt(form.unlock_level) || 1 };
     if (payload.category === "boost") {
       payload.boost_value = parseFloat(form.boost_value) || 1;
       payload.duration_minutes = parseInt(form.duration_minutes) || 60;
@@ -582,6 +601,11 @@ function ShopItemDialog({ item, onClose, onDone }) {
               placeholder="ex: Sparkles, Crown, Sword..." className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="shop-icon" />
           </Field>
         </div>
+
+        <Field label="Niveau requis pour acquérir">
+          <input type="number" min="1" max="999" value={form.unlock_level} onChange={(e) => setForm({ ...form, unlock_level: e.target.value })}
+            className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm font-mono-stat" data-testid="shop-unlock-level" />
+        </Field>
 
         {form.category === "boost" && (
           <div className="grid grid-cols-3 gap-2 p-3 rounded-md border border-violet-500/30 bg-violet-500/5">

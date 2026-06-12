@@ -92,6 +92,33 @@ async def get_user_dep(request: Request):
     return await get_current_user(request, db)
 
 
+def enforce_ban_or_raise(user: dict):
+    """Raise 403 if user is currently banned. Use this on login/oauth endpoints
+    (which don't go through get_user_dep). Auto-clears expired bans is handled
+    elsewhere — here we only block fresh bans."""
+    banned_until = user.get("banned_until")
+    if not banned_until:
+        return
+    if isinstance(banned_until, str):
+        try:
+            bu = datetime.fromisoformat(banned_until)
+        except ValueError:
+            return
+    else:
+        bu = banned_until
+    if bu.tzinfo is None:
+        bu = bu.replace(tzinfo=timezone.utc)
+    if bu > datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "banned": True,
+                "reason": user.get("ban_reason", "Violation des règles"),
+                "until": bu.isoformat(),
+            },
+        )
+
+
 async def get_admin_dep(request: Request):
     user = await get_current_user(request, db)
     if user.get("role") != "admin":
@@ -413,6 +440,8 @@ async def login(req: LoginReq, response: Response):
     user = await db.users.find_one({"email": email})
     if not user or not user.get("password_hash") or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(401, "Identifiants invalides")
+    # Reject login if currently banned (don't issue a token at all)
+    enforce_ban_or_raise(user)
     token = create_session_token()
     await db.user_sessions.insert_one({
         "session_token": token,
@@ -463,6 +492,9 @@ async def google_session(req: SessionExchangeReq, response: Response):
     emergent_token = data["session_token"]
 
     user = await db.users.find_one({"email": email})
+    if user:
+        # Reject banned user before creating session
+        enforce_ban_or_raise(user)
     if not user:
         # New user — assign default class explorer until they pick one
         user_id = generate_user_id()
@@ -766,6 +798,25 @@ async def create_post(req: PostReq, user: dict = Depends(get_user_dep)):
     return post
 
 
+@api.delete("/posts/{post_id}")
+async def delete_post(post_id: str, user: dict = Depends(get_user_dep)):
+    """Delete a post. Allowed for the author OR any staff (admin/moderator)."""
+    post = await db.posts.find_one({"post_id": post_id})
+    if not post:
+        raise HTTPException(404, "Publication introuvable")
+    is_staff = user.get("role") in ("admin", "moderator")
+    is_author = post["user_id"] == user["user_id"]
+    if not (is_staff or is_author):
+        raise HTTPException(403, "Action interdite")
+    await db.posts.delete_one({"post_id": post_id})
+    await db.comments.delete_many({"post_id": post_id})
+    await db.reactions.delete_many({"post_id": post_id})
+    if is_staff and not is_author:
+        await add_chronicle(post["user_id"], f"Publication retirée par le Conseil ({user['username']})", "moderation")
+    return {"ok": True}
+
+
+
 @api.post("/posts/{post_id}/react")
 async def react_to_post(post_id: str, user: dict = Depends(get_user_dep)):
     XP_REACT = 2
@@ -1056,7 +1107,7 @@ async def get_world_boss():
 
 # ---------- Admin ----------
 @api.get("/admin/stats")
-async def admin_stats(user: dict = Depends(get_admin_dep)):
+async def admin_stats(user: dict = Depends(get_staff_dep)):
     return {
         "users": await db.users.count_documents({}),
         "posts": await db.posts.count_documents({}),
@@ -1070,7 +1121,7 @@ async def admin_stats(user: dict = Depends(get_admin_dep)):
 
 
 @api.get("/admin/users")
-async def admin_users(user: dict = Depends(get_admin_dep)):
+async def admin_users(user: dict = Depends(get_staff_dep)):
     return await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).limit(200).to_list(200)
 
 
@@ -1084,7 +1135,7 @@ async def admin_delete_user(user_id: str, user: dict = Depends(get_admin_dep)):
 
 
 @api.get("/admin/logs")
-async def admin_logs(user: dict = Depends(get_admin_dep)):
+async def admin_logs(user: dict = Depends(get_staff_dep)):
     chronicles = await db.chronicles.find({}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
     return chronicles
 
@@ -1204,6 +1255,10 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
     if not item:
         raise HTTPException(404, "Article introuvable")
     full = await db.users.find_one({"user_id": user["user_id"]})
+    # Level gate
+    required_level = item.get("unlock_level", 1)
+    if full.get("level", 1) < required_level:
+        raise HTTPException(403, f"Niveau {required_level} requis pour acquérir cet article")
     if full["aether"] < item["price"]:
         raise HTTPException(400, f"Aether insuffisant ({item['price']} requis)")
 
@@ -1341,6 +1396,13 @@ async def mark_all_read(user: dict = Depends(get_user_dep)):
     return {"ok": True}
 
 
+@api.delete("/notifications/clear")
+async def clear_all_notifications(user: dict = Depends(get_user_dep)):
+    """Permanently delete every notification for the current user."""
+    result = await db.notifications.delete_many({"user_id": user["user_id"]})
+    return {"removed": result.deleted_count}
+
+
 # ---------- Widgets (live community stats) ----------
 @api.get("/widgets/kingdom-weather")
 async def kingdom_weather():
@@ -1410,12 +1472,15 @@ async def admin_edit_user(user_id: str, req: UserEditReq, user: dict = Depends(g
 
 
 @api.post("/admin/users/{user_id}/ban")
-async def admin_ban_user(user_id: str, req: BanReq, user: dict = Depends(get_admin_dep)):
+async def admin_ban_user(user_id: str, req: BanReq, user: dict = Depends(get_staff_dep)):
     target = await db.users.find_one({"user_id": user_id})
     if not target:
         raise HTTPException(404, "Utilisateur introuvable")
     if target.get("role") == "admin":
         raise HTTPException(400, "Impossible de bannir un admin")
+    # Moderators can only ban regular users (not other mods)
+    if user.get("role") == "moderator" and target.get("role") in ("admin", "moderator"):
+        raise HTTPException(403, "Un modérateur ne peut bannir qu'un héros standard")
     if user_id == user["user_id"]:
         raise HTTPException(400, "Impossible de s'auto-bannir")
     if req.duration_hours <= 0 or req.duration_hours > 24 * 365 * 10:
@@ -1445,7 +1510,7 @@ async def admin_ban_user(user_id: str, req: BanReq, user: dict = Depends(get_adm
 
 
 @api.post("/admin/users/{user_id}/unban")
-async def admin_unban_user(user_id: str, user: dict = Depends(get_admin_dep)):
+async def admin_unban_user(user_id: str, user: dict = Depends(get_staff_dep)):
     await db.users.update_one(
         {"user_id": user_id},
         {"$unset": {"banned_until": "", "ban_reason": ""}},
@@ -1456,7 +1521,7 @@ async def admin_unban_user(user_id: str, user: dict = Depends(get_admin_dep)):
 
 
 @api.get("/admin/ban-history")
-async def admin_ban_history(user: dict = Depends(get_admin_dep)):
+async def admin_ban_history(user: dict = Depends(get_staff_dep)):
     return await db.ban_history.find({}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
 
 
@@ -1481,6 +1546,8 @@ async def discord_exchange(payload: dict, response: Response):
     email = profile["email"].lower()
     existing = await db.users.find_one({"$or": [{"email": email}, {"discord_id": profile["discord_id"]}]})
     if existing:
+        # Reject banned user before creating session
+        enforce_ban_or_raise(existing)
         user = existing
         if not existing.get("discord_id"):
             await db.users.update_one({"user_id": existing["user_id"]}, {"$set": {"discord_id": profile["discord_id"]}})
@@ -1606,6 +1673,7 @@ class ShopItemReq(BaseModel):
     boost_type: Optional[str] = None
     boost_value: Optional[float] = None
     duration_minutes: Optional[int] = None
+    unlock_level: int = 1
 
 
 @api.get("/admin/shop")

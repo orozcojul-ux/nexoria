@@ -100,11 +100,13 @@ export default function Shop() {
           const boostActive = it.category === "boost" && it.boost_type && activeBoostTypes.has(it.boost_type);
           const ownedCount = it.category === "consumable" ? (consumableCount[it.sku] || 0) : 0;
           const canAfford = (user?.aether || 0) >= it.price;
+          const requiredLvl = it.unlock_level || 1;
+          const levelLocked = (user?.level || 1) < requiredLvl;
           return (
             <motion.div
               key={it.sku}
               initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-              className={`glass rounded-2xl p-5 border-2 relative overflow-hidden rarity-${it.rarity}`}
+              className={`glass rounded-2xl p-5 border-2 relative overflow-hidden rarity-${it.rarity} ${levelLocked ? "opacity-60" : ""}`}
               data-testid={`shop-item-${it.sku}`}
             >
               {ownedCount > 0 && (
@@ -117,7 +119,14 @@ export default function Shop() {
                 <div className="text-[9px] uppercase tracking-[0.25em] font-bold opacity-80">{it.rarity}</div>
               </div>
               <div className="font-display font-bold text-lg mb-1 ancient-text">{it.name}</div>
-              <div className="text-xs text-zinc-400 mb-4 italic min-h-[2.5em] scroll-paragraph">{it.description}</div>
+              <div className="text-xs text-zinc-400 mb-2 italic min-h-[2.5em] scroll-paragraph">{it.description}</div>
+              <div className="text-[10px] font-mono-stat font-bold uppercase tracking-widest mb-3" data-testid={`unlock-${it.sku}`}>
+                {levelLocked ? (
+                  <span className="text-red-400">Verrouillé — Niveau {requiredLvl} requis</span>
+                ) : (
+                  <span className="text-zinc-500">Débloqué à partir du niveau {requiredLvl}</span>
+                )}
+              </div>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1 font-mono-stat font-bold text-yellow-400">
                   <Coins className="w-4 h-4" />
@@ -130,6 +139,10 @@ export default function Shop() {
                 ) : boostActive ? (
                   <span className="px-3 py-1.5 rounded-md border border-cyan-500/40 text-cyan-300 text-xs font-bold flex items-center gap-1" data-testid={`active-${it.sku}`}>
                     <Check className="w-3 h-3" /> Effet actif
+                  </span>
+                ) : levelLocked ? (
+                  <span className="px-3 py-1.5 rounded-md border border-red-500/30 text-red-400 text-xs font-bold flex items-center gap-1" data-testid={`locked-${it.sku}`}>
+                    🔒 Niv. {requiredLvl}
                   </span>
                 ) : (
                   <button

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Heart, MessageCircle, Send, Loader2, Flame, Feather, ScrollText } from "lucide-react";
+import { Heart, MessageCircle, Send, Loader2, Flame, Feather, ScrollText, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -9,9 +9,14 @@ import { sfx } from "@/lib/sfx";
 import { RuneSeal, RuneDivider } from "@/components/Ornaments";
 import HeroName from "@/components/HeroName";
 
-function PostCard({ post, onReact, onOpenComments, comments, onComment, openId }) {
+function PostCard({ post, onReact, onOpenComments, comments, onComment, openId, currentUser, onDelete }) {
   const [text, setText] = useState("");
   const isOpen = openId === post.post_id;
+  const canDelete = currentUser && (
+    currentUser.user_id === post.user_id ||
+    currentUser.role === "admin" ||
+    currentUser.role === "moderator"
+  );
 
   return (
     <motion.article initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="py-5 border-b border-cyan-500/10 last:border-0" data-testid={`feed-post-${post.post_id}`}>
@@ -47,6 +52,13 @@ function PostCard({ post, onReact, onOpenComments, comments, onComment, openId }
               <MessageCircle className="w-4 h-4" />
               <span className="font-mono-stat">{post.comments_count}</span>
             </button>
+            {canDelete && (
+              <button onClick={() => onDelete(post.post_id)} data-testid={`delete-${post.post_id}`}
+                className="flex items-center gap-1.5 hover:text-red-400 transition-colors ml-auto opacity-60 hover:opacity-100"
+                title={currentUser.user_id === post.user_id ? "Supprimer ma publication" : "Modération — supprimer"}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {isOpen && (
@@ -136,6 +148,16 @@ export default function Feed() {
     await refresh();
   };
 
+  const deletePost = async (postId) => {
+    if (!window.confirm("Supprimer définitivement cette publication ?")) return;
+    try {
+      await api.delete(`/posts/${postId}`);
+      toast.success("Publication retirée");
+      sfx.click();
+      await loadFeed();
+    } catch (e) { toast.error(e.response?.data?.detail || "Suppression impossible"); }
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8" data-testid="feed-page">
       <div className="text-center mb-6">
@@ -192,7 +214,7 @@ export default function Feed() {
               </div>
             )}
             {posts.map((p) => (
-              <PostCard key={p.post_id} post={p} onReact={react} onOpenComments={openComments} comments={openId === p.post_id ? comments : []} onComment={addComment} openId={openId} />
+              <PostCard key={p.post_id} post={p} onReact={react} onOpenComments={openComments} comments={openId === p.post_id ? comments : []} onComment={addComment} openId={openId} currentUser={user} onDelete={deletePost} />
             ))}
           </div>
         </div>

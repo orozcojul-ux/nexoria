@@ -98,7 +98,19 @@ export default function Profile() {
             <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight" data-testid="profile-username">
               <HeroName user={profile} size="lg" className="text-4xl sm:text-5xl" />
             </h1>
-            <div className="text-cyan-400 font-bold mt-1">{profile.class_name} · Niveau <span data-testid="profile-level">{profile.level}</span> · {profile.rank}</div>
+            <div className="text-cyan-400 font-bold mt-1">
+              {profile.class_name} · Niveau <span data-testid="profile-level">{profile.level}</span> · <span data-testid="profile-rank">{profile.rank}</span>
+              {profile.role === "admin" && (
+                <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded border border-yellow-500/40 bg-gradient-to-r from-yellow-500/10 to-amber-500/10 text-yellow-300 text-[10px] uppercase tracking-[0.25em] font-bold align-middle" data-testid="role-badge-admin">
+                  <Crown className="w-3 h-3" /> Archonte
+                </span>
+              )}
+              {profile.role === "moderator" && (
+                <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded border border-orange-500/40 bg-orange-500/10 text-orange-300 text-[10px] uppercase tracking-[0.25em] font-bold align-middle" data-testid="role-badge-mod">
+                  <Crown className="w-3 h-3" /> Sentinelle
+                </span>
+              )}
+            </div>
             {profile.bio && <div className="text-zinc-400 mt-3 max-w-xl">{profile.bio}</div>}
             <div className="mt-4 grid grid-cols-3 md:grid-cols-5 gap-3 font-mono-stat text-sm max-w-2xl">
               <div><div className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">XP</div><div className="text-cyan-300 font-bold">{profile.xp.toLocaleString()}</div></div>
