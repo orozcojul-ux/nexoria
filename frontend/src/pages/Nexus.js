@@ -31,32 +31,85 @@ class NexusScene extends Phaser.Scene {
   }
   create() {
     const { room } = this;
-    // Cosmic background
-    this.cameras.main.setBackgroundColor("#030305");
-    // Grid of glowing dots
-    const g = this.add.graphics();
-    g.fillStyle(0xA855F7, 0.05);
-    for (let x = 0; x < room.width; x += 40) {
-      for (let y = 0; y < room.height; y += 40) {
-        g.fillCircle(x, y, 1);
-      }
+    this.cameras.main.setBackgroundColor("#05030D");
+
+    // ===== ISOMETRIC FLOOR PLATE =====
+    const cx = room.width / 2, cy = room.height / 2;
+    const plate = this.add.graphics();
+    // Outer halo
+    plate.fillStyle(0x9D4CDD, 0.05).fillEllipse(cx, cy, room.width * 0.95, room.height * 0.75);
+    plate.fillStyle(0x00E5FF, 0.04).fillEllipse(cx, cy, room.width * 0.7, room.height * 0.55);
+    // Inner runic ring
+    for (let r = 320; r > 80; r -= 60) {
+      plate.lineStyle(1, 0x7C3AED, 0.12).strokeEllipse(cx, cy, r * 2, r * 1.2);
     }
-    // Soft radial gradient via large translucent circles
-    const center = this.add.graphics();
-    center.fillStyle(0x00E5FF, 0.05).fillCircle(room.width / 2, room.height / 2, 280);
-    center.fillStyle(0x9D4CDD, 0.04).fillCircle(room.width / 2, room.height / 2, 180);
-    // Room name
-    this.add.text(room.width / 2, 40, room.name.toUpperCase(), {
-      fontFamily: "Cinzel, serif", fontSize: "20px", color: "#00E5FF", letterSpacing: 8,
-    }).setOrigin(0.5).setAlpha(0.7);
-    this.add.text(room.width / 2, 70, `« ${room.description} »`, {
+    // Hex grid (isometric feel)
+    const grid = this.add.graphics();
+    grid.lineStyle(1, 0xA855F7, 0.06);
+    for (let x = -room.width; x < room.width * 2; x += 60) {
+      grid.beginPath().moveTo(x, 0).lineTo(x + room.height * 0.6, room.height).strokePath();
+      grid.beginPath().moveTo(x, room.height).lineTo(x + room.height * 0.6, 0).strokePath();
+    }
+
+    // ===== CENTRAL CRYSTAL =====
+    const crystal = this.add.graphics();
+    const drawCrystal = (gfx, scale = 1) => {
+      gfx.clear();
+      const w = 36 * scale, h = 72 * scale;
+      // Glow halo
+      gfx.fillStyle(0x9D4CDD, 0.25).fillCircle(cx, cy, 90 * scale);
+      gfx.fillStyle(0x00E5FF, 0.18).fillCircle(cx, cy, 60 * scale);
+      // Crystal body
+      gfx.fillStyle(0xCFA8FF, 0.95);
+      gfx.beginPath();
+      gfx.moveTo(cx, cy - h);
+      gfx.lineTo(cx + w / 2, cy - h * 0.3);
+      gfx.lineTo(cx + w / 3, cy + h * 0.6);
+      gfx.lineTo(cx - w / 3, cy + h * 0.6);
+      gfx.lineTo(cx - w / 2, cy - h * 0.3);
+      gfx.closePath().fillPath();
+      gfx.lineStyle(2, 0xFFFFFF, 0.6).strokePath();
+      // Inner facet
+      gfx.fillStyle(0xE9D5FF, 0.6);
+      gfx.beginPath();
+      gfx.moveTo(cx, cy - h * 0.9);
+      gfx.lineTo(cx + w / 4, cy - h * 0.3);
+      gfx.lineTo(cx, cy + h * 0.5);
+      gfx.lineTo(cx - w / 4, cy - h * 0.3);
+      gfx.closePath().fillPath();
+    };
+    drawCrystal(crystal, 1);
+    this.tweens.add({
+      targets: { s: 1 }, s: 1.1, yoyo: true, repeat: -1, duration: 1800,
+      onUpdate: (tw, tg) => drawCrystal(crystal, tg.s),
+    });
+
+    // Floating mini-crystals scattered
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      const r = 240 + Math.random() * 60;
+      const mx = cx + Math.cos(ang) * r, my = cy + Math.sin(ang) * r * 0.6;
+      const mini = this.add.circle(mx, my, 4 + Math.random() * 3, 0x00E5FF, 0.8);
+      mini.setStrokeStyle(1, 0xFFFFFF, 0.6);
+      this.tweens.add({ targets: mini, y: my - 8, yoyo: true, repeat: -1, duration: 2000 + i * 200, ease: "Sine.easeInOut" });
+      this.tweens.add({ targets: mini, alpha: 0.3, yoyo: true, repeat: -1, duration: 1500 });
+    }
+
+    // Particles — drift slowly upward
+    for (let i = 0; i < 24; i++) {
+      const p = this.add.circle(Math.random() * room.width, Math.random() * room.height, 1.5, 0xCFA8FF, 0.6);
+      this.tweens.add({ targets: p, y: p.y - 60, alpha: 0, repeat: -1, duration: 4000 + Math.random() * 3000 });
+    }
+
+    // Room title
+    this.add.text(cx, 36, room.name.toUpperCase(), {
+      fontFamily: "Cinzel, serif", fontSize: "26px", color: "#FFD700", letterSpacing: 8, fontStyle: "bold",
+    }).setOrigin(0.5).setAlpha(0.9).setShadow(0, 0, "#7C3AED", 18, true, true);
+    this.add.text(cx, 70, `« ${room.description} »`, {
       fontFamily: "Cinzel, serif", fontSize: "12px", color: "#9CA3AF", fontStyle: "italic",
     }).setOrigin(0.5);
 
-    // World bounds
     this.physics.world.setBounds(0, 0, room.width, room.height);
-
-    // Click to move
     this.input.on("pointerdown", (pointer) => {
       this.targetX = pointer.worldX;
       this.targetY = pointer.worldY;
