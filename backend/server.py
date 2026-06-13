@@ -2618,6 +2618,27 @@ async def list_nexus_rooms(user: dict = Depends(get_user_dep)):
     return nexus_world.online_summary()
 
 
+@api.get("/admin/gm-audit")
+async def gm_audit_log(
+    limit: int = 100,
+    action: str | None = None,
+    actor_user_id: str | None = None,
+    target_user_id: str | None = None,
+    user: dict = Depends(get_staff_dep),
+):
+    """Game Master audit log. Staff only."""
+    q: dict = {}
+    if action:
+        q["action"] = action
+    if actor_user_id:
+        q["actor_user_id"] = actor_user_id
+    if target_user_id:
+        q["target_user_id"] = target_user_id
+    limit = max(1, min(500, limit))
+    cursor = db.gm_audit_log.find(q, {"_id": 0}).sort("created_at", -1).limit(limit)
+    return await cursor.to_list(limit)
+
+
 # ---------- Mount router at the very end (after ALL endpoint declarations) ----------
 app.include_router(api)
 
@@ -2644,6 +2665,8 @@ async def startup():
     await db.user_badges.create_index([("user_id", 1), ("badge_id", 1)], unique=True)
     await db.chronicles.create_index([("user_id", 1), ("created_at", -1)])
     await db.user_quests.create_index("user_id_quest_id", unique=True, sparse=True)
+    await db.gm_audit_log.create_index([("created_at", -1)])
+    await db.gm_audit_log.create_index("action")
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@nexoria.com").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")

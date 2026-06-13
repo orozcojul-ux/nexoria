@@ -1,31 +1,39 @@
-"""NEXORIA Nexus Online — real-time social world.
+"""NEXORIA Nexus Online V2 — premium 2D isometric MMORPG social hub.
 
-A Socket.IO server mounted on the same FastAPI ASGI app, broadcasting:
-- player position updates
-- local chat messages
-- presence (join/leave)
-- per-room state
+A Socket.IO server mounted on the FastAPI ASGI app providing:
+- Isometric world: real-time position updates with grid-based tile coords
+- Player presence (join/leave) with per-player state (muted/frozen/invisible)
+- Local chat with chat bubbles broadcast above avatars
+- Game Master controls (kick, ban, mute, freeze, teleport, announce,
+  spawn item, weather, invisible mode) restricted to staff roles
+- World weather state per room (clear/rain/storm/eclipse/aurora)
+- Spawned items list per room (collectible, ephemeral)
+- MongoDB persistence: every GM action audited in `gm_audit_log`
 
-All connections are authenticated using the existing NEXORIA session token
-(passed in the Socket.IO auth handshake). The room state lives in memory —
-the goal is realtime, not persistence. Chat is ephemeral (last 50 messages
-buffered per room).
+Auth is verified via the existing NEXORIA session token passed in
+Socket.IO handshake (auth: {token}). All connections re-validate on connect
+and re-check on every privileged event.
 """
+import asyncio
 import logging
 import time
+import uuid
+from datetime import datetime, timezone, timedelta
+
 import socketio
+
 from auth import get_user_by_token
 
 logger = logging.getLogger("nexoria.nexus")
 
-# Define the rooms available in this MVP. Designed to be extended later.
+# ---------- Rooms ----------
 ROOMS = {
     "place_centrale": {
         "id": "place_centrale",
         "name": "Place Centrale",
         "description": "Le cœur cosmique de NEXORIA — point de rendez-vous de tous les héros",
-        "width": 1200, "height": 700,
-        "spawn": {"x": 600, "y": 350},
+        "tiles_x": 24, "tiles_y": 24,
+        "spawn": {"tx": 12, "ty": 12},
         "theme": "cosmic",
         "max_players": 50,
     },
@@ -33,8 +41,8 @@ ROOMS = {
         "id": "taverne_etoilee",
         "name": "Taverne Étoilée",
         "description": "Là où les héros se reposent entre deux quêtes",
-        "width": 1000, "height": 600,
-        "spawn": {"x": 500, "y": 300},
+        "tiles_x": 20, "tiles_y": 18,
+        "spawn": {"tx": 10, "ty": 9},
         "theme": "tavern",
         "max_players": 30,
     },
@@ -42,27 +50,87 @@ ROOMS = {
         "id": "arene",
         "name": "Arène des Présages",
         "description": "Une scène ouverte pour les événements live",
-        "width": 1400, "height": 800,
-        "spawn": {"x": 700, "y": 400},
+        "tiles_x": 28, "tiles_y": 28,
+        "spawn": {"tx": 14, "ty": 14},
         "theme": "arena",
         "max_players": 100,
     },
 }
 DEFAULT_ROOM = "place_centrale"
 
-# In-memory state: sid → player snapshot ; room → {sid: player}
-_players = {}            # sid → {user_id, username, class_id, class_name, level, role, active_title, x, y, room}
-_rooms_state = {r: {} for r in ROOMS}   # room_id → {sid: player_lite}
-_chat_buffer = {r: [] for r in ROOMS}   # room_id → list of last 50 msgs
+STAFF_ROLES = {"admin", "moderator"}
+WEATHERS = {"clear", "rain", "storm", "eclipse", "aurora"}
+
+# In-memory state
+_players = {}                       # sid → full player record
+_rooms_state = {r: {} for r in ROOMS}   # room_id → {sid: lite}
+_chat_buffer = {r: [] for r in ROOMS}   # room_id → [last 60 msgs]
+_room_weather = {r: "clear" for r in ROOMS}   # room_id → weather str
+_room_items = {r: [] for r in ROOMS}    # room_id → [spawned items]
+_global_state = {"started_at": time.time()}
+
+_db_ref = None  # set in build_socketio_app
+
+
+def _now_iso():
+    return datetime.now(timezone.utc).isoformat()
+
+
+async def _audit(action: str, actor: dict, target: dict | None = None, payload: dict | None = None):
+    """Persist a GM action to gm_audit_log."""
+    if _db_ref is None:
+        return
+    doc = {
+        "audit_id": f"gm_{uuid.uuid4().hex[:12]}",
+        "action": action,
+        "actor_user_id": actor.get("user_id"),
+        "actor_username": actor.get("username"),
+        "actor_role": actor.get("role"),
+        "target_user_id": (target or {}).get("user_id"),
+        "target_username": (target or {}).get("username"),
+        "payload": payload or {},
+        "created_at": _now_iso(),
+    }
+    try:
+        await _db_ref.gm_audit_log.insert_one(doc)
+    except Exception as e:
+        logger.warning(f"[gm_audit] insert failed: {e}")
+
+
+def _lite(p: dict, viewer_role: str = "user") -> dict:
+    """Public-safe slice. Invisible players are hidden from non-staff viewers."""
+    out = {
+        "sid": p["sid"], "user_id": p["user_id"], "username": p["username"],
+        "class_id": p["class_id"], "class_name": p["class_name"],
+        "level": p["level"], "role": p["role"],
+        "active_title": p.get("active_title"), "avatar_url": p.get("avatar_url"),
+        "tx": p["tx"], "ty": p["ty"], "room": p["room"],
+        "muted": bool(p.get("muted")),
+        "frozen": bool(p.get("frozen")),
+        "invisible": bool(p.get("invisible")),
+        "facing": p.get("facing", "SE"),
+    }
+    return out
+
+
+def _visible_players_for(viewer: dict):
+    """Returns the list of player_lite a given viewer sees in their room."""
+    if not viewer:
+        return []
+    room = viewer["room"]
+    viewer_role = viewer.get("role", "user")
+    out = []
+    for sid, p in _rooms_state[room].items():
+        if p.get("invisible") and viewer_role not in STAFF_ROLES and sid != viewer["sid"]:
+            continue
+        out.append(p)
+    return out
 
 
 def build_socketio_app(db):
-    """Build and return an ASGI app that wraps a Socket.IO server.
-
-    Mounted at root '/' on the main FastAPI app so the full socket.io path
-    matches the ingress-routable /api/nexus/socket.io directly (avoids
-    Starlette Mount prefix-stripping quirks).
-    """
+    """Build & return the ASGI app wrapping the Socket.IO server."""
+    global _db_ref
+    _db_ref = db
     sio = socketio.AsyncServer(
         async_mode="asgi",
         cors_allowed_origins="*",
@@ -70,6 +138,7 @@ def build_socketio_app(db):
         max_http_buffer_size=10_000,
     )
 
+    # -------------- Connection lifecycle --------------
     @sio.event
     async def connect(sid, environ, auth):
         token = (auth or {}).get("token")
@@ -81,7 +150,6 @@ def build_socketio_app(db):
             logger.info(f"[nexus] reject {sid}: invalid token")
             return False
         # Ban check
-        from datetime import datetime, timezone
         bu = user.get("banned_until")
         if bu:
             try:
@@ -105,23 +173,32 @@ def build_socketio_app(db):
             "role": user.get("role", "user"),
             "active_title": user.get("active_title", "novice"),
             "avatar_url": user.get("avatar_url"),
-            "x": spawn["x"], "y": spawn["y"],
+            "tx": spawn["tx"], "ty": spawn["ty"],
             "room": room,
+            "facing": "SE",
+            "muted": False, "frozen": False, "invisible": False,
             "joined_at": time.time(),
         }
         _players[sid] = player
         _rooms_state[room][sid] = _lite(player)
         await sio.enter_room(sid, room)
-        # Send the room state + recent chat to the new player
+
+        # Send room snapshot to the new player
         await sio.emit("room_joined", {
             "room": ROOMS[room],
-            "players": list(_rooms_state[room].values()),
-            "chat_history": _chat_buffer[room][-30:],
+            "players": _visible_players_for(player),
+            "chat_history": _chat_buffer[room][-40:],
+            "weather": _room_weather[room],
+            "items": _room_items[room],
             "you": _lite(player),
+            "is_staff": player["role"] in STAFF_ROLES,
         }, to=sid)
-        # Announce arrival to everyone else
-        await sio.emit("player_join", _lite(player), to=room, skip_sid=sid)
-        logger.info(f"[nexus] {user['username']} joined {room} ({len(_rooms_state[room])} players)")
+
+        # Broadcast arrival (skip if invisible)
+        if not player["invisible"]:
+            # Non-staff peers: only broadcast if non-invisible
+            await sio.emit("player_join", _lite(player), to=room, skip_sid=sid)
+        logger.info(f"[nexus] {user['username']} ({player['role']}) joined {room}")
         return True
 
     @sio.event
@@ -131,30 +208,53 @@ def build_socketio_app(db):
             return
         room = p["room"]
         _rooms_state[room].pop(sid, None)
-        await sio.emit("player_leave", {"sid": sid, "user_id": p["user_id"], "username": p["username"]}, to=room)
+        await sio.emit("player_leave", {"sid": sid, "user_id": p["user_id"]}, to=room)
         logger.info(f"[nexus] {p['username']} left {room}")
 
+    # -------------- Movement --------------
     @sio.event
     async def move(sid, data):
-        """data = {x, y}. Throttled implicitly by client."""
+        """data = {tx, ty, facing}. Tile coordinates."""
         p = _players.get(sid)
-        if not p:
+        if not p or p.get("frozen"):
             return
-        x = float(data.get("x", p["x"]))
-        y = float(data.get("y", p["y"]))
         room_cfg = ROOMS[p["room"]]
-        # Clamp inside room bounds with a 20px margin
-        x = max(20, min(room_cfg["width"] - 20, x))
-        y = max(20, min(room_cfg["height"] - 20, y))
-        p["x"] = x; p["y"] = y
-        # update lite snapshot
+        try:
+            tx = int(data.get("tx", p["tx"]))
+            ty = int(data.get("ty", p["ty"]))
+        except (TypeError, ValueError):
+            return
+        tx = max(0, min(room_cfg["tiles_x"] - 1, tx))
+        ty = max(0, min(room_cfg["tiles_y"] - 1, ty))
+        # Prevent jumping more than 2 tiles per emit
+        if abs(tx - p["tx"]) > 2 or abs(ty - p["ty"]) > 2:
+            return
+        facing = data.get("facing")
+        if facing in ("N", "S", "E", "W", "NE", "NW", "SE", "SW"):
+            p["facing"] = facing
+        p["tx"], p["ty"] = tx, ty
         _rooms_state[p["room"]][sid] = _lite(p)
-        await sio.emit("player_move", {"sid": sid, "user_id": p["user_id"], "x": x, "y": y}, to=p["room"], skip_sid=sid)
+        # Invisible players don't broadcast movement
+        if not p.get("invisible"):
+            await sio.emit("player_move", {
+                "sid": sid, "user_id": p["user_id"], "tx": tx, "ty": ty, "facing": p["facing"],
+            }, to=p["room"], skip_sid=sid)
+        else:
+            # Only broadcast to staff in the room
+            for other_sid, other in _rooms_state[p["room"]].items():
+                if other_sid != sid and other.get("role") in STAFF_ROLES:
+                    await sio.emit("player_move", {
+                        "sid": sid, "user_id": p["user_id"], "tx": tx, "ty": ty, "facing": p["facing"],
+                    }, to=other_sid)
 
+    # -------------- Chat --------------
     @sio.event
     async def chat(sid, data):
         p = _players.get(sid)
         if not p:
+            return
+        if p.get("muted"):
+            await sio.emit("system_msg", {"kind": "muted", "text": "Vous êtes réduit au silence."}, to=sid)
             return
         text = (data or {}).get("text", "").strip()
         if not text or len(text) > 280:
@@ -171,7 +271,7 @@ def build_socketio_app(db):
         room = p["room"]
         buf = _chat_buffer[room]
         buf.append(msg)
-        del buf[:-50]
+        del buf[:-60]
         await sio.emit("chat", msg, to=room)
 
     @sio.event
@@ -188,33 +288,322 @@ def build_socketio_app(db):
         old_room = p["room"]
         _rooms_state[old_room].pop(sid, None)
         await sio.leave_room(sid, old_room)
-        await sio.emit("player_leave", {"sid": sid, "user_id": p["user_id"], "username": p["username"]}, to=old_room)
-        # Move to new room
+        await sio.emit("player_leave", {"sid": sid, "user_id": p["user_id"]}, to=old_room)
+
         spawn = ROOMS[new_room]["spawn"]
         p["room"] = new_room
-        p["x"] = spawn["x"]; p["y"] = spawn["y"]
+        p["tx"], p["ty"] = spawn["tx"], spawn["ty"]
         _rooms_state[new_room][sid] = _lite(p)
         await sio.enter_room(sid, new_room)
         await sio.emit("room_joined", {
             "room": ROOMS[new_room],
-            "players": list(_rooms_state[new_room].values()),
-            "chat_history": _chat_buffer[new_room][-30:],
+            "players": _visible_players_for(p),
+            "chat_history": _chat_buffer[new_room][-40:],
+            "weather": _room_weather[new_room],
+            "items": _room_items[new_room],
             "you": _lite(p),
+            "is_staff": p["role"] in STAFF_ROLES,
         }, to=sid)
-        await sio.emit("player_join", _lite(p), to=new_room, skip_sid=sid)
+        if not p.get("invisible"):
+            await sio.emit("player_join", _lite(p), to=new_room, skip_sid=sid)
+
+    @sio.event
+    async def pickup_item(sid, data):
+        p = _players.get(sid)
+        if not p:
+            return
+        item_id = (data or {}).get("item_id")
+        room = p["room"]
+        items = _room_items[room]
+        item = next((it for it in items if it["item_id"] == item_id), None)
+        if not item:
+            return
+        # Distance check (tiles)
+        if abs(item["tx"] - p["tx"]) > 1 or abs(item["ty"] - p["ty"]) > 1:
+            await sio.emit("system_msg", {"kind": "info", "text": "Approchez-vous de la relique pour la ramasser."}, to=sid)
+            return
+        _room_items[room] = [it for it in items if it["item_id"] != item_id]
+        await sio.emit("item_removed", {"item_id": item_id}, to=room)
+        await sio.emit("system_msg", {
+            "kind": "pickup",
+            "text": f"Vous avez ramassé : {item['name']}",
+            "item": item,
+        }, to=sid)
+        # Persist item to user inventory if game data id present
+        try:
+            if item.get("template_id") and _db_ref is not None:
+                from game_data import ITEM_TEMPLATES
+                tpl = next((t for t in ITEM_TEMPLATES if t["id"] == item["template_id"]), None)
+                if tpl:
+                    existing = await _db_ref.inventory.find_one({"user_id": p["user_id"], "name": tpl["name"], "rarity": tpl["rarity"]})
+                    if not existing:
+                        await _db_ref.inventory.insert_one({
+                            "inv_id": f"inv_{uuid.uuid4().hex[:12]}",
+                            "user_id": p["user_id"],
+                            "template_id": tpl["id"],
+                            "name": tpl["name"],
+                            "rarity": tpl["rarity"],
+                            "icon": tpl.get("icon", "✨"),
+                            "obtained_at": _now_iso(),
+                            "source": "nexus_spawn",
+                        })
+        except Exception as e:
+            logger.warning(f"[nexus] pickup persistence failed: {e}")
+
+    # ====================================================================
+    # ============== GAME MASTER (STAFF-ONLY) COMMANDS ===================
+    # ====================================================================
+    def _require_staff(sid):
+        p = _players.get(sid)
+        if not p or p.get("role") not in STAFF_ROLES:
+            return None
+        return p
+
+    def _find_target_by_user_id(user_id: str):
+        for sid, p in _players.items():
+            if p["user_id"] == user_id:
+                return p
+        return None
+
+    async def _send_err(sid, text):
+        await sio.emit("system_msg", {"kind": "error", "text": text}, to=sid)
+
+    async def _send_ok(sid, text):
+        await sio.emit("system_msg", {"kind": "ok", "text": text}, to=sid)
+
+    @sio.event
+    async def gm_announce(sid, data):
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        text = (data or {}).get("text", "").strip()
+        if not text or len(text) > 240:
+            return await _send_err(sid, "Annonce invalide (1-240 caractères).")
+        payload = {
+            "ts": time.time(),
+            "by_username": gm["username"], "by_role": gm["role"],
+            "text": text,
+        }
+        # Broadcast to every room
+        for room_id in ROOMS:
+            await sio.emit("gm_announce", payload, to=room_id)
+        await _audit("announce", gm, None, {"text": text})
+
+    @sio.event
+    async def gm_teleport(sid, data):
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        target_user_id = (data or {}).get("target_user_id")
+        tx, ty = data.get("tx"), data.get("ty")
+        target = _find_target_by_user_id(target_user_id) if target_user_id else None
+        # If no target user, teleport self
+        room_id = (target or gm)["room"]
+        room_cfg = ROOMS[room_id]
+        try:
+            tx = int(tx)
+            ty = int(ty)
+        except (TypeError, ValueError):
+            return await _send_err(sid, "Coordonnées invalides.")
+        tx = max(0, min(room_cfg["tiles_x"] - 1, tx))
+        ty = max(0, min(room_cfg["tiles_y"] - 1, ty))
+        subject = target or gm
+        subject["tx"], subject["ty"] = tx, ty
+        _rooms_state[room_id][subject["sid"]] = _lite(subject)
+        await sio.emit("player_move", {
+            "sid": subject["sid"], "user_id": subject["user_id"], "tx": tx, "ty": ty,
+            "facing": subject.get("facing", "SE"), "teleport": True,
+        }, to=room_id)
+        await _send_ok(sid, f"Téléporté : {subject['username']} → ({tx},{ty})")
+        await _audit("teleport", gm, subject, {"tx": tx, "ty": ty})
+
+    @sio.event
+    async def gm_kick(sid, data):
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        target_user_id = (data or {}).get("target_user_id")
+        reason = (data or {}).get("reason", "").strip()[:120]
+        target = _find_target_by_user_id(target_user_id)
+        if not target:
+            return await _send_err(sid, "Cible introuvable dans le Nexus.")
+        if target["role"] in STAFF_ROLES and target["user_id"] != gm["user_id"]:
+            return await _send_err(sid, "Impossible d'expulser un autre Gardien.")
+        target_sid = target["sid"]
+        await sio.emit("kicked", {"reason": reason or "Expulsé du Nexus par un Gardien."}, to=target_sid)
+        await _audit("kick", gm, target, {"reason": reason})
+        # Disconnect after a short delay so the client receives the toast
+        async def _later_disconnect(s):
+            await asyncio.sleep(1.5)
+            await sio.disconnect(s)
+        asyncio.create_task(_later_disconnect(target_sid))
+
+    @sio.event
+    async def gm_mute(sid, data):
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        target_user_id = (data or {}).get("target_user_id")
+        muted = bool((data or {}).get("muted", True))
+        target = _find_target_by_user_id(target_user_id)
+        if not target:
+            return await _send_err(sid, "Cible introuvable.")
+        if target["role"] in STAFF_ROLES and target["user_id"] != gm["user_id"]:
+            return await _send_err(sid, "Impossible de museler un Gardien.")
+        target["muted"] = muted
+        _rooms_state[target["room"]][target["sid"]] = _lite(target)
+        await sio.emit("player_status", {
+            "sid": target["sid"], "user_id": target["user_id"], "muted": muted,
+        }, to=target["room"])
+        await sio.emit("system_msg", {
+            "kind": "warn" if muted else "info",
+            "text": "Vous avez été réduit au silence par un Gardien." if muted else "Votre voix vous est rendue.",
+        }, to=target["sid"])
+        await _send_ok(sid, f"{target['username']} {'muet' if muted else 'libéré'}.")
+        await _audit("mute" if muted else "unmute", gm, target, {"muted": muted})
+
+    @sio.event
+    async def gm_freeze(sid, data):
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        target_user_id = (data or {}).get("target_user_id")
+        frozen = bool((data or {}).get("frozen", True))
+        target = _find_target_by_user_id(target_user_id)
+        if not target:
+            return await _send_err(sid, "Cible introuvable.")
+        if target["role"] in STAFF_ROLES and target["user_id"] != gm["user_id"]:
+            return await _send_err(sid, "Impossible de figer un Gardien.")
+        target["frozen"] = frozen
+        _rooms_state[target["room"]][target["sid"]] = _lite(target)
+        await sio.emit("player_status", {
+            "sid": target["sid"], "user_id": target["user_id"], "frozen": frozen,
+        }, to=target["room"])
+        await sio.emit("system_msg", {
+            "kind": "warn" if frozen else "info",
+            "text": "Vos pieds se sont changés en pierre." if frozen else "Vous pouvez à nouveau marcher.",
+        }, to=target["sid"])
+        await _send_ok(sid, f"{target['username']} {'figé' if frozen else 'libéré'}.")
+        await _audit("freeze" if frozen else "unfreeze", gm, target, {"frozen": frozen})
+
+    @sio.event
+    async def gm_invisible(sid, data):
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        invisible = bool((data or {}).get("invisible", True))
+        gm["invisible"] = invisible
+        room = gm["room"]
+        _rooms_state[room][sid] = _lite(gm)
+        # Notify non-staff peers
+        if invisible:
+            for other_sid, other in _rooms_state[room].items():
+                if other_sid != sid and other.get("role") not in STAFF_ROLES:
+                    await sio.emit("player_leave", {"sid": sid, "user_id": gm["user_id"]}, to=other_sid)
+        else:
+            for other_sid, other in _rooms_state[room].items():
+                if other_sid != sid and other.get("role") not in STAFF_ROLES:
+                    await sio.emit("player_join", _lite(gm), to=other_sid)
+        await _send_ok(sid, "Vous êtes invisible." if invisible else "Vous redevenez visible.")
+        await _audit("invisible_on" if invisible else "invisible_off", gm, None, {})
+
+    @sio.event
+    async def gm_weather(sid, data):
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        weather = (data or {}).get("weather", "clear")
+        room_id = (data or {}).get("room") or gm["room"]
+        if weather not in WEATHERS or room_id not in ROOMS:
+            return await _send_err(sid, "Paramètres météo invalides.")
+        _room_weather[room_id] = weather
+        await sio.emit("weather", {"room": room_id, "weather": weather}, to=room_id)
+        await _send_ok(sid, f"Météo de {ROOMS[room_id]['name']} → {weather}")
+        await _audit("weather", gm, None, {"room": room_id, "weather": weather})
+
+    @sio.event
+    async def gm_spawn_item(sid, data):
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        room_id = gm["room"]
+        room_cfg = ROOMS[room_id]
+        name = (data or {}).get("name", "Relique inconnue").strip()[:60] or "Relique"
+        rarity = (data or {}).get("rarity", "rare")
+        icon = (data or {}).get("icon", "✨")
+        template_id = (data or {}).get("template_id")
+        try:
+            tx = int((data or {}).get("tx", gm["tx"]))
+            ty = int((data or {}).get("ty", gm["ty"]))
+        except (TypeError, ValueError):
+            tx, ty = gm["tx"], gm["ty"]
+        tx = max(0, min(room_cfg["tiles_x"] - 1, tx))
+        ty = max(0, min(room_cfg["tiles_y"] - 1, ty))
+        item = {
+            "item_id": f"sp_{uuid.uuid4().hex[:10]}",
+            "name": name, "rarity": rarity, "icon": icon,
+            "tx": tx, "ty": ty,
+            "spawned_by": gm["username"],
+            "spawned_at": time.time(),
+            "template_id": template_id,
+        }
+        _room_items[room_id].append(item)
+        # Cap stored items per room
+        if len(_room_items[room_id]) > 30:
+            _room_items[room_id] = _room_items[room_id][-30:]
+        await sio.emit("item_spawned", item, to=room_id)
+        await _send_ok(sid, f"Relique invoquée : {name}")
+        await _audit("spawn_item", gm, None, {"item": item})
+
+    @sio.event
+    async def gm_ban(sid, data):
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        target_user_id = (data or {}).get("target_user_id")
+        duration_hours = int((data or {}).get("duration_hours", 24))
+        reason = (data or {}).get("reason", "").strip()[:200] or "Comportement inapproprié"
+        target = _find_target_by_user_id(target_user_id)
+        if not target:
+            return await _send_err(sid, "Cible introuvable dans le Nexus.")
+        if target["role"] in STAFF_ROLES:
+            return await _send_err(sid, "Impossible de bannir un Gardien.")
+        # Moderator can only ban regular users
+        if gm["role"] == "moderator" and target["role"] != "user":
+            return await _send_err(sid, "Réservé aux Archontes.")
+        until = datetime.now(timezone.utc) + timedelta(hours=max(1, min(duration_hours, 24 * 365)))
+        try:
+            await db.users.update_one(
+                {"user_id": target["user_id"]},
+                {"$set": {"banned_until": until.isoformat(), "ban_reason": reason}},
+            )
+            # Invalidate sessions
+            await db.user_sessions.delete_many({"user_id": target["user_id"]})
+            await db.ban_history.insert_one({
+                "ban_id": f"ban_{uuid.uuid4().hex[:12]}",
+                "user_id": target["user_id"],
+                "banned_by": gm["user_id"],
+                "banned_by_username": gm["username"],
+                "reason": reason,
+                "duration_hours": duration_hours,
+                "until": until.isoformat(),
+                "created_at": _now_iso(),
+                "source": "nexus_gm",
+            })
+        except Exception as e:
+            logger.error(f"[gm_ban] db failed: {e}")
+            return await _send_err(sid, "Échec du bannissement (DB).")
+        await sio.emit("kicked", {
+            "reason": f"Banni du Nexus pour {duration_hours}h : {reason}",
+        }, to=target["sid"])
+        await _send_ok(sid, f"{target['username']} banni {duration_hours}h.")
+        await _audit("ban", gm, target, {"hours": duration_hours, "reason": reason, "until": until.isoformat()})
+        async def _later_disconnect(s):
+            await asyncio.sleep(1.5)
+            await sio.disconnect(s)
+        asyncio.create_task(_later_disconnect(target["sid"]))
 
     return socketio.ASGIApp(sio, socketio_path="api/nexus/socket.io")
-
-
-def _lite(p: dict) -> dict:
-    """Public-safe slice of a player record sent to other clients."""
-    return {
-        "sid": p["sid"], "user_id": p["user_id"], "username": p["username"],
-        "class_id": p["class_id"], "class_name": p["class_name"],
-        "level": p["level"], "role": p["role"],
-        "active_title": p["active_title"], "avatar_url": p.get("avatar_url"),
-        "x": p["x"], "y": p["y"], "room": p["room"],
-    }
 
 
 def online_summary():
@@ -223,6 +612,7 @@ def online_summary():
         {
             **ROOMS[r],
             "online": len(state),
+            "weather": _room_weather[r],
         }
         for r, state in _rooms_state.items()
     ]
