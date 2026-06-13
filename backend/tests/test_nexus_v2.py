@@ -132,7 +132,7 @@ class TestRestEndpoints:
         r = requests.get(f"{BASE_URL}/api/nexus/rooms", cookies={"session_token": token}, timeout=15)
         assert r.status_code == 200
         data = r.json()
-        assert isinstance(data, list) and len(data) == 3
+        assert isinstance(data, list) and len(data) >= 3
         ids = {x["id"] for x in data}
         assert ids == {"place_centrale", "taverne_etoilee", "arene"}
         for room in data:

@@ -41,14 +41,13 @@ export default function NexusFAB() {
 
       <motion.button
         type="button"
-        whileHover={{ scale: 1.08, rotate: 6 }}
-        whileTap={{ scale: 0.92 }}
+        whileHover={{ scale: 1.08 }}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onClick={() => ns.setOverlayOpen(true)}
         data-testid="nexus-fab"
         aria-label="Entrer dans le Nexus"
-        className="relative w-14 h-14 rounded-full bg-gradient-to-br from-purple-600 via-violet-700 to-cyan-600 border-2 border-cyan-300/50 shadow-[0_0_20px_rgba(124,58,237,0.6)] flex items-center justify-center"
+        className="relative w-14 h-14 rounded-full bg-gradient-to-br from-purple-600 via-violet-700 to-cyan-600 border-2 border-cyan-300/50 shadow-[0_0_20px_rgba(124,58,237,0.6)] flex items-center justify-center transition-transform active:scale-95"
       >
         <Globe2 className="w-6 h-6 text-white pointer-events-none" />
         {connected && (

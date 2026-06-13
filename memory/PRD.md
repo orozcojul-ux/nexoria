@@ -35,6 +35,23 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3.8 — Nexus Online Phase A + A.2 (Overlay + 22 salles thématiques) (2026-02-13)
+- 🎮 **Hub plein écran persistant** : nouveau bouton flottant (`NexusFAB`) accessible depuis toutes les pages auth — ouvre un overlay full-screen au-dessus du site sans rechargement. Socket Socket.IO porté par `NexusSocketContext` au niveau App, survit aux changements de route (1 seule connexion partagée, plus aucun reconnect visible). Bouton de fermeture revient à la navigation normale.
+- 🛑 **Suppression du polling 30s** dans `NotificationsBell` → remplacé par push WebSocket `notification:new` (la cloche s'actualise instantanément). `notifications.push_notification` strippe `_id` MongoDB avant push + warning log en cas d'échec.
+- 💬 **Chat MMORPG multi-canaux** : 6 canaux (Global, Salle, Guilde, Chuchoter, Commerce, Événement) avec couleurs distinctes, picker emojis Unicode (20 raccourcis), compteur de messages non lus par canal, bulle dynamique au-dessus des sprites, chuchoter via bouton dédié dans la liste des présents
+- ⚜️ **GM Panel étendu** : ajout de `gm_tp_to_player` (TP vers joueur), `gm_tp_player_to_me` (convoquer joueur, cross-room supporté), `gm_inspect` (inventaire/stats/chronique/sanctions/achats lecture seule), `gm_popup_notify` (modal popup chez tous les héros). Tout est audité dans `gm_audit_log`.
+- 🏛️ **22 salles thématiques uniques** (au lieu de 3) avec identités visuelles distinctes — données dans `/app/backend/nexus_rooms.py`. Système de "decor manifest" : chaque salle expose palette, particules ambiantes, landmarks (33 formes procédurales : fontaine, statue, trône, autel, portail, bibliothèque, chaudron, horloge, tombe, télescope, etc.), PNJ décoratifs qui parlent en bulles toutes les 18-30s :
+  - **Cœur** : Place Centrale
+  - **Social** : Taverne Étoilée, Marché Astral, Quartier des Guildes
+  - **Combat** : Arène Cosmique, Vallée des Boss
+  - **Savoir** : Hall des Légendes, Bibliothèque Infinie, Archives du Nexus, Panthéon des Anciens
+  - **Mystique** : Sanctuaire de l'Oracle, Sanctuaire des Failles, Laboratoire des Alchimistes, Atelier des Inventeurs, Temple du Temps, Nécropole Éternelle, Jardin des Songes, Observatoire Stellaire, Chambre des Reliques
+  - **Aventure** : Camp des Aventuriers
+  - **Restreint** : Nexus Cosmique (Élus Cosmiques + titres élites), Salle du Conseil (admin/modérateur)
+- 🌌 **Auras de rang animées** sur sprites Phaser : Élu Cosmique (étoiles tournantes), Légende Vivante (étincelles dorées montantes), Maître des Ombres (ombres orbitales), Roi des Créateurs (halo violet), Seigneur du Temps (rectangles cyan tournants)
+- 🗺️ **Carte du Nexus** (modal `NexusMap`) : voyage entre les 22 sanctuaires groupés par catégorie, cartes verrouillées avec icône cadenas pour les salles restreintes selon le rang/rôle du joueur
+- ✅ Tests : 14/14 Phase A.2 backend + 37/38 régression (1 ancien test mis à jour de `==3` → `>=3`) + frontend OK visuellement
+
 ### v3.7 — Nexus Online V2 Isometric MMORPG Hub + Game Master Panel (2026-02-13)
 - 🏛️ **Refonte complète Nexus Online** en hub social MMORPG 2D isométrique premium (style Habbo + dark fantasy AAA) :
   - **Moteur Phaser isométrique** : grille de tuiles diamant 64×32, calcul `tileToScreen` / `screenToTile`, profondeur Y-sortée pour superposition correcte des sprites
