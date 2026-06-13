@@ -35,6 +35,25 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3.7 — Nexus Online V2 Isometric MMORPG Hub + Game Master Panel (2026-02-13)
+- 🏛️ **Refonte complète Nexus Online** en hub social MMORPG 2D isométrique premium (style Habbo + dark fantasy AAA) :
+  - **Moteur Phaser isométrique** : grille de tuiles diamant 64×32, calcul `tileToScreen` / `screenToTile`, profondeur Y-sortée pour superposition correcte des sprites
+  - **Sprites pixel-art procéduraux** générés à la volée (`ensureCharTexture`) : 24×32 px, couleur de classe sur le torse, couronne dorée pour admin / circlet orange pour modérateur, accessoires, ombre au sol, flip horizontal selon la direction
+  - **Tuiles de sol thématisées** (`ensureTileTexture`) : cosmic / tavern / arena ; tuiles centrales dorées (point de spawn)
+  - **Météo dynamique** : 5 modes (clear, rain, storm, eclipse, aurora) avec effets Phaser (lignes de pluie, éclairs blancs, anneau d'éclipse, rubans d'aurore)
+  - **Bulles de chat** au-dessus des avatars avec queue de bulle, fade out automatique 4s
+  - **Tag de héros** au-dessus de chaque sprite : couronne/bouclier + pseudo + classe · niv + état muet/figé/invisible
+  - **Mouvement temps réel** par cases avec interpolation linéaire de chemin (computePath) et émission throttlée 90ms ; coordonnées clampées + saut max 2 tuiles côté serveur
+- ⚜️ **Game Master Panel** complet (accès réservé admin/modérateur, vérifié côté Socket.IO ET côté UI) :
+  - **9 actions** : `gm_announce` (annonce globale toutes salles), `gm_teleport` (clic sur case), `gm_kick`, `gm_mute/unmute`, `gm_freeze/unfreeze`, `gm_invisible` (invisibilité staff), `gm_weather` (5 météos), `gm_spawn_item` (invocation de relique sur une case), `gm_ban` (avec modal de durée 1h–1an)
+  - **Protections** : impossible de cibler un autre Gardien ; modérateurs ne peuvent bannir que des héros standards ; admin peut tout sauf attaquer un autre admin
+  - **Audit log MongoDB** : toute action GM persistée dans `db.gm_audit_log` avec `actor_*`, `target_*`, `payload`, `created_at` ; index sur created_at desc + action
+  - **REST `GET /api/admin/gm-audit`** : liste paginée filtrable par action/actor/target (staff only)
+  - **Modal de ban** : 1h / 1j / 1sem / 1mois / 1an + raison, déclenche ban_history + invalidation sessions + déconnexion forcée
+- 🎒 **Ramassage d'objets** : héros adjacent à une relique invoquée par GM la ramasse (`pickup_item`) ; intégrée à l'inventaire si template_id valide
+- 🌟 **Bannière "Décret du Conseil"** : annonces globales s'affichent dans toutes les salles pendant 8s
+- ✅ **Tests** : 19/19 backend (`/app/backend/tests/test_nexus_v2.py`) + frontend 100% (canvas, GM panel, sélection cible, mute/freeze/kick/ban modal, météo, role enforcement).
+
 ### v3.6 — Nexus Online (Habbo-like) + Discord sync UX (2026-02-13)
 - 🌐 **Nexus Online** — monde social temps réel inspiré d'Habbo, route `/nexus` :
   - **Backend** : Socket.IO ASGI (python-socketio 5.11) mount sur `/api/nexus`. Custom `socketio_path="api/nexus/socket.io"` pour bypass des quirks Starlette de prefix-stripping.
