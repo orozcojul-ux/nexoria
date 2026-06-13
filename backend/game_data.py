@@ -104,7 +104,6 @@ BADGES = [
     {"id": "season_champion", "name": "Champion de la Saison", "category": "secrets", "icon": "Trophy", "rarity": "mythic", "description": "1ᵉʳ d'une saison clôturée", "color": "#EF4444"},
     {"id": "season_elite", "name": "Élite de la Saison", "category": "secrets", "icon": "Star", "rarity": "legendary", "description": "Top 10 d'une saison clôturée", "color": "#EAB308"},
     # Secrets / Events
-    {"id": "founder", "name": "Fondateur", "category": "secrets", "icon": "Diamond", "rarity": "mythic", "description": "Compte créé durant la bêta", "color": "#EF4444"},
     {"id": "rift_walker", "name": "Marcheur des Failles", "category": "secrets", "icon": "Aperture", "rarity": "divine", "description": "Survécu à une faille dimensionnelle", "color": "#00E5FF"},
     {"id": "oracle_blessed", "name": "Béni de l'Oracle", "category": "secrets", "icon": "Eye", "rarity": "epic", "description": "Consulté l'Oracle 10 fois", "color": "#A855F7"},
     {"id": "hall_of_legends", "name": "Hall of Legends", "category": "secrets", "icon": "Flame", "rarity": "cosmic", "description": "Atteindre le top 10 mondial", "color": "#FF0080"},
@@ -123,20 +122,54 @@ QUEST_TEMPLATES = [
     {"id": "monthly_grind", "type": "monthly", "name": "Marathonien", "description": "Gagner 5000 XP ce mois", "target": 5000, "action": "xp", "xp": 1500, "aether": 800},
 ]
 
-# Inventory item templates
+# Inventory item templates — Reliques
 ITEM_TEMPLATES = [
+    # Commons
     {"id": "rusty_blade", "name": "Lame Rouillée", "rarity": "common", "type": "weapon", "icon": "Sword"},
     {"id": "iron_helm", "name": "Heaume de Fer", "rarity": "common", "type": "armor", "icon": "HardHat"},
     {"id": "minor_potion", "name": "Potion Mineure", "rarity": "common", "type": "consumable", "icon": "FlaskConical"},
+    {"id": "torch_oil", "name": "Huile de Torche", "rarity": "common", "type": "consumable", "icon": "Flame"},
+    {"id": "leather_strap", "name": "Lanière de Cuir", "rarity": "common", "type": "material", "icon": "Square"},
+    {"id": "wooden_shield", "name": "Pavois en Bois", "rarity": "common", "type": "armor", "icon": "Shield"},
+    {"id": "copper_ring", "name": "Anneau de Cuivre", "rarity": "common", "type": "accessory", "icon": "Circle"},
+    # Rares
     {"id": "silver_amulet", "name": "Amulette d'Argent", "rarity": "rare", "type": "accessory", "icon": "Gem"},
     {"id": "elven_bow", "name": "Arc Elfique", "rarity": "rare", "type": "weapon", "icon": "Crosshair"},
+    {"id": "rune_dagger", "name": "Dague Runique", "rarity": "rare", "type": "weapon", "icon": "Swords"},
+    {"id": "moonstone", "name": "Pierre de Lune", "rarity": "rare", "type": "material", "icon": "Moon"},
+    {"id": "mage_robe", "name": "Robe d'Apprenti Mage", "rarity": "rare", "type": "armor", "icon": "Shirt"},
+    {"id": "healing_elixir", "name": "Élixir Curatif", "rarity": "rare", "type": "consumable", "icon": "FlaskRound"},
+    {"id": "sage_tome", "name": "Tome du Sage", "rarity": "rare", "type": "tome", "icon": "BookOpen"},
+    # Epics
     {"id": "frost_staff", "name": "Bâton de Givre", "rarity": "epic", "type": "weapon", "icon": "Wand"},
     {"id": "shadow_cloak", "name": "Cape des Ombres", "rarity": "epic", "type": "armor", "icon": "Shirt"},
+    {"id": "ember_blade", "name": "Lame de Braise", "rarity": "epic", "type": "weapon", "icon": "Flame"},
+    {"id": "ancient_compass", "name": "Boussole Ancienne", "rarity": "epic", "type": "accessory", "icon": "Compass"},
+    {"id": "void_pendant", "name": "Pendentif du Vide", "rarity": "epic", "type": "accessory", "icon": "Eye"},
+    {"id": "warlord_helm", "name": "Heaume du Seigneur de Guerre", "rarity": "epic", "type": "armor", "icon": "Crown"},
+    {"id": "trickster_mask", "name": "Masque de l'Escamoteur", "rarity": "epic", "type": "armor", "icon": "Drama"},
+    # Legendaries
     {"id": "dragon_scale", "name": "Écaille de Dragon", "rarity": "legendary", "type": "material", "icon": "Shell"},
     {"id": "phoenix_feather", "name": "Plume de Phénix", "rarity": "legendary", "type": "material", "icon": "Feather"},
+    {"id": "starforged_blade", "name": "Lame Forgée des Étoiles", "rarity": "legendary", "type": "weapon", "icon": "Sword"},
+    {"id": "leviathan_horn", "name": "Corne du Léviathan", "rarity": "legendary", "type": "material", "icon": "Triangle"},
+    {"id": "kingmaker_crown", "name": "Couronne du Roi-Faiseur", "rarity": "legendary", "type": "accessory", "icon": "Crown"},
+    {"id": "soul_lantern", "name": "Lanterne des Âmes", "rarity": "legendary", "type": "relic", "icon": "Lamp"},
+    {"id": "rune_sigil", "name": "Sceau Runique Majeur", "rarity": "legendary", "type": "relic", "icon": "Hexagon"},
+    {"id": "world_anchor", "name": "Ancre du Monde", "rarity": "legendary", "type": "relic", "icon": "Anchor"},
+    # Mythics
     {"id": "mythic_orb", "name": "Orbe Mythique", "rarity": "mythic", "type": "relic", "icon": "CircleDot"},
+    {"id": "titan_gauntlet", "name": "Gantelet du Titan", "rarity": "mythic", "type": "armor", "icon": "Hand"},
+    {"id": "void_blade", "name": "Lame du Néant", "rarity": "mythic", "type": "weapon", "icon": "Sword"},
+    {"id": "celestial_tome", "name": "Tome Céleste", "rarity": "mythic", "type": "tome", "icon": "BookOpen"},
+    # Divines
     {"id": "divine_crown", "name": "Couronne Divine", "rarity": "divine", "type": "relic", "icon": "Crown"},
+    {"id": "world_tree_branch", "name": "Branche de l'Arbre-Monde", "rarity": "divine", "type": "relic", "icon": "TreePine"},
+    {"id": "godheart", "name": "Cœur d'un Dieu", "rarity": "divine", "type": "relic", "icon": "Heart"},
+    # Cosmics
     {"id": "cosmic_shard", "name": "Éclat Cosmique", "rarity": "cosmic", "type": "relic", "icon": "Sparkles"},
+    {"id": "star_seed", "name": "Graine d'Étoile", "rarity": "cosmic", "type": "relic", "icon": "Star"},
+    {"id": "infinity_loop", "name": "Boucle d'Infini", "rarity": "cosmic", "type": "relic", "icon": "Infinity"},
 ]
 
 

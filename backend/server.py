@@ -2276,7 +2276,7 @@ async def end_season(season_id: str, user: dict = Depends(get_admin_dep)):
 
 
 # ---------- Mount ----------
-app.include_router(api)
+# (api router is included AFTER all endpoint declarations at the bottom of the file)
 
 app.add_middleware(
     CORSMiddleware,
@@ -2288,6 +2288,259 @@ app.add_middleware(
 
 
 # ---------- Startup ----------
+
+# ============================================================================
+# FRIENDS — Liens de fraternité
+# ============================================================================
+class FriendReq(BaseModel):
+    target_username: str
+
+
+@api.post("/friends/request")
+async def send_friend_request(req: FriendReq, user: dict = Depends(get_user_dep)):
+    target = await db.users.find_one({"username": req.target_username}, {"_id": 0, "user_id": 1, "username": 1})
+    if not target:
+        raise HTTPException(404, "Héros introuvable")
+    if target["user_id"] == user["user_id"]:
+        raise HTTPException(400, "On ne peut pas se lier à soi-même")
+    # Already friends?
+    existing_link = await db.friendships.find_one({
+        "$or": [
+            {"user_a": user["user_id"], "user_b": target["user_id"]},
+            {"user_a": target["user_id"], "user_b": user["user_id"]},
+        ],
+    })
+    if existing_link:
+        raise HTTPException(400, "Vous êtes déjà liés")
+    # Existing pending request in either direction?
+    existing_req = await db.friend_requests.find_one({
+        "$or": [
+            {"from_user": user["user_id"], "to_user": target["user_id"], "status": "pending"},
+            {"from_user": target["user_id"], "to_user": user["user_id"], "status": "pending"},
+        ],
+    })
+    if existing_req:
+        raise HTTPException(400, "Une demande est déjà en cours")
+    request_id = f"freq_{uuid.uuid4().hex[:10]}"
+    await db.friend_requests.insert_one({
+        "request_id": request_id,
+        "from_user": user["user_id"], "to_user": target["user_id"],
+        "status": "pending", "created_at": now_utc().isoformat(),
+    })
+    await push_notification(db, target["user_id"], "friend_request",
+        f"{user['username']} souhaite vous lier", "Acceptez ou refusez le pacte d'amitié", "ding", "UserPlus")
+    return {"ok": True, "request_id": request_id}
+
+
+@api.get("/friends/requests")
+async def list_friend_requests(user: dict = Depends(get_user_dep)):
+    """Returns pending requests directed AT me."""
+    reqs = await db.friend_requests.find(
+        {"to_user": user["user_id"], "status": "pending"}, {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    from_ids = [r["from_user"] for r in reqs]
+    udocs = await db.users.find({"user_id": {"$in": from_ids}},
+        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1, "role": 1, "avatar_url": 1}).to_list(100)
+    umap = {u["user_id"]: u for u in udocs}
+    for r in reqs:
+        r["from"] = umap.get(r["from_user"], {})
+    return reqs
+
+
+@api.post("/friends/requests/{request_id}/accept")
+async def accept_friend_request(request_id: str, user: dict = Depends(get_user_dep)):
+    req_doc = await db.friend_requests.find_one({"request_id": request_id, "to_user": user["user_id"]})
+    if not req_doc or req_doc["status"] != "pending":
+        raise HTTPException(404, "Demande introuvable")
+    await db.friend_requests.update_one({"request_id": request_id}, {"$set": {"status": "accepted", "responded_at": now_utc().isoformat()}})
+    a, b = sorted([req_doc["from_user"], req_doc["to_user"]])
+    await db.friendships.insert_one({
+        "friendship_id": f"frd_{uuid.uuid4().hex[:10]}",
+        "user_a": a, "user_b": b, "since": now_utc().isoformat(),
+    })
+    await push_notification(db, req_doc["from_user"], "friend_accepted",
+        f"{user['username']} a accepté votre demande", "Un nouveau lien d'amitié est forgé", "ding", "Users")
+    return {"ok": True}
+
+
+@api.post("/friends/requests/{request_id}/decline")
+async def decline_friend_request(request_id: str, user: dict = Depends(get_user_dep)):
+    req_doc = await db.friend_requests.find_one({"request_id": request_id, "to_user": user["user_id"]})
+    if not req_doc or req_doc["status"] != "pending":
+        raise HTTPException(404, "Demande introuvable")
+    await db.friend_requests.update_one({"request_id": request_id}, {"$set": {"status": "declined", "responded_at": now_utc().isoformat()}})
+    return {"ok": True}
+
+
+@api.get("/friends")
+async def list_friends(user: dict = Depends(get_user_dep)):
+    links = await db.friendships.find(
+        {"$or": [{"user_a": user["user_id"]}, {"user_b": user["user_id"]}]}, {"_id": 0}
+    ).to_list(500)
+    friend_ids = [link["user_b"] if link["user_a"] == user["user_id"] else link["user_a"] for link in links]
+    friends = await db.users.find({"user_id": {"$in": friend_ids}},
+        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1, "role": 1, "avatar_url": 1, "rank": 1}).to_list(500)
+    return friends
+
+
+@api.delete("/friends/{target_user_id}")
+async def unfriend(target_user_id: str, user: dict = Depends(get_user_dep)):
+    a, b = sorted([user["user_id"], target_user_id])
+    result = await db.friendships.delete_one({"user_a": a, "user_b": b})
+    if not result.deleted_count:
+        raise HTTPException(404, "Lien d'amitié introuvable")
+    return {"ok": True}
+
+
+# ============================================================================
+# HELP TICKETS — Doléances au Conseil
+# ============================================================================
+class TicketCreateReq(BaseModel):
+    subject: str
+    body: str
+    category: str = "general"  # general | bug | account | other
+
+
+@api.post("/tickets")
+async def create_ticket(req: TicketCreateReq, user: dict = Depends(get_user_dep)):
+    subject = req.subject.strip()
+    body = req.body.strip()
+    if len(subject) < 5 or len(subject) > 150:
+        raise HTTPException(400, "Sujet 5-150 caractères")
+    if len(body) < 10 or len(body) > 3000:
+        raise HTTPException(400, "Message 10-3000 caractères")
+    ticket_id = f"tkt_{uuid.uuid4().hex[:12]}"
+    ticket = {
+        "ticket_id": ticket_id,
+        "user_id": user["user_id"],
+        "username": user["username"],
+        "subject": subject, "body": body, "category": req.category,
+        "status": "open",  # open | in_progress | resolved | closed
+        "created_at": now_utc().isoformat(),
+        "updated_at": now_utc().isoformat(),
+        "replies_count": 0,
+    }
+    await db.tickets.insert_one(ticket)
+    ticket.pop("_id", None)
+    return ticket
+
+
+@api.get("/tickets/mine")
+async def list_my_tickets(user: dict = Depends(get_user_dep)):
+    return await db.tickets.find({"user_id": user["user_id"]}, {"_id": 0}).sort("updated_at", -1).to_list(100)
+
+
+@api.get("/tickets/{ticket_id}")
+async def get_ticket(ticket_id: str, user: dict = Depends(get_user_dep)):
+    t = await db.tickets.find_one({"ticket_id": ticket_id}, {"_id": 0})
+    if not t:
+        raise HTTPException(404, "Doléance introuvable")
+    is_staff = user.get("role") in ("admin", "moderator")
+    if t["user_id"] != user["user_id"] and not is_staff:
+        raise HTTPException(403, "Action interdite")
+    replies = await db.ticket_replies.find({"ticket_id": ticket_id}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    user_ids = list({t["user_id"]} | {r["user_id"] for r in replies})
+    udocs = await db.users.find({"user_id": {"$in": list(user_ids)}},
+        {"_id": 0, "user_id": 1, "username": 1, "role": 1, "level": 1}).to_list(500)
+    umap = {u["user_id"]: u for u in udocs}
+    for r in replies:
+        r["author"] = umap.get(r["user_id"], {})
+    t["author"] = umap.get(t["user_id"], {})
+    return {"ticket": t, "replies": replies}
+
+
+class TicketReplyReq(BaseModel):
+    content: str
+
+
+@api.post("/tickets/{ticket_id}/replies")
+async def reply_ticket(ticket_id: str, req: TicketReplyReq, user: dict = Depends(get_user_dep)):
+    t = await db.tickets.find_one({"ticket_id": ticket_id})
+    if not t:
+        raise HTTPException(404, "Doléance introuvable")
+    is_staff = user.get("role") in ("admin", "moderator")
+    if t["user_id"] != user["user_id"] and not is_staff:
+        raise HTTPException(403, "Action interdite")
+    content = req.content.strip()
+    if len(content) < 2 or len(content) > 3000:
+        raise HTTPException(400, "Message 2-3000 caractères")
+    reply = {
+        "reply_id": f"trpl_{uuid.uuid4().hex[:10]}",
+        "ticket_id": ticket_id, "user_id": user["user_id"],
+        "content": content, "is_staff": is_staff,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.ticket_replies.insert_one(reply)
+    update = {"updated_at": now_utc().isoformat()}
+    if is_staff and t["status"] == "open":
+        update["status"] = "in_progress"
+    await db.tickets.update_one({"ticket_id": ticket_id}, {"$inc": {"replies_count": 1}, "$set": update})
+    # Notify the other party
+    other_uid = t["user_id"] if is_staff else None
+    if is_staff and other_uid != user["user_id"]:
+        await push_notification(db, other_uid, "ticket_reply",
+            "Réponse du Conseil à votre doléance", t["subject"][:100], "ding", "MessageCircle")
+    reply.pop("_id", None)
+    return reply
+
+
+class TicketStatusReq(BaseModel):
+    status: str  # open | in_progress | resolved | closed
+
+
+@api.put("/tickets/{ticket_id}/status")
+async def set_ticket_status(ticket_id: str, req: TicketStatusReq, user: dict = Depends(get_staff_dep)):
+    if req.status not in ("open", "in_progress", "resolved", "closed"):
+        raise HTTPException(400, "Statut invalide")
+    t = await db.tickets.find_one({"ticket_id": ticket_id})
+    if not t:
+        raise HTTPException(404, "Doléance introuvable")
+    await db.tickets.update_one({"ticket_id": ticket_id}, {"$set": {"status": req.status, "updated_at": now_utc().isoformat()}})
+    await push_notification(db, t["user_id"], "ticket_status",
+        f"Doléance « {t['subject'][:60]} » → {req.status}",
+        "Le Conseil a mis à jour votre dossier", "ding", "Mail")
+    return {"ok": True}
+
+
+@api.get("/admin/tickets")
+async def admin_list_tickets(status: str = "all", user: dict = Depends(get_staff_dep)):
+    q = {} if status == "all" else {"status": status}
+    return await db.tickets.find(q, {"_id": 0}).sort([("status", 1), ("updated_at", -1)]).limit(200).to_list(200)
+
+
+# ============================================================================
+# AETHER GRANT — Distribution administrative
+# ============================================================================
+class AetherGrantReq(BaseModel):
+    target_user_id: str
+    amount: int
+    reason: str = ""
+
+
+@api.post("/admin/grant-aether")
+async def admin_grant_aether(req: AetherGrantReq, user: dict = Depends(get_admin_dep)):
+    if req.amount == 0:
+        raise HTTPException(400, "Montant invalide")
+    target = await db.users.find_one({"user_id": req.target_user_id})
+    if not target:
+        raise HTTPException(404, "Héros introuvable")
+    # Allow negative amounts to clawback. Don't underflow.
+    new_aether = max(0, target.get("aether", 0) + req.amount)
+    await db.users.update_one({"user_id": req.target_user_id}, {"$set": {"aether": new_aether}})
+    sign = "+" if req.amount > 0 else ""
+    await add_chronicle(req.target_user_id,
+        f"Le Conseil ({user['username']}) accorde {sign}{req.amount} Aether · {req.reason or 'sans motif'}",
+        "admin")
+    await push_notification(db, req.target_user_id, "aether_grant",
+        f"{sign}{req.amount} Aether du Conseil",
+        req.reason or "Don administratif", "coin", "Coins")
+    return {"ok": True, "new_aether": new_aether}
+
+
+# ---------- Mount router at the very end (after ALL endpoint declarations) ----------
+app.include_router(api)
+
+
 @app.on_event("startup")
 async def startup():
     await db.users.create_index("email", unique=True)
@@ -2336,6 +2589,14 @@ async def startup():
         # ensure password is current
         if not verify_password(admin_password, existing.get("password_hash", "")):
             await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+
+    # One-time cleanup: remove the legacy "founder" badge from all beta accounts (per user request)
+    try:
+        founder_cleanup = await db.user_badges.delete_many({"badge_id": "founder"})
+        if founder_cleanup.deleted_count:
+            logger.info(f"NEXORIA: removed {founder_cleanup.deleted_count} legacy 'founder' badges")
+    except Exception as e:
+        logger.warning(f"NEXORIA: founder badge cleanup skipped — {e}")
 
     # One-time global cleanup of existing inventory duplicates (idempotent)
     try:

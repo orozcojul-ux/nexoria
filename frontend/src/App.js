@@ -31,6 +31,8 @@ import BannedScreen from "@/pages/BannedScreen";
 import WorldMap from "@/pages/WorldMap";
 import Guilds from "@/pages/Guilds";
 import Forum from "@/pages/Forum";
+import Friends from "@/pages/Friends";
+import Tickets from "@/pages/Tickets";
 import BroadcastOverlay from "@/components/BroadcastOverlay";
 
 function MaintenanceGate({ children }) {
@@ -83,6 +85,8 @@ function AppRouter() {
         <Route path="/world" element={<ProtectedRoute><Layout><WorldMap /></Layout></ProtectedRoute>} />
         <Route path="/guilds" element={<ProtectedRoute><Layout><Guilds /></Layout></ProtectedRoute>} />
         <Route path="/forum" element={<ProtectedRoute><Layout><Forum /></Layout></ProtectedRoute>} />
+        <Route path="/friends" element={<ProtectedRoute><Layout><Friends /></Layout></ProtectedRoute>} />
+        <Route path="/tickets" element={<ProtectedRoute><Layout><Tickets /></Layout></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><Layout><Admin /></Layout></ProtectedRoute>} />
         <Route path="/profile/:username" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Shield, Trash2, Users, MessageSquare, Trophy, Package, ScrollText, Eye, Sparkles, Ban, Edit3, Hammer, Megaphone, Crown, ShieldCheck, UserCog, ShoppingBag, Plus, X } from "lucide-react";
+import { Shield, Trash2, Users, MessageSquare, Trophy, Package, ScrollText, Eye, Sparkles, Ban, Edit3, Hammer, Megaphone, Crown, ShieldCheck, UserCog, ShoppingBag, Plus, X, ChevronLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -73,7 +73,10 @@ export default function Admin() {
           { id: "chat", label: "Chat Staff" },
           ...(isAdmin ? [{ id: "shop", label: "Boutique" }] : []),
           ...(isAdmin ? [{ id: "seasons", label: "Saisons" }] : []),
+          { id: "tickets", label: "Doléances" },
+          ...(isAdmin ? [{ id: "grant", label: "Don d'Aether" }] : []),
           ...(isAdmin ? [{ id: "roles", label: "Rôles" }] : []),
+          { id: "legend", label: "Légende" },
           ...(isAdmin ? [{ id: "system", label: "Système" }] : []),
         ].map((tb) => (
           <button key={tb.id} onClick={() => setTab(tb.id)} data-testid={`admin-tab-${tb.id}`}
@@ -203,6 +206,9 @@ export default function Admin() {
       {tab === "chat" && <StaffChat />}
       {tab === "shop" && <ShopAdmin />}
       {tab === "seasons" && <SeasonsAdmin />}
+      {tab === "tickets" && <TicketsAdmin />}
+      {tab === "grant" && <AetherGrantAdmin />}
+      {tab === "legend" && <AdminLegend />}
       {tab === "roles" && <RolesGuide />}
 
       {tab === "system" && (
@@ -784,6 +790,212 @@ function CreateSeasonDialog({ onClose, onCreated }) {
         </div>
       </motion.form>
     </motion.div>
+  );
+}
+
+
+// ---------- Tickets Admin (visible to staff) ----------
+function TicketsAdmin() {
+  const [tickets, setTickets] = useState([]);
+  const [filter, setFilter] = useState("all");
+  const [selected, setSelected] = useState(null);
+
+  const load = async () => {
+    try {
+      const { data } = await api.get("/admin/tickets", { params: { status: filter } });
+      setTickets(data);
+    } catch { toast.error("Erreur"); }
+  };
+  useEffect(() => { load(); }, [filter]);
+
+  if (selected) return <AdminTicketDetail ticketId={selected} onBack={() => { setSelected(null); load(); }} />;
+
+  const STATUS = { open: "Ouvert", in_progress: "En cours", resolved: "Résolu", closed: "Clos" };
+  const COLOR = { open: "#3B82F6", in_progress: "#EAB308", resolved: "#10B981", closed: "#71717A" };
+
+  return (
+    <div className="space-y-4" data-testid="tickets-admin">
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <h2 className="font-display font-bold text-xl ancient-text">📨 Doléances du royaume</h2>
+        <div className="flex gap-1 flex-wrap">
+          {["all", "open", "in_progress", "resolved", "closed"].map((s) => (
+            <button key={s} onClick={() => setFilter(s)} data-testid={`tk-filter-${s}`}
+              className={`px-3 py-1 rounded text-xs font-bold border ${filter === s ? "border-cyan-500/60 text-cyan-300 bg-cyan-500/10" : "border-white/10 text-zinc-400"}`}>
+              {s === "all" ? "Toutes" : STATUS[s]}
+            </button>
+          ))}
+        </div>
+      </div>
+      {tickets.length === 0 ? (
+        <div className="text-center text-zinc-500 italic py-8">Aucune doléance pour ce filtre.</div>
+      ) : tickets.map((t) => (
+        <button key={t.ticket_id} onClick={() => setSelected(t.ticket_id)} data-testid={`admin-ticket-${t.ticket_id}`}
+          className="w-full glass rounded-xl p-3 text-left hover:bg-white/[0.03] flex justify-between items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="font-display font-bold truncate">{t.subject}</div>
+            <div className="text-[10px] text-zinc-500 font-mono-stat">{t.username} · {t.category} · {new Date(t.updated_at).toLocaleString("fr-FR")}</div>
+          </div>
+          <span className="px-2 py-1 rounded text-[10px] uppercase tracking-widest font-bold shrink-0"
+            style={{ background: `${COLOR[t.status]}20`, color: COLOR[t.status] }}>{STATUS[t.status]}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AdminTicketDetail({ ticketId, onBack }) {
+  const [data, setData] = useState(null);
+  const [text, setText] = useState("");
+  const load = async () => { const r = await api.get(`/tickets/${ticketId}`); setData(r.data); };
+  useEffect(() => { load(); }, [ticketId]);
+  const reply = async (e) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    await api.post(`/tickets/${ticketId}/replies`, { content: text.trim() });
+    setText(""); load();
+  };
+  const setStatus = async (status) => { await api.put(`/tickets/${ticketId}/status`, { status }); toast.success("Statut mis à jour"); load(); };
+  if (!data) return <div className="text-center text-zinc-500 py-8">Chargement...</div>;
+  const t = data.ticket;
+  const COLOR = { open: "#3B82F6", in_progress: "#EAB308", resolved: "#10B981", closed: "#71717A" };
+  return (
+    <div data-testid="admin-ticket-detail">
+      <button onClick={onBack} className="mb-3 text-cyan-400 text-sm flex items-center gap-1"><ChevronLeft className="w-3 h-3" /> Retour</button>
+      <div className="glass rounded-xl p-4 mb-3 border-2" style={{ borderColor: `${COLOR[t.status]}40` }}>
+        <h3 className="font-display font-bold text-lg mb-1">{t.subject}</h3>
+        <div className="text-xs text-zinc-500 mb-2"><HeroName user={t.author} size="sm" /> · {t.category} · {new Date(t.created_at).toLocaleString("fr-FR")}</div>
+        <div className="text-sm text-zinc-200 whitespace-pre-wrap">{t.body}</div>
+        <div className="flex gap-1 mt-3 flex-wrap">
+          {["open", "in_progress", "resolved", "closed"].map((s) => (
+            <button key={s} onClick={() => setStatus(s)} disabled={t.status === s}
+              className="px-2.5 py-1 rounded border text-[10px] uppercase tracking-widest font-bold disabled:opacity-40"
+              style={{ borderColor: `${COLOR[s]}40`, color: COLOR[s] }}
+              data-testid={`admin-status-${s}`}>
+              {{ open: "Ouvrir", in_progress: "En cours", resolved: "Résoudre", closed: "Clore" }[s]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2 mb-3">
+        {data.replies.map((r) => (
+          <div key={r.reply_id} className={`glass rounded-xl p-3 ${r.is_staff ? "border border-violet-500/30 bg-violet-500/5" : ""}`}>
+            <div className="text-xs text-zinc-500 mb-1"><HeroName user={r.author} size="sm" /> {r.is_staff && <span className="text-violet-300 text-[9px] uppercase tracking-widest font-bold">· Conseil</span>}</div>
+            <div className="text-sm text-zinc-200 whitespace-pre-wrap">{r.content}</div>
+          </div>
+        ))}
+      </div>
+      <form onSubmit={reply} className="glass rounded-xl p-3 space-y-2">
+        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Réponse du Conseil..."
+          rows={3} className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="admin-treply-input" />
+        <button type="submit" className="px-3 py-1.5 rounded border border-cyan-500/40 text-cyan-300 text-sm font-bold" data-testid="admin-treply-submit">Répondre</button>
+      </form>
+    </div>
+  );
+}
+
+
+// ---------- Aether Grant ----------
+function AetherGrantAdmin() {
+  const [users, setUsers] = useState([]);
+  const [search, setSearch] = useState("");
+  const [target, setTarget] = useState(null);
+  const [amount, setAmount] = useState(100);
+  const [reason, setReason] = useState("");
+
+  useEffect(() => { api.get("/admin/users").then((r) => setUsers(r.data)); }, []);
+
+  const filtered = users.filter((u) => u.username?.toLowerCase().includes(search.toLowerCase())).slice(0, 20);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!target) return toast.error("Choisir un héros");
+    try {
+      const { data } = await api.post("/admin/grant-aether", {
+        target_user_id: target.user_id, amount: parseInt(amount), reason,
+      });
+      toast.success(`Aether distribué — nouveau solde : ${data.new_aether} ✦`);
+      setReason(""); setAmount(100); setTarget(null);
+      const r = await api.get("/admin/users"); setUsers(r.data);
+    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+  };
+
+  return (
+    <div className="space-y-4" data-testid="aether-grant-admin">
+      <div>
+        <h2 className="font-display font-bold text-xl ancient-text">💎 Distribution d'Aether</h2>
+        <p className="text-xs text-zinc-500 italic mt-1">Accordez (positif) ou retirez (négatif) de l'Aether à un héros. Une notification + une chronique sont créées automatiquement.</p>
+      </div>
+      <form onSubmit={submit} className="glass rounded-xl p-5 space-y-3">
+        <div>
+          <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1 block">Héros cible</label>
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setTarget(null); }}
+            placeholder="Rechercher par pseudo..." className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="grant-search" />
+          {search && !target && (
+            <div className="mt-1 max-h-40 overflow-y-auto rounded border border-white/5 bg-[#080810]">
+              {filtered.map((u) => (
+                <button type="button" key={u.user_id} onClick={() => { setTarget(u); setSearch(u.username); }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-white/[0.04] text-sm flex justify-between" data-testid={`grant-pick-${u.user_id}`}>
+                  <span><HeroName user={u} size="sm" /></span>
+                  <span className="text-yellow-400 font-mono-stat text-xs">{u.aether} ✦</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1 block">Montant (peut être négatif)</label>
+            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
+              className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm font-mono-stat" data-testid="grant-amount" />
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1 block">Motif</label>
+            <input value={reason} onChange={(e) => setReason(e.target.value)}
+              placeholder="ex: gagnant concours" className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="grant-reason" />
+          </div>
+        </div>
+        <button type="submit" disabled={!target}
+          className="px-4 py-2 rounded border border-yellow-500/50 text-yellow-300 font-bold text-sm disabled:opacity-40" data-testid="grant-submit">
+          {target ? `Accorder ${amount > 0 ? "+" : ""}${amount} ✦ à ${target.username}` : "Choisir d'abord un héros"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+
+// ---------- Admin Legend ----------
+function AdminLegend() {
+  const sections = [
+    { id: "overview", title: "Présage", body: "Vue globale du royaume — total des héros, posts, niveau moyen, état actuel du serveur." },
+    { id: "users", title: "Héros", body: "Liste de tous les comptes. Admin : édition complète, ban/unban, gestion des rôles. Modérateur : consultation + ban/unban des héros standards seulement." },
+    { id: "bans", title: "Bannissements", body: "Historique de tous les bans : qui, quand, raison, durée. Accessible aux modérateurs." },
+    { id: "logs", title: "Chroniques", body: "100 derniers événements globaux : level-ups, badges obtenus, modérations, achats. Sert d'audit trail." },
+    { id: "broadcast", title: "Proclamation", body: "[Admin] Envoie un message visuel + sonore en plein écran à tous les héros connectés. Idéal pour annonces majeures (maintenance, événement, lancement de saison)." },
+    { id: "chat", title: "Chat Staff", body: "Salon privé entre admins et modérateurs. Polling 5s. Persiste 7 jours." },
+    { id: "shop", title: "Boutique", body: "[Admin] CRUD des items custom de la boutique. Les items statiques (déclarés en dur dans shop_data.py) sont verrouillés et ne peuvent être ni modifiés ni supprimés." },
+    { id: "seasons", title: "Saisons", body: "[Admin] Cycles de jeu compétitifs. Une saison active à la fois. À la clôture, les Top 1/10/50 reçoivent Aether + badges. L'XP gagné pendant une saison est mirroré dans season_scores." },
+    { id: "tickets", title: "Doléances (Missives)", body: "Tickets d'aide soumis par les héros. Les staff peuvent répondre, changer le statut (Ouvert → En cours → Résolu → Clos). Les héros reçoivent une notification à chaque mise à jour." },
+    { id: "grant", title: "Don d'Aether", body: "[Admin] Distribution manuelle d'Aether (positif = don, négatif = ponction). Une chronique est créée et le héros est notifié." },
+    { id: "roles", title: "Rôles", body: "[Admin] Promotion / rétrogradation entre user, moderator, admin. Un admin ne peut pas se rétrograder lui-même." },
+    { id: "system", title: "Système", body: "[Admin] Bascule maintenance ON/OFF. Quand activée, seuls les staff peuvent se connecter via la page Maintenance (5 clics sur le logo ou Ctrl+Shift+S)." },
+    { id: "legend", title: "Légende", body: "Ce panneau d'aide. À consulter sans modération." },
+  ];
+  return (
+    <div className="space-y-3" data-testid="admin-legend">
+      <div>
+        <h2 className="font-display font-bold text-xl ancient-text">📖 Codex du Conseil</h2>
+        <p className="text-xs text-zinc-500 italic mt-1">Description de chaque onglet du panel administratif.</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {sections.map((s) => (
+          <div key={s.id} className="glass rounded-xl p-4" data-testid={`legend-${s.id}`}>
+            <div className="font-display font-bold text-sm mb-1 text-cyan-300">{s.title}</div>
+            <div className="text-xs text-zinc-400 italic scroll-paragraph">{s.body}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
