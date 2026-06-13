@@ -35,6 +35,26 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3.5 — Discord Role Sync + UX polish (2026-02-12)
+- 🔗 **Discord role sync complet** — module `/app/backend/discord_sync.py`. Connecte le bot Discord (token sécurisé côté backend) au serveur NEXORIA. Synchronise :
+  - **Classes** (10 rôles : Mage, Guerrier, Assassin, Paladin, Alchimiste, Explorateur, Nécromancien, Architecte, Chronomancien, Inventeur)
+  - **Progression** (8 paliers : Novice / Voyageur / Vétéran / Maître des Ombres / Seigneur du Temps / Roi des Créateurs / Légende Vivante / Élu Cosmique)
+  - **Règle stricte** : 1 seul rôle de classe + 1 seul rôle de progression. Rôles staff (Gardien Suprême, Sage, Sentinelle) JAMAIS modifiés. Token jamais exposé au frontend.
+  - **Triggers automatiques** : (a) login Discord OAuth, (b) changement de classe via `/profile`, (c) passage de palier après level-up dans `grant_xp()`. Tout en `asyncio.create_task` non-bloquant.
+  - **Endpoints** : `POST /api/discord/sync-me`, `POST /api/admin/discord/sync-user/{id}`, `POST /api/admin/discord/sync-all` (rate-limited à 0.25s/user), `GET /api/admin/discord/log`, `GET /api/discord/status`.
+  - **Log persistant** : table `discord_sync_log` + champ user `discord_roles_synced_at`.
+  - **Notifications optionnelles** dans channel Discord configuré : lien, changement de classe, ascension de palier.
+  - **Frontend** : nouvel onglet admin "Sync Discord" (Codex du Conseil) → vue état bot, liste des comptes liés avec bouton Sync individuel, bouton Tout resynchroniser, journal détaillé.
+- 📜 **Copyright global** "© 2026 NEXORIA · Codex du Voyageur" en bas de toutes les pages authentifiées.
+- 💬 **Bouton Discord flottant** en bas à droite (toutes pages auth) → lien serveur.
+- 🤝 **Système d'amis** : request/accept/decline/list/unfriend. Notifs Discord-style intégrées.
+- 🎫 **Tickets d'aide (Missives)** : user crée (sujet+catégorie+corps), staff répond + change statut (open→in_progress→resolved→closed). Notifs auto.
+- 💰 **Distribution d'Aether** : panel admin avec recherche user + montant signé (positif = don, négatif = ponction). Chronique + notif.
+- 📖 **Codex du Conseil** : onglet Légende dans Admin avec description de chaque section.
+- 🗑️ **Migration startup** : 13 badges "founder" légués supprimés.
+- 💎 **+23 nouvelles reliques** (ITEM_TEMPLATES passe de 12 à 35 items, toutes raretés).
+- ✅ Backend lint clean. Endpoints testés en prod réelle (sync user → Discord PATCH confirmé).
+
 ### v3.4 — Phase 2 Big Features (2026-02-12)
 - ⚔️ **Système de Guildes complet** : création (L10 + 1000 Aether, max 50 membres), rôles chef/officier/membre, invitations bilatérales (accept/decline), promotion/rétrogradation, exclusion, chat temps réel (polling 5s, 1-500 chars), coffre commun (dépôt → +XP guilde + contribution_xp), récompenses chef/officier vers membres, niveau de guilde (1 + xp//1000), passation auto du chef à un officier sinon dissolution. Badge `founder_guild`.
 - 📜 **Forum (Tribune)** : 6 catégories statiques (Salle Commune, Stratégies, Mythes, Comptoir, Recrutement, Conseil). Threads avec titre 5-120 + contenu 10-5000 → +30 XP + badge `scholar`. Replies 2-2000 → +10 XP + notif auteur. Pin/lock staff seulement. Suppression auteur ou staff. Cascade delete. Views++ avec valeur corrigée immédiate.

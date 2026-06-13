@@ -75,6 +75,7 @@ export default function Admin() {
           ...(isAdmin ? [{ id: "seasons", label: "Saisons" }] : []),
           { id: "tickets", label: "Doléances" },
           ...(isAdmin ? [{ id: "grant", label: "Don d'Aether" }] : []),
+          ...(isAdmin ? [{ id: "discord", label: "Sync Discord" }] : []),
           ...(isAdmin ? [{ id: "roles", label: "Rôles" }] : []),
           { id: "legend", label: "Légende" },
           ...(isAdmin ? [{ id: "system", label: "Système" }] : []),
@@ -208,6 +209,7 @@ export default function Admin() {
       {tab === "seasons" && <SeasonsAdmin />}
       {tab === "tickets" && <TicketsAdmin />}
       {tab === "grant" && <AetherGrantAdmin />}
+      {tab === "discord" && <DiscordSyncAdmin />}
       {tab === "legend" && <AdminLegend />}
       {tab === "roles" && <RolesGuide />}
 
@@ -994,6 +996,130 @@ function AdminLegend() {
             <div className="text-xs text-zinc-400 italic scroll-paragraph">{s.body}</div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+
+// ---------- Discord Sync Admin ----------
+function DiscordSyncAdmin() {
+  const [status, setStatus] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [log, setLog] = useState([]);
+  const [search, setSearch] = useState("");
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const load = async () => {
+    const [s, u, l] = await Promise.all([
+      api.get("/discord/status"),
+      api.get("/admin/users"),
+      api.get("/admin/discord/log"),
+    ]);
+    setStatus(s.data); setUsers(u.data); setLog(l.data);
+  };
+  useEffect(() => { load(); }, []);
+
+  const syncUser = async (uid, username) => {
+    setRunning(true); setResult(null);
+    try {
+      const { data } = await api.post(`/admin/discord/sync-user/${uid}`);
+      setResult(data);
+      if (data.ok && data.applied) toast.success(`Rôles synchronisés pour ${username}`);
+      else if (data.skipped) toast.info(`Skip ${username} : ${data.reason}`);
+      else if (data.error) toast.error(`Erreur ${username} : ${data.error}`);
+      else toast.success(`${username} déjà à jour`);
+      await load();
+    } catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
+    finally { setRunning(false); }
+  };
+
+  const syncAll = async () => {
+    if (!window.confirm("Resynchroniser TOUS les comptes Discord liés ? Cette opération peut prendre du temps.")) return;
+    setRunning(true);
+    try {
+      const { data } = await api.post("/admin/discord/sync-all");
+      toast.success(`${data.ok}/${data.total} synchronisés (${data.errors} erreurs, ${data.skipped} skip)`);
+      setResult(data); await load();
+    } catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
+    finally { setRunning(false); }
+  };
+
+  const filtered = users.filter((u) => u.discord_id && u.username?.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className="space-y-5" data-testid="discord-sync-admin">
+      <div>
+        <h2 className="font-display font-bold text-xl ancient-text">🔗 Synchronisation Discord</h2>
+        <p className="text-xs text-zinc-500 italic mt-1">
+          Aligne les rôles Discord avec la classe et le rang de chaque héros. Les rôles staff (Gardien Suprême, Sage, Sentinelle) ne sont JAMAIS modifiés.
+        </p>
+        <div className="mt-2 text-[10px] uppercase tracking-[0.3em] font-bold">
+          État du bot :
+          {status === null ? <span className="text-zinc-500"> chargement...</span> :
+            status.configured ? <span className="text-green-400"> ● Configuré</span> :
+              <span className="text-red-400"> ● Token absent</span>}
+        </div>
+      </div>
+
+      <div className="glass rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold">Comptes Discord liés</div>
+          <div className="font-mono-stat text-2xl text-cyan-300 font-bold">{filtered.length}</div>
+        </div>
+        <button onClick={syncAll} disabled={running || !status?.configured}
+          className="px-4 py-2 rounded border border-violet-500/50 text-violet-300 font-bold text-sm disabled:opacity-40 flex items-center gap-2"
+          data-testid="discord-sync-all">
+          {running ? "..." : "🌐 Tout resynchroniser"}
+        </button>
+      </div>
+
+      <div>
+        <input value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="Filtrer par pseudo..." className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm mb-2" data-testid="discord-search" />
+        <div className="glass rounded-xl divide-y divide-white/5 max-h-[400px] overflow-y-auto">
+          {filtered.length === 0 && <div className="p-6 text-center text-zinc-500 italic text-sm">Aucun compte lié</div>}
+          {filtered.slice(0, 100).map((u) => (
+            <div key={u.user_id} className="p-3 flex items-center justify-between gap-3" data-testid={`discord-row-${u.user_id}`}>
+              <div className="flex-1 min-w-0">
+                <HeroName user={u} size="sm" />
+                <div className="text-[10px] font-mono-stat text-zinc-500">
+                  Niv. {u.level} · {u.class_name} · Discord: {u.discord_id}
+                  {u.discord_roles_synced_at && <span className="text-green-400 ml-2">● sync {new Date(u.discord_roles_synced_at).toLocaleString("fr-FR")}</span>}
+                </div>
+              </div>
+              <button onClick={() => syncUser(u.user_id, u.username)} disabled={running}
+                className="px-3 py-1.5 rounded border border-cyan-500/40 text-cyan-300 text-xs font-bold disabled:opacity-40" data-testid={`discord-sync-${u.user_id}`}>
+                Sync
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {result && (
+        <div className="glass rounded-xl p-3 text-xs font-mono-stat" data-testid="discord-result">
+          <div className="text-[10px] uppercase tracking-widest text-cyan-400 font-bold mb-1">Dernier résultat</div>
+          <pre className="text-zinc-400 overflow-x-auto">{JSON.stringify(result, null, 2)}</pre>
+        </div>
+      )}
+
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-2">Journal de synchronisation ({log.length})</div>
+        <div className="glass rounded-xl divide-y divide-white/5 max-h-[300px] overflow-y-auto">
+          {log.length === 0 && <div className="p-4 text-center text-zinc-500 italic text-xs">Aucune entrée</div>}
+          {log.map((entry, i) => (
+            <div key={i} className="px-3 py-2 text-xs flex items-baseline gap-2" data-testid={`discord-log-${i}`}>
+              <span className={`text-[10px] font-bold ${entry.success ? "text-green-400" : "text-red-400"}`}>
+                {entry.success ? "✓" : "✗"}
+              </span>
+              <span className="font-mono-stat text-zinc-500">{new Date(entry.created_at).toLocaleString("fr-FR")}</span>
+              <span className="font-mono-stat text-zinc-400 truncate flex-1">{entry.user_id}</span>
+              <span className="text-zinc-300 truncate">{entry.message}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

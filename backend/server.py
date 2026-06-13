@@ -33,6 +33,8 @@ from oracle import consult_oracle, generate_personalized_quest
 from shop_data import SHOP_ITEMS, get_shop_item
 from notifications import push_notification
 import discord_auth
+import discord_sync
+import asyncio
 
 # ---------- DB ----------
 mongo_url = os.environ["MONGO_URL"]
@@ -179,6 +181,14 @@ async def grant_xp(user_id: str, amount: int, reason: str = ""):
     if new_level > old_level:
         update["skill_points"] = user.get("skill_points", 0) + (new_level - old_level)
         await add_chronicle(user_id, f"A atteint le niveau {new_level} — Rang {new_rank}", "level_up")
+        # Auto-sync Discord roles when level changes (may cross a progression tier)
+        old_tier = discord_sync.progression_tier_from_level(old_level)
+        new_tier = discord_sync.progression_tier_from_level(new_level)
+        if new_tier != old_tier:
+            discord_sync.schedule_sync(db, user_id)
+            asyncio.create_task(discord_sync.post_notification(
+                f"🌟 **{user.get('username','?')}** ascende au rang **{new_tier}** (niv. {new_level})"
+            ))
     await db.users.update_one({"user_id": user_id}, {"$set": update})
     # Mirror to active season score (idempotent upsert)
     active_season = await db.seasons.find_one({"active": True}, {"_id": 0, "season_id": 1})
@@ -603,6 +613,17 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
             await grant_badge(user["user_id"], "polyglot")
 
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": update})
+
+    # Discord sync triggers
+    sync_class_or_progress = "class_id" in update or "level" in update
+    if sync_class_or_progress:
+        discord_sync.schedule_sync(db, user["user_id"])
+    if "class_id" in update:
+        # Optional notification
+        cls_name = update.get("class_name", update["class_id"])
+        asyncio.create_task(discord_sync.post_notification(
+            f"⚔️ **{user['username']}** a embrassé la voie du **{cls_name}**"
+        ))
 
     # Badges + XP for customization (only for textual/avatar/banner_url changes)
     if "avatar_url" in update or "banner_url" in update:
@@ -1600,6 +1621,11 @@ async def discord_exchange(payload: dict, response: Response):
         "provider": "discord",
     })
     set_session_cookie(response, token)
+    # Fire-and-forget Discord role sync after successful Discord login.
+    discord_sync.schedule_sync(db, user["user_id"])
+    asyncio.create_task(discord_sync.post_notification(
+        f"🪄 **{user['username']}** vient de lier son Discord à NEXORIA"
+    ))
     result = public_user(user)
     result["session_token"] = token
     return result
@@ -2535,6 +2561,53 @@ async def admin_grant_aether(req: AetherGrantReq, user: dict = Depends(get_admin
         f"{sign}{req.amount} Aether du Conseil",
         req.reason or "Don administratif", "coin", "Coins")
     return {"ok": True, "new_aether": new_aether}
+
+
+# ============================================================================
+# DISCORD ROLE SYNC — endpoints
+# ============================================================================
+@api.post("/discord/sync-me")
+async def discord_sync_me(user: dict = Depends(get_user_dep)):
+    """User-triggered sync of their own roles."""
+    result = await discord_sync.sync_discord_roles(db, user["user_id"])
+    return result
+
+
+@api.post("/admin/discord/sync-user/{target_user_id}")
+async def discord_sync_user(target_user_id: str, user: dict = Depends(get_staff_dep)):
+    result = await discord_sync.sync_discord_roles(db, target_user_id)
+    return result
+
+
+@api.post("/admin/discord/sync-all")
+async def discord_sync_all(user: dict = Depends(get_admin_dep)):
+    """Re-sync EVERY linked Discord account. Runs sequentially with rate-limit pacing."""
+    if not discord_sync.is_configured():
+        raise HTTPException(503, "Discord bot non configuré")
+    linked = await db.users.find({"discord_id": {"$exists": True, "$ne": None}}, {"_id": 0, "user_id": 1}).to_list(5000)
+    stats = {"total": len(linked), "ok": 0, "skipped": 0, "errors": 0}
+    for u in linked:
+        r = await discord_sync.sync_discord_roles(db, u["user_id"])
+        if r.get("ok"):
+            stats["ok"] += 1
+        elif r.get("skipped"):
+            stats["skipped"] += 1
+        else:
+            stats["errors"] += 1
+        # Light rate-limit pacing — Discord allows ~50/sec global, we go gentle.
+        await asyncio.sleep(0.25)
+    return stats
+
+
+@api.get("/admin/discord/log")
+async def discord_sync_log(user: dict = Depends(get_staff_dep)):
+    return await db.discord_sync_log.find({}, {"_id": 0}).sort("created_at", -1).limit(200).to_list(200)
+
+
+@api.get("/discord/status")
+async def discord_status():
+    """Public-ish: tells the frontend whether Discord sync is wired up."""
+    return {"configured": discord_sync.is_configured()}
 
 
 # ---------- Mount router at the very end (after ALL endpoint declarations) ----------
