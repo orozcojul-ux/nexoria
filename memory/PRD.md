@@ -35,6 +35,18 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3.6 — Nexus Online (Habbo-like) + Discord sync UX (2026-02-13)
+- 🌐 **Nexus Online** — monde social temps réel inspiré d'Habbo, route `/nexus` :
+  - **Backend** : Socket.IO ASGI (python-socketio 5.11) mount sur `/api/nexus`. Custom `socketio_path="api/nexus/socket.io"` pour bypass des quirks Starlette de prefix-stripping.
+  - **3 salles** seed : Place Centrale (50 max), Taverne Étoilée (30), Arène des Présages (100).
+  - **Auth handshake** : token JWT dans `auth: {token}` du client → réutilise `get_user_by_token()` ajouté à `auth.py`. Ban check inclus.
+  - **Events** : connect/disconnect, move (clamped + throttle 100ms client + 10/s server-side), chat (≤280 chars, buffer 50 msg/room), change_room (avec full check), player_join/leave/move broadcast.
+  - **Frontend Phaser.js 3.80** : NexusScene avec bg cosmique (grille runique + gradients radiaux), avatars circulaires colorés par classe + halo pulsant + couronne/bouclier pour staff, click-to-move tweened, bulles de chat au-dessus de l'avatar.
+  - **UI flanking** : chat local (couleurs par rôle), liste Présents avec HeroName, sélecteur de salles avec compteur live, badge statut connexion.
+  - **Architecture évolutive** : state in-memory par room (extensible vers Redis), chat buffer 50 msg, structure modulaire pour ajouter events live, jeux, mini-arènes.
+- 🔗 **Settings — bouton Discord sync** : si compte non lié → CTA "Lier mon compte Discord" (lance OAuth flow). Si lié → bouton "Synchroniser mes rôles Discord" appelant `POST /api/discord/sync-me`. Affiche dernière date de sync.
+- ✅ Backend lint clean. Polling + WebSocket testés (sid, upgrade, broadcast confirmés). Screenshot live montre avatar admin + chat fonctionnels.
+
 ### v3.5 — Discord Role Sync + UX polish (2026-02-12)
 - 🔗 **Discord role sync complet** — module `/app/backend/discord_sync.py`. Connecte le bot Discord (token sécurisé côté backend) au serveur NEXORIA. Synchronise :
   - **Classes** (10 rôles : Mage, Guerrier, Assassin, Paladin, Alchimiste, Explorateur, Nécromancien, Architecte, Chronomancien, Inventeur)

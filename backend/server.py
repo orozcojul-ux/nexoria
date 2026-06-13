@@ -35,6 +35,7 @@ from notifications import push_notification
 import discord_auth
 import discord_sync
 import asyncio
+import nexus_world
 
 # ---------- DB ----------
 mongo_url = os.environ["MONGO_URL"]
@@ -2610,8 +2611,26 @@ async def discord_status():
     return {"configured": discord_sync.is_configured()}
 
 
+# ---------- Nexus Online lobby endpoint ----------
+@api.get("/nexus/rooms")
+async def list_nexus_rooms(user: dict = Depends(get_user_dep)):
+    """Lobby endpoint: returns rooms + current online count."""
+    return nexus_world.online_summary()
+
+
 # ---------- Mount router at the very end (after ALL endpoint declarations) ----------
 app.include_router(api)
+
+# Mount the Nexus Online (Socket.IO) ASGI app.
+# Tried /api/nexus first but the Starlette Mount does not bind cleanly under the
+# already-included APIRouter prefix. Mounting at /api/realtime/nexus works.
+# Mount the Nexus Online (Socket.IO) ASGI app under root.
+# The socketio_path is configured as 'api/nexus/socket.io' so requests to
+# /api/nexus/socket.io/... go through ingress (which only forwards /api).
+# We attach the socketio ASGIApp as a fallback after all FastAPI routes.
+_nexus_asgi = nexus_world.build_socketio_app(db)
+app.mount("/api/nexus", _nexus_asgi)
+
 
 
 @app.on_event("startup")

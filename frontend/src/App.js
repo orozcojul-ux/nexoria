@@ -33,6 +33,7 @@ import Guilds from "@/pages/Guilds";
 import Forum from "@/pages/Forum";
 import Friends from "@/pages/Friends";
 import Tickets from "@/pages/Tickets";
+import Nexus from "@/pages/Nexus";
 import BroadcastOverlay from "@/components/BroadcastOverlay";
 
 function MaintenanceGate({ children }) {
@@ -87,6 +88,7 @@ function AppRouter() {
         <Route path="/forum" element={<ProtectedRoute><Layout><Forum /></Layout></ProtectedRoute>} />
         <Route path="/friends" element={<ProtectedRoute><Layout><Friends /></Layout></ProtectedRoute>} />
         <Route path="/tickets" element={<ProtectedRoute><Layout><Tickets /></Layout></ProtectedRoute>} />
+        <Route path="/nexus" element={<ProtectedRoute><Layout><Nexus /></Layout></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><Layout><Admin /></Layout></ProtectedRoute>} />
         <Route path="/profile/:username" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />

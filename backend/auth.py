@@ -108,5 +108,24 @@ async def get_current_user(request: Request, db) -> dict:
     return user
 
 
+async def get_user_by_token(token: str, db) -> dict:
+    """Helper for non-HTTP contexts (e.g., Socket.IO handshake). Returns user dict or None."""
+    if not token:
+        return None
+    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if not session:
+        return None
+    expires_at = session.get("expires_at")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at and expires_at < datetime.now(timezone.utc):
+        return None
+    return await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0, "password_hash": 0})
+
+
+
+
 def generate_user_id() -> str:
     return f"user_{uuid.uuid4().hex[:12]}"
