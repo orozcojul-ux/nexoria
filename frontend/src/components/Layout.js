@@ -142,7 +142,7 @@ export default function Layout({ children }) {
 
       {/* Discord floating button - bottom right (above mobile nav) */}
       <a
-        href={process.env.REACT_APP_DISCORD_URL || "https://discord.gg/nexoria"}
+        href={process.env.REACT_APP_DISCORD_URL || "https://discord.gg/RC5QjcWDCH"}
         target="_blank"
         rel="noopener noreferrer"
         data-testid="discord-floating-btn"

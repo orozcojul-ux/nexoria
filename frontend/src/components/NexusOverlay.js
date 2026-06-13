@@ -74,6 +74,7 @@ export default function NexusOverlay() {
     gm: gmApi = {}, onInspectResult = () => () => {},
     attachScene = () => {}, detachScene = () => {},
     popup = null, dismissPopup = () => {}, globalAnnounce = null,
+    presence = { total: 0, by_room: {}, active_rooms: 0 },
   } = ns || {};
 
   // Bind scene callbacks to context
@@ -106,7 +107,6 @@ export default function NexusOverlay() {
 
   const rebuildScene = useCallback((payload) => {
     if (!containerRef.current) return;
-    if (gameRef.current) { gameRef.current.destroy(true); gameRef.current = null; }
     const onPlayerClick = (p) => { setSelectedTarget(p); setGmOpen(true); };
     const onTileClick = (tile) => {
       if (!pendingGmRef.current) return;
@@ -125,24 +125,40 @@ export default function NexusOverlay() {
     };
     const onMoveEmit = (tx, ty, facing) => move(tx, ty, facing);
 
-    const config = {
-      type: Phaser.AUTO,
-      parent: containerRef.current,
-      width: containerRef.current.clientWidth,
-      height: containerRef.current.clientHeight,
-      physics: { default: "arcade", arcade: { debug: false } },
-      scene: NexusIsoScene,
-      backgroundColor: "#030208",
-      scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
-    };
-    const game = new Phaser.Game(config);
-    gameRef.current = game;
-    game.scene.start("NexusIsoScene", {
+    const sceneData = {
       you: payload.you, room: payload.room,
       players: payload.players, items: payload.items,
       weather: payload.weather,
       onPlayerClick, onTileClick, onMoveEmit,
-    });
+    };
+
+    if (gameRef.current) {
+      // Persistent Phaser game — just restart the scene with new data
+      // This avoids destroying the canvas (smoother MMO teleport feel)
+      try {
+        gameRef.current.scene.stop("NexusIsoScene");
+        gameRef.current.scene.start("NexusIsoScene", sceneData);
+      } catch (e) {
+        // Fallback: full restart
+        gameRef.current.destroy(true);
+        gameRef.current = null;
+      }
+    }
+    if (!gameRef.current) {
+      const config = {
+        type: Phaser.AUTO,
+        parent: containerRef.current,
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight,
+        physics: { default: "arcade", arcade: { debug: false } },
+        scene: NexusIsoScene,
+        backgroundColor: "#030208",
+        scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
+      };
+      gameRef.current = new Phaser.Game(config);
+      gameRef.current.scene.start("NexusIsoScene", sceneData);
+    }
+    const game = gameRef.current;
     const tryReady = (attempt = 0) => {
       const scene = game.scene.getScene("NexusIsoScene");
       if (!scene || !scene.add) {
@@ -268,8 +284,10 @@ export default function NexusOverlay() {
                 {status === "online" ? <><Wifi className="w-3 h-3 text-green-400" /> <span className="text-green-400">Connecté</span></> :
                  status === "connecting" ? <span className="text-yellow-400">Connexion...</span> :
                  <><WifiOff className="w-3 h-3 text-red-400" /> <span className="text-red-400">{status}</span></>}
+                <span data-testid="presence-total" className="text-cyan-300">🌌 <span className="font-mono-stat text-cyan-200 font-bold">{presence.total}</span> héros</span>
+                <span className="text-zinc-500" data-testid="presence-room">🏰 Salle : <span className="text-cyan-200 font-bold">{players.length}</span></span>
+                <span className="text-zinc-500" data-testid="presence-rooms">🗺️ <span className="text-cyan-200 font-bold">{presence.active_rooms}</span> salles actives</span>
                 {room && <span className="text-cyan-300">· {room.name}</span>}
-                <span>· {players.length} héros</span>
                 <span className={`flex items-center gap-1 ${WEATHER_LABEL[weather]?.color}`}>
                   <WeatherIcon className="w-3 h-3" /> {WEATHER_LABEL[weather]?.fr || weather}
                 </span>
@@ -541,16 +559,59 @@ function GmPanel({ open, onClose, target, clearTarget, weather, gm, requestTileP
                     testid="gm-teleport" />
                   <GmBtn icon={Search} label="Inspecter" color="cyan"
                     onClick={onInspect} testid="gm-inspect" />
+                  <GmBtn icon={Eye} label="Observer" color="purple"
+                    onClick={() => { gm.observe(target.user_id); }} testid="gm-observe" />
                   <GmBtn icon={target.muted ? Volume2 : VolumeX}
                     label={target.muted ? "Voix" : "Muet"} color="purple"
                     onClick={() => gm.mute(target.user_id, !target.muted)} testid="gm-mute" />
                   <GmBtn icon={Snowflake}
                     label={target.frozen ? "Libérer" : "Figer"} color="cyan"
                     onClick={() => gm.freeze(target.user_id, !target.frozen)} testid="gm-freeze" />
+                  <GmBtn icon={Lock} label="Prison 30min" color="orange"
+                    onClick={() => { gm.prison(target.user_id, 30); }} testid="gm-prison" />
                   <GmBtn icon={Footprints} label="Expulser" color="orange"
                     onClick={() => { gm.kick(target.user_id, "Décret du Conseil"); toast.success("Expulsion envoyée"); }}
                     testid="gm-kick" />
                   <GmBtn icon={Ban} label="Bannir…" color="red" onClick={onBanClick} testid="gm-ban" />
+                </div>
+                {/* Economy actions */}
+                <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] uppercase tracking-widest text-cyan-300 font-bold">Donner / Retirer Aether</label>
+                    <div className="flex gap-1 mt-1">
+                      <input type="number" placeholder="±montant" data-testid="gm-aether-amount"
+                        className="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs font-mono"
+                        id={`aether-${target.user_id}`} />
+                      <button onClick={() => {
+                        const el = document.getElementById(`aether-${target.user_id}`);
+                        const v = parseInt(el.value, 10);
+                        if (!v) { toast.error("Montant invalide"); return; }
+                        gm.giveAether(target.user_id, v);
+                        el.value = "";
+                      }} data-testid="gm-give-aether"
+                        className="px-2 py-1 rounded border border-yellow-500/40 text-yellow-300 bg-yellow-500/10 hover:bg-yellow-500/20 text-xs font-bold">
+                        ⟡
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase tracking-widest text-cyan-300 font-bold">Donner relique</label>
+                    <div className="flex gap-1 mt-1">
+                      <input placeholder="Nom" data-testid="gm-item-name"
+                        className="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs"
+                        id={`itemname-${target.user_id}`} />
+                      <button onClick={() => {
+                        const el = document.getElementById(`itemname-${target.user_id}`);
+                        const v = (el.value || "").trim();
+                        if (!v) { toast.error("Nom requis"); return; }
+                        gm.giveItem(target.user_id, { name: v, rarity: "rare", icon: "✨" });
+                        el.value = "";
+                      }} data-testid="gm-give-item"
+                        className="px-2 py-1 rounded border border-purple-500/40 text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 text-xs font-bold">
+                        ✨
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -642,7 +703,7 @@ function GmPanel({ open, onClose, target, clearTarget, weather, gm, requestTileP
               </div>
 
               {/* Invisibilité */}
-              <div className="p-3 rounded-lg border border-white/10 bg-white/5 sm:col-span-2">
+              <div className="p-3 rounded-lg border border-white/10 bg-white/5">
                 <div className="text-[10px] uppercase tracking-widest text-cyan-300 mb-2 font-bold flex items-center gap-1">
                   <Eye className="w-3 h-3" /> Mode invisible
                 </div>
@@ -652,6 +713,43 @@ function GmPanel({ open, onClose, target, clearTarget, weather, gm, requestTileP
                 <button onClick={toggleInvisible} data-testid="gm-invisible-toggle"
                   className={`w-full px-3 py-1.5 rounded border text-xs font-bold ${gmInvisible ? "border-purple-500/60 bg-purple-500/20 text-purple-200" : "border-white/20 text-zinc-300 hover:border-white/40"}`}>
                   {gmInvisible ? <><EyeOff className="w-3 h-3 inline mr-1" /> Désactiver invisibilité</> : <><Eye className="w-3 h-3 inline mr-1" /> Devenir invisible</>}
+                </button>
+              </div>
+
+              {/* World Boss */}
+              <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/5">
+                <div className="text-[10px] uppercase tracking-widest text-red-300 mb-2 font-bold flex items-center gap-1">
+                  <Zap className="w-3 h-3" /> Boss Mondial
+                </div>
+                <input id="gm-boss-name" placeholder="Nom du boss" defaultValue="Archonte du Néant"
+                  className="w-full mb-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs"
+                  data-testid="gm-boss-name" />
+                <input id="gm-boss-hp" type="number" placeholder="PV" defaultValue="10000"
+                  className="w-full mb-2 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs font-mono"
+                  data-testid="gm-boss-hp" />
+                <button onClick={() => {
+                  const name = document.getElementById("gm-boss-name").value.trim() || "Archonte";
+                  const hp = parseInt(document.getElementById("gm-boss-hp").value, 10) || 10000;
+                  gm.worldBoss(name, hp);
+                  toast.success("Boss invoqué dans la salle");
+                }} data-testid="gm-boss-spawn"
+                  className="w-full px-3 py-1.5 rounded border border-red-500/40 text-red-300 bg-red-500/10 hover:bg-red-500/20 text-xs font-bold">
+                  Invoquer le Boss
+                </button>
+              </div>
+
+              {/* Rift */}
+              <div className="p-3 rounded-lg border border-purple-500/30 bg-purple-500/5">
+                <div className="text-[10px] uppercase tracking-widest text-purple-300 mb-2 font-bold flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" /> Faille dimensionnelle
+                </div>
+                <div className="text-[11px] text-zinc-400 mb-2">
+                  Ouvre une faille visuelle dans la salle actuelle — annonce un événement.
+                </div>
+                <button onClick={() => { gm.rift(); toast.success("Faille ouverte"); }}
+                  data-testid="gm-rift-open"
+                  className="w-full px-3 py-1.5 rounded border border-purple-500/40 text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 text-xs font-bold">
+                  Ouvrir une faille
                 </button>
               </div>
             </div>

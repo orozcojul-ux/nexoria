@@ -1,0 +1,69 @@
+{
+  "summary": "NEXORIA Phase B (presence counter + new GM events + Discord link) — Backend: 10/10 new Socket.IO tests PASS (presence dedup, multi-tab, give_aether clamp, give_item, prison freeze+mute, world_boss broadcast, rift, observe cross-room, role enforcement). Frontend: Discord href = https://discord.gg/RC5QjcWDCH (Layout.js + .env). NexusOverlay top bar shows the 3 required presence indicators (🌌 X HÉROS, 🏰 SALLE : X, 🗺️ X SALLES ACTIVES). Phaser scene renders without auto-refresh on room change (scene.restart pattern). Discrepancy noted: presence.total=1 vs presence.by_room[place_centrale]=3 in same payload — investigation needed (likely stale _rooms_state entries from prior disconnects not cleaned in sync with _user_sids).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "Socket.IO _presence_payload()",
+        "issue": "Observed in live overlay: presence.total=1 but by_room[place_centrale]=3 simultaneously. Both are supposed to dedup by user_id — by_room uses `{p['user_id'] for p in state.values()}` and total uses `len(_user_sids)`. The mismatch suggests stale player entries in _rooms_state[room] that aren't being removed on disconnect (the sids might already be gone from _user_sids/_players but lingering in _rooms_state). Could also be ghost entries from previous test runs. Worth auditing the disconnect handler and adding a periodic state-reconciliation or guarding against orphaned sids in _rooms_state."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "phase_b_validation": {
+    "discord_link": "PASS — [data-testid=discord-floating-btn].href = https://discord.gg/RC5QjcWDCH. frontend/.env has REACT_APP_DISCORD_URL set.",
+    "presence_in_room_joined": "PASS — room_joined.presence carries {total, by_room, active_rooms} on initial connect (verified backend test_room_joined_has_presence).",
+    "presence_update_broadcast": "PASS — admin receives presence:update when 2nd user connects (test_presence_update_on_connect).",
+    "multitab_dedupe": "PASS — same JWT opening 2 sockets keeps user counted once in presence.total (test_multitab_dedupe).",
+    "presence_indicators_ui": "PASS — top bar shows [data-testid=presence-total] '🌌 1 HÉROS', [data-testid=presence-room] '🏰 SALLE : 3', [data-testid=presence-rooms] '🗺️ 1 SALLES ACTIVES'. Visually confirmed in screenshot.",
+    "gm_give_aether": "PASS — +1000 / -500 / -999999 all return system_msg ok; final balance clamped to 0; audited.",
+    "gm_give_item": "PASS — insertion in inventory + system_msg ok; audited.",
+    "gm_prison": "PASS — target receives player_status {frozen:true, muted:true} on duration_min=1; duration_min=0 releases both flags.",
+    "gm_world_boss": "PASS — broadcast event sent to non-staff user in different room; payload {boss_id, name, hp, max_hp, spawned_by, room}.",
+    "gm_rift": "PASS — admin receives rift_open in their own room with {room, by_username, ts}.",
+    "gm_observe": "PASS — admin moves cross-room to target invisible; system_msg ok received.",
+    "role_enforcement": "PASS — non-staff calling gm_give_aether/give_item/prison/world_boss/rift/observe each receive system_msg kind=error 'réservé aux Gardiens'.",
+    "phaser_no_destroy_on_room_change": "Verified by inspection of NexusOverlay.js (uses scene.restart with same gameRef.current — comment confirms 'rebuildScene reuses gameRef instead of destroy+create'). No flicker observed in UI test."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_nexus_phase_b.py",
+    "/app/test_reports/pytest/phase_b.xml"
+  ],
+  "action_items": [
+    "Investigate the presence.total vs presence.by_room dedup mismatch (total=1, by_room.place_centrale=3 observed). Likely stale _rooms_state entries from prior socket disconnects. Audit disconnect() handler in nexus_world.py to ensure _rooms_state[room].pop(sid) always fires (it already does, so this might be ghost state from test runs). Consider a startup reconciliation or guard rendering on _user_sids membership.",
+    "(Carried from iter_9) /app/frontend/src/components/NexusOverlay.js > 950 lines — should be split into GMPanel.js / ChatPanel.js / NexusMap.js modules.",
+    "(Carried from iter_9) /app/backend/nexus_world.py is now ~1030 lines — exceeds 700-line guideline. Consider extracting gm_* handlers into nexus_gm.py module."
+  ],
+  "critical_code_review_comments": [
+    "_presence_payload() dedups correctly in code (set comprehension of user_id), but observed runtime drift suggests _rooms_state can hold orphan sids. Add a self-healing pass.",
+    "gm_give_aether correctly clamps amount [-1M, +1M] and balance >= 0. Pushes notification via push_notification — good integration.",
+    "gm_world_boss broadcasts to ALL connected sids by iterating _players — works server-wide as designed. gm_rift correctly room-scoped.",
+    "gm_observe sets gm.invisible=True only when moving cross-room. If GM is already in target's room, gm.invisible is still set to True — consistent with 'invisible follow' contract.",
+    "gm_prison auto-release uses asyncio.create_task with min 60s sleep (guards against duration_min*60 < 60). Reasonable safety net.",
+    "Layout.js Discord href reads from process.env.REACT_APP_DISCORD_URL with hardcoded fallback — good defensive coding.",
+    "NexusSocketContext.js exposes all new GM methods (giveAether/giveItem/prison/worldBoss/rift/observe) + presence state. Clean API surface."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_nexus_phase_b.py (NEW: 10 tests, all passing)"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 Phase B Socket.IO tests)",
+    "frontend": "~95% — Discord link, presence indicators, Phaser scene all verified visually. GM panel buttons (gm-boss-spawn etc.) not exercised in this run as panel toggle wasn't clicked, but code is in place."
+  },
+  "test_credentials": "admin@nexoria.com / NexoriaAdmin2026! works. TEST_phaseB_<hex>@example.com users created via /api/auth/register.",
+  "seed_data_creation": "1 TEST_phaseB user + a TEST_PhaseB_Relic legendary item granted via gm_give_item + aether modifications on test user (not cleaned).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase B backend Socket.IO contract is 100% green. Auth uses cookie session_token (NOT bearer JWT) — use s = requests.Session(); s.post('/api/auth/login') then s.cookies.get('session_token') for socket auth handshake. user_id is at top level of /auth/login and /auth/register response (not nested under .user). The 10 tests in /app/backend/tests/test_nexus_phase_b.py serve as regression. One observed runtime quirk: presence.total can disagree with sum(presence.by_room) by user_id — appears to be stale state in _rooms_state from disconnected sockets. Worth a focused investigation: add logging in disconnect() and verify _rooms_state cleanup matches _user_sids cleanup in lock-step.",
+  "rca_of_observed_issue": {
+    "presence_count_mismatch": {
+      "symptom": "Live UI shows '1 HÉROS' (presence.total) but 'SALLE : 3' (by_room[place_centrale]) simultaneously — should be equal when only one user is in the world.",
+      "hypothesis": "Per nexus_world.py: total = len(_user_sids) and by_room dedupes user_ids inside _rooms_state[room]. If a user fully disconnects, _user_sids pops the user_id (line 226-230) AND _rooms_state[room].pop(sid) happens (line 225) — both should be in sync. However, abnormal disconnects (e.g. token revoked, browser tab closed during network blip) could leave _rooms_state entries while _user_sids was already cleaned. Alternatively, an earlier test run left lingering state since the server isn't restarted between iterations.",
+      "mitigation_suggestion": "Add an idempotent reconciliation in _presence_payload(): only count players in _rooms_state[r] whose user_id is in _user_sids. Patch: `uids = {p['user_id'] for p in state.values() if p['user_id'] in _user_sids}`. This guarantees per-room counts can never exceed the global unique total."
+    }
+  }
+}

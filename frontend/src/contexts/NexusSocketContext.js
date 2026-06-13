@@ -37,6 +37,7 @@ export function NexusSocketProvider({ children }) {
   const [popup, setPopup] = useState(null); // {title, body, kind, by_username}
   const [globalAnnounce, setGlobalAnnounce] = useState(null);
   const [pushNotif, setPushNotif] = useState(null); // last notif:new doc — bell consumes
+  const [presence, setPresence] = useState({ total: 0, by_room: {}, active_rooms: 0 });
 
   // Refs for movement/scene callbacks
   const sceneApiRef = useRef(null); // scene attaches itself here for player_move / item_spawned etc.
@@ -88,6 +89,7 @@ export function NexusSocketProvider({ children }) {
       setWeather(payload.weather || "clear");
       setItems(payload.items || []);
       setIsStaff(!!payload.is_staff);
+      if (payload.presence) setPresence(payload.presence);
       sceneApiRef.current?.onRoomJoined?.(payload);
     });
 
@@ -155,6 +157,18 @@ export function NexusSocketProvider({ children }) {
       try { sfx.click(); } catch {}
     });
 
+    // Presence update — global hero counter
+    socket.on("presence:update", (p) => setPresence(p));
+
+    // World events
+    socket.on("world_boss_spawn", (boss) => {
+      toast.error(`⚔️ Le boss "${boss.name}" est apparu dans ${boss.room} !`, { duration: 8000 });
+      try { sfx.fanfare?.(); } catch {}
+    });
+    socket.on("rift_open", (rift) => {
+      toast.warning?.(`🌀 Faille dimensionnelle ouverte par ${rift.by_username}`, { duration: 6000 });
+    });
+
     return () => {
       try { socket.disconnect(); } catch {}
       socketRef.current = null;
@@ -195,6 +209,12 @@ export function NexusSocketProvider({ children }) {
     announce: (text) => socketRef.current?.emit("gm_announce", { text }),
     popup: (title, body, kind = "info") => socketRef.current?.emit("gm_popup_notify", { title, body, kind }),
     inspect: (target_user_id) => socketRef.current?.emit("gm_inspect", { target_user_id }),
+    giveAether: (target_user_id, amount) => socketRef.current?.emit("gm_give_aether", { target_user_id, amount }),
+    giveItem: (target_user_id, payload) => socketRef.current?.emit("gm_give_item", { target_user_id, ...payload }),
+    prison: (target_user_id, duration_min) => socketRef.current?.emit("gm_prison", { target_user_id, duration_min }),
+    worldBoss: (name, hp) => socketRef.current?.emit("gm_world_boss", { name, hp }),
+    rift: (room) => socketRef.current?.emit("gm_rift", { room }),
+    observe: (target_user_id) => socketRef.current?.emit("gm_observe", { target_user_id }),
   }), []);
 
   const onInspectResult = useCallback((handler) => {
@@ -221,12 +241,13 @@ export function NexusSocketProvider({ children }) {
     overlayOpen, setOverlayOpen,
     popup, dismissPopup, globalAnnounce,
     pushNotif, consumePushNotif,
+    presence,
     sendChat, move, changeRoom, pickupItem,
     gm, onInspectResult,
     attachScene, detachScene,
   }), [
     status, room, you, players, weather, items, isStaff, chat, activeChannel,
-    whisperTarget, unreadByChannel, overlayOpen, popup, globalAnnounce, pushNotif,
+    whisperTarget, unreadByChannel, overlayOpen, popup, globalAnnounce, pushNotif, presence,
     sendChat, move, changeRoom, pickupItem, gm, onInspectResult, attachScene,
     detachScene, markChannelRead, dismissPopup, consumePushNotif,
   ]);

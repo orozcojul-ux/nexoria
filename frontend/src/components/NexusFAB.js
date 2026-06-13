@@ -18,7 +18,8 @@ export default function NexusFAB() {
 
   const connected = ns.status === "online";
   const StatusIcon = connected ? Wifi : WifiOff;
-  const onlineCount = ns.players?.length || 0;
+  // Use global presence count if available, otherwise fall back to room count
+  const onlineCount = ns.presence?.total ?? (ns.players?.length || 0);
 
   return (
     <div className="fixed bottom-6 right-24 z-[60] flex flex-col items-end gap-2">
