@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-ro
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { I18nProvider } from "@/contexts/I18nContext";
+import { NexusSocketProvider } from "@/contexts/NexusSocketContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
 import api from "@/lib/api";
@@ -35,6 +36,8 @@ import Friends from "@/pages/Friends";
 import Tickets from "@/pages/Tickets";
 import Nexus from "@/pages/Nexus";
 import BroadcastOverlay from "@/components/BroadcastOverlay";
+import NexusOverlay from "@/components/NexusOverlay";
+import NexusFAB from "@/components/NexusFAB";
 
 function MaintenanceGate({ children }) {
   const { user } = useAuth();
@@ -67,6 +70,8 @@ function AppRouter() {
   return (
     <MaintenanceGate>
       <BroadcastOverlay />
+      <NexusOverlay />
+      <NexusFAB />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -103,10 +108,12 @@ function App() {
       <BrowserRouter>
         <I18nProvider>
           <AuthProvider>
-            <AppRouter />
-            <Toaster theme="dark" position="top-right" toastOptions={{
-              style: { background: 'rgba(18,18,26,0.95)', border: '1px solid rgba(0,229,255,0.2)', color: '#fff' }
-            }} />
+            <NexusSocketProvider>
+              <AppRouter />
+              <Toaster theme="dark" position="top-right" toastOptions={{
+                style: { background: 'rgba(18,18,26,0.95)', border: '1px solid rgba(0,229,255,0.2)', color: '#fff' }
+              }} />
+            </NexusSocketProvider>
           </AuthProvider>
         </I18nProvider>
       </BrowserRouter>

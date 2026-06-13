@@ -60,6 +60,7 @@ DEFAULT_ROOM = "place_centrale"
 
 STAFF_ROLES = {"admin", "moderator"}
 WEATHERS = {"clear", "rain", "storm", "eclipse", "aurora"}
+CHAT_CHANNELS = {"global", "room", "guild", "whisper", "trade", "event"}
 
 # In-memory state
 _players = {}                       # sid → full player record
@@ -67,9 +68,11 @@ _rooms_state = {r: {} for r in ROOMS}   # room_id → {sid: lite}
 _chat_buffer = {r: [] for r in ROOMS}   # room_id → [last 60 msgs]
 _room_weather = {r: "clear" for r in ROOMS}   # room_id → weather str
 _room_items = {r: [] for r in ROOMS}    # room_id → [spawned items]
+_user_sids = {}                     # user_id → set(sid) for fast lookups + multi-tab support
 _global_state = {"started_at": time.time()}
 
 _db_ref = None  # set in build_socketio_app
+_sio_ref = None  # set in build_socketio_app — needed for cross-module push
 
 
 def _now_iso():
@@ -103,7 +106,10 @@ def _lite(p: dict, viewer_role: str = "user") -> dict:
         "sid": p["sid"], "user_id": p["user_id"], "username": p["username"],
         "class_id": p["class_id"], "class_name": p["class_name"],
         "level": p["level"], "role": p["role"],
-        "active_title": p.get("active_title"), "avatar_url": p.get("avatar_url"),
+        "active_title": p.get("active_title"),
+        "rank": p.get("rank"),
+        "guild_id": p.get("guild_id"),
+        "avatar_url": p.get("avatar_url"),
         "tx": p["tx"], "ty": p["ty"], "room": p["room"],
         "muted": bool(p.get("muted")),
         "frozen": bool(p.get("frozen")),
@@ -129,7 +135,7 @@ def _visible_players_for(viewer: dict):
 
 def build_socketio_app(db):
     """Build & return the ASGI app wrapping the Socket.IO server."""
-    global _db_ref
+    global _db_ref, _sio_ref
     _db_ref = db
     sio = socketio.AsyncServer(
         async_mode="asgi",
@@ -137,6 +143,7 @@ def build_socketio_app(db):
         ping_interval=25, ping_timeout=20,
         max_http_buffer_size=10_000,
     )
+    _sio_ref = sio
 
     # -------------- Connection lifecycle --------------
     @sio.event
@@ -161,6 +168,15 @@ def build_socketio_app(db):
             except Exception:
                 pass
 
+        # Look up guild membership
+        guild_id = None
+        try:
+            guild = await db.guilds.find_one({"members.user_id": user["user_id"]}, {"guild_id": 1})
+            if guild:
+                guild_id = guild.get("guild_id")
+        except Exception:
+            pass
+
         room = DEFAULT_ROOM
         spawn = ROOMS[room]["spawn"]
         player = {
@@ -172,7 +188,9 @@ def build_socketio_app(db):
             "level": user.get("level", 1),
             "role": user.get("role", "user"),
             "active_title": user.get("active_title", "novice"),
+            "rank": user.get("rank", "Novice"),
             "avatar_url": user.get("avatar_url"),
+            "guild_id": guild_id,
             "tx": spawn["tx"], "ty": spawn["ty"],
             "room": room,
             "facing": "SE",
@@ -180,6 +198,7 @@ def build_socketio_app(db):
             "joined_at": time.time(),
         }
         _players[sid] = player
+        _user_sids.setdefault(user["user_id"], set()).add(sid)
         _rooms_state[room][sid] = _lite(player)
         await sio.enter_room(sid, room)
 
@@ -208,6 +227,11 @@ def build_socketio_app(db):
             return
         room = p["room"]
         _rooms_state[room].pop(sid, None)
+        s = _user_sids.get(p["user_id"])
+        if s:
+            s.discard(sid)
+            if not s:
+                _user_sids.pop(p["user_id"], None)
         await sio.emit("player_leave", {"sid": sid, "user_id": p["user_id"]}, to=room)
         logger.info(f"[nexus] {p['username']} left {room}")
 
@@ -248,6 +272,7 @@ def build_socketio_app(db):
                     }, to=other_sid)
 
     # -------------- Chat --------------
+    # -------------- Chat (multi-channel) --------------
     @sio.event
     async def chat(sid, data):
         p = _players.get(sid)
@@ -259,8 +284,19 @@ def build_socketio_app(db):
         text = (data or {}).get("text", "").strip()
         if not text or len(text) > 280:
             return
+        channel = (data or {}).get("channel", "room")
+        if channel not in CHAT_CHANNELS:
+            channel = "room"
+        target_user_id = (data or {}).get("target_user_id")
+
+        # Event channel is staff-only (server-wide live event announcements)
+        if channel == "event" and p["role"] not in STAFF_ROLES:
+            await sio.emit("system_msg", {"kind": "error", "text": "Canal Événement réservé aux Gardiens."}, to=sid)
+            return
+
         msg = {
             "ts": time.time(),
+            "channel": channel,
             "user_id": p["user_id"],
             "username": p["username"],
             "role": p["role"],
@@ -268,6 +304,36 @@ def build_socketio_app(db):
             "level": p["level"],
             "text": text,
         }
+        if channel == "whisper":
+            if not target_user_id:
+                return
+            target_sids = list(_user_sids.get(target_user_id, set()))
+            if not target_sids:
+                await sio.emit("system_msg", {"kind": "error", "text": "Destinataire hors-ligne."}, to=sid)
+                return
+            target_p = next((_players[ts] for ts in target_sids if ts in _players), None)
+            msg["target_user_id"] = target_user_id
+            msg["target_username"] = target_p["username"] if target_p else target_user_id
+            # Echo to sender + send to all of target's sids
+            await sio.emit("chat", msg, to=sid)
+            for ts in target_sids:
+                await sio.emit("chat", msg, to=ts)
+            return
+        if channel == "guild":
+            if not p.get("guild_id"):
+                await sio.emit("system_msg", {"kind": "error", "text": "Vous n'avez pas de guilde."}, to=sid)
+                return
+            msg["guild_id"] = p["guild_id"]
+            for other_sid, other in _players.items():
+                if other.get("guild_id") == p["guild_id"]:
+                    await sio.emit("chat", msg, to=other_sid)
+            return
+        if channel == "global" or channel == "trade" or channel == "event":
+            # Broadcast to every connected player
+            for other_sid in _players:
+                await sio.emit("chat", msg, to=other_sid)
+            return
+        # Default: room channel (local)
         room = p["room"]
         buf = _chat_buffer[room]
         buf.append(msg)
@@ -603,7 +669,158 @@ def build_socketio_app(db):
             await sio.disconnect(s)
         asyncio.create_task(_later_disconnect(target["sid"]))
 
+    # ============== NEW: TP swap, inspect, popup notification ==============
+    @sio.event
+    async def gm_tp_to_player(sid, data):
+        """Move the GM to the target's tile."""
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        target = _find_target_by_user_id((data or {}).get("target_user_id"))
+        if not target:
+            return await _send_err(sid, "Cible introuvable.")
+        # If different room, move GM to target's room first
+        if gm["room"] != target["room"]:
+            old_room = gm["room"]
+            _rooms_state[old_room].pop(sid, None)
+            await sio.leave_room(sid, old_room)
+            await sio.emit("player_leave", {"sid": sid, "user_id": gm["user_id"]}, to=old_room)
+            gm["room"] = target["room"]
+            await sio.enter_room(sid, target["room"])
+            gm["tx"], gm["ty"] = target["tx"], target["ty"]
+            _rooms_state[target["room"]][sid] = _lite(gm)
+            await sio.emit("room_joined", {
+                "room": ROOMS[target["room"]],
+                "players": _visible_players_for(gm),
+                "chat_history": _chat_buffer[target["room"]][-40:],
+                "weather": _room_weather[target["room"]],
+                "items": _room_items[target["room"]],
+                "you": _lite(gm),
+                "is_staff": True,
+            }, to=sid)
+            if not gm.get("invisible"):
+                await sio.emit("player_join", _lite(gm), to=target["room"], skip_sid=sid)
+        else:
+            gm["tx"], gm["ty"] = target["tx"], target["ty"]
+            _rooms_state[gm["room"]][sid] = _lite(gm)
+            await sio.emit("player_move", {
+                "sid": sid, "user_id": gm["user_id"],
+                "tx": gm["tx"], "ty": gm["ty"], "facing": gm["facing"], "teleport": True,
+            }, to=gm["room"])
+        await _send_ok(sid, f"Téléporté vers {target['username']}")
+        await _audit("tp_to_player", gm, target, {"tx": target["tx"], "ty": target["ty"]})
+
+    @sio.event
+    async def gm_tp_player_to_me(sid, data):
+        """Move target player to the GM's tile (cross-room teleport)."""
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        target = _find_target_by_user_id((data or {}).get("target_user_id"))
+        if not target:
+            return await _send_err(sid, "Cible introuvable.")
+        if target["room"] != gm["room"]:
+            old_room = target["room"]
+            _rooms_state[old_room].pop(target["sid"], None)
+            await sio.leave_room(target["sid"], old_room)
+            await sio.emit("player_leave", {"sid": target["sid"], "user_id": target["user_id"]}, to=old_room)
+            target["room"] = gm["room"]
+            await sio.enter_room(target["sid"], gm["room"])
+            target["tx"], target["ty"] = gm["tx"], gm["ty"]
+            _rooms_state[gm["room"]][target["sid"]] = _lite(target)
+            await sio.emit("room_joined", {
+                "room": ROOMS[gm["room"]],
+                "players": _visible_players_for(target),
+                "chat_history": _chat_buffer[gm["room"]][-40:],
+                "weather": _room_weather[gm["room"]],
+                "items": _room_items[gm["room"]],
+                "you": _lite(target),
+                "is_staff": target["role"] in STAFF_ROLES,
+            }, to=target["sid"])
+            if not target.get("invisible"):
+                await sio.emit("player_join", _lite(target), to=gm["room"], skip_sid=target["sid"])
+        else:
+            target["tx"], target["ty"] = gm["tx"], gm["ty"]
+            _rooms_state[gm["room"]][target["sid"]] = _lite(target)
+            await sio.emit("player_move", {
+                "sid": target["sid"], "user_id": target["user_id"],
+                "tx": target["tx"], "ty": target["ty"], "facing": target["facing"], "teleport": True,
+            }, to=gm["room"])
+        await sio.emit("system_msg", {
+            "kind": "warn", "text": f"Vous avez été convoqué par {gm['username']}.",
+        }, to=target["sid"])
+        await _send_ok(sid, f"{target['username']} convoqué.")
+        await _audit("tp_player_to_me", gm, target, {"tx": gm["tx"], "ty": gm["ty"]})
+
+    @sio.event
+    async def gm_inspect(sid, data):
+        """Inspect a target player: returns inventory, stats, history."""
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        target_user_id = (data or {}).get("target_user_id")
+        if not target_user_id:
+            return await _send_err(sid, "Cible manquante.")
+        try:
+            user_doc = await db.users.find_one({"user_id": target_user_id}, {
+                "_id": 0, "password_hash": 0, "google_id": 0, "discord_id": 0,
+            }) or {}
+            inv = await db.inventory.find({"user_id": target_user_id}, {"_id": 0}) \
+                .sort("obtained_at", -1).limit(100).to_list(100)
+            history = await db.chronicles.find({"user_id": target_user_id}, {"_id": 0}) \
+                .sort("created_at", -1).limit(50).to_list(50)
+            sanctions = await db.ban_history.find({"user_id": target_user_id}, {"_id": 0}) \
+                .sort("created_at", -1).limit(20).to_list(20)
+            purchases = await db.shop_purchases.find({"user_id": target_user_id}, {"_id": 0}) \
+                .sort("purchased_at", -1).limit(30).to_list(30)
+        except Exception as e:
+            logger.error(f"[gm_inspect] {e}")
+            return await _send_err(sid, "Échec de l'inspection.")
+        await sio.emit("gm_inspect_result", {
+            "target_user_id": target_user_id,
+            "user": user_doc,
+            "inventory": inv,
+            "history": history,
+            "sanctions": sanctions,
+            "purchases": purchases,
+        }, to=sid)
+        await _audit("inspect", gm, {"user_id": target_user_id, "username": user_doc.get("username")}, {})
+
+    @sio.event
+    async def gm_popup_notify(sid, data):
+        """Sends a popup notification to every connected player (modal)."""
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        title = (data or {}).get("title", "Décret du Conseil").strip()[:80] or "Décret du Conseil"
+        body = (data or {}).get("body", "").strip()[:400]
+        kind = (data or {}).get("kind", "info")  # info | warn | event
+        if not body:
+            return await _send_err(sid, "Message vide.")
+        payload = {
+            "ts": time.time(), "title": title, "body": body, "kind": kind,
+            "by_username": gm["username"], "by_role": gm["role"],
+        }
+        for other_sid in _players:
+            await sio.emit("gm_popup", payload, to=other_sid)
+        await _send_ok(sid, "Notification envoyée à tous les héros.")
+        await _audit("popup_notify", gm, None, {"title": title, "body": body, "kind": kind})
+
     return socketio.ASGIApp(sio, socketio_path="api/nexus/socket.io")
+
+
+async def push_to_user(user_id: str, event: str, payload: dict):
+    """Push a Socket.IO event to every connected sid of a given user_id.
+    Used by `notifications.push_notification` to deliver real-time updates.
+    """
+    if _sio_ref is None:
+        return
+    sids = list(_user_sids.get(user_id, set()))
+    for s in sids:
+        try:
+            await _sio_ref.emit(event, payload, to=s)
+        except Exception:
+            pass
 
 
 def online_summary():

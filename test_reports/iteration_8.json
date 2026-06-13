@@ -1,0 +1,76 @@
+{
+  "summary": "End-to-end testing of NEXORIA Nexus Online V2.1 (multi-channel chat, new GM swap/inspect/popup actions, socket-pushed notifications, persistent overlay). Backend: 19 new V2.1 pytest tests + 19 V2 regression tests = 38/38 PASS. Found and FIXED one critical backend bug (MongoDB ObjectId leaking into notification:new socket payload, silently breaking push notifications). Frontend: Login + FAB rendering verified; FAB click did NOT open the nexus-overlay within 6s wait — overlay never mounted, suggesting socket-connect / lazy-render issue.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "fixed_during_testing": [
+    {
+      "file": "/app/backend/notifications.py",
+      "issue": "push_notification passed the post-insert doc (now containing MongoDB ObjectId _id) to nexus_world.push_to_user → socket.io JSON serializer raised TypeError on every emit. The outer try/except + per-sid try/except in push_to_user silently swallowed all errors, so notification:new never reached any connected client.",
+      "fix": "Strip _id before emitting: push_doc = {k: v for k, v in doc.items() if k != '_id'}",
+      "verified_by": "test_friend_request_triggers_notification_event (now PASS)"
+    }
+  ],
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "NexusFAB / NexusOverlay",
+        "issue": "After admin login on /feed, the data-testid=nexus-fab button is present and visible (bounding box 1768,1000 56x56). Clicking it (force=True) and waiting 6s did NOT cause data-testid=nexus-overlay to mount. None of the overlay child testids (nexus-close, nexus-canvas-wrapper, chat-channel-*, chat-emoji-toggle, gm-open-button) appeared. data-testids listed on page after click still only show feed/sidebar/nav items.",
+        "selector": "[data-testid='nexus-fab']",
+        "priority": "HIGH",
+        "hypotheses": [
+          "NexusSocketContext socket connect may be lazy/never-triggered until overlayOpen is true, then overlay only renders if status==='connected' creating a chicken-and-egg / race deadlock",
+          "setOverlayOpen(true) handler in NexusFAB may not actually fire, or overlayOpen state lives in a different provider that the FAB doesn't subscribe to",
+          "NexusOverlay component might be conditionally rendered only when status==='connected' AND overlayOpen — but socket only connects after overlayOpen — verify the connect lifecycle in NexusSocketContext.js"
+        ]
+      },
+      {
+        "component": "NexusFAB",
+        "issue": "Two testids exist (nexus-fab-wrapper and nexus-fab). Wrapper may intercept clicks. Recommend either consolidating or ensuring the inner button is the only interactive element."
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_nexus_v21.py",
+    "/app/backend/tests/test_nexus_v2.py",
+    "/app/test_reports/pytest/nexus_v21_full.xml"
+  ],
+  "action_items": [
+    "INVESTIGATE FRONTEND: NexusFAB click does not open NexusOverlay. Trace NexusSocketContext.setOverlayOpen + NexusOverlay mount condition. The persistent-socket architecture must support 'open overlay → trigger socket connect → mount Phaser/chat' OR 'connect on mount → just toggle overlay visibility'. Currently overlay never appears.",
+    "(Already fixed by testing agent) MongoDB ObjectId fix in /app/backend/notifications.py — please review the change and keep it."
+  ],
+  "critical_code_review_comments": [
+    "notifications.push_notification: silent try/except around realtime push hides serialization/connectivity errors. Recommend logging at WARNING when push fails so future regressions are visible (the bug took deep RCA to find because nothing was logged).",
+    "push_to_user has per-sid `except: pass` which also silently swallowed the JSON serialization TypeError. Add logger.warning(f'push_to_user emit failed: {e}') inside the except.",
+    "/app/frontend/src/components/NexusOverlay.js is 861 lines and /app/frontend/src/lib/NexusIsoScene.js is 580 lines — both close to the 700-line guideline. The overlay file already exceeds it. Consider splitting GMPanel, ChatPanel, PopupModal, InspectModal into separate components.",
+    "Frontend NexusFAB renders both nexus-fab-wrapper and nexus-fab testids — only one is needed for testability; the wrapper may inadvertently intercept clicks.",
+    "Backend nexus_world.py is now 835 lines (was 619 in iter 7). Crossed the 700-line threshold — split GM event handlers into a separate module.",
+    "gm_inspect query against db.users uses projection that excludes password_hash and google_id but still returns _id by default. Verified test_inspect_returns_full_payload — the projection {'_id': 0, 'password_hash': 0, ...} correctly excludes _id. Good.",
+    "Whisper chat handler in nexus_world.py:318 emits to sid AND iterates target_sids — if sender == target (whispering to self) the message is duplicated. Edge case worth handling."
+  ],
+  "updated_files": [
+    "/app/backend/notifications.py (FIXED: strip _id before push_to_user)",
+    "/app/backend/tests/test_nexus_v21.py (NEW: 19 tests for V2.1 surface)"
+  ],
+  "success_rate": {
+    "backend": "100% (38/38 — 19 new V2.1 tests + 19 V2 regression)",
+    "frontend": "~30% (login OK, FAB visible, but overlay never mounts on click — blocking validation of multi-channel chat UI, GM popup form, inspect modal, rank auras, persistence across routes)"
+  },
+  "test_credentials": "admin@nexoria.com / NexoriaAdmin2026! works (note: the backing user's displayed username appears to be 'SmouzYi' not 'ArchonteSupreme' as documented in /app/memory/test_credentials.md — minor doc drift). Fresh users via POST /api/auth/register with @example.com TLD.",
+  "seed_data_creation": "Each backend test creates 1 fresh TEST_v21_*@example.com user. ~20 leftover users + audit rows. Not cleaned up.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend V2.1 features are 100% validated. The only blocking issue for frontend testing is that clicking nexus-fab on /feed does not mount nexus-overlay. The FAB IS rendered (data-testid=nexus-fab, visible, 56x56 at bottom-right). After force-click + 6s wait, overlay still missing — overlay should mount + open socket + Phaser scene. Once main agent fixes that, the rest of the V2.1 UI (6 channel tabs, emoji toggle, whisper from players list, GM popup form, inspect modal, rank auras on canvas, overlay persistence across routes) can be validated end-to-end. Re-run /app/backend/tests/test_nexus_v21.py as regression after any backend change.",
+  "rca_of_the_issue": {
+    "bug_1_push_notification_silent_failure": {
+      "symptom": "Connected Socket.IO clients never received notification:new events even though /api/friends/request returned 200 and notifications were persisted in MongoDB.",
+      "reproduction": "1) Connect socket as user B. 2) Have user A POST /api/friends/request with target_username=B. 3) Server returns 200, but B's socket gets nothing.",
+      "root_cause": "notifications.push_notification() inserts doc into MongoDB via db.notifications.insert_one(doc) — pymongo mutates `doc` in-place adding an ObjectId field `_id`. The very next line passes that same `doc` to nexus_world.push_to_user(), which calls sio.emit(event, doc) — python-socketio's default JSON serializer raises TypeError: ObjectId is not JSON serializable. The per-sid try/except in push_to_user swallows the error silently, so nothing reaches the client and nothing is logged.",
+      "mitigation": "Applied: strip _id before push. Recommended follow-up: add WARNING log in both push_notification and push_to_user error handlers to surface future failures.",
+      "verified": "test_nexus_v21.py::TestPushNotification::test_friend_request_triggers_notification_event now PASSES."
+    }
+  }
+}

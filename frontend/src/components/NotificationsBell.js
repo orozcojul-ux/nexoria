@@ -5,33 +5,36 @@ import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
 import { useI18n } from "@/contexts/I18nContext";
+import { useNexusSocket } from "@/contexts/NexusSocketContext";
 
 export default function NotificationsBell() {
   const { t } = useI18n();
+  const ns = useNexusSocket();
   const [open, setOpen] = useState(false);
   const [notifs, setNotifs] = useState([]);
   const [unread, setUnread] = useState(0);
   const ref = useRef(null);
-  const previousUnreadRef = useRef(0);
 
   const load = async () => {
     try {
       const { data } = await api.get("/notifications");
       setNotifs(data.items);
-      // Play ding when unread count increases
-      if (data.unread > previousUnreadRef.current && previousUnreadRef.current !== 0) {
-        sfx.click();
-      }
-      previousUnreadRef.current = data.unread;
       setUnread(data.unread);
     } catch {}
   };
 
+  // Initial load only (no polling).
+  useEffect(() => { load(); }, []);
+
+  // React to socket push notifications
   useEffect(() => {
-    load();
-    const id = setInterval(load, 30000);
-    return () => clearInterval(id);
-  }, []);
+    if (!ns?.pushNotif) return;
+    const doc = ns.pushNotif;
+    setNotifs((prev) => [doc, ...prev].slice(0, 50));
+    setUnread((u) => u + 1);
+    try { sfx.click(); } catch {}
+    ns.consumePushNotif();
+  }, [ns?.pushNotif, ns]);
 
   useEffect(() => {
     const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
