@@ -23,56 +23,27 @@ from datetime import datetime, timezone, timedelta
 import socketio
 
 from auth import get_user_by_token
+from nexus_rooms import ROOMS, can_access  # noqa: F401
 
 logger = logging.getLogger("nexoria.nexus")
 
-# ---------- Rooms ----------
-ROOMS = {
-    "place_centrale": {
-        "id": "place_centrale",
-        "name": "Place Centrale",
-        "description": "Le cœur cosmique de NEXORIA — point de rendez-vous de tous les héros",
-        "tiles_x": 24, "tiles_y": 24,
-        "spawn": {"tx": 12, "ty": 12},
-        "theme": "cosmic",
-        "max_players": 50,
-    },
-    "taverne_etoilee": {
-        "id": "taverne_etoilee",
-        "name": "Taverne Étoilée",
-        "description": "Là où les héros se reposent entre deux quêtes",
-        "tiles_x": 20, "tiles_y": 18,
-        "spawn": {"tx": 10, "ty": 9},
-        "theme": "tavern",
-        "max_players": 30,
-    },
-    "arene": {
-        "id": "arene",
-        "name": "Arène des Présages",
-        "description": "Une scène ouverte pour les événements live",
-        "tiles_x": 28, "tiles_y": 28,
-        "spawn": {"tx": 14, "ty": 14},
-        "theme": "arena",
-        "max_players": 100,
-    },
-}
 DEFAULT_ROOM = "place_centrale"
 
 STAFF_ROLES = {"admin", "moderator"}
 WEATHERS = {"clear", "rain", "storm", "eclipse", "aurora"}
 CHAT_CHANNELS = {"global", "room", "guild", "whisper", "trade", "event"}
 
-# In-memory state
-_players = {}                       # sid → full player record
-_rooms_state = {r: {} for r in ROOMS}   # room_id → {sid: lite}
-_chat_buffer = {r: [] for r in ROOMS}   # room_id → [last 60 msgs]
-_room_weather = {r: "clear" for r in ROOMS}   # room_id → weather str
-_room_items = {r: [] for r in ROOMS}    # room_id → [spawned items]
-_user_sids = {}                     # user_id → set(sid) for fast lookups + multi-tab support
+# In-memory state (initialized lazily once ROOMS is loaded)
+_players = {}
+_rooms_state = {r: {} for r in ROOMS}
+_chat_buffer = {r: [] for r in ROOMS}
+_room_weather = {r: "clear" for r in ROOMS}
+_room_items = {r: [] for r in ROOMS}
+_user_sids = {}
 _global_state = {"started_at": time.time()}
 
-_db_ref = None  # set in build_socketio_app
-_sio_ref = None  # set in build_socketio_app — needed for cross-module push
+_db_ref = None
+_sio_ref = None
 
 
 def _now_iso():
@@ -350,6 +321,17 @@ def build_socketio_app(db):
             return
         if len(_rooms_state[new_room]) >= ROOMS[new_room]["max_players"]:
             await sio.emit("error_msg", {"reason": "room_full"}, to=sid)
+            return
+        # Access check (rank/role restricted rooms)
+        try:
+            user_doc = await db.users.find_one({"user_id": p["user_id"]}, {
+                "_id": 0, "role": 1, "active_title": 1, "rank": 1,
+            })
+        except Exception:
+            user_doc = None
+        ok, reason = can_access(user_doc or p, new_room)
+        if not ok:
+            await sio.emit("system_msg", {"kind": "error", "text": reason}, to=sid)
             return
         old_room = p["room"]
         _rooms_state[old_room].pop(sid, None)
@@ -819,17 +801,24 @@ async def push_to_user(user_id: str, event: str, payload: dict):
     for s in sids:
         try:
             await _sio_ref.emit(event, payload, to=s)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"push_to_user emit failed for sid={s} event={event}: {e}")
 
 
 def online_summary():
     """For the lobby REST endpoint."""
     return [
         {
-            **ROOMS[r],
+            "id": ROOMS[r]["id"],
+            "name": ROOMS[r]["name"],
+            "description": ROOMS[r]["description"],
+            "icon": ROOMS[r].get("icon", "🌀"),
+            "group": ROOMS[r].get("group", "misc"),
+            "max_players": ROOMS[r]["max_players"],
+            "theme": ROOMS[r].get("theme"),
             "online": len(state),
             "weather": _room_weather[r],
+            "portals_to": ROOMS[r].get("portals_to", []),
         }
         for r, state in _rooms_state.items()
     ]

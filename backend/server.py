@@ -2614,8 +2614,14 @@ async def discord_status():
 # ---------- Nexus Online lobby endpoint ----------
 @api.get("/nexus/rooms")
 async def list_nexus_rooms(user: dict = Depends(get_user_dep)):
-    """Lobby endpoint: returns rooms + current online count."""
-    return nexus_world.online_summary()
+    """Lobby endpoint: returns rooms + current online count + access flags."""
+    from nexus_rooms import can_access
+    rooms = nexus_world.online_summary()
+    out = []
+    for r in rooms:
+        ok, reason = can_access(user, r["id"])
+        out.append({**r, "restricted_for_user": not ok, "restricted_reason": reason if not ok else None})
+    return out
 
 
 @api.get("/admin/gm-audit")

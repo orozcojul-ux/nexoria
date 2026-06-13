@@ -27,10 +27,11 @@ async def push_notification(db, user_id: str, kind: str, title: str, message: st
     await db.notifications.insert_one(doc)
     # Best-effort realtime push (lazy import to avoid circular deps)
     try:
+        import logging
         import nexus_world
         # Strip MongoDB ObjectId (added by insert_one) so payload is JSON-serializable
         push_doc = {k: v for k, v in doc.items() if k != "_id"}
         await nexus_world.push_to_user(user_id, "notification:new", push_doc)
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger("nexoria.notify").warning(f"push_notification realtime push failed: {e}")
     return doc

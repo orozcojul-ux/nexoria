@@ -22,6 +22,25 @@ const THEME_FLOOR = {
   cosmic: { base: 0x1A0F2E, edge: 0x4C1D95, accent: 0x9D4CDD },
   tavern: { base: 0x3D2817, edge: 0x78350F, accent: 0xEAB308 },
   arena:  { base: 0x0F172A, edge: 0x1E3A8A, accent: 0x00E5FF },
+  market: { base: 0x2D1B47, edge: 0x7C3AED, accent: 0xFCD34D },
+  guilds: { base: 0x1F1B47, edge: 0x312E81, accent: 0x10B981 },
+  boss_valley: { base: 0x2A0A0A, edge: 0x7F1D1D, accent: 0xEF4444 },
+  hall: { base: 0x1F1730, edge: 0x5B21B6, accent: 0xFCD34D },
+  library: { base: 0x1A1230, edge: 0x4C1D95, accent: 0xA78BFA },
+  archives: { base: 0x171429, edge: 0x312E81, accent: 0x60A5FA },
+  oracle: { base: 0x2B0F47, edge: 0x7C3AED, accent: 0xE879F9 },
+  rift:   { base: 0x0A0613, edge: 0x7928CA, accent: 0x00E5FF },
+  alchemy: { base: 0x0F2A1F, edge: 0x065F46, accent: 0x34D399 },
+  workshop: { base: 0x221A0F, edge: 0x92400E, accent: 0xFBBF24 },
+  time_temple: { base: 0x0A1A2A, edge: 0x0E7490, accent: 0x22D3EE },
+  necropolis: { base: 0x0F0820, edge: 0x312E81, accent: 0x9D4CDD },
+  dream_garden: { base: 0x0A1F1F, edge: 0x0F766E, accent: 0x5EEAD4 },
+  observatory: { base: 0x020617, edge: 0x1E3A8A, accent: 0x60A5FA },
+  camp: { base: 0x1F1810, edge: 0x78350F, accent: 0xFB923C },
+  relics: { base: 0x1F1730, edge: 0x7C3AED, accent: 0xFCD34D },
+  pantheon: { base: 0x161429, edge: 0x4338CA, accent: 0xFCD34D },
+  cosmic_elite: { base: 0x000000, edge: 0x7928CA, accent: 0xFFFFFF },
+  council: { base: 0x0F0A1F, edge: 0xB45309, accent: 0xFCD34D },
 };
 
 /* Rank → aura config (titles from game_data) */
@@ -210,23 +229,15 @@ export class NexusIsoScene extends Phaser.Scene {
       }
     }
 
-    // Central crystal at center tile
-    const center = tileToScreen(Math.floor(room.tiles_x / 2), Math.floor(room.tiles_y / 2), this.originX, this.originY);
-    const halo = this.add.circle(center.x + TILE_W / 2, center.y + TILE_H / 2, 80, 0x9D4CDD, 0.18);
-    this.tweens.add({ targets: halo, scale: 1.2, alpha: 0.08, yoyo: true, repeat: -1, duration: 2000 });
-    const crystal = this.add.graphics();
-    const cx = center.x + TILE_W / 2;
-    const cy = center.y + TILE_H / 2 - 24;
-    crystal.fillStyle(0xCFA8FF, 0.95);
-    crystal.beginPath();
-    crystal.moveTo(cx, cy - 22); crystal.lineTo(cx + 8, cy - 8);
-    crystal.lineTo(cx + 6, cy + 18); crystal.lineTo(cx - 6, cy + 18);
-    crystal.lineTo(cx - 8, cy - 8); crystal.closePath().fillPath();
-    crystal.lineStyle(1, 0xFFFFFF, 0.7).strokePath();
-    this.tweens.add({ targets: crystal, y: -4, yoyo: true, repeat: -1, duration: 1800, ease: "Sine.easeInOut" });
-
+    // ===== LANDMARKS / DECOR =====
+    this.decorLayer = this.add.container(0, 0);
     this.entityLayer = this.add.container(0, 0);
+    this.particleLayer = this.add.container(0, 0);
     this.weatherLayer = this.add.container(0, 0);
+
+    (room.landmarks || []).forEach((lm) => this.drawLandmark(lm));
+    (room.npcs || []).forEach((npc) => this.spawnNpc(npc));
+    this.applyParticles(room.particles);
     this.applyWeather(this.initialWeather);
 
     this.cameras.main.setBounds(0, 0, this.worldW, this.worldH);
@@ -330,6 +341,423 @@ export class NexusIsoScene extends Phaser.Scene {
       }
     };
     return auraGfx;
+  }
+
+  /* --- decor: landmarks, particles, NPCs --- */
+  drawLandmark(lm) {
+    const screen = tileToScreen(lm.tx, lm.ty, this.originX, this.originY);
+    const x = screen.x + TILE_W / 2;
+    const y = screen.y + TILE_H / 2;
+    const color = lm.color ? parseInt(lm.color.replace("#", "0x")) : 0x9D4CDD;
+    const scale = lm.scale || 1;
+
+    switch (lm.kind) {
+      case "fountain":     this.drawFountain(x, y, color, scale); break;
+      case "crystal":      this.drawCrystal(x, y, color, scale); break;
+      case "statue":       this.drawStatue(x, y, color, scale); break;
+      case "throne":       this.drawThrone(x, y, color, scale); break;
+      case "altar":        this.drawAltar(x, y, color, scale); break;
+      case "portal":       this.drawPortal(x, y, color, scale, lm.label); break;
+      case "bookshelf":    this.drawBookshelf(x, y); break;
+      case "scroll":       this.drawScroll(x, y); break;
+      case "cauldron":     this.drawCauldron(x, y, color, scale); break;
+      case "gear":         this.drawGear(x, y, color, scale); break;
+      case "machine":      this.drawMachine(x, y, color); break;
+      case "anvil":        this.drawAnvil(x, y); break;
+      case "clock":        this.drawClock(x, y, color, scale); break;
+      case "gravestone":   this.drawGravestone(x, y); break;
+      case "crypt":        this.drawCrypt(x, y, color); break;
+      case "obelisk":      this.drawObelisk(x, y, color); break;
+      case "bones":        this.drawBones(x, y); break;
+      case "rock":         this.drawRock(x, y); break;
+      case "flower":       this.drawFlower(x, y, color); break;
+      case "tree":         this.drawTree(x, y, color); break;
+      case "telescope":    this.drawTelescope(x, y, color, scale); break;
+      case "tent":         this.drawTent(x, y, color); break;
+      case "fireplace":    this.drawFireplace(x, y, color); break;
+      case "torch":        this.drawTorch(x, y); break;
+      case "barrel":       this.drawBarrel(x, y); break;
+      case "table":        this.drawTable(x, y, color); break;
+      case "bench":        this.drawBench(x, y); break;
+      case "stall":        this.drawStall(x, y, color); break;
+      case "building":     this.drawBuilding(x, y, color, lm.label); break;
+      case "noticeboard":  this.drawNoticeboard(x, y, color); break;
+      case "stands":       this.drawStands(x, y); break;
+      case "pedestal":     this.drawPedestal(x, y, color); break;
+      case "banner":       this.drawBanner(x, y, color, lm.label); break;
+      default: break;
+    }
+  }
+
+  /* ---- Procedural landmark shapes ---- */
+  drawFountain(x, y, color, scale = 1) {
+    const halo = this.add.circle(x, y, 36 * scale, color, 0.2);
+    this.tweens.add({ targets: halo, scale: 1.3 * scale, alpha: 0.08, yoyo: true, repeat: -1, duration: 1800 });
+    const base = this.add.graphics();
+    base.fillStyle(0x1F1B2E, 1); base.fillEllipse(x, y + 6, 50 * scale, 18 * scale);
+    base.lineStyle(2, 0x4C1D95, 1); base.strokeEllipse(x, y + 6, 50 * scale, 18 * scale);
+    const water = this.add.ellipse(x, y, 38 * scale, 12 * scale, color, 0.7);
+    water.setStrokeStyle(1, 0xFFFFFF, 0.6);
+    this.tweens.add({ targets: water, scaleX: 1.1, scaleY: 1.1, yoyo: true, repeat: -1, duration: 1200 });
+    this.decorLayer.add([halo, base, water]);
+    // Sprite-able vertical stream
+    const stream = this.add.rectangle(x, y - 8, 4, 18 * scale, color, 0.9);
+    this.tweens.add({ targets: stream, scaleY: 1.3, alpha: 0.6, yoyo: true, repeat: -1, duration: 600 });
+    this.decorLayer.add(stream);
+  }
+
+  drawCrystal(x, y, color, scale = 1) {
+    const halo = this.add.circle(x, y - 10, 24 * scale, color, 0.3);
+    this.tweens.add({ targets: halo, scale: 1.3 * scale, alpha: 0.1, yoyo: true, repeat: -1, duration: 1600 });
+    const g = this.add.graphics();
+    const cy = y - 16 * scale;
+    g.fillStyle(color, 0.95);
+    g.beginPath();
+    g.moveTo(x, cy - 18 * scale);
+    g.lineTo(x + 8 * scale, cy - 6 * scale);
+    g.lineTo(x + 6 * scale, cy + 14 * scale);
+    g.lineTo(x - 6 * scale, cy + 14 * scale);
+    g.lineTo(x - 8 * scale, cy - 6 * scale);
+    g.closePath().fillPath();
+    g.lineStyle(1, 0xFFFFFF, 0.7).strokePath();
+    this.tweens.add({ targets: g, y: -3, yoyo: true, repeat: -1, duration: 1600, ease: "Sine.easeInOut" });
+    this.decorLayer.add([halo, g]);
+  }
+
+  drawStatue(x, y, color, scale = 1) {
+    const base = this.add.rectangle(x, y + 6, 28 * scale, 8 * scale, 0x312E81, 1);
+    const body = this.add.rectangle(x, y - 18 * scale, 18 * scale, 36 * scale, color, 0.9);
+    body.setStrokeStyle(1, 0xFFFFFF, 0.4);
+    const head = this.add.circle(x, y - 40 * scale, 8 * scale, color, 1);
+    head.setStrokeStyle(1, 0xFFFFFF, 0.4);
+    this.decorLayer.add([base, body, head]);
+  }
+
+  drawThrone(x, y, color, scale = 1) {
+    const back = this.add.rectangle(x, y - 22 * scale, 30 * scale, 44 * scale, 0x312E81, 1);
+    back.setStrokeStyle(2, color, 1);
+    const seat = this.add.rectangle(x, y + 4 * scale, 34 * scale, 12 * scale, color, 0.9);
+    const halo = this.add.circle(x, y - 22 * scale, 26 * scale, color, 0.2);
+    this.tweens.add({ targets: halo, scale: 1.2, alpha: 0.08, yoyo: true, repeat: -1, duration: 1700 });
+    this.decorLayer.add([halo, back, seat]);
+  }
+
+  drawAltar(x, y, color, scale = 1) {
+    const base = this.add.rectangle(x, y + 4, 36 * scale, 16 * scale, 0x1F1B2E, 1);
+    base.setStrokeStyle(2, color, 1);
+    const flame = this.add.circle(x, y - 14 * scale, 10 * scale, color, 0.9);
+    flame.setStrokeStyle(1, 0xFFFFFF, 0.7);
+    this.tweens.add({ targets: flame, scale: 1.4, alpha: 0.6, yoyo: true, repeat: -1, duration: 600 });
+    this.decorLayer.add([base, flame]);
+  }
+
+  drawPortal(x, y, color, scale = 1, label) {
+    const halo = this.add.circle(x, y - 16, 32 * scale, color, 0.4);
+    const ring = this.add.circle(x, y - 16, 22 * scale, 0x000000, 1);
+    ring.setStrokeStyle(3, color, 1);
+    this.tweens.add({ targets: ring, scaleX: 1.15, scaleY: 1.15, yoyo: true, repeat: -1, duration: 800 });
+    this.tweens.add({ targets: halo, alpha: 0.15, yoyo: true, repeat: -1, duration: 1200 });
+    if (label) {
+      const t = this.add.text(x, y + 12, label, {
+        fontFamily: "Cinzel, serif", fontSize: "10px", color: "#FFFFFF",
+        stroke: "#000", strokeThickness: 2,
+      }).setOrigin(0.5);
+      this.decorLayer.add(t);
+    }
+    this.decorLayer.add([halo, ring]);
+  }
+
+  drawBookshelf(x, y) {
+    const sh = this.add.rectangle(x, y - 18, 28, 44, 0x4C2B0F, 1);
+    sh.setStrokeStyle(1, 0xA16207, 1);
+    for (let i = 0; i < 3; i++) {
+      const line = this.add.rectangle(x, y - 30 + i * 12, 24, 2, 0xFCD34D, 0.5);
+      this.decorLayer.add(line);
+    }
+    this.decorLayer.add(sh);
+  }
+  drawScroll(x, y) {
+    const r = this.add.rectangle(x, y, 22, 8, 0xFEF3C7, 0.95);
+    r.setStrokeStyle(1, 0x92400E, 1);
+    this.tweens.add({ targets: r, y: y - 4, yoyo: true, repeat: -1, duration: 1500, ease: "Sine.easeInOut" });
+    this.decorLayer.add(r);
+  }
+  drawCauldron(x, y, color, scale = 1) {
+    const pot = this.add.ellipse(x, y + 6, 28 * scale, 16 * scale, 0x1F1B2E, 1);
+    pot.setStrokeStyle(2, 0x4B5563, 1);
+    const liquid = this.add.ellipse(x, y - 2, 22 * scale, 8 * scale, color, 0.9);
+    this.tweens.add({ targets: liquid, scale: 1.1, yoyo: true, repeat: -1, duration: 900 });
+    this.decorLayer.add([pot, liquid]);
+    // bubbles
+    for (let i = 0; i < 3; i++) {
+      const b = this.add.circle(x + (Math.random() - 0.5) * 16, y - 4, 2, color, 0.8);
+      this.tweens.add({ targets: b, y: y - 22, alpha: 0, repeat: -1, duration: 1200 + i * 300,
+        onRepeat: () => { b.x = x + (Math.random() - 0.5) * 16; b.y = y - 4; b.alpha = 0.8; } });
+      this.decorLayer.add(b);
+    }
+  }
+  drawGear(x, y, color, scale = 1) {
+    const g = this.add.graphics();
+    g.lineStyle(3, color, 1);
+    g.strokeCircle(0, 0, 16 * scale);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      g.lineBetween(Math.cos(a) * 16 * scale, Math.sin(a) * 16 * scale,
+                    Math.cos(a) * 22 * scale, Math.sin(a) * 22 * scale);
+    }
+    g.x = x; g.y = y - 8;
+    this.tweens.add({ targets: g, rotation: Math.PI * 2, repeat: -1, duration: 6000 });
+    this.decorLayer.add(g);
+  }
+  drawMachine(x, y, color) {
+    const box = this.add.rectangle(x, y, 28, 32, color, 0.5);
+    box.setStrokeStyle(1, 0xFCD34D, 1);
+    const light = this.add.circle(x + 10, y - 10, 2, 0xEF4444, 1);
+    this.tweens.add({ targets: light, alpha: 0.3, yoyo: true, repeat: -1, duration: 500 });
+    this.decorLayer.add([box, light]);
+  }
+  drawAnvil(x, y) {
+    const r = this.add.rectangle(x, y, 24, 8, 0x4B5563, 1);
+    r.setStrokeStyle(1, 0x000000, 1);
+    this.decorLayer.add(r);
+  }
+  drawClock(x, y, color, scale = 1) {
+    const ring = this.add.circle(x, y - 14, 18 * scale, 0x000000, 1);
+    ring.setStrokeStyle(2, color, 1);
+    const hand = this.add.rectangle(x, y - 14, 1, 14 * scale, color, 1);
+    hand.setOrigin(0.5, 1);
+    this.tweens.add({ targets: hand, rotation: Math.PI * 2, repeat: -1, duration: 8000 });
+    const pivot = this.add.circle(x, y - 14, 2, color, 1);
+    this.decorLayer.add([ring, hand, pivot]);
+  }
+  drawGravestone(x, y) {
+    const g = this.add.graphics();
+    g.fillStyle(0x4B5563, 1);
+    g.fillRoundedRect(x - 10, y - 18, 20, 24, 8);
+    g.lineStyle(1, 0x000000, 1);
+    g.strokeRoundedRect(x - 10, y - 18, 20, 24, 8);
+    this.decorLayer.add(g);
+  }
+  drawCrypt(x, y, color) {
+    const r = this.add.rectangle(x, y - 8, 36, 26, 0x312E81, 1);
+    r.setStrokeStyle(2, color, 1);
+    const door = this.add.rectangle(x, y - 4, 12, 16, 0x000000, 1);
+    door.setStrokeStyle(1, color, 0.6);
+    this.decorLayer.add([r, door]);
+  }
+  drawObelisk(x, y, color) {
+    const r = this.add.triangle(x, y, 0, 36, -10, 0, 10, 0, color, 0.85);
+    r.setStrokeStyle(1, 0xFFFFFF, 0.6);
+    this.tweens.add({ targets: r, alpha: 0.6, yoyo: true, repeat: -1, duration: 2000 });
+    this.decorLayer.add(r);
+  }
+  drawBones(x, y) {
+    const r = this.add.rectangle(x, y, 12, 3, 0xE5E7EB, 1);
+    const r2 = this.add.rectangle(x, y + 4, 8, 3, 0xE5E7EB, 1);
+    this.decorLayer.add([r, r2]);
+  }
+  drawRock(x, y) {
+    const c = this.add.circle(x, y, 12, 0x4B5563, 1);
+    c.setStrokeStyle(1, 0x000000, 1);
+    this.decorLayer.add(c);
+  }
+  drawFlower(x, y, color) {
+    const stem = this.add.rectangle(x, y, 1, 10, 0x10B981, 1);
+    const f = this.add.circle(x, y - 6, 4, color, 1);
+    this.tweens.add({ targets: f, scale: 1.3, yoyo: true, repeat: -1, duration: 1200 });
+    this.decorLayer.add([stem, f]);
+  }
+  drawTree(x, y, color) {
+    const trunk = this.add.rectangle(x, y + 4, 4, 16, 0x4C2B0F, 1);
+    const crown = this.add.circle(x, y - 10, 14, color, 0.9);
+    crown.setStrokeStyle(1, 0x000000, 0.4);
+    this.tweens.add({ targets: crown, scale: 1.05, yoyo: true, repeat: -1, duration: 2200 });
+    this.decorLayer.add([trunk, crown]);
+  }
+  drawTelescope(x, y, color, scale = 1) {
+    const base = this.add.rectangle(x, y + 6, 6 * scale, 14 * scale, 0x4B5563, 1);
+    const tube = this.add.rectangle(x, y - 8 * scale, 28 * scale, 6 * scale, color, 0.9);
+    tube.setAngle(-30);
+    tube.setStrokeStyle(1, 0xFFFFFF, 0.6);
+    this.decorLayer.add([base, tube]);
+  }
+  drawTent(x, y, color) {
+    const t = this.add.triangle(x, y, 0, -20, -16, 6, 16, 6, color, 0.85);
+    t.setStrokeStyle(1, 0xFFFFFF, 0.5);
+    this.decorLayer.add(t);
+  }
+  drawFireplace(x, y, color) {
+    const base = this.add.rectangle(x, y + 4, 22, 8, 0x1F1B2E, 1);
+    const flame = this.add.circle(x, y - 6, 8, color, 0.9);
+    this.tweens.add({ targets: flame, scale: 1.3, yoyo: true, repeat: -1, duration: 500 });
+    this.decorLayer.add([base, flame]);
+  }
+  drawTorch(x, y) {
+    const r = this.add.rectangle(x, y, 2, 10, 0x4C2B0F, 1);
+    const f = this.add.circle(x, y - 8, 4, 0xFB923C, 0.95);
+    this.tweens.add({ targets: f, scale: 1.4, yoyo: true, repeat: -1, duration: 400 });
+    this.decorLayer.add([r, f]);
+  }
+  drawBarrel(x, y) {
+    const r = this.add.rectangle(x, y, 16, 18, 0x78350F, 1);
+    r.setStrokeStyle(1, 0x000000, 0.8);
+    const band = this.add.rectangle(x, y - 4, 16, 2, 0x4B5563, 1);
+    this.decorLayer.add([r, band]);
+  }
+  drawTable(x, y, color) {
+    const r = this.add.rectangle(x, y, 26, 8, color || 0x78350F, 0.95);
+    r.setStrokeStyle(1, 0x000000, 0.6);
+    this.decorLayer.add(r);
+  }
+  drawBench(x, y) {
+    const r = this.add.rectangle(x, y, 20, 4, 0x78350F, 1);
+    this.decorLayer.add(r);
+  }
+  drawStall(x, y, color) {
+    const post1 = this.add.rectangle(x - 12, y, 2, 24, 0x4C2B0F, 1);
+    const post2 = this.add.rectangle(x + 12, y, 2, 24, 0x4C2B0F, 1);
+    const roof = this.add.triangle(x, y - 18, 0, -10, -16, 4, 16, 4, color, 0.85);
+    roof.setStrokeStyle(1, 0xFFFFFF, 0.4);
+    const counter = this.add.rectangle(x, y + 8, 28, 6, color, 0.7);
+    this.decorLayer.add([post1, post2, roof, counter]);
+  }
+  drawBuilding(x, y, color, label) {
+    const body = this.add.rectangle(x, y - 6, 32, 36, color, 0.5);
+    body.setStrokeStyle(2, 0xFFFFFF, 0.4);
+    const roof = this.add.triangle(x, y - 24, 0, -16, -20, 4, 20, 4, color, 0.85);
+    const door = this.add.rectangle(x, y + 6, 8, 12, 0x000000, 0.9);
+    this.decorLayer.add([body, roof, door]);
+    if (label) {
+      const t = this.add.text(x, y - 30, label, {
+        fontFamily: "Cinzel, serif", fontSize: "10px", color: "#FFFFFF",
+        stroke: "#000", strokeThickness: 2,
+      }).setOrigin(0.5);
+      this.decorLayer.add(t);
+    }
+  }
+  drawNoticeboard(x, y, color) {
+    const board = this.add.rectangle(x, y - 6, 26, 22, 0x78350F, 1);
+    board.setStrokeStyle(1, color, 1);
+    for (let i = 0; i < 3; i++) {
+      const p = this.add.rectangle(x - 6 + i * 6, y - 6, 4, 5, 0xFEF3C7, 0.9);
+      this.decorLayer.add(p);
+    }
+    this.decorLayer.add(board);
+  }
+  drawStands(x, y) {
+    const r1 = this.add.rectangle(x, y - 8, 32, 4, 0x4B5563, 1);
+    const r2 = this.add.rectangle(x, y, 32, 4, 0x4B5563, 1);
+    const r3 = this.add.rectangle(x, y + 8, 32, 4, 0x4B5563, 1);
+    this.decorLayer.add([r1, r2, r3]);
+  }
+  drawPedestal(x, y, color) {
+    const base = this.add.rectangle(x, y + 4, 22, 10, 0x312E81, 1);
+    const top = this.add.circle(x, y - 6, 6, color, 0.95);
+    top.setStrokeStyle(1, 0xFFFFFF, 0.6);
+    this.tweens.add({ targets: top, y: y - 10, yoyo: true, repeat: -1, duration: 1500, ease: "Sine.easeInOut" });
+    this.decorLayer.add([base, top]);
+  }
+  drawBanner(x, y, color, label) {
+    const pole = this.add.rectangle(x, y - 4, 2, 40, 0x4B5563, 1);
+    const cloth = this.add.rectangle(x, y - 14, 18, 22, color, 0.85);
+    cloth.setStrokeStyle(1, 0xFFFFFF, 0.4);
+    this.decorLayer.add([pole, cloth]);
+    if (label) {
+      const t = this.add.text(x, y - 14, label, {
+        fontFamily: "Cinzel, serif", fontSize: "8px", color: "#FFFFFF",
+        stroke: "#000", strokeThickness: 2,
+      }).setOrigin(0.5);
+      this.decorLayer.add(t);
+    }
+  }
+
+  /* --- particles (ambient) --- */
+  applyParticles(spec) {
+    if (!spec) return;
+    const color = parseInt((spec.color || "#FFFFFF").replace("#", "0x"));
+    const count = Math.min(60, spec.count || 20);
+    const kind = spec.kind;
+    for (let i = 0; i < count; i++) {
+      this.spawnParticle(kind, color);
+    }
+  }
+  spawnParticle(kind, color) {
+    const x = Math.random() * this.worldW;
+    const y = Math.random() * this.worldH;
+    let obj;
+    if (kind === "embers" || kind === "ash" || kind === "fireflies" || kind === "souls" || kind === "gold_motes" || kind === "dust" || kind === "shooting_stars" || kind === "rift_swirl" || kind === "cosmic_swirl" || kind === "time_dust") {
+      obj = this.add.circle(x, y, kind === "shooting_stars" ? 2 : 1.5, color, 0.85);
+      const dur = 2500 + Math.random() * 3000;
+      const dy = kind === "embers" || kind === "souls" || kind === "fireflies" ? -this.worldH : this.worldH;
+      this.tweens.add({
+        targets: obj, y: obj.y + dy, x: obj.x + (Math.random() - 0.5) * 100, alpha: 0,
+        duration: dur, repeat: -1,
+        onRepeat: () => { obj.x = Math.random() * this.worldW; obj.y = kind === "embers" ? this.worldH + 10 : -10; obj.alpha = 0.85; },
+      });
+    } else if (kind === "leaves" || kind === "books" || kind === "runes" || kind === "bubbles" || kind === "steam") {
+      obj = this.add.rectangle(x, y, 3, 3, color, 0.7);
+      this.tweens.add({
+        targets: obj, y: obj.y - this.worldH, x: obj.x + (Math.random() - 0.5) * 80, alpha: 0,
+        duration: 3000 + Math.random() * 2000, repeat: -1,
+        onRepeat: () => { obj.x = Math.random() * this.worldW; obj.y = this.worldH + 10; obj.alpha = 0.7; },
+      });
+    } else if (kind === "stars" || kind === "sparks") {
+      obj = this.add.circle(x, y, Math.random() < 0.8 ? 1 : 2, color, 0.4 + Math.random() * 0.5);
+      this.tweens.add({ targets: obj, alpha: 0.1, yoyo: true, repeat: -1, duration: 1000 + Math.random() * 2000 });
+    } else {
+      obj = this.add.circle(x, y, 1, color, 0.5);
+    }
+    this.particleLayer.add(obj);
+  }
+
+  /* --- NPCs (decorative non-interactive) --- */
+  spawnNpc(npc) {
+    const screen = tileToScreen(npc.tx, npc.ty, this.originX, this.originY);
+    const sx = screen.x + TILE_W / 2;
+    const sy = screen.y + TILE_H / 2;
+    const key = ensureCharTexture(this, npc.class_id || "explorer", npc.role || "user");
+    const container = this.add.container(sx, sy);
+    const ring = this.add.ellipse(0, 4, 28, 10, 0x9CA3AF, 0.35);
+    const sprite = this.add.sprite(0, -16, key).setOrigin(0.5, 0.85);
+    sprite.setScale(1.5);
+    const nameText = this.add.text(0, -52, npc.name || "PNJ", {
+      fontFamily: "Cinzel, serif", fontSize: "11px", color: "#CFA8FF",
+      fontStyle: "bold", stroke: "#000", strokeThickness: 3,
+    }).setOrigin(0.5);
+    const tag = this.add.text(0, -40, "PNJ", {
+      fontFamily: "ui-monospace, monospace", fontSize: "8px", color: "#A1A1AA",
+      stroke: "#000", strokeThickness: 2,
+    }).setOrigin(0.5);
+    container.add([ring, sprite, tag, nameText]);
+    this.tweens.add({ targets: ring, scaleX: 1.1, scaleY: 1.1, alpha: 0.2, yoyo: true, repeat: -1, duration: 1800 });
+    // periodic line bubble
+    if (npc.line) {
+      const speakLine = () => {
+        if (!this.scene || !this.scene.systems || !this.scene.systems.isActive) return;
+        const bg = this.add.graphics();
+        const t = this.add.text(0, 0, npc.line, {
+          fontFamily: "ui-sans-serif", fontSize: "11px", color: "#0A0613",
+          wordWrap: { width: 180 }, align: "center",
+        }).setOrigin(0.5);
+        const padX = 8, padY = 5;
+        const w = Math.ceil(t.width) + padX * 2;
+        const h = Math.ceil(t.height) + padY * 2;
+        bg.fillStyle(0xF9FAFB, 0.96);
+        bg.lineStyle(1, 0x9D4CDD, 0.8);
+        bg.fillRoundedRect(-w / 2, -h / 2, w, h, 6);
+        bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 6);
+        bg.fillTriangle(-4, h / 2, 4, h / 2, 0, h / 2 + 6);
+        const bubble = this.add.container(sx, sy - 70, [bg, t]);
+        bubble.setAlpha(0);
+        this.tweens.add({ targets: bubble, alpha: 1, y: sy - 78, duration: 250 });
+        this.time.delayedCall(4500, () => {
+          this.tweens.add({ targets: bubble, alpha: 0, y: bubble.y - 8, duration: 400, onComplete: () => bubble.destroy() });
+        });
+      };
+      this.time.delayedCall(2000 + Math.random() * 4000, speakLine);
+      this.time.addEvent({ delay: 18000 + Math.random() * 12000, loop: true, callback: speakLine });
+    }
+    this.entityLayer.add(container);
   }
 
   upsertPlayer(p) {

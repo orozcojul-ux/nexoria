@@ -6,10 +6,11 @@ import {
   Megaphone, Ban, Volume2, VolumeX, Footprints, Snowflake, Sparkles,
   CloudRain, CloudLightning, Sun, Cloud, X, MapPin, Search, History,
   Package, BarChart3, ChevronLeft, ChevronRight, Smile, MessageCircle,
-  Hash, UserPlus, Briefcase, Zap,
+  Hash, UserPlus, Briefcase, Zap, Map, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import HeroName from "@/components/HeroName";
+import api from "@/lib/api";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import { NexusIsoScene, RARITY_HEX } from "@/lib/NexusIsoScene";
 
@@ -56,6 +57,8 @@ export default function NexusOverlay() {
   const [gmInvisible, setGmInvisible] = useState(false);
   const [inspectData, setInspectData] = useState(null);
   const [inspectTab, setInspectTab] = useState("stats");
+  const [mapOpen, setMapOpen] = useState(false);
+  const [rooms, setRooms] = useState([]);
 
   const pendingGmRef = useRef(null);
   const spawnFormRef = useRef(spawnForm);
@@ -172,6 +175,12 @@ export default function NexusOverlay() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
   useEffect(() => { if (overlayOpen) markChannelRead(activeChannel); }, [overlayOpen, activeChannel, markChannelRead]);
 
+  // Load rooms once
+  useEffect(() => {
+    if (!overlayOpen) return;
+    api.get("/nexus/rooms").then((r) => setRooms(r.data || [])).catch(() => {});
+  }, [overlayOpen]);
+
   // Filtered chat by channel
   const filteredChat = chat.filter((m) => (m.channel || "room") === activeChannel);
 
@@ -267,17 +276,10 @@ export default function NexusOverlay() {
               </div>
             </div>
             <div className="flex items-center gap-1 flex-wrap">
-              {/* Room tabs (portals) */}
-              {[
-                { id: "place_centrale", name: "Place Centrale" },
-                { id: "taverne_etoilee", name: "Taverne" },
-                { id: "arene", name: "Arène" },
-              ].map((r) => (
-                <button key={r.id} onClick={() => changeRoom(r.id)} data-testid={`room-${r.id}`}
-                  className={`px-3 py-1 rounded text-xs font-bold font-display border transition-all ${room?.id === r.id ? "border-cyan-500/60 text-cyan-300 bg-cyan-500/10" : "border-white/10 text-zinc-400 hover:border-white/30"}`}>
-                  {r.name}
-                </button>
-              ))}
+              <button onClick={() => setMapOpen((v) => !v)} data-testid="nexus-map-toggle"
+                className={`px-3 py-1 rounded text-xs font-bold font-display border flex items-center gap-1 transition-all ${mapOpen ? "border-cyan-500/60 text-cyan-300 bg-cyan-500/10" : "border-white/10 text-zinc-300 hover:border-white/30"}`}>
+                <Map className="w-3 h-3" /> Carte du Nexus
+              </button>
               {isStaff && (
                 <button onClick={() => { setSelectedTarget(null); setGmOpen(true); }} data-testid="gm-open-button"
                   className="ml-2 px-3 py-1 rounded text-xs font-bold font-display border border-yellow-500/60 text-yellow-300 bg-yellow-500/10 hover:bg-yellow-500/20 flex items-center gap-1">
@@ -317,6 +319,11 @@ export default function NexusOverlay() {
                 className="text-xs text-zinc-400 hover:text-white ml-2"><X className="w-3 h-3" /></button>
             </div>
           )}
+
+          {/* ===== NEXUS MAP (PORTALS) ===== */}
+          <NexusMap open={mapOpen} onClose={() => setMapOpen(false)}
+            rooms={rooms} currentRoom={room?.id} you={you}
+            onTravel={(id) => { changeRoom(id); setMapOpen(false); }} />
 
           {/* ===== CHAT PANEL (bottom-left) ===== */}
           <div className={`absolute bottom-4 left-4 z-30 transition-all ${chatCollapsed ? "w-12" : "w-[380px]"}`} data-testid="nexus-chat">
@@ -828,6 +835,87 @@ function Stat({ label, v }) {
       <div className="text-[10px] uppercase text-zinc-500 tracking-widest">{label}</div>
       <div className="font-mono text-cyan-200 text-sm truncate">{v ?? "—"}</div>
     </div>
+  );
+}
+
+const GROUP_LABELS = {
+  center: { fr: "Cœur", color: "text-cyan-300", bg: "bg-cyan-500/10 border-cyan-500/40" },
+  social: { fr: "Social", color: "text-emerald-300", bg: "bg-emerald-500/10 border-emerald-500/40" },
+  combat: { fr: "Combat", color: "text-red-300", bg: "bg-red-500/10 border-red-500/40" },
+  knowledge: { fr: "Savoir", color: "text-amber-300", bg: "bg-amber-500/10 border-amber-500/40" },
+  mystic: { fr: "Mystique", color: "text-purple-300", bg: "bg-purple-500/10 border-purple-500/40" },
+  adventure: { fr: "Aventure", color: "text-orange-300", bg: "bg-orange-500/10 border-orange-500/40" },
+  restricted: { fr: "Restreint", color: "text-yellow-200", bg: "bg-yellow-500/10 border-yellow-500/40" },
+};
+
+function NexusMap({ open, onClose, rooms, currentRoom, you, onTravel }) {
+  if (!open) return null;
+  const byGroup = {};
+  (rooms || []).forEach((r) => {
+    const g = r.group || "misc";
+    (byGroup[g] = byGroup[g] || []).push(r);
+  });
+  const groupOrder = ["center", "social", "combat", "knowledge", "mystic", "adventure", "restricted"];
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+      onClick={onClose} data-testid="nexus-map">
+      <motion.div initial={{ scale: 0.92, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 10 }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-gradient-to-br from-[#0A0613] via-[#070414] to-[#1A0B3D] border border-cyan-500/40 rounded-2xl max-w-5xl w-full max-h-[88vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <div className="flex items-center gap-2">
+            <Map className="w-5 h-5 text-cyan-300" />
+            <div>
+              <h2 className="font-display font-black text-xl text-cyan-200">Carte du Nexus</h2>
+              <div className="text-[10px] uppercase tracking-widest text-zinc-500">{rooms.length} sanctuaires connectés</div>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-zinc-400 hover:text-white" data-testid="nexus-map-close">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5">
+          {groupOrder.filter((g) => byGroup[g]?.length).map((g) => {
+            const lbl = GROUP_LABELS[g] || { fr: g, color: "text-zinc-300" };
+            return (
+              <div key={g} className="mb-6">
+                <div className={`text-[10px] uppercase tracking-[0.3em] font-bold mb-3 ${lbl.color}`}>{lbl.fr}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {byGroup[g].map((r) => {
+                    const isCurrent = currentRoom === r.id;
+                    const locked = r.restricted_for_user;
+                    return (
+                      <button key={r.id} onClick={() => !locked && onTravel(r.id)} disabled={locked || isCurrent}
+                        data-testid={`map-room-${r.id}`}
+                        className={`relative text-left p-3 rounded-xl border transition-all overflow-hidden group ${isCurrent ? "border-cyan-500/60 bg-cyan-500/10" : locked ? "border-zinc-700/40 bg-zinc-900/30 opacity-60 cursor-not-allowed" : `${lbl.bg || "border-white/10 bg-white/5"} hover:border-white/40 hover:scale-105`}`}>
+                        <div className="flex items-start gap-2 mb-1">
+                          <div className="text-2xl">{r.icon || "🌀"}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className={`font-display font-bold text-sm truncate ${isCurrent ? "text-cyan-200" : "text-white"}`}>
+                              {r.name}
+                            </div>
+                            <div className="text-[10px] text-zinc-500">{r.online || 0}/{r.max_players} héros</div>
+                          </div>
+                          {locked && <Lock className="w-4 h-4 text-yellow-300 shrink-0" />}
+                          {isCurrent && (
+                            <span className="text-[9px] uppercase tracking-widest font-bold text-cyan-200">Ici</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-zinc-400 line-clamp-2 mt-1">{r.description}</p>
+                        <div className="mt-2 text-[10px] text-zinc-500">
+                          Météo : <span className="text-cyan-300">{r.weather}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
