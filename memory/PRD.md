@@ -35,6 +35,27 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3.13 — Refonte AAA MMORPG : Sidebar + Dashboard + Admin Menu + Badges (2026-02-14)
+- 🗂️ **Sidebar refonte complète** (`Layout.js` réécrit) : bloc profil héros en HAUT (avatar + dot vert "online", pseudo, rang, niveau, barre XP gradient violet→cyan, Aether). **5 catégories** : Tableau de bord / Gestion joueurs / Monde / Contenu / Communauté + section Liens (Discord, Paramètres, Panel Admin pour staff). Glow violet/cyan, hover/active states avec barre verticale glow, déconnexion stylisée en bas
+- 📊 **Page Accueil → Dashboard premium** (`Feed.js` réécrit) :
+  - Header "Bonjour, {pseudo}" + badge "Nexus Online · Live"
+  - **5 cartes statistiques** (Héros connectés via WebSocket presence / Visites aujourd'hui / Événements actifs / Stabilité serveur / Nouveaux inscrits 24h)
+  - **NexusMapWidget interactif** (nouveau composant) : 12+ salles positionnées en absolu sur une carte stylisée, connectées par chemins SVG dashed (gradient violet/cyan), glow halo, dot vert pour salles actives, compteur joueurs temps réel, KPI footer (Héros présents / Salles actives / Salles totales)
+  - Composer + feed social préservés
+  - Sidebar droite : World Boss + Mini-leaderboard
+- 🛡️ **Menu contextuel admin dans Nexus Online** (`NexusOverlay.js`, `NexusIsoScene.js`) :
+  - Clic gauche = Carte Héros (comportement normal)
+  - **Clic droit / shift+clic** par un staff = menu contextuel à 11 actions (Carte Héros, Panel Admin, Envoyer un message, Observer, TP à lui, TP ici, TP choisir, Mute, Freeze, Kick, Bannir)
+  - Phaser config `preventDefaultDown` + canvas contextmenu prevented
+  - Fermeture sur clic extérieur ou Escape
+- 🏅 **Bug "undefined" badges corrigé** :
+  - Backend nouveau helper `enrich_badges` (server.py) qui joint `user_badges` avec les définitions statiques `BADGES`
+  - Appliqué à `/api/badges/mine`, `/api/badges/user/{username}`, `/api/users/{user_id}/card`, `/api/profile`
+  - `BadgeCard` (HeroCard.jsx) rend désormais les icônes Lucide par nom OU emoji OU fallback `Sparkles`, avec name/description défensifs
+  - Résultat : 33/39 badges du Hero page affichent désormais Premier Pas, Bavard, Architecte, Élu Cosmique, etc. avec icônes Lucide + couleur rareté
+- 🆕 Endpoint `/api/stats/public` enrichi (7 champs : heroes, heroes_online, guilds, events, new_signups, visits_today, server_stability)
+- ✅ **Testing agent (iteration_12) : 100% backend (9/9) + 100% frontend** — toutes les flows validées
+
 ### v3.12 — Phase 2 : Design System appliqué aux pages MMORPG (2026-02-14)
 - 🆕 **Nouvelle page `/classes`** (`Classes.js`) : sanctuaire des 10 archétypes RPG avec hero immersif (kicker "Sanctuaire des Héros"), Codex stats (archétypes/affinités/rangs/builds), **filtre par affinité cosmique** (8 stats), grille animée AnimatePresence + modale détail avec barres d'affinité glowing et conseils du Maître de Jeu. Badge "Ta classe actuelle" si user connecté
 - 🆕 **Nouvelle page `/events`** (`Events.js`) : chronique cosmique du royaume avec stats Pulse (événements/boss/saison/failles), **Season Banner** (3 tiers de récompenses Top 1/10/50, barre progress), **Boss Mondial panel** (Archonte du Néant + progress bar communautaire), **Calendrier** des événements programmés et **Failles dimensionnelles** (jusqu'à 20 cartes rareté-glow)
