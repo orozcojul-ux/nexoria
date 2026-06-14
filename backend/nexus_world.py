@@ -73,14 +73,13 @@ async def _audit(action: str, actor: dict, target: dict | None = None, payload: 
 
 def _presence_payload():
     """Returns {total, by_room: {room_id: unique_users}, active_rooms}.
-    Dedupes by user_id so multi-tab connections count as 1 hero.
+    Dedupes by user_id so multi-tab = 1 hero. Self-heals against orphan
+    _rooms_state entries by cross-checking with _user_sids.
     """
     by_room = {}
     for r, state in _rooms_state.items():
-        # Unique user_ids in this room
-        uids = {p["user_id"] for p in state.values()}
+        uids = {p["user_id"] for p in state.values() if p["user_id"] in _user_sids}
         by_room[r] = len(uids)
-    # Global unique user_id count
     total = len(_user_sids)
     active = sum(1 for n in by_room.values() if n > 0)
     return {"total": total, "by_room": by_room, "active_rooms": active}
