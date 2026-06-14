@@ -35,6 +35,27 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3.11 — Design System Premium + Accueil refonte + Aether Ticker (2026-02-14)
+- 🎨 **Design System NEXORIA** (fondation pour toutes les pages) — `/app/frontend/src/lib/design-tokens.js` : palette violet/cyan/or/obsidienne, 7 raretés (Commun → Cosmique), tones de section, gradients, glows
+- 🧩 **8 composants premium réutilisables** dans `/app/frontend/src/components/ui-premium/index.jsx` :
+  - `PremiumCard` (verre sombre + glow + bordure)
+  - `PremiumButton` (5 variantes : violet/cyan/gold/ghost/danger × 3 tailles)
+  - `PremiumSection` (en-tête avec icône + ligne dégradée + slot action)
+  - `PremiumStat` (KPI avec icon colorée + glow tonal + trend ▲▼)
+  - `PremiumSidebar` (sidebar de page avec compteurs)
+  - `PremiumHero` (bannière avec image background + cosmic dust particles)
+  - `PremiumBadge` (rareté-aware, animation pulse pour Cosmique)
+  - `PremiumModal` (modale style HeroCard)
+- 🏰 **Accueil refonte complète** (`Landing.js`) appliquant le design system :
+  - Hero "Bienvenue dans NEXORIA" avec l'armure cosmique Nano Banana en background, 3 CTA (Jouer/Nexus/Discord)
+  - Section "Pulsation du Nexus" — 4 KPI live (héros connectés, salles actives, guildes, événements) lus depuis `presence:update` WebSocket + endpoint `/api/stats/public`
+  - **Carte du Nexus interactive** — 12 cartes de salles phares avec icône, description, compteur live `online/max`, badge "● Live" si occupée
+  - Quick navigation 6 tuiles colorées (Classes/Guildes/Classements/Événements/Boutique/Oracle)
+  - Footer CTA "Rejoins la légende"
+- 💰 **Aether Ticker** flottant top-right (`AetherTicker.js`) — écoute `nexoria:shop:purchased` CustomEvent et affiche slide-in une notification gold "X a obtenu Y" pendant 5.5s avec spring animation
+- 🔌 Nouveau endpoint `GET /api/stats/public` (héros / guildes / événements actifs)
+- ✅ Smoke test : 12 rooms rendues, 4 stats live, hero + nav + CTA tous OK
+
 ### v3.10 — P2 Boutique Premium + Sync WebSocket + Visuels Nano Banana (2026-02-14)
 - 🛒 **Refonte Boutique** (`/app/frontend/src/pages/Shop.js`, ~360 lignes) inspirée du screenshot référence : sidebar catégories (Tout/Cosmétiques/Boosts/Consommables/Royaume) avec compteur d'articles, "Mes acquis" récap, hero featured carousel auto-cycle (6s) avec **4 visuels cosmiques** (Lames Cosmiques, Armures du Néant, Montures Mythiques, Coffres Divins), section "Reliques populaires" Top 4 avec badges #1-4 dorés, grille principale avec cadres glow par rareté (7 raretés via la même config que HeroCard)
 - 🛍️ **Cart drawer** glissant depuis la droite (z-50, slide spring), compteur sur le bouton Panier, validation batch via boucle d'achats

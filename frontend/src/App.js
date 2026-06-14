@@ -38,6 +38,7 @@ import Nexus from "@/pages/Nexus";
 import BroadcastOverlay from "@/components/BroadcastOverlay";
 import NexusOverlay from "@/components/NexusOverlay";
 import NexusFAB from "@/components/NexusFAB";
+import AetherTicker from "@/components/AetherTicker";
 
 function MaintenanceGate({ children }) {
   const { user } = useAuth();
@@ -72,6 +73,7 @@ function AppRouter() {
       <BroadcastOverlay />
       <NexusOverlay />
       <NexusFAB />
+      <AetherTicker />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />

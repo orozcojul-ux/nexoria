@@ -2637,6 +2637,23 @@ async def list_nexus_rooms(user: dict = Depends(get_user_dep)):
     return out
 
 
+@api.get("/stats/public")
+async def public_stats():
+    """Lightweight public counters for the Landing page."""
+    try:
+        heroes = await db.users.count_documents({})
+        guilds = await db.guilds.count_documents({})
+        events_active = 0
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            events_active = await db.events.count_documents({"ends_at": {"$gt": now}})
+        except Exception:
+            pass
+        return {"heroes": heroes, "guilds": guilds, "events": events_active}
+    except Exception:
+        return {"heroes": 0, "guilds": 0, "events": 0}
+
+
 @api.get("/users/{user_id}/card")
 async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
     """Premium hero card: profile + badges + inventory + chronicles + equipment + stats + guild."""
