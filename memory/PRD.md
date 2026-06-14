@@ -35,6 +35,23 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3.9 — Phase B + P1 Carte Héros premium (2026-02-14)
+- 🃏 **Carte Héros modale premium** (`/app/frontend/src/components/HeroCard.jsx`) ouvrable depuis le canvas Nexus OU la liste des présents : 6 onglets (**Aperçu**, **Infos**, **Inventaire**, **Badges**, **Historique**, **Relations**) inspirés du screenshot référence du user.
+  - **Sidebar** : sprite pixel-art Nexus généré dynamiquement (`drawPixelHeroDataURL`, mêmes pixels que `ensureCharTexture` Phaser), nom dans la couleur de classe avec text-shadow glow, titre actif, niveau+XP bar dégradé violet→cyan, infos générales (pseudo, classe, faction, guilde, inscription, localisation temps-réel), boutons Ajouter ami + Message
+  - **Onglet Aperçu** : 4 cartes Titres & Rangs (Élu Cosmique, Légende Vivante, Roi des Créateurs, Seigneur du Temps) avec glow par couleur, grille de badges (24 visibles + Voir tous), 5 stats blocks (Combat/Boss/Quêtes/Exploration/Collections), 8 slots équipement
+  - **Onglet Infos** : 16 InfoBlocks mono-style (Aether ⟡, Réputation, XP totale, Followers, Following, etc.)
+  - **Onglets Inventaire/Badges** : groupés par rareté avec cadres animés (Cosmique en haut, Commun en bas)
+  - **Onglet Historique** : timeline des chroniques (badges, montées de niveau, événements)
+  - **Onglet Relations** : aperçu social (amis, guilde, followers)
+- 🎖️ **Refonte BadgeCard** (`/app/frontend/src/components/HeroCard.jsx`) — composant réutilisable avec **7 raretés** ayant chacune son cadre, glow, dégradé : ⚪ Commun · 🟢 Rare · 🟣 Épique · 🟠 Légendaire · 🔴 Mythique · ✨ Divin · 🌌 Cosmique (animation pulse pour cosmique)
+- 🔌 Nouvel endpoint `GET /api/users/{user_id}/card` : agrège user + inventory + badges + chronicles + friends_count + guild + location (temps réel depuis nexus_world._players) + is_friend / is_self
+- 🐛 **Fix presence dedup** (RCA iter_10) : `_presence_payload()` filtre les sids orphelins via cross-check avec `_user_sids` → totaux globaux et par salle toujours cohérents (1 user = 1 hero, même multi-tab)
+- 🔗 **Lien Discord** mis à jour à `https://discord.gg/RC5QjcWDCH` (Layout.js + .env REACT_APP_DISCORD_URL)
+- ⚜️ GM Panel : nouveaux events `gm_give_aether`, `gm_give_item`, `gm_prison` (auto-release), `gm_world_boss` (broadcast), `gm_rift`, `gm_observe`
+- 🌌 Compteur présence : `presence:update` Socket.IO + 3 indicateurs UI (🌌 Héros connectés / 🏰 Salle / 🗺️ Salles actives)
+- 🎬 Phaser scene utilise désormais `scene.restart()` au lieu de destroy+create → plus de flicker lors du changement de salle
+- ✅ Smoke tests : tous onglets HeroCard fonctionnels, API `/users/{id}/card` retourne données complètes
+
 ### v3.8 — Nexus Online Phase A + A.2 (Overlay + 22 salles thématiques) (2026-02-13)
 - 🎮 **Hub plein écran persistant** : nouveau bouton flottant (`NexusFAB`) accessible depuis toutes les pages auth — ouvre un overlay full-screen au-dessus du site sans rechargement. Socket Socket.IO porté par `NexusSocketContext` au niveau App, survit aux changements de route (1 seule connexion partagée, plus aucun reconnect visible). Bouton de fermeture revient à la navigation normale.
 - 🛑 **Suppression du polling 30s** dans `NotificationsBell` → remplacé par push WebSocket `notification:new` (la cloche s'actualise instantanément). `notifications.push_notification` strippe `_id` MongoDB avant push + warning log en cas d'échec.

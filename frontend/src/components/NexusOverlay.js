@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import HeroName from "@/components/HeroName";
+import HeroCard from "@/components/HeroCard";
 import api from "@/lib/api";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import { NexusIsoScene, RARITY_HEX } from "@/lib/NexusIsoScene";
@@ -59,6 +60,7 @@ export default function NexusOverlay() {
   const [inspectTab, setInspectTab] = useState("stats");
   const [mapOpen, setMapOpen] = useState(false);
   const [rooms, setRooms] = useState([]);
+  const [heroCardUserId, setHeroCardUserId] = useState(null);
 
   const pendingGmRef = useRef(null);
   const spawnFormRef = useRef(spawnForm);
@@ -107,7 +109,10 @@ export default function NexusOverlay() {
 
   const rebuildScene = useCallback((payload) => {
     if (!containerRef.current) return;
-    const onPlayerClick = (p) => { setSelectedTarget(p); setGmOpen(true); };
+    const onPlayerClick = (p) => {
+      // For everyone: open the Hero Card. Staff can additionally use the GM panel via the list/header button.
+      setHeroCardUserId(p.user_id);
+    };
     const onTileClick = (tile) => {
       if (!pendingGmRef.current) return;
       const { kind, target } = pendingGmRef.current;
@@ -458,7 +463,7 @@ export default function NexusOverlay() {
                 {players.map((p) => (
                   <div key={p.sid} className="flex items-center gap-1.5 py-0.5 px-1 rounded hover:bg-white/5 group">
                     <span className="w-2 h-2 rounded-full bg-green-400 inline-block shrink-0" />
-                    <button onClick={() => isStaff && (setSelectedTarget(p), setGmOpen(true))}
+                    <button onClick={() => setHeroCardUserId(p.user_id)}
                       className="flex-1 text-left flex items-center gap-1 min-w-0"
                       data-testid={`player-row-${p.user_id}`}>
                       <HeroName user={p} size="sm" />
@@ -467,6 +472,13 @@ export default function NexusOverlay() {
                     {p.muted && <VolumeX className="w-3 h-3 text-red-400 shrink-0" />}
                     {p.frozen && <Snowflake className="w-3 h-3 text-cyan-300 shrink-0" />}
                     {p.invisible && <EyeOff className="w-3 h-3 text-purple-300 shrink-0" />}
+                    {isStaff && (
+                      <button onClick={() => { setSelectedTarget(p); setGmOpen(true); }}
+                        title="Panneau GM" data-testid={`gm-target-${p.user_id}`}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-yellow-400 hover:text-yellow-200 shrink-0">
+                        <Crown className="w-3 h-3" />
+                      </button>
+                    )}
                     {p.user_id !== you?.user_id && (
                       <button onClick={() => onWhisper(p)} title="Chuchoter"
                         className="opacity-0 group-hover:opacity-100 transition-opacity text-pink-400 hover:text-pink-200 shrink-0"
@@ -506,6 +518,9 @@ export default function NexusOverlay() {
 
           {/* ===== POPUP NOTIFICATION (from GM) ===== */}
           <PopupNotificationModal popup={popup} onClose={dismissPopup} />
+
+          {/* ===== HERO CARD MODAL ===== */}
+          <HeroCard userId={heroCardUserId} open={!!heroCardUserId} onClose={() => setHeroCardUserId(null)} />
         </motion.div>
       )}
     </AnimatePresence>

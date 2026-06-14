@@ -2624,6 +2624,51 @@ async def list_nexus_rooms(user: dict = Depends(get_user_dep)):
     return out
 
 
+@api.get("/users/{user_id}/card")
+async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
+    """Premium hero card: profile + badges + inventory + chronicles + equipment + stats + guild."""
+    u = await db.users.find_one({"user_id": user_id}, {
+        "_id": 0, "password_hash": 0, "google_id": 0,
+    })
+    if not u:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    inv = await db.inventory.find({"user_id": user_id}, {"_id": 0}).sort("obtained_at", -1).to_list(200)
+    badges = await db.user_badges.find({"user_id": user_id}, {"_id": 0}).sort("unlocked_at", -1).to_list(120)
+    chronicles = await db.chronicles.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).limit(40).to_list(40)
+    friends_count = await db.friendships.count_documents({"$or": [{"user_id": user_id}, {"friend_id": user_id}], "status": "accepted"})
+    guild = None
+    g = await db.guilds.find_one({"members.user_id": user_id}, {"_id": 0, "guild_id": 1, "name": 1, "tag": 1, "color": 1, "rank": 1})
+    if g:
+        guild = g
+    # Live presence (room name + total in that room) from in-memory state
+    location = None
+    try:
+        for sid, p in nexus_world._players.items():
+            if p["user_id"] == user_id:
+                location = {"room": p["room"], "tx": p["tx"], "ty": p["ty"]}
+                break
+    except Exception:
+        pass
+    is_friend = False
+    if viewer["user_id"] != user_id:
+        f = await db.friendships.find_one({"$or": [
+            {"user_id": viewer["user_id"], "friend_id": user_id},
+            {"user_id": user_id, "friend_id": viewer["user_id"]},
+        ], "status": "accepted"})
+        is_friend = bool(f)
+    return {
+        "user": u,
+        "inventory": inv,
+        "badges": badges,
+        "chronicles": chronicles,
+        "friends_count": friends_count,
+        "guild": guild,
+        "location": location,
+        "is_friend": is_friend,
+        "is_self": viewer["user_id"] == user_id,
+    }
+
+
 @api.get("/admin/gm-audit")
 async def gm_audit_log(
     limit: int = 100,
