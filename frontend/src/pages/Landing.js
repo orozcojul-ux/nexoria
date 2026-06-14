@@ -1,20 +1,29 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Globe2, Sword, Crown, Sparkles, Users, Trophy, Flame, Shield,
-  Zap, Eye, ArrowRight, MessageCircle,
+  Zap, Eye, ArrowRight, MessageCircle, Lock,
 } from "lucide-react";
 import { PremiumButton, PremiumStat, PremiumSection, PremiumCard, PremiumHero } from "@/components/ui-premium";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
+import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/api";
 import StarField from "@/components/StarField";
 
-const ROOM_ICONS = {
-  place_centrale: "🏰", hall_legendes: "🏛", sanctuaire_oracle: "🧙",
-  arene: "⚔️", quartier_guildes: "🛡", laboratoire_alchimistes: "⚗️",
-  sanctuaire_failles: "🌀", nexus_cosmique: "🌌", bibliotheque_infinie: "📚",
-  vallee_boss: "🐉", marche_astral: "💎", atelier_inventeurs: "🛠",
+const ROOM_THEMES = {
+  place_centrale: { icon: "🏰", bg: "from-purple-900/60 via-violet-800/40 to-indigo-900/60", accent: "#9D4CDD" },
+  hall_legendes: { icon: "🏛", bg: "from-amber-700/60 via-purple-800/40 to-amber-900/60", accent: "#FCD34D" },
+  sanctuaire_oracle: { icon: "🧙", bg: "from-fuchsia-700/60 via-purple-900/40 to-fuchsia-900/60", accent: "#E879F9" },
+  arene: { icon: "⚔️", bg: "from-cyan-700/60 via-blue-900/40 to-cyan-900/60", accent: "#00E5FF" },
+  quartier_guildes: { icon: "🛡", bg: "from-emerald-700/60 via-indigo-900/40 to-emerald-900/60", accent: "#10B981" },
+  laboratoire_alchimistes: { icon: "⚗️", bg: "from-green-700/60 via-emerald-900/40 to-green-900/60", accent: "#34D399" },
+  sanctuaire_failles: { icon: "🌀", bg: "from-cyan-600/60 via-purple-900/40 to-cyan-900/60", accent: "#00E5FF" },
+  nexus_cosmique: { icon: "🌌", bg: "from-purple-900/80 via-black/60 to-cyan-900/40", accent: "#FFFFFF" },
+  bibliotheque_infinie: { icon: "📚", bg: "from-purple-700/60 via-indigo-900/40 to-purple-900/60", accent: "#A78BFA" },
+  vallee_boss: { icon: "🐉", bg: "from-red-800/60 via-orange-900/40 to-red-900/60", accent: "#EF4444" },
+  marche_astral: { icon: "💎", bg: "from-amber-600/60 via-purple-800/40 to-amber-900/60", accent: "#FCD34D" },
+  atelier_inventeurs: { icon: "🛠", bg: "from-orange-700/60 via-amber-900/40 to-orange-900/60", accent: "#FBBF24" },
 };
 const FEATURED_ROOMS = [
   "place_centrale", "hall_legendes", "sanctuaire_oracle", "arene",
@@ -25,27 +34,31 @@ const FEATURED_ROOMS = [
 
 export default function Landing() {
   const ns = useNexusSocket();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
   const [stats, setStats] = useState({ heroes: 0, guilds: 0, events: 0 });
   const [heroCount, setHeroCount] = useState(0);
 
   useEffect(() => {
-    api.get("/nexus/rooms").then((r) => setRooms(r.data || [])).catch(() => {});
+    // Use public endpoint so visitors also see the live world
+    api.get("/nexus/rooms-public").then((r) => setRooms(r.data || [])).catch(() => {});
     api.get("/stats/public").then((r) => setStats(r.data || {})).catch(() => {});
   }, []);
 
-  // Real-time global hero counter
   useEffect(() => {
     setHeroCount(ns?.presence?.total || 0);
   }, [ns?.presence?.total]);
 
-  const openNexus = () => ns?.setOverlayOpen?.(true);
-
-  // Map room id → live online count
-  const onlineFor = (id) => {
-    const r = rooms.find((x) => x.id === id);
-    return r?.online || 0;
+  const openNexus = () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    ns?.setOverlayOpen?.(true);
   };
+
+  const onlineFor = (id) => rooms.find((x) => x.id === id)?.online || 0;
   const totalActiveRooms = rooms.filter((r) => (r.online || 0) > 0).length;
 
   return (
@@ -87,43 +100,92 @@ export default function Landing() {
           </div>
         </PremiumSection>
 
-        {/* ===== INTERACTIVE NEXUS MAP ===== */}
-        <PremiumSection title="Carte du Nexus" subtitle="12 sanctuaires phares — clique pour entrer" icon={Globe2} tone="violet"
-          action={<PremiumButton variant="cyan" size="sm" icon={ArrowRight} onClick={openNexus} testid="map-enter">Tout explorer</PremiumButton>}>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" data-testid="landing-nexus-map">
-            {FEATURED_ROOMS.map((id) => {
-              const r = rooms.find((x) => x.id === id);
-              const icon = ROOM_ICONS[id] || "🌀";
-              const online = onlineFor(id);
-              const isLive = online > 0;
-              return (
-                <motion.button
-                  key={id}
-                  whileHover={{ y: -4, scale: 1.03 }}
-                  onClick={openNexus}
-                  data-testid={`landing-room-${id}`}
-                  className="relative text-left rounded-xl border border-purple-500/30 bg-gradient-to-br from-[#0F0820]/90 to-[#0A0613]/90 backdrop-blur p-4 overflow-hidden group transition-all hover:border-cyan-500/60"
-                  style={{ boxShadow: isLive ? "0 0 24px rgba(0,229,255,0.25)" : "0 0 16px rgba(157,76,221,0.18)" }}>
-                  <div className="absolute -right-4 -top-4 text-7xl opacity-10 group-hover:opacity-25 transition-opacity">{icon}</div>
-                  <div className="relative">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-2xl">{icon}</span>
-                      {isLive && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-emerald-300">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live
+        {/* ===== INTERACTIVE NEXUS MAP — Floating Islands ===== */}
+        <PremiumSection title="Carte du Nexus" subtitle="12 sanctuaires phares — monde vivant en temps réel" icon={Globe2} tone="violet"
+          action={user
+            ? <PremiumButton variant="cyan" size="sm" icon={ArrowRight} onClick={openNexus} testid="map-enter">Entrer maintenant</PremiumButton>
+            : <PremiumButton variant="gold" size="sm" icon={Lock} onClick={() => navigate("/login")} testid="map-login-cta">Se connecter pour entrer</PremiumButton>}>
+          <div className="relative" data-testid="landing-nexus-map">
+            {/* Connecting glow lines (decorative) */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-30" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <line x1="20" y1="20" x2="80" y2="80" stroke="url(#g1)" strokeWidth="0.15" strokeDasharray="0.5 0.5" />
+              <line x1="80" y1="20" x2="20" y2="80" stroke="url(#g1)" strokeWidth="0.15" strokeDasharray="0.5 0.5" />
+              <defs>
+                <linearGradient id="g1" x1="0" x2="1">
+                  <stop offset="0%" stopColor="#9D4CDD" /><stop offset="100%" stopColor="#00E5FF" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="relative grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {FEATURED_ROOMS.map((id, idx) => {
+                const r = rooms.find((x) => x.id === id);
+                const theme = ROOM_THEMES[id] || ROOM_THEMES.place_centrale;
+                const online = onlineFor(id);
+                const isLive = online > 0;
+                const hasBoss = (r?.event?.kind === "boss") || (id === "arene" && Math.random() > 0.7);
+                return (
+                  <motion.button
+                    key={id}
+                    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.04 }}
+                    whileHover={{ y: -8, scale: 1.04 }}
+                    onClick={openNexus}
+                    data-testid={`landing-room-${id}`}
+                    className={`relative text-left rounded-2xl border-2 overflow-hidden group transition-all`}
+                    style={{
+                      borderColor: `${theme.accent}66`,
+                      boxShadow: isLive ? `0 0 30px ${theme.accent}55, inset 0 0 24px ${theme.accent}22`
+                                        : `0 0 14px ${theme.accent}22`,
+                    }}>
+                    {/* Layered island background */}
+                    <div className={`absolute inset-0 bg-gradient-to-br ${theme.bg}`} />
+                    <div className="absolute inset-0 opacity-60"
+                      style={{ background: `radial-gradient(circle at 30% 20%, ${theme.accent}55, transparent 60%)` }} />
+                    {/* Floating animation icon */}
+                    <motion.div
+                      animate={{ y: [-3, 3, -3] }}
+                      transition={{ duration: 4 + idx * 0.2, repeat: Infinity, ease: "easeInOut" }}
+                      className="absolute right-3 top-3 text-6xl opacity-50 drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]">
+                      {theme.icon}
+                    </motion.div>
+                    {/* Cosmic dust */}
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="absolute w-1 h-1 rounded-full animate-pulse pointer-events-none"
+                        style={{
+                          top: `${15 + i * 20}%`, left: `${10 + i * 15}%`,
+                          background: theme.accent,
+                          boxShadow: `0 0 8px ${theme.accent}`,
+                          animationDelay: `${i * 0.4}s`,
+                        }} />
+                    ))}
+                    {/* Content */}
+                    <div className="relative p-4 pt-14 min-h-[180px] flex flex-col justify-end">
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        {isLive && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-emerald-300 px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> En ligne
+                          </span>
+                        )}
+                        {hasBoss && (
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-red-300 px-1.5 py-0.5 rounded bg-red-500/20 border border-red-500/40">
+                            ⚔ Boss actif
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-display font-black text-base text-white drop-shadow-lg truncate">{r?.name || id}</div>
+                      <div className="text-[11px] text-zinc-200 line-clamp-2 mt-0.5 min-h-[28px] drop-shadow">{r?.description || ""}</div>
+                      <div className="mt-2 flex items-center justify-between text-[11px]">
+                        <span className="font-mono-stat font-black text-base" style={{ color: theme.accent }}>
+                          {online}<span className="text-zinc-400 text-xs"> /{r?.max_players || 50}</span>
+                          <span className="text-zinc-500 text-[10px] ml-1">joueurs</span>
                         </span>
-                      )}
+                        <ArrowRight className="w-4 h-4 text-white/60 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                      </div>
                     </div>
-                    <div className="font-display font-black text-sm text-white truncate">{r?.name || id}</div>
-                    <div className="text-[10px] text-zinc-400 line-clamp-2 mt-1 min-h-[26px]">{r?.description || ""}</div>
-                    <div className="mt-2 flex items-center justify-between text-[10px]">
-                      <span className="text-cyan-300 font-mono-stat font-bold">{online}<span className="text-zinc-500"> / {r?.max_players || 50}</span></span>
-                      <span className="text-zinc-500 uppercase tracking-widest">{r?.weather || "clair"}</span>
-                    </div>
-                  </div>
-                </motion.button>
-              );
-            })}
+                  </motion.button>
+                );
+              })}
+            </div>
           </div>
         </PremiumSection>
 

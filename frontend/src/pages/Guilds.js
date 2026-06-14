@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Castle, Users, Crown, ShieldCheck, Send, Coins, UserPlus, LogOut, X, Plus, Mail, Trash2 } from "lucide-react";
+import { Castle, Users, Crown, ShieldCheck, Send, Coins, UserPlus, LogOut, X, Plus, Mail, Trash2, Shield } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,13 @@ import { RuneSeal, RuneDivider } from "@/components/Ornaments";
 import StarField from "@/components/StarField";
 import HeroName from "@/components/HeroName";
 import { sfx } from "@/lib/sfx";
+import {
+  PremiumHero,
+  PremiumSection,
+  PremiumStat,
+  PremiumCard,
+  PremiumButton,
+} from "@/components/ui-premium";
 
 const ROLE_LABEL = { chef: "Chef", officier: "Officier", membre: "Membre" };
 const ROLE_COLOR = { chef: "#FFD700", officier: "#F97316", membre: "#9CA3AF" };
@@ -44,72 +51,121 @@ export default function Guilds() {
 
   if (mine.guild) return <GuildDashboard data={mine} reload={async () => { await load(); await refresh(); }} />;
 
-  return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 relative" data-testid="guilds-page">
-      <StarField density={50} />
-      <div className="text-center mb-8 relative">
-        <div className="flex justify-center mb-3"><RuneSeal icon={Castle} color="#A855F7" size={48} /></div>
-        <div className="text-[10px] uppercase tracking-[0.4em] text-violet-300 font-bold mb-1">Ordres mystiques</div>
-        <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight">Les <span className="text-gradient">Guildes</span></h1>
-        <p className="text-zinc-400 text-sm mt-2 italic scroll-paragraph max-w-2xl mx-auto">
-          « Aucun héros ne traverse les Voiles seul. Unissez-vous, et fondez un ordre dont le nom résonnera dans l'éternité. »
-        </p>
-        <RuneDivider className="mt-5 max-w-md mx-auto" />
-      </div>
+  const totalMembers = guilds.reduce((acc, g) => acc + (g.member_count || 0), 0);
+  const topGuild = [...guilds].sort((a, b) => (b.level || 0) - (a.level || 0))[0];
 
-      {invites.length > 0 && (
-        <div className="mb-6" data-testid="guild-invites">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-yellow-400 font-bold mb-3 flex items-center gap-2">
-            <Mail className="w-3 h-3" /> Invitations en attente
+  return (
+    <div className="min-h-screen relative" data-testid="guilds-page">
+      <StarField density={50} />
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8">
+        {/* HERO */}
+        <PremiumHero
+          kicker="Ordres mystiques"
+          title={<>Les <span className="text-gradient">Guildes</span></>}
+          subtitle="« Aucun héros ne traverse les Voiles seul. Unissez-vous, et fondez un ordre dont le nom résonnera dans l'éternité. »"
+          image="/shop/armure_cosmique.png"
+          height={280}
+          testid="guilds-hero"
+        >
+          <div className="mt-4">
+            <PremiumButton variant="violet" size="lg" icon={Plus} onClick={() => setShowCreate(true)} testid="open-create-guild">
+              Fonder un Ordre
+            </PremiumButton>
           </div>
-          <div className="space-y-2">
-            {invites.map((inv) => (
-              <div key={inv.invite_id} className="glass rounded-xl p-4 flex items-center justify-between" data-testid={`invite-${inv.invite_id}`}>
-                <div>
-                  <div className="font-display font-bold">{inv.guild?.name} <span className="text-zinc-500 text-sm">[{inv.guild?.tag}]</span></div>
-                  <div className="text-xs text-zinc-400 italic mt-1">{inv.guild?.description}</div>
+        </PremiumHero>
+
+        {/* STATS */}
+        <PremiumSection title="Pulse des Ordres" subtitle="Vue globale" icon={Shield} tone="violet">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <PremiumStat icon={Castle} label="Ordres fondés" value={guilds.length} sub="Bannières dressées" tone="violet" testid="guild-stat-count" />
+            <PremiumStat icon={Users} label="Héros enrôlés" value={totalMembers} sub="Tous ordres confondus" tone="cyan" testid="guild-stat-members" />
+            <PremiumStat icon={Crown} label="Ordre dominant" value={topGuild?.tag || "—"} sub={topGuild ? `Niveau ${topGuild.level}` : "Aucun"} tone="gold" testid="guild-stat-top" />
+            <PremiumStat icon={Mail} label="Invitations" value={invites.length} sub="En attente" tone="emerald" testid="guild-stat-invites" />
+          </div>
+        </PremiumSection>
+
+        {/* INVITES */}
+        {invites.length > 0 && (
+          <PremiumSection title="Invitations reçues" subtitle="Réponds avant qu'elles n'expirent" icon={Mail} tone="gold">
+            <div className="space-y-2" data-testid="guild-invites">
+              {invites.map((inv) => (
+                <PremiumCard key={inv.invite_id} tone="gold" className="flex items-center justify-between gap-3 flex-wrap" testid={`invite-${inv.invite_id}`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-display font-bold text-base text-yellow-100">
+                      {inv.guild?.name} <span className="text-zinc-500 text-sm">[{inv.guild?.tag}]</span>
+                    </div>
+                    <div className="text-xs text-zinc-400 italic mt-1 truncate">{inv.guild?.description || "—"}</div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <PremiumButton variant="cyan" size="sm" onClick={() => accept(inv.invite_id)} testid={`invite-accept-${inv.invite_id}`}>
+                      Accepter
+                    </PremiumButton>
+                    <PremiumButton variant="ghost" size="sm" onClick={() => decline(inv.invite_id)}>
+                      Refuser
+                    </PremiumButton>
+                  </div>
+                </PremiumCard>
+              ))}
+            </div>
+          </PremiumSection>
+        )}
+
+        {/* GUILDS LIST */}
+        <PremiumSection title="Ordres existants" subtitle={`${guilds.length} bannière(s)`} icon={Castle} tone="violet">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {guilds.length === 0 && (
+              <PremiumCard tone="violet" hover={false} className="col-span-full text-center py-10">
+                <Castle className="w-12 h-12 text-purple-400/60 mx-auto mb-2" />
+                <p className="text-zinc-400 italic">Aucun ordre n'a encore été fondé…</p>
+                <p className="text-zinc-600 text-xs mt-1">Sois le premier à hisser ta bannière.</p>
+              </PremiumCard>
+            )}
+            {guilds.map((g) => (
+              <motion.div
+                key={g.guild_id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -3, scale: 1.01 }}
+                transition={{ duration: 0.2 }}
+                className="relative rounded-2xl border-2 p-5 overflow-hidden bg-gradient-to-br from-[#0F0820]/90 via-[#0A0613]/90 to-[#1A0B3D]/70 backdrop-blur"
+                style={{
+                  borderColor: `${g.banner_color}66`,
+                  boxShadow: `0 0 24px ${g.banner_color}33, inset 0 0 12px ${g.banner_color}11`,
+                }}
+                data-testid={`guild-card-${g.guild_id}`}
+              >
+                <div className="absolute -top-12 -right-12 w-44 h-44 rounded-full blur-3xl opacity-30" style={{ background: g.banner_color }} />
+                <div className="relative">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center font-display font-black text-xs shrink-0 text-white tracking-tight"
+                      style={{
+                        background: `radial-gradient(circle, white 0%, ${g.banner_color} 70%)`,
+                        boxShadow: `0 0 18px ${g.banner_color}88`,
+                      }}
+                    >
+                      {g.tag}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-display font-black text-base text-white truncate">{g.name}</h3>
+                      <div className="text-[10px] uppercase tracking-[0.3em] font-bold truncate" style={{ color: g.banner_color }}>
+                        [{g.tag}] · Niv. {g.level}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-zinc-400 italic mb-3 line-clamp-2 min-h-[2.4em]">
+                    {g.description || "—"}
+                  </div>
+                  <div className="flex justify-between font-mono-stat text-xs pt-2 border-t border-white/5">
+                    <span className="text-cyan-300"><Users className="w-3 h-3 inline mr-1" /> {g.member_count}/{g.max_members}</span>
+                    <span className="text-violet-300">{g.xp || 0} XP</span>
+                    <span className="text-yellow-300">{g.vault_aether} ✦</span>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => accept(inv.invite_id)} className="px-3 py-1.5 rounded border border-green-500/40 text-green-300 text-xs font-bold" data-testid={`invite-accept-${inv.invite_id}`}>Accepter</button>
-                  <button onClick={() => decline(inv.invite_id)} className="px-3 py-1.5 rounded border border-white/10 text-zinc-400 text-xs">Refuser</button>
-                </div>
-              </div>
+              </motion.div>
             ))}
           </div>
-        </div>
-      )}
-
-      <div className="flex justify-between items-center mb-4">
-        <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold">Ordres existants ({guilds.length})</div>
-        <button onClick={() => setShowCreate(true)} data-testid="open-create-guild"
-          className="px-4 py-2 rounded-md border border-violet-500/50 text-violet-300 font-bold hover:shadow-[0_0_18px_rgba(157,76,221,0.4)] text-sm flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Fonder un Ordre
-        </button>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {guilds.length === 0 && (
-          <div className="col-span-full text-center text-zinc-500 italic py-12">Aucun ordre n'a encore été fondé...</div>
-        )}
-        {guilds.map((g) => (
-          <motion.div key={g.guild_id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            className="glass rounded-2xl p-5 relative overflow-hidden border-2"
-            style={{ borderColor: `${g.banner_color}40` }}
-            data-testid={`guild-card-${g.guild_id}`}>
-            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-30" style={{ background: g.banner_color }} />
-            <div className="relative">
-              <div className="flex items-baseline gap-2 mb-1">
-                <h3 className="font-display font-bold text-lg ancient-text">{g.name}</h3>
-                <span className="font-mono-stat text-xs text-zinc-500">[{g.tag}]</span>
-              </div>
-              <div className="text-xs text-zinc-400 italic mb-3 min-h-[2.5em]">{g.description || "—"}</div>
-              <div className="flex justify-between font-mono-stat text-xs">
-                <span><Users className="w-3 h-3 inline" /> {g.member_count}/{g.max_members}</span>
-                <span className="text-cyan-300">Niv. {g.level}</span>
-                <span className="text-yellow-400">{g.vault_aether} ✦</span>
-              </div>
-            </div>
-          </motion.div>
-        ))}
+        </PremiumSection>
       </div>
 
       <AnimatePresence>

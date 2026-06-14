@@ -35,6 +35,8 @@ import Forum from "@/pages/Forum";
 import Friends from "@/pages/Friends";
 import Tickets from "@/pages/Tickets";
 import Nexus from "@/pages/Nexus";
+import Classes from "@/pages/Classes";
+import Events from "@/pages/Events";
 import BroadcastOverlay from "@/components/BroadcastOverlay";
 import NexusOverlay from "@/components/NexusOverlay";
 import NexusFAB from "@/components/NexusFAB";
@@ -88,7 +90,10 @@ function AppRouter() {
         <Route path="/quests" element={<ProtectedRoute><Layout><Quests /></Layout></ProtectedRoute>} />
         <Route path="/oracle" element={<ProtectedRoute><Layout><Oracle /></Layout></ProtectedRoute>} />
         <Route path="/leaderboards" element={<ProtectedRoute><Layout><Leaderboards /></Layout></ProtectedRoute>} />
+        <Route path="/rankings" element={<ProtectedRoute><Layout><Leaderboards /></Layout></ProtectedRoute>} />
         <Route path="/legends" element={<ProtectedRoute><Layout><HallOfLegends /></Layout></ProtectedRoute>} />
+        <Route path="/classes" element={<ProtectedRoute><Layout><Classes /></Layout></ProtectedRoute>} />
+        <Route path="/events" element={<ProtectedRoute><Layout><Events /></Layout></ProtectedRoute>} />
         <Route path="/shop" element={<ProtectedRoute><Layout><Shop /></Layout></ProtectedRoute>} />
         <Route path="/world" element={<ProtectedRoute><Layout><WorldMap /></Layout></ProtectedRoute>} />
         <Route path="/guilds" element={<ProtectedRoute><Layout><Guilds /></Layout></ProtectedRoute>} />

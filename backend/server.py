@@ -2637,6 +2637,14 @@ async def list_nexus_rooms(user: dict = Depends(get_user_dep)):
     return out
 
 
+@api.get("/nexus/rooms-public")
+async def list_nexus_rooms_public():
+    """Public lobby endpoint — exposes minimal room info (no access flags).
+    Used by the Landing page so visitors can see the world is alive.
+    """
+    return nexus_world.online_summary()
+
+
 @api.get("/stats/public")
 async def public_stats():
     """Lightweight public counters for the Landing page."""

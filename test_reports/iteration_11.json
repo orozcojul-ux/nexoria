@@ -1,0 +1,52 @@
+{
+  "summary": "NEXORIA Phase 2 — validation of 4 newly added/refactored premium pages (Classes, Events, Leaderboards, Guilds). Backend 13/13 PASS; Frontend ALL critical flows PASS (10 class cards, working affinity filter, modal open/close, events stats with boss panel + season banner + 16 rifts, 4 leaderboard tabs with 47 rows + 3 podium each, 4 guild cards + create dialog, /rankings alias resolves). No blocking bugs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/events ev-stat-season", "issues": ["Active season ('saison test') displays 'Terminée' because ends_at is in the past — this is seed data state, not a code bug, but you may want a fresh season for the demo."]}
+    ]
+  },
+  "phase2_validation": {
+    "classes_page": "PASS — GET /api/game/classes returns 10 classes, all 10 rendered as class-card-* with correct stat_bonus keys (creativity/persistence/curiosity/leadership/sociability/ambition/expertise/discovery).",
+    "classes_filter": "PASS — filter-creativity narrows to 4 cards (Mage, Alchimiste, Architecte, Inventeur), filter-persistence narrows to 2 (Guerrier, Architecte), filter-all restores 10. AnimatePresence exit animation requires ~1500ms to settle.",
+    "classes_modal": "PASS — clicking a class-card opens class-modal showing affinity bars + 'Conseils du Maître de Jeu'. Close button works.",
+    "events_page": "PASS — /widgets/events=[], /boss=Archonte du Néant (9/10000 → 0%), /seasons/current='saison test', /widgets/rifts-map=16 entries. All 4 stat cards (ev-stat-active=0, ev-stat-boss=0%, ev-stat-season='saison test', ev-stat-rifts=16) render. boss-panel and season-banner present. 16 rift-{i} cards render (<= 20 cap).",
+    "leaderboards_page": "PASS — 4 tabs (tab-xp, tab-level, tab-reputation, tab-aether) all clickable and refetch /api/leaderboard/{cat}. Each tab shows 3 podium cards (podium-1/2/3) + 47 leaderboard-row-* (ranks 4→50). Note: 'Rang' tab id is `level` (not `rank` as the request hinted).",
+    "guilds_page": "PASS — 4 guild-stat-* cards rendered. 4 guild-card-* cards rendered with sigil, name, level, members, no visible overlap. open-create-guild button opens the CreateGuildDialog modal ('Fonder un Ordre').",
+    "rankings_alias": "PASS — /rankings route resolves to the leaderboards-page component (data-testid present).",
+    "regression_backend": "PASS — /api/nexus/rooms-public=22, /api/auth/login with admin works, session_token cookie set."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase2_pages.py",
+    "/app/test_reports/pytest/phase2_pages.xml"
+  ],
+  "action_items": [
+    "(Optional / data) Seed a fresh active season whose ends_at is in the future — currently /api/seasons/current returns 'saison test' but its end date has elapsed so the UI shows 'Terminée' under ev-stat-season.",
+    "(Carried) /app/frontend/src/components/NexusOverlay.js > 950 lines and /app/backend/nexus_world.py ~1030 lines still exceed the 700-line guideline."
+  ],
+  "critical_code_review_comments": [
+    "Classes.js filter logic is correct: it intersects c.stat_bonus keys with the selected filter id — matches snake_case API keys.",
+    "Events.js correctly guards against missing season/boss/events with optional chaining and empty-state PremiumCards. timeRemaining() returns 'Terminée' when ends_at < now — defensive.",
+    "Leaderboards.js category ids are ['xp','level','reputation','aether'] — note this is `level`, not `rank`, despite the UI label 'Rang'. Any future docs/tests should use `level`.",
+    "BossPanel renders even when boss.progress > target (e.g. 9/10000 → 0%) — fine, no negative math.",
+    "PremiumModal Escape-to-close works (verified). Close button selector is dynamic — fine for users but slightly brittle for automated tests.",
+    "All required data-testid attributes present (classes-page, class-card-{id}, filter-{stat}, class-modal, events-page, ev-stat-*, boss-panel, season-banner, rift-{i}, leaderboards-page, tab-{cat}, podium-1/2/3, leaderboard-row-{rank}, guilds-page, guild-stat-*, guild-card-*, open-create-guild)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase2_pages.py (NEW: 13 tests, all PASS)"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 Phase 2 endpoints)",
+    "frontend": "100% — all 4 new/refactored pages render, all interactive flows (filter, modal, tab switching, dialog open) work, /rankings alias works"
+  },
+  "test_credentials": "admin@nexoria.com / NexoriaAdmin2026! works as documented in /app/memory/test_credentials.md",
+  "seed_data_creation": "None — used existing seed (TEST_* users from earlier iterations remain in leaderboard).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase 2 design system rollout is fully validated. When testing AnimatePresence-driven filters in Classes.js, wait at least 1500ms after click for exit animations to complete before counting cards via [data-testid^='class-card-']. The 'Rang' leaderboard tab has data-testid='tab-level' (not 'tab-rank'). The currently active season has elapsed end-date — flagging only as data state, not a bug."
+}
