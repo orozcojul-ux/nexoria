@@ -1384,6 +1384,19 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
     await add_chronicle(user["user_id"], f"A acquis « {item['name']} » à la Boutique d'Aether", "shop")
     await push_notification(db, user["user_id"], "shop", "Achat confirmé", f"« {item['name']} » est à vous", "ding", "ShoppingBag")
 
+    # WebSocket sync: push inventory refresh event so the Shop UI updates instantly
+    # without polling. Listened by NexusSocketContext + Shop page.
+    try:
+        await nexus_world.push_to_user(user["user_id"], "shop:purchased", {
+            "sku": sku,
+            "name": item["name"],
+            "category": item["category"],
+            "applied": applied,
+            "ts": now_utc().isoformat(),
+        })
+    except Exception:
+        pass
+
     return {"purchase": purchase_doc, "applied": applied}
 
 

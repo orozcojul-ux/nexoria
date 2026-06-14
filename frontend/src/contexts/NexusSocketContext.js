@@ -169,6 +169,13 @@ export function NexusSocketProvider({ children }) {
       toast.warning?.(`🌀 Faille dimensionnelle ouverte par ${rift.by_username}`, { duration: 6000 });
     });
 
+    // Shop purchase sync — push by backend after successful /shop/purchase
+    socket.on("shop:purchased", (data) => {
+      // Refresh global presence event listeners + dispatch DOM event for the Shop UI
+      try { window.dispatchEvent(new CustomEvent("nexoria:shop:purchased", { detail: data })); } catch {}
+      try { sfx.chime?.() || sfx.click?.(); } catch {}
+    });
+
     return () => {
       try { socket.disconnect(); } catch {}
       socketRef.current = null;

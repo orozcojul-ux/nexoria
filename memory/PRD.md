@@ -35,6 +35,18 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3.10 — P2 Boutique Premium + Sync WebSocket + Visuels Nano Banana (2026-02-14)
+- 🛒 **Refonte Boutique** (`/app/frontend/src/pages/Shop.js`, ~360 lignes) inspirée du screenshot référence : sidebar catégories (Tout/Cosmétiques/Boosts/Consommables/Royaume) avec compteur d'articles, "Mes acquis" récap, hero featured carousel auto-cycle (6s) avec **4 visuels cosmiques** (Lames Cosmiques, Armures du Néant, Montures Mythiques, Coffres Divins), section "Reliques populaires" Top 4 avec badges #1-4 dorés, grille principale avec cadres glow par rareté (7 raretés via la même config que HeroCard)
+- 🛍️ **Cart drawer** glissant depuis la droite (z-50, slide spring), compteur sur le bouton Panier, validation batch via boucle d'achats
+- 🎨 **4 visuels Nano Banana** générés via Gemini-3.1-flash-image-preview et stockés dans `/app/frontend/public/shop/` :
+  - `epee_legendaire.png` (épée légendaire glow violet/cyan + gemme)
+  - `armure_cosmique.png` (armure obsidienne + filigrane doré + nébuleuse)
+  - `monture_mythique.png` (loup spectral céleste)
+  - `coffre_divin.png` (coffre divin obsidienne+or, lumière dorée)
+- 🔌 **Sync WebSocket sur achat** : `/api/shop/purchase/{sku}` émet l'event `shop:purchased` via `nexus_world.push_to_user` après insertion en base. Le frontend écoute via `NexusSocketContext` → dispatch un CustomEvent `nexoria:shop:purchased` → la page Shop refresh inventory + user balance + joue le SFX, **sans aucun polling ni reload**
+- 📦 Script de génération `/app/backend/scripts/gen_shop_visuals.py` (réutilisable pour ajouter d'autres visuels)
+- ✅ Smoke test : 24 items rendus, hero carousel actif, panier ouvre/ferme, sidebar catégories fonctionne, balance Aether mise à jour temps réel
+
 ### v3.9 — Phase B + P1 Carte Héros premium (2026-02-14)
 - 🃏 **Carte Héros modale premium** (`/app/frontend/src/components/HeroCard.jsx`) ouvrable depuis le canvas Nexus OU la liste des présents : 6 onglets (**Aperçu**, **Infos**, **Inventaire**, **Badges**, **Historique**, **Relations**) inspirés du screenshot référence du user.
   - **Sidebar** : sprite pixel-art Nexus généré dynamiquement (`drawPixelHeroDataURL`, mêmes pixels que `ensureCharTexture` Phaser), nom dans la couleur de classe avec text-shadow glow, titre actif, niveau+XP bar dégradé violet→cyan, infos générales (pseudo, classe, faction, guilde, inscription, localisation temps-réel), boutons Ajouter ami + Message
