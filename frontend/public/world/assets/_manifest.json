@@ -1,0 +1,642 @@
+[
+  {
+    "key": "57",
+    "file": "/world/assets/57.png",
+    "w": 1940,
+    "h": 1662,
+    "x": -20,
+    "y": 0
+  },
+  {
+    "key": "56_stone",
+    "file": "/world/assets/56_stone.png",
+    "w": 352,
+    "h": 171,
+    "x": 0,
+    "y": 594
+  },
+  {
+    "key": "55_fire",
+    "file": "/world/assets/55_fire.png",
+    "w": 95,
+    "h": 154,
+    "x": 409,
+    "y": 1173
+  },
+  {
+    "key": "54_wooden_floor",
+    "file": "/world/assets/54_wooden_floor.png",
+    "w": 496,
+    "h": 258,
+    "x": 211,
+    "y": 792
+  },
+  {
+    "key": "53_bags",
+    "file": "/world/assets/53_bags.png",
+    "w": 135,
+    "h": 96,
+    "x": 275,
+    "y": 796
+  },
+  {
+    "key": "52_drawers",
+    "file": "/world/assets/52_drawers.png",
+    "w": 354,
+    "h": 232,
+    "x": 346,
+    "y": 792
+  },
+  {
+    "key": "51_tree3",
+    "file": "/world/assets/51_tree3.png",
+    "w": 144,
+    "h": 346,
+    "x": 1162,
+    "y": 227
+  },
+  {
+    "key": "50_stairs",
+    "file": "/world/assets/50_stairs.png",
+    "w": 1179,
+    "h": 273,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "key": "49_stairs",
+    "file": "/world/assets/49_stairs.png",
+    "w": 263,
+    "h": 261,
+    "x": 0,
+    "y": 12
+  },
+  {
+    "key": "48_stone",
+    "file": "/world/assets/48_stone.png",
+    "w": 56,
+    "h": 152,
+    "x": 0,
+    "y": 124
+  },
+  {
+    "key": "47_stone",
+    "file": "/world/assets/47_stone.png",
+    "w": 75,
+    "h": 57,
+    "x": 88,
+    "y": 258
+  },
+  {
+    "key": "46_bushes_3",
+    "file": "/world/assets/46_bushes_3.png",
+    "w": 91,
+    "h": 136,
+    "x": 1829,
+    "y": 997
+  },
+  {
+    "key": "45_bushes_2",
+    "file": "/world/assets/45_bushes_2.png",
+    "w": 120,
+    "h": 100,
+    "x": 1664,
+    "y": 1195
+  },
+  {
+    "key": "44_fance",
+    "file": "/world/assets/44_fance.png",
+    "w": 863,
+    "h": 368,
+    "x": 1057,
+    "y": 1040
+  },
+  {
+    "key": "43_bushes_s",
+    "file": "/world/assets/43_bushes_s.png",
+    "w": 205,
+    "h": 110,
+    "x": 1434,
+    "y": 866
+  },
+  {
+    "key": "42_drawers",
+    "file": "/world/assets/42_drawers.png",
+    "w": 120,
+    "h": 129,
+    "x": 1568,
+    "y": 881
+  },
+  {
+    "key": "41_bushes_s",
+    "file": "/world/assets/41_bushes_s.png",
+    "w": 146,
+    "h": 145,
+    "x": 1588,
+    "y": 960
+  },
+  {
+    "key": "40_bushes",
+    "file": "/world/assets/40_bushes.png",
+    "w": 172,
+    "h": 152,
+    "x": 900,
+    "y": 70
+  },
+  {
+    "key": "39_fence2",
+    "file": "/world/assets/39_fence2.png",
+    "w": 722,
+    "h": 222,
+    "x": 976,
+    "y": 0
+  },
+  {
+    "key": "38_bushes",
+    "file": "/world/assets/38_bushes.png",
+    "w": 306,
+    "h": 221,
+    "x": 0,
+    "y": 686
+  },
+  {
+    "key": "37_stones_and_bushes",
+    "file": "/world/assets/37_stones_and_bushes.png",
+    "w": 329,
+    "h": 257,
+    "x": 0,
+    "y": 1031
+  },
+  {
+    "key": "36_plant_plant_4",
+    "file": "/world/assets/36_plant_plant_4.png",
+    "w": 1845,
+    "h": 132,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "key": "36_plant_plant",
+    "file": "/world/assets/36_plant_plant.png",
+    "w": 124,
+    "h": 95,
+    "x": 9,
+    "y": 232
+  },
+  {
+    "key": "36_plant_plant_5",
+    "file": "/world/assets/36_plant_plant_5.png",
+    "w": 127,
+    "h": 90,
+    "x": 235,
+    "y": 194
+  },
+  {
+    "key": "36_plant_plant_5_2",
+    "file": "/world/assets/36_plant_plant_5_2.png",
+    "w": 127,
+    "h": 86,
+    "x": 684,
+    "y": 128
+  },
+  {
+    "key": "36_stone",
+    "file": "/world/assets/36_stone.png",
+    "w": 190,
+    "h": 158,
+    "x": 673,
+    "y": 132
+  },
+  {
+    "key": "35_bench",
+    "file": "/world/assets/35_bench.png",
+    "w": 129,
+    "h": 118,
+    "x": 615,
+    "y": 194
+  },
+  {
+    "key": "34_well",
+    "file": "/world/assets/34_well.png",
+    "w": 131,
+    "h": 198,
+    "x": 479,
+    "y": 127
+  },
+  {
+    "key": "33_bucket",
+    "file": "/world/assets/33_bucket.png",
+    "w": 43,
+    "h": 52,
+    "x": 589,
+    "y": 269
+  },
+  {
+    "key": "32_toilet",
+    "file": "/world/assets/32_toilet.png",
+    "w": 250,
+    "h": 308,
+    "x": 770,
+    "y": 17
+  },
+  {
+    "key": "31_fence",
+    "file": "/world/assets/31_fence.png",
+    "w": 592,
+    "h": 445,
+    "x": 350,
+    "y": 235
+  },
+  {
+    "key": "30_barn_2",
+    "file": "/world/assets/30_barn_2.png",
+    "w": 83,
+    "h": 99,
+    "x": 254,
+    "y": 724
+  },
+  {
+    "key": "29_barn",
+    "file": "/world/assets/29_barn.png",
+    "w": 704,
+    "h": 585,
+    "x": 150,
+    "y": 437
+  },
+  {
+    "key": "28_table_and_benches_table_and_benches",
+    "file": "/world/assets/28_table_and_benches_table_and_benches.png",
+    "w": 263,
+    "h": 158,
+    "x": 1065,
+    "y": 75
+  },
+  {
+    "key": "28_table_and_benches_bow",
+    "file": "/world/assets/28_table_and_benches_bow.png",
+    "w": 192,
+    "h": 84,
+    "x": 1109,
+    "y": 94
+  },
+  {
+    "key": "27_smithy_roaster",
+    "file": "/world/assets/27_smithy_roaster.png",
+    "w": 222,
+    "h": 211,
+    "x": 1354,
+    "y": 414
+  },
+  {
+    "key": "27_smithy_smithy",
+    "file": "/world/assets/27_smithy_smithy.png",
+    "w": 467,
+    "h": 449,
+    "x": 1313,
+    "y": 224
+  },
+  {
+    "key": "27_smithy_smoke",
+    "file": "/world/assets/27_smithy_smoke.png",
+    "w": 119,
+    "h": 269,
+    "x": 1379,
+    "y": 0
+  },
+  {
+    "key": "27_smithy_jog_2",
+    "file": "/world/assets/27_smithy_jog_2.png",
+    "w": 85,
+    "h": 96,
+    "x": 1306,
+    "y": 497
+  },
+  {
+    "key": "26_plant",
+    "file": "/world/assets/26_plant.png",
+    "w": 132,
+    "h": 95,
+    "x": 1390,
+    "y": 626
+  },
+  {
+    "key": "25_plant2",
+    "file": "/world/assets/25_plant2.png",
+    "w": 118,
+    "h": 92,
+    "x": 1566,
+    "y": 597
+  },
+  {
+    "key": "24_hous_house",
+    "file": "/world/assets/24_hous_house.png",
+    "w": 914,
+    "h": 1075,
+    "x": 604,
+    "y": 328
+  },
+  {
+    "key": "24_hous_bowls",
+    "file": "/world/assets/24_hous_bowls.png",
+    "w": 312,
+    "h": 176,
+    "x": 648,
+    "y": 1253
+  },
+  {
+    "key": "23_arrow_in_the_fence",
+    "file": "/world/assets/23_arrow_in_the_fence.png",
+    "w": 113,
+    "h": 42,
+    "x": 1447,
+    "y": 22
+  },
+  {
+    "key": "22_target_and_arrows",
+    "file": "/world/assets/22_target_and_arrows.png",
+    "w": 128,
+    "h": 159,
+    "x": 1572,
+    "y": 24
+  },
+  {
+    "key": "21_water_barrel",
+    "file": "/world/assets/21_water_barrel.png",
+    "w": 145,
+    "h": 169,
+    "x": 341,
+    "y": 911
+  },
+  {
+    "key": "20_bags",
+    "file": "/world/assets/20_bags.png",
+    "w": 122,
+    "h": 95,
+    "x": 504,
+    "y": 959
+  },
+  {
+    "key": "19_drying_for_the_skin",
+    "file": "/world/assets/19_drying_for_the_skin.png",
+    "w": 233,
+    "h": 227,
+    "x": 1657,
+    "y": 743
+  },
+  {
+    "key": "18_barrel_2",
+    "file": "/world/assets/18_barrel_2.png",
+    "w": 76,
+    "h": 105,
+    "x": 1486,
+    "y": 947
+  },
+  {
+    "key": "17_barrel",
+    "file": "/world/assets/17_barrel.png",
+    "w": 77,
+    "h": 105,
+    "x": 1529,
+    "y": 1002
+  },
+  {
+    "key": "16_jug",
+    "file": "/world/assets/16_jug.png",
+    "w": 86,
+    "h": 98,
+    "x": 1434,
+    "y": 1012
+  },
+  {
+    "key": "15_signboard",
+    "file": "/world/assets/15_signboard.png",
+    "w": 313,
+    "h": 291,
+    "x": 1182,
+    "y": 1131
+  },
+  {
+    "key": "14_tree",
+    "file": "/world/assets/14_tree.png",
+    "w": 227,
+    "h": 436,
+    "x": 1693,
+    "y": 96
+  },
+  {
+    "key": "13_bush",
+    "file": "/world/assets/13_bush.png",
+    "w": 147,
+    "h": 139,
+    "x": 1712,
+    "y": 571
+  },
+  {
+    "key": "12_tree_2",
+    "file": "/world/assets/12_tree_2.png",
+    "w": 367,
+    "h": 426,
+    "x": 1528,
+    "y": 1191
+  },
+  {
+    "key": "11_torch",
+    "file": "/world/assets/11_torch.png",
+    "w": 132,
+    "h": 231,
+    "x": 333,
+    "y": 143
+  },
+  {
+    "key": "10_apples_on_sticks",
+    "file": "/world/assets/10_apples_on_sticks.png",
+    "w": 142,
+    "h": 120,
+    "x": 318,
+    "y": 1266
+  },
+  {
+    "key": "08_basket",
+    "file": "/world/assets/08_basket.png",
+    "w": 57,
+    "h": 65,
+    "x": 219,
+    "y": 1243
+  },
+  {
+    "key": "07_thief_shadow",
+    "file": "/world/assets/07_thief_shadow.png",
+    "w": 117,
+    "h": 83,
+    "x": 1085,
+    "y": 488
+  },
+  {
+    "key": "07_thief_thief",
+    "file": "/world/assets/07_thief_thief.png",
+    "w": 80,
+    "h": 154,
+    "x": 1085,
+    "y": 414
+  },
+  {
+    "key": "07_thief_arbalest",
+    "file": "/world/assets/07_thief_arbalest.png",
+    "w": 34,
+    "h": 33,
+    "x": 1095,
+    "y": 488
+  },
+  {
+    "key": "06_assassin_shadow",
+    "file": "/world/assets/06_assassin_shadow.png",
+    "w": 131,
+    "h": 53,
+    "x": 149,
+    "y": 202
+  },
+  {
+    "key": "06_assassin_girl",
+    "file": "/world/assets/06_assassin_girl.png",
+    "w": 108,
+    "h": 189,
+    "x": 134,
+    "y": 66
+  },
+  {
+    "key": "05_daemon_demonic_circle",
+    "file": "/world/assets/05_daemon_demonic_circle.png",
+    "w": 697,
+    "h": 1207,
+    "x": 142,
+    "y": 323
+  },
+  {
+    "key": "05_daemon_shadow",
+    "file": "/world/assets/05_daemon_shadow.png",
+    "w": 159,
+    "h": 66,
+    "x": 719,
+    "y": 1333
+  },
+  {
+    "key": "05_daemon_daemon",
+    "file": "/world/assets/05_daemon_daemon.png",
+    "w": 148,
+    "h": 230,
+    "x": 716,
+    "y": 1173
+  },
+  {
+    "key": "04_fox_shadow",
+    "file": "/world/assets/04_fox_shadow.png",
+    "w": 100,
+    "h": 45,
+    "x": 302,
+    "y": 359
+  },
+  {
+    "key": "04_fox_fox",
+    "file": "/world/assets/04_fox_fox.png",
+    "w": 92,
+    "h": 81,
+    "x": 288,
+    "y": 325
+  },
+  {
+    "key": "04_fox_grass",
+    "file": "/world/assets/04_fox_grass.png",
+    "w": 84,
+    "h": 32,
+    "x": 310,
+    "y": 376
+  },
+  {
+    "key": "03_magician_shadow",
+    "file": "/world/assets/03_magician_shadow.png",
+    "w": 192,
+    "h": 41,
+    "x": 1518,
+    "y": 823
+  },
+  {
+    "key": "03_magician_snake",
+    "file": "/world/assets/03_magician_snake.png",
+    "w": 134,
+    "h": 43,
+    "x": 1530,
+    "y": 754
+  },
+  {
+    "key": "03_magician_magician",
+    "file": "/world/assets/03_magician_magician.png",
+    "w": 130,
+    "h": 204,
+    "x": 1508,
+    "y": 666
+  },
+  {
+    "key": "03_magician_snake_2",
+    "file": "/world/assets/03_magician_snake_2.png",
+    "w": 107,
+    "h": 73,
+    "x": 1678,
+    "y": 897
+  },
+  {
+    "key": "03_magician_snake_3",
+    "file": "/world/assets/03_magician_snake_3.png",
+    "w": 120,
+    "h": 47,
+    "x": 159,
+    "y": 893
+  },
+  {
+    "key": "02_little_dragon3_shadow",
+    "file": "/world/assets/02_little_dragon3_shadow.png",
+    "w": 110,
+    "h": 51,
+    "x": 1575,
+    "y": 334
+  },
+  {
+    "key": "02_little_dragon3_dragon",
+    "file": "/world/assets/02_little_dragon3_dragon.png",
+    "w": 106,
+    "h": 49,
+    "x": 1546,
+    "y": 262
+  },
+  {
+    "key": "01_little_dragon2_shadow",
+    "file": "/world/assets/01_little_dragon2_shadow.png",
+    "w": 115,
+    "h": 44,
+    "x": 673,
+    "y": 1433
+  },
+  {
+    "key": "01_little_dragon2_dragon",
+    "file": "/world/assets/01_little_dragon2_dragon.png",
+    "w": 104,
+    "h": 63,
+    "x": 671,
+    "y": 1412
+  },
+  {
+    "key": "00_little_dragon_shadow",
+    "file": "/world/assets/00_little_dragon_shadow.png",
+    "w": 131,
+    "h": 54,
+    "x": 194,
+    "y": 655
+  },
+  {
+    "key": "00_little_dragon_dragon",
+    "file": "/world/assets/00_little_dragon_dragon.png",
+    "w": 126,
+    "h": 57,
+    "x": 160,
+    "y": 541
+  }
+]

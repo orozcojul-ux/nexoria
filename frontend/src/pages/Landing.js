@@ -137,10 +137,27 @@ export default function Landing() {
                       boxShadow: isLive ? `0 0 30px ${theme.accent}55, inset 0 0 24px ${theme.accent}22`
                                         : `0 0 14px ${theme.accent}22`,
                     }}>
-                    {/* Layered island background */}
-                    <div className={`absolute inset-0 bg-gradient-to-br ${theme.bg}`} />
-                    <div className="absolute inset-0 opacity-60"
-                      style={{ background: `radial-gradient(circle at 30% 20%, ${theme.accent}55, transparent 60%)` }} />
+                    {/* Layered island background — uses curated scene art when available */}
+                    {r?.thumb_url ? (
+                      <>
+                        <img
+                          src={r.thumb_url}
+                          alt={r.name}
+                          loading="lazy"
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0"
+                          style={{ background: `linear-gradient(180deg, transparent 0%, rgba(3,3,8,0.45) 60%, rgba(3,3,8,0.85) 100%)` }} />
+                        <div className="absolute inset-0 opacity-50"
+                          style={{ background: `radial-gradient(circle at 30% 20%, ${theme.accent}55, transparent 60%)` }} />
+                      </>
+                    ) : (
+                      <>
+                        <div className={`absolute inset-0 bg-gradient-to-br ${theme.bg}`} />
+                        <div className="absolute inset-0 opacity-60"
+                          style={{ background: `radial-gradient(circle at 30% 20%, ${theme.accent}55, transparent 60%)` }} />
+                      </>
+                    )}
                     {/* Floating animation icon */}
                     <motion.div
                       animate={{ y: [-3, 3, -3] }}

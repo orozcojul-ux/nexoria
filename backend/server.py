@@ -2657,13 +2657,18 @@ async def discord_status():
 # ---------- Nexus Online lobby endpoint ----------
 @api.get("/nexus/rooms")
 async def list_nexus_rooms(user: dict = Depends(get_user_dep)):
-    """Lobby endpoint: returns rooms + current online count + access flags."""
-    from nexus_rooms import can_access
+    """Lobby endpoint: returns rooms + current online count + access flags + art."""
+    from nexus_rooms import can_access, get_room_scene
     rooms = nexus_world.online_summary()
     out = []
     for r in rooms:
         ok, reason = can_access(user, r["id"])
-        out.append({**r, "restricted_for_user": not ok, "restricted_reason": reason if not ok else None})
+        out.append({
+            **r,
+            **get_room_scene(r["id"]),
+            "restricted_for_user": not ok,
+            "restricted_reason": reason if not ok else None,
+        })
     return out
 
 
@@ -2672,7 +2677,9 @@ async def list_nexus_rooms_public():
     """Public lobby endpoint — exposes minimal room info (no access flags).
     Used by the Landing page so visitors can see the world is alive.
     """
-    return nexus_world.online_summary()
+    from nexus_rooms import get_room_scene
+    rooms = nexus_world.online_summary()
+    return [{**r, **get_room_scene(r["id"])} for r in rooms]
 
 
 @api.get("/stats/public")

@@ -1,0 +1,90 @@
+{
+  "place_centrale": {
+    "scene": "/world/rooms/place_centrale.png",
+    "thumb": "/world/thumbs/place_centrale.jpg"
+  },
+  "taverne_etoilee": {
+    "scene": "/world/rooms/taverne_etoilee.png",
+    "thumb": "/world/thumbs/taverne_etoilee.jpg"
+  },
+  "marche_astral": {
+    "scene": "/world/rooms/marche_astral.png",
+    "thumb": "/world/thumbs/marche_astral.jpg"
+  },
+  "quartier_guildes": {
+    "scene": "/world/rooms/quartier_guildes.png",
+    "thumb": "/world/thumbs/quartier_guildes.jpg"
+  },
+  "arene": {
+    "scene": "/world/rooms/arene.png",
+    "thumb": "/world/thumbs/arene.jpg"
+  },
+  "vallee_boss": {
+    "scene": "/world/rooms/vallee_boss.png",
+    "thumb": "/world/thumbs/vallee_boss.jpg"
+  },
+  "hall_legendes": {
+    "scene": "/world/rooms/hall_legendes.png",
+    "thumb": "/world/thumbs/hall_legendes.jpg"
+  },
+  "bibliotheque_infinie": {
+    "scene": "/world/rooms/bibliotheque_infinie.png",
+    "thumb": "/world/thumbs/bibliotheque_infinie.jpg"
+  },
+  "archives": {
+    "scene": "/world/rooms/archives.png",
+    "thumb": "/world/thumbs/archives.jpg"
+  },
+  "sanctuaire_oracle": {
+    "scene": "/world/rooms/sanctuaire_oracle.png",
+    "thumb": "/world/thumbs/sanctuaire_oracle.jpg"
+  },
+  "sanctuaire_failles": {
+    "scene": "/world/rooms/sanctuaire_failles.png",
+    "thumb": "/world/thumbs/sanctuaire_failles.jpg"
+  },
+  "laboratoire_alchimistes": {
+    "scene": "/world/rooms/laboratoire_alchimistes.png",
+    "thumb": "/world/thumbs/laboratoire_alchimistes.jpg"
+  },
+  "atelier_inventeurs": {
+    "scene": "/world/rooms/atelier_inventeurs.png",
+    "thumb": "/world/thumbs/atelier_inventeurs.jpg"
+  },
+  "temple_temps": {
+    "scene": "/world/rooms/temple_temps.png",
+    "thumb": "/world/thumbs/temple_temps.jpg"
+  },
+  "necropole": {
+    "scene": "/world/rooms/necropole.png",
+    "thumb": "/world/thumbs/necropole.jpg"
+  },
+  "jardin_songes": {
+    "scene": "/world/rooms/jardin_songes.png",
+    "thumb": "/world/thumbs/jardin_songes.jpg"
+  },
+  "observatoire": {
+    "scene": "/world/rooms/observatoire.png",
+    "thumb": "/world/thumbs/observatoire.jpg"
+  },
+  "camp_aventuriers": {
+    "scene": "/world/rooms/camp_aventuriers.png",
+    "thumb": "/world/thumbs/camp_aventuriers.jpg"
+  },
+  "chambre_reliques": {
+    "scene": "/world/rooms/chambre_reliques.png",
+    "thumb": "/world/thumbs/chambre_reliques.jpg"
+  },
+  "pantheon": {
+    "scene": "/world/rooms/pantheon.png",
+    "thumb": "/world/thumbs/pantheon.jpg"
+  },
+  "nexus_cosmique": {
+    "scene": "/world/rooms/nexus_cosmique.png",
+    "thumb": "/world/thumbs/nexus_cosmique.jpg"
+  },
+  "salle_conseil": {
+    "scene": "/world/rooms/salle_conseil.png",
+    "thumb": "/world/thumbs/salle_conseil.jpg"
+  }
+}

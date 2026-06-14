@@ -175,6 +175,17 @@ export class NexusIsoScene extends Phaser.Scene {
     this.initialItems = data.items || [];
     this.initialWeather = data.weather || "clear";
     this.onMoveEmit = data.onMoveEmit;
+    this.sceneUrl = data.sceneUrl || (data.room?.id ? `/world/rooms/${data.room.id}.png` : null);
+  }
+
+  preload() {
+    if (this.sceneUrl) {
+      const key = `room_scene_${this.room?.id || "default"}`;
+      if (!this.textures.exists(key)) {
+        this.load.image(key, this.sceneUrl);
+      }
+      this.sceneKey = key;
+    }
   }
 
   create() {
@@ -190,6 +201,19 @@ export class NexusIsoScene extends Phaser.Scene {
     const bg = this.add.graphics();
     bg.fillGradientStyle(0x0A0613, 0x0A0613, 0x1A0B3D, 0x05030D, 1);
     bg.fillRect(0, 0, this.worldW, this.worldH);
+    // Atmospheric backdrop from the curated scene PNG (Fantasy House asset pack)
+    if (this.sceneKey && this.textures.exists(this.sceneKey)) {
+      const img = this.add.image(this.worldW / 2, this.worldH / 2, this.sceneKey);
+      img.setOrigin(0.5, 0.5);
+      const tex = this.textures.get(this.sceneKey).getSourceImage();
+      const sx = this.worldW / tex.width;
+      const sy = this.worldH / tex.height;
+      const scale = Math.max(sx, sy) * 1.05;
+      img.setScale(scale);
+      img.setAlpha(0.22);
+      img.setBlendMode(Phaser.BlendModes.SCREEN);
+      img.setScrollFactor(0.85);
+    }
     for (let i = 0; i < 80; i++) {
       const x = Math.random() * this.worldW;
       const y = Math.random() * this.worldH * 0.6;

@@ -654,6 +654,36 @@ def get_room_ids():
     return list(ROOMS.keys())
 
 
+def get_room_scene(room_id: str) -> dict:
+    """Return the static art scene + thumbnail URL for a room.
+
+    Each room has a pre-composed 1280x720 scene built from the Fantasy House
+    asset pack (see /app/backend/scripts/compose_world_scenes.py).
+    """
+    return {
+        "scene_url": f"/world/rooms/{room_id}.png",
+        "thumb_url": f"/world/thumbs/{room_id}.jpg",
+    }
+
+
+def get_room_public(room_id: str) -> dict:
+    """Return a lightweight public-safe room descriptor (with art URLs)."""
+    r = ROOMS.get(room_id)
+    if not r:
+        return {}
+    return {
+        "id": room_id,
+        "name": r.get("name"),
+        "icon": r.get("icon"),
+        "group": r.get("group"),
+        "description": r.get("description"),
+        "theme": r.get("theme"),
+        "max_players": r.get("max_players"),
+        "portals_to": r.get("portals_to", []),
+        **get_room_scene(room_id),
+    }
+
+
 def can_access(user: dict, room_id: str) -> tuple[bool, str]:
     """Returns (allowed, reason). Staff bypass when staff_bypass=True."""
     room = ROOMS.get(room_id)

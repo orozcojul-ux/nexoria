@@ -182,6 +182,7 @@ export default function NexusMapWidget() {
 
 function RoomNode({ room, delay }) {
   const isLive = room.online > 0;
+  const thumb = room.thumb_url ? room.thumb_url : null;
   return (
     <Link
       to="/nexus"
@@ -200,16 +201,42 @@ function RoomNode({ room, delay }) {
           className={`absolute -inset-3 rounded-full blur-2xl ${isLive ? "animate-pulse" : ""}`}
           style={{ background: `${room.color}66`, opacity: isLive ? 0.85 : 0.35 }}
         />
-        {/* Node */}
+        {/* Node with scene thumbnail */}
         <div
-          className="relative w-12 h-12 rounded-xl border-2 flex items-center justify-center text-2xl transition-transform group-hover:scale-110"
+          className="relative w-16 h-16 rounded-xl border-2 overflow-hidden transition-transform group-hover:scale-110"
           style={{
-            background: `radial-gradient(circle, ${room.color}33, rgba(8,4,16,0.85))`,
             borderColor: `${room.color}`,
             boxShadow: `0 0 18px ${room.color}88, inset 0 0 8px ${room.color}55`,
           }}
         >
-          <span style={{ filter: `drop-shadow(0 0 4px ${room.color})` }}>{room.emoji}</span>
+          {thumb ? (
+            <>
+              <img
+                src={thumb}
+                alt={room.name}
+                className="absolute inset-0 w-full h-full object-cover"
+                loading="lazy"
+              />
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: `linear-gradient(180deg, transparent 30%, ${room.color}66 90%)`,
+                  mixBlendMode: "multiply",
+                }}
+              />
+              <span
+                className="absolute bottom-0 left-1/2 -translate-x-1/2 text-xl"
+                style={{ filter: `drop-shadow(0 0 4px ${room.color})` }}
+              >
+                {room.emoji}
+              </span>
+            </>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-2xl"
+              style={{ background: `radial-gradient(circle, ${room.color}33, rgba(8,4,16,0.85))` }}>
+              <span style={{ filter: `drop-shadow(0 0 4px ${room.color})` }}>{room.emoji}</span>
+            </div>
+          )}
           {isLive && (
             <span
               className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-green-400 border-2 border-[#0F0820] animate-pulse"
