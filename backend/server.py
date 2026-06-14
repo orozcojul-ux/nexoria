@@ -145,6 +145,35 @@ async def add_chronicle(user_id: str, text: str, kind: str = "event"):
         "created_at": now_utc().isoformat(),
     })
 
+# Pre-build a lookup for badge definitions to enrich user_badges quickly
+_BADGE_DEFS_BY_ID = {b["id"]: b for b in BADGES}
+
+
+def enrich_badges(rows):
+    """Join user_badges rows with their static BADGE definition.
+
+    Returns each row enriched with: name, icon (lucide name), rarity, description,
+    color, category. Falls back to a safe 'Badge Mystérieux' if def missing.
+    """
+    out = []
+    for row in rows or []:
+        bid = row.get("badge_id") or row.get("id")
+        defn = _BADGE_DEFS_BY_ID.get(bid) or {}
+        out.append({
+            **row,
+            "badge_id": bid,
+            "id": bid,
+            "name": defn.get("name") or row.get("name") or "Badge Mystérieux",
+            "icon": defn.get("icon") or row.get("icon") or "Sparkles",
+            "rarity": defn.get("rarity") or row.get("rarity") or "common",
+            "description": defn.get("description") or row.get("description") or "",
+            "color": defn.get("color") or row.get("color"),
+            "category": defn.get("category") or row.get("category") or "secrets",
+        })
+    return out
+
+
+
 
 async def grant_badge(user_id: str, badge_id: str):
     existing = await db.user_badges.find_one({"user_id": user_id, "badge_id": badge_id})
@@ -644,7 +673,7 @@ async def get_profile_by_username(username: str):
     if not user:
         raise HTTPException(404, "Héros introuvable")
     user_badges = await db.user_badges.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(500)
-    return {"profile": public_user(user), "badges": user_badges, "xp_next": xp_for_level(user["level"] + 1) if user["level"] < 999 else None}
+    return {"profile": public_user(user), "badges": enrich_badges(user_badges), "xp_next": xp_for_level(user["level"] + 1) if user["level"] < 999 else None}
 
 
 @api.put("/profile/title")
@@ -1025,7 +1054,7 @@ async def user_chronicle(username: str):
 @api.get("/badges/mine")
 async def my_badges(user: dict = Depends(get_user_dep)):
     obtained = await db.user_badges.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(500)
-    return obtained
+    return enrich_badges(obtained)
 
 
 @api.get("/badges/user/{username}")
@@ -1033,7 +1062,8 @@ async def user_badges(username: str):
     u = await db.users.find_one({"username": username}, {"user_id": 1})
     if not u:
         raise HTTPException(404, "Héros introuvable")
-    return await db.user_badges.find({"user_id": u["user_id"]}, {"_id": 0}).to_list(500)
+    rows = await db.user_badges.find({"user_id": u["user_id"]}, {"_id": 0}).to_list(500)
+    return enrich_badges(rows)
 
 
 # ---------- Leaderboards ----------
@@ -2647,7 +2677,7 @@ async def list_nexus_rooms_public():
 
 @api.get("/stats/public")
 async def public_stats():
-    """Lightweight public counters for the Landing page."""
+    """Lightweight public counters for the Landing/Dashboard pages."""
     try:
         heroes = await db.users.count_documents({})
         guilds = await db.guilds.count_documents({})
@@ -2657,9 +2687,50 @@ async def public_stats():
             events_active = await db.events.count_documents({"ends_at": {"$gt": now}})
         except Exception:
             pass
-        return {"heroes": heroes, "guilds": guilds, "events": events_active}
+        # Heroes connected right now (from nexus_world presence)
+        try:
+            from nexus_world import _players as _nexus_players  # type: ignore
+            heroes_online = len({p.get("user_id") for p in _nexus_players.values() if p.get("user_id")})
+        except Exception:
+            heroes_online = 0
+        # New signups in the last 24h
+        try:
+            yesterday_iso = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+            new_signups = await db.users.count_documents({"created_at": {"$gt": yesterday_iso}})
+        except Exception:
+            new_signups = 0
+        # Visits today — proxy via users who logged in (last_seen) in the last 24h
+        try:
+            visits_today = await db.users.count_documents({"last_seen": {"$gt": yesterday_iso}})
+        except Exception:
+            visits_today = 0
+        # Server stability — bounded by recent error log count (defaults to 99.9%)
+        server_stability = 99.9
+        try:
+            recent_errs = await db.gm_audit_log.count_documents({
+                "action": {"$in": ["error", "exception"]},
+                "timestamp": {"$gt": yesterday_iso},
+            })
+            if recent_errs >= 50:
+                server_stability = 95.0
+            elif recent_errs >= 10:
+                server_stability = 98.5
+            elif recent_errs >= 1:
+                server_stability = 99.5
+        except Exception:
+            pass
+        return {
+            "heroes": heroes,
+            "heroes_online": heroes_online,
+            "guilds": guilds,
+            "events": events_active,
+            "new_signups": new_signups,
+            "visits_today": visits_today,
+            "server_stability": server_stability,
+        }
     except Exception:
-        return {"heroes": 0, "guilds": 0, "events": 0}
+        return {"heroes": 0, "heroes_online": 0, "guilds": 0, "events": 0,
+                "new_signups": 0, "visits_today": 0, "server_stability": 99.9}
 
 
 @api.get("/users/{user_id}/card")
@@ -2672,6 +2743,7 @@ async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
     inv = await db.inventory.find({"user_id": user_id}, {"_id": 0}).sort("obtained_at", -1).to_list(200)
     badges = await db.user_badges.find({"user_id": user_id}, {"_id": 0}).sort("unlocked_at", -1).to_list(120)
+    badges = enrich_badges(badges)
     chronicles = await db.chronicles.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).limit(40).to_list(40)
     friends_count = await db.friendships.count_documents({"$or": [{"user_id": user_id}, {"friend_id": user_id}], "status": "accepted"})
     guild = None

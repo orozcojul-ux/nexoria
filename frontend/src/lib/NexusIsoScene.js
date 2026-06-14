@@ -807,7 +807,14 @@ export class NexusIsoScene extends Phaser.Scene {
     sprite.setInteractive({ useHandCursor: true });
     sprite.on("pointerdown", (pointer, lx, ly, event) => {
       if (event && event.stopPropagation) event.stopPropagation();
-      this.onPlayerClick && this.onPlayerClick(p);
+      // Pass pointer button info: rightButtonDown() for right-click, middle for middle button.
+      const meta = {
+        right: !!(pointer && (pointer.rightButtonDown ? pointer.rightButtonDown() : pointer.button === 2)),
+        shift: !!(pointer && pointer.event && pointer.event.shiftKey),
+        screenX: pointer ? pointer.x : 0,
+        screenY: pointer ? pointer.y : 0,
+      };
+      this.onPlayerClick && this.onPlayerClick(p, meta);
     });
     this.players[p.sid] = container;
     this.entityLayer.add(container);

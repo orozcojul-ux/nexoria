@@ -61,9 +61,11 @@ export default function NexusOverlay() {
   const [mapOpen, setMapOpen] = useState(false);
   const [rooms, setRooms] = useState([]);
   const [heroCardUserId, setHeroCardUserId] = useState(null);
+  const [adminMenu, setAdminMenu] = useState(null); // { target, x, y } when contextual menu open
 
   const pendingGmRef = useRef(null);
   const spawnFormRef = useRef(spawnForm);
+  const isStaffRef = useRef(false);
 
   // Destructure context (default to empty object so hooks below stay stable)
   const {
@@ -109,8 +111,16 @@ export default function NexusOverlay() {
 
   const rebuildScene = useCallback((payload) => {
     if (!containerRef.current) return;
-    const onPlayerClick = (p) => {
-      // For everyone: open the Hero Card. Staff can additionally use the GM panel via the list/header button.
+    const onPlayerClick = (p, meta = {}) => {
+      // Staff: right-click (or shift+click) opens contextual admin menu.
+      // Everyone (incl. staff with left-click): open the Hero Card.
+      if (isStaffRef.current && (meta.right || meta.shift)) {
+        const rect = containerRef.current?.getBoundingClientRect();
+        const x = rect ? Math.min(rect.width - 240, Math.max(8, (meta.screenX || 0))) : 100;
+        const y = rect ? Math.min(rect.height - 380, Math.max(8, (meta.screenY || 0))) : 100;
+        setAdminMenu({ target: p, x, y });
+        return;
+      }
       setHeroCardUserId(p.user_id);
     };
     const onTileClick = (tile) => {
@@ -159,9 +169,15 @@ export default function NexusOverlay() {
         scene: NexusIsoScene,
         backgroundColor: "#030208",
         scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
+        input: { mouse: { preventDefaultDown: true }, activePointers: 3 },
       };
       gameRef.current = new Phaser.Game(config);
       gameRef.current.scene.start("NexusIsoScene", sceneData);
+      // Suppress browser context menu over the canvas so admins can right-click players
+      try {
+        const canvas = gameRef.current.canvas;
+        if (canvas) canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+      } catch {}
     }
     const game = gameRef.current;
     const tryReady = (attempt = 0) => {
@@ -179,6 +195,7 @@ export default function NexusOverlay() {
 
   useEffect(() => { pendingGmRef.current = pendingGm; }, [pendingGm]);
   useEffect(() => { spawnFormRef.current = spawnForm; }, [spawnForm]);
+  useEffect(() => { isStaffRef.current = isStaff; }, [isStaff]);
 
   // Build scene the first time the overlay opens (and room is ready)
   useEffect(() => {
@@ -521,6 +538,26 @@ export default function NexusOverlay() {
 
           {/* ===== HERO CARD MODAL ===== */}
           <HeroCard userId={heroCardUserId} open={!!heroCardUserId} onClose={() => setHeroCardUserId(null)} />
+
+          {/* ===== ADMIN CONTEXTUAL MENU ===== */}
+          <AdminContextMenu
+            menu={adminMenu}
+            onClose={() => setAdminMenu(null)}
+            gmApi={gmApi}
+            openHeroCard={(uid) => { setAdminMenu(null); setHeroCardUserId(uid); }}
+            openGmPanel={(p) => { setAdminMenu(null); setSelectedTarget(p); setGmOpen(true); }}
+            startWhisper={(p) => { setAdminMenu(null); setWhisperTarget(p); setActiveChannel("whisper"); }}
+            requestTeleport={(p) => { setAdminMenu(null); requestTilePickFor("teleport", p); }}
+            teleportToHere={(p) => {
+              setAdminMenu(null);
+              if (you && gmApi.teleport) {
+                gmApi.teleport(p.user_id, you.tx, you.ty);
+                toast.success(`${p.username} a été téléporté vers toi`);
+              }
+            }}
+            openBan={(p) => { setAdminMenu(null); setSelectedTarget(p); setBanOpen(true); }}
+            inspectPlayer={(p) => { setAdminMenu(null); gmApi.inspect && gmApi.inspect(p.user_id); }}
+          />
         </motion.div>
       )}
     </AnimatePresence>
@@ -1060,3 +1097,105 @@ function PopupNotificationModal({ popup, onClose }) {
     </AnimatePresence>
   );
 }
+
+/* ============== ADMIN CONTEXT MENU ============== */
+function AdminContextMenu({ menu, onClose, gmApi, openHeroCard, openGmPanel, startWhisper, requestTeleport, teleportToHere, openBan, inspectPlayer }) {
+  // Close on outside click / Esc
+  useEffect(() => {
+    if (!menu) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const onClick = (e) => {
+      // Close if click outside menu — menu has data-admin-menu attr
+      if (!e.target.closest("[data-admin-menu]")) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    setTimeout(() => window.addEventListener("click", onClick), 0);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("click", onClick);
+    };
+  }, [menu, onClose]);
+
+  if (!menu) return null;
+  const p = menu.target;
+
+  const actions = [
+    { id: "card",     label: "Carte Héros",        icon: Eye,         color: "#00E5FF", run: () => openHeroCard(p.user_id) },
+    { id: "panel",    label: "Panel Admin",        icon: Shield,      color: "#FCD34D", run: () => openGmPanel(p) },
+    { id: "whisper",  label: "Envoyer un message", icon: MessageCircle, color: "#EC4899", run: () => startWhisper(p) },
+    { id: "inspect",  label: "Observer",           icon: Search,      color: "#A855F7", run: () => inspectPlayer(p) },
+    { id: "tp_to",    label: "Téléporter à lui",   icon: MapPin,      color: "#10B981", run: () => { gmApi.teleport && gmApi.teleport(p.user_id, p.tx, p.ty); toast.success(`Téléportation vers ${p.username}`); onClose(); } },
+    { id: "tp_here",  label: "Téléporter ici",     icon: Map,         color: "#10B981", run: () => teleportToHere(p) },
+    { id: "tp_pick",  label: "Téléporter (choisir)",icon: Footprints, color: "#06B6D4", run: () => requestTeleport(p) },
+    { id: "mute",     label: p.muted ? "Démuter" : "Mute",            icon: VolumeX,   color: "#F59E0B", run: () => { gmApi.mute && gmApi.mute(p.user_id, !p.muted, 60); toast.success(p.muted ? `${p.username} démuté` : `${p.username} muté 60min`); onClose(); } },
+    { id: "freeze",   label: p.frozen ? "Dégeler" : "Freeze",         icon: Snowflake, color: "#06B6D4", run: () => { gmApi.freeze && gmApi.freeze(p.user_id, !p.frozen); toast.success(p.frozen ? `${p.username} libéré` : `${p.username} gelé`); onClose(); } },
+    { id: "kick",     label: "Kick",               icon: Footprints,  color: "#F97316", run: () => { gmApi.kick && gmApi.kick(p.user_id); toast.success(`${p.username} expulsé`); onClose(); } },
+    { id: "ban",      label: "Bannir...",          icon: Ban,         color: "#EF4444", run: () => openBan(p) },
+  ];
+
+  return (
+    <motion.div
+      data-admin-menu
+      data-testid="admin-context-menu"
+      initial={{ opacity: 0, scale: 0.9, y: -4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: 0.12 }}
+      style={{ position: "absolute", left: menu.x, top: menu.y }}
+      className="z-50 w-60 rounded-xl border border-violet-400/40 backdrop-blur-xl overflow-hidden"
+    >
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(15,8,32,0.97) 0%, rgba(10,6,19,0.97) 100%)",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.6), 0 0 24px rgba(157,76,221,0.35), inset 0 0 12px rgba(0,229,255,0.06)",
+        }}
+      />
+      <div className="relative">
+        {/* Header */}
+        <div className="px-3 py-2.5 border-b border-violet-400/20 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center font-display font-bold text-[10px] ring-1 ring-violet-400/40 overflow-hidden">
+              {p.avatar_url ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover" /> : (p.username?.[0]?.toUpperCase() || "?")}
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-display font-black text-white truncate">{p.username}</div>
+              <div className="text-[9px] uppercase tracking-[0.25em] text-cyan-300 font-bold truncate">{p.class_name} · Niv {p.level}</div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            data-testid="admin-menu-close"
+            className="text-zinc-500 hover:text-white shrink-0"
+            title="Fermer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Actions */}
+        <div className="py-1.5">
+          {actions.map((a) => {
+            const Ico = a.icon;
+            return (
+              <button
+                key={a.id}
+                onClick={a.run}
+                data-testid={`admin-action-${a.id}`}
+                className="w-full flex items-center gap-3 px-3 py-1.5 text-left text-sm hover:bg-violet-500/10 transition-colors group"
+              >
+                <Ico
+                  className="w-3.5 h-3.5 shrink-0 transition-colors"
+                  style={{ color: a.color }}
+                />
+                <span className="text-zinc-200 group-hover:text-white">{a.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import * as Lucide from "lucide-react";
 import {
   X, Crown, Shield, Package, Award, History, Users, BarChart3,
   MessageCircle, UserPlus, MoreHorizontal, Sword, MapPin, Sparkles,
@@ -24,22 +25,50 @@ const RARITY = {
 };
 
 export function BadgeCard({ badge, size = "md" }) {
-  const r = RARITY[badge.rarity] || RARITY.common;
-  const sz = size === "sm" ? "w-12 h-12 text-xl" : size === "lg" ? "w-20 h-20 text-4xl" : "w-16 h-16 text-3xl";
+  // Defensive defaults — backend may send Lucide icon names (e.g. "Footprints") OR emojis OR nothing
+  const safeBadge = badge || {};
+  const r = RARITY[safeBadge.rarity] || RARITY.common;
+  const sz = size === "sm" ? "w-12 h-12" : size === "lg" ? "w-20 h-20" : "w-16 h-16";
+  const iconSize = size === "sm" ? "w-5 h-5" : size === "lg" ? "w-8 h-8" : "w-7 h-7";
+  const name = safeBadge.name || "Badge Mystérieux";
+  const description = safeBadge.description || "";
+  // Render icon: try Lucide name first, then treat as emoji/string, fallback to Sparkles
+  const iconValue = safeBadge.icon;
+  const LucideComp = iconValue && typeof iconValue === "string" && Lucide[iconValue] ? Lucide[iconValue] : null;
+  const isEmoji = !LucideComp && typeof iconValue === "string" && iconValue.length > 0 && iconValue.length <= 4;
+  const FallbackIcon = Lucide.Sparkles;
+
   return (
     <div
-      title={`${badge.name} — ${r.fr}`}
+      title={`${name}${description ? ` — ${description}` : ""} · ${r.fr}`}
       className={`relative ${sz} rounded-lg ${r.border} border-2 bg-gradient-to-br ${r.bg} flex items-center justify-center cursor-pointer group transition-all hover:scale-110`}
       style={{ boxShadow: `0 0 12px ${r.glow}, inset 0 0 8px ${r.glow}` }}
-      data-testid={`badge-${badge.badge_id || badge.id || badge.name}`}
+      data-testid={`badge-${safeBadge.badge_id || safeBadge.id || name.toLowerCase().replace(/\s+/g, '-')}`}
     >
-      <span className="drop-shadow-lg">{badge.icon || "✨"}</span>
-      {badge.rarity === "cosmic" && (
+      {LucideComp ? (
+        <LucideComp
+          className={iconSize}
+          style={{ color: r.color, filter: `drop-shadow(0 0 6px ${r.glow})` }}
+        />
+      ) : isEmoji ? (
+        <span
+          className={size === "sm" ? "text-xl" : size === "lg" ? "text-4xl" : "text-3xl"}
+          style={{ filter: `drop-shadow(0 0 6px ${r.glow})` }}
+        >
+          {iconValue}
+        </span>
+      ) : (
+        <FallbackIcon
+          className={iconSize}
+          style={{ color: r.color, filter: `drop-shadow(0 0 6px ${r.glow})` }}
+        />
+      )}
+      {safeBadge.rarity === "cosmic" && (
         <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
           <div className="absolute -inset-1 bg-gradient-to-r from-cyan-300 via-purple-400 to-cyan-300 opacity-30 animate-pulse" />
         </div>
       )}
-      {badge.rarity === "divine" && (
+      {safeBadge.rarity === "divine" && (
         <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[8px] text-yellow-300">✦</div>
       )}
     </div>
