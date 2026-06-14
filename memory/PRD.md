@@ -35,6 +35,14 @@ Plateforme web communautaire RPG moderne "NEXORIA" — pas un jeu vidéo classiq
 
 ## What's Been Implemented
 
+### v3.12 — Phase 2 : Design System appliqué aux pages MMORPG (2026-02-14)
+- 🆕 **Nouvelle page `/classes`** (`Classes.js`) : sanctuaire des 10 archétypes RPG avec hero immersif (kicker "Sanctuaire des Héros"), Codex stats (archétypes/affinités/rangs/builds), **filtre par affinité cosmique** (8 stats), grille animée AnimatePresence + modale détail avec barres d'affinité glowing et conseils du Maître de Jeu. Badge "Ta classe actuelle" si user connecté
+- 🆕 **Nouvelle page `/events`** (`Events.js`) : chronique cosmique du royaume avec stats Pulse (événements/boss/saison/failles), **Season Banner** (3 tiers de récompenses Top 1/10/50, barre progress), **Boss Mondial panel** (Archonte du Néant + progress bar communautaire), **Calendrier** des événements programmés et **Failles dimensionnelles** (jusqu'à 20 cartes rareté-glow)
+- 🏆 **Refonte `/leaderboards`** : 4 onglets catégorie (Expérience/Rang/Réputation/Aether) avec icônes color-themed, **Podium cosmique** (cartes #1 avec couronne en or, #2 argent, #3 bronze, raised middle position), liste détaillée rangs #4→50 avec hover glow et navigation profil
+- 🛡️ **Refonte `/guilds`** : PremiumHero + stats Pulse (ordres fondés/héros enrôlés/ordre dominant/invitations), invitations en cartes gold, cartes guildes avec sigil hexagonal glow (couleur bannière dynamique), tag/level header, XP/Aether stats. Dashboard interne (chat/coffre/membres) préservé
+- 🗺️ Nouvelles routes : `/classes`, `/events`, `/rankings` (alias `/leaderboards`)
+- ✅ **Testing agent (iteration_11) : 13/13 backend + 100% frontend PASS** — toutes les interactions (filtre, modale, podium, onglets, dialog) validées
+
 ### v3.11 — Design System Premium + Accueil refonte + Aether Ticker (2026-02-14)
 - 🎨 **Design System NEXORIA** (fondation pour toutes les pages) — `/app/frontend/src/lib/design-tokens.js` : palette violet/cyan/or/obsidienne, 7 raretés (Commun → Cosmique), tones de section, gradients, glows
 - 🧩 **8 composants premium réutilisables** dans `/app/frontend/src/components/ui-premium/index.jsx` :
