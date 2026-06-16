@@ -9,7 +9,6 @@ import { X } from "lucide-react";
 import { SECTION_TONE, RARITY } from "@/lib/design-tokens";
 import PixelBanner from "@/components/PixelBanner";
 import PageBanner from "@/components/PageBanner";
-import NexoriaCopyright from "@/components/NexoriaCopyright";
 import { getRarityBadgeSrc } from "@/lib/badge-assets";
 
 export { PageBanner };
@@ -256,7 +255,6 @@ export function PageShell({ children, wide = false, className = "", testid, bann
       <div className={`relative mx-auto ${wide ? "max-w-7xl" : "max-w-6xl"} px-4 sm:px-6 py-6 sm:py-10 ${banner ? "space-y-5" : "space-y-6"}`}>
         {banner && <PageBanner {...banner} />}
         {children}
-        {!hideCopyright && <NexoriaCopyright />}
       </div>
     </div>
   );

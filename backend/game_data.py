@@ -121,16 +121,19 @@ BADGES = [
 
 # Quest templates
 QUEST_TEMPLATES = [
-    {"id": "daily_login", "type": "daily", "name": "Présence Quotidienne", "description": "Se connecter aujourd'hui", "target": 1, "action": "login", "xp": 25, "aether": 10},
-    {"id": "daily_forum_reply", "type": "daily", "name": "Voix du Conseil", "description": "Répondre à 2 sujets du forum", "target": 2, "action": "forum_reply", "xp": 50, "aether": 25},
-    {"id": "daily_oracle", "type": "daily", "name": "Murmures de l'Oracle", "description": "Consulter l'Oracle une fois", "target": 1, "action": "oracle", "xp": 40, "aether": 20},
-    {"id": "daily_nexus", "type": "daily", "name": "Marche du Nexus", "description": "Entrer dans le Nexus Online", "target": 1, "action": "nexus_enter", "xp": 35, "aether": 15},
-    {"id": "weekly_forum_threads", "type": "weekly", "name": "Chroniqueur", "description": "Ouvrir 3 débats au forum", "target": 3, "action": "forum_thread", "xp": 300, "aether": 150},
-    {"id": "weekly_forum_replies", "type": "weekly", "name": "Orateur des Salles", "description": "Poster 15 réponses au forum", "target": 15, "action": "forum_reply", "xp": 320, "aether": 160},
-    {"id": "weekly_guild_chat", "type": "weekly", "name": "Fraternité d'Ordre", "description": "Envoyer 10 messages de guilde", "target": 10, "action": "guild_chat", "xp": 220, "aether": 110},
-    {"id": "weekly_oracle", "type": "weekly", "name": "Sagesse de l'Oracle", "description": "Consulter l'Oracle 3 fois", "target": 3, "action": "oracle", "xp": 250, "aether": 120},
-    {"id": "weekly_friends", "type": "weekly", "name": "Liens d'Amitié", "description": "Envoyer 5 missives à un compagnon", "target": 5, "action": "friend_message", "xp": 180, "aether": 90},
-    {"id": "monthly_grind", "type": "monthly", "name": "Marathonien", "description": "Gagner 5000 XP ce mois", "target": 5000, "action": "xp", "xp": 1500, "aether": 800},
+    # ── Quotidiennes ──
+    {"id": "daily_login", "type": "daily", "name": "Présence Quotidienne", "description": "Connecte-toi aujourd'hui (sur n'importe quelle page).", "target": 1, "action": "login", "xp": 25, "aether": 10},
+    {"id": "daily_forum_reply", "type": "daily", "name": "Voix du Conseil", "description": "Réponds à 2 sujets dans le Forum (onglet Forum › ouvre un sujet › Répondre).", "target": 2, "action": "forum_reply", "xp": 50, "aether": 25},
+    {"id": "daily_oracle", "type": "daily", "name": "Murmures de l'Oracle", "description": "Consulte l'Oracle une fois (onglet Oracle).", "target": 1, "action": "oracle", "xp": 40, "aether": 20},
+    {"id": "daily_nexus", "type": "daily", "name": "Marche du Nexus", "description": "Entre dans le Nexus Online (onglet Online).", "target": 1, "action": "nexus_enter", "xp": 35, "aether": 15},
+    # ── Hebdomadaires ──
+    {"id": "weekly_forum_threads", "type": "weekly", "name": "Chroniqueur", "description": "Ouvre 3 nouveaux sujets dans le Forum (onglet Forum › Nouveau sujet).", "target": 3, "action": "forum_thread", "xp": 300, "aether": 150},
+    {"id": "weekly_forum_replies", "type": "weekly", "name": "Orateur des Salles", "description": "Poste 15 réponses dans les sujets du Forum (onglet Forum › Répondre).", "target": 15, "action": "forum_reply", "xp": 320, "aether": 160},
+    {"id": "weekly_guild_chat", "type": "weekly", "name": "Fraternité d'Ordre", "description": "Envoie 10 messages dans le chat de ton ordre (onglet Guildes › ton ordre › Discussion).", "target": 10, "action": "guild_chat", "xp": 220, "aether": 110},
+    {"id": "weekly_oracle", "type": "weekly", "name": "Sagesse de l'Oracle", "description": "Consulte l'Oracle 3 fois (onglet Oracle).", "target": 3, "action": "oracle", "xp": 250, "aether": 120},
+    {"id": "weekly_friends", "type": "weekly", "name": "Liens d'Amitié", "description": "Envoie 5 messages privés à un ami (onglet Amis › ouvre une discussion).", "target": 5, "action": "friend_message", "xp": 180, "aether": 90},
+    # ── Mensuelle ──
+    {"id": "monthly_grind", "type": "monthly", "name": "Marathonien", "description": "Gagne 5000 XP ce mois (en publiant, réagissant et participant partout sur le site).", "target": 5000, "action": "xp", "xp": 1500, "aether": 800},
 ]
 
 # Défis communautaires affichés sur l'accueil / événements (objectifs collectifs)

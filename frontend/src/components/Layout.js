@@ -1,15 +1,15 @@
 import React, { useState } from "react";
-import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import SiteBackground from "./SiteBackground";
-import DashboardTopBar from "./cms/DashboardTopBar";
+import SiteHeader from "./SiteHeader";
+import SiteFooter from "./SiteFooter";
 import NexoriaDrawer from "./NexoriaDrawer";
 import DiscordFab from "./DiscordFab";
+import GuildInvitePrompt from "./GuildInvitePrompt";
 import GameLegendModal, { useGameLegend, GameLegendAutoOpen } from "./GameLegendModal";
 
 export default function Layout({ children }) {
   const { user } = useAuth();
-  const location = useLocation();
   const { open, openLegend, closeLegend } = useGameLegend();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -21,11 +21,11 @@ export default function Layout({ children }) {
 
   if (!user) return children;
 
-  const showTopBar = ["/feed", "/admin", "/friends"].some((p) => location.pathname.startsWith(p));
-
   return (
     <div className="min-h-screen bg-[var(--nx-bg)] text-white relative">
       <SiteBackground variant="app" />
+
+      <SiteHeader />
 
       <NexoriaDrawer
         isOpen={drawerOpen}
@@ -35,12 +35,14 @@ export default function Layout({ children }) {
 
       <main className="min-w-0 pt-16 pb-12 relative z-10">
         <div className="min-h-screen bg-gradient-to-br from-[#0c0a18]/25 via-transparent to-[#0e0820]/30">
-          {showTopBar && <DashboardTopBar />}
           {children}
         </div>
+        <SiteFooter />
       </main>
 
       <DiscordFab className="right-4 bottom-8" />
+
+      <GuildInvitePrompt />
 
       <GameLegendModal open={open} onClose={closeLegend} />
       <GameLegendAutoOpen openLegend={openLegend} />

@@ -7,8 +7,7 @@ import PlayerSearchBar from "@/components/PlayerSearchBar";
 export default function DashboardTopBar() {
   return (
     <div
-      className="sticky top-0 z-20 border-b border-[var(--nx-border)] backdrop-blur-xl"
-      style={{ background: "color-mix(in srgb, var(--nx-bg) 88%, transparent)" }}
+      className="sticky top-0 z-20 bg-transparent"
       data-testid="dashboard-topbar"
     >
       <div className="relative flex items-center justify-center min-h-[56px] px-4 sm:px-6 lg:px-8 py-3">

@@ -1695,9 +1695,35 @@ async def get_quests(user: dict = Depends(get_user_dep)):
             "created_at": now_utc().isoformat(),
         })
 
+    # Synchronise le libellé/objectif des quêtes en cours avec les modèles
+    # actuels (les descriptions plus précises s'appliquent immédiatement,
+    # sans réinitialiser la progression déjà acquise).
+    tmpl_by_id = {t["id"]: t for t in QUEST_TEMPLATES}
+    for q in existing:
+        tmpl = tmpl_by_id.get(q["quest_id"])
+        if not tmpl or q.get("period") not in (today, week, month):
+            continue
+        progress = q.get("progress", 0)
+        synced = {
+            "name": tmpl["name"],
+            "description": tmpl["description"],
+            "action": tmpl["action"],
+            "target": tmpl["target"],
+            "xp": tmpl["xp"],
+            "aether": tmpl["aether"],
+            "type": tmpl["type"],
+            "completed": q.get("completed", False) or progress >= tmpl["target"],
+        }
+        if any(q.get(k) != v for k, v in synced.items()):
+            await db.user_quests.update_one({"_id": q["_id"]}, {"$set": synced})
+
     quests = await db.user_quests.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(500)
-    # filter to current periods only
-    valid = [q for q in quests if q.get("period") in (today, week, month)]
+    # On ne renvoie que les quêtes de la période courante ET encore définies
+    # dans les modèles (les anciennes quêtes obsolètes sont masquées).
+    valid = [
+        q for q in quests
+        if q.get("period") in (today, week, month) and q.get("quest_id") in tmpl_by_id
+    ]
     return valid
 
 
@@ -3570,7 +3596,8 @@ async def invite_to_guild(guild_id: str, req: GuildInviteReq, user: dict = Depen
         "status": "pending", "created_at": now_utc().isoformat(),
     })
     await push_notification(db, target["user_id"], "guild_invite",
-        f"L'ordre « {guild['name']} » vous invite", f"Tag [{guild['tag']}]", "ding", "Castle")
+        f"L'ordre « {guild['name']} » vous invite", f"Tag [{guild['tag']}] — clique pour répondre",
+        "ding", "Castle", link="/guilds?invites=1")
     return {"ok": True, "invite_id": invite_id}
 
 

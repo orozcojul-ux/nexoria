@@ -1,66 +1,40 @@
 import React from "react";
 
+const BASE = process.env.PUBLIC_URL || "";
+/** Image principale (salle du trône) + repli sur l'ancien fond si absente. */
+const HALL_URL = `${BASE}/assets/backgrounds/nexoria-hall.png`;
+const FALLBACK_URL = `${BASE}/assets/backgrounds/nexoria-bg.webp`;
 
-
-const BG_URL = `${process.env.PUBLIC_URL || ""}/assets/backgrounds/nexoria-bg.webp`;
-
-
-
-/** Fond global Nexoria — suit le thème actif via variables CSS. */
-
+/**
+ * Fond global Nexoria — wallpaper CONSTANT quel que soit le thème.
+ * Le thème ne change que les contours/accents (var --nx-border / --nx-accent),
+ * pas le fond d'écran. Voile sombre neutre léger juste pour la lisibilité.
+ */
 export default function SiteBackground({ variant = "app" }) {
-
-  const veilOpacity = variant === "landing" ? 0.72 : 0.82;
-
-
+  const veil = variant === "landing" ? 0.35 : 0.45;
 
   return (
-
-    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden transition-all duration-700" aria-hidden data-testid="site-background">
-
+    <div
+      className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+      aria-hidden
+      data-testid="site-background"
+    >
       <div
-
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105 transition-all duration-700"
-
-        style={{ backgroundImage: `url(${BG_URL})`, filter: "hue-rotate(var(--nx-bg-hue, 0deg)) saturate(var(--nx-bg-sat, 1))" }}
-
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105"
+        style={{ backgroundImage: `url(${HALL_URL}), url(${FALLBACK_URL})` }}
       />
-
+      {/* Voile sombre neutre (non teinté par le thème) pour garder le texte lisible */}
       <div
-
-        className="absolute inset-0 transition-all duration-700"
-
-        style={{ background: `var(--nx-body-bg)`, opacity: veilOpacity }}
-
+        className="absolute inset-0"
+        style={{
+          background: `linear-gradient(180deg, rgba(6,7,16,${veil}) 0%, rgba(4,5,13,${veil + 0.1}) 100%)`,
+        }}
       />
-
+      {/* Vignette douce sur les bords */}
       <div
-
-        className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 rounded-full blur-[120px] transition-all duration-700"
-
-        style={{ background: "var(--nx-aurora-a)" }}
-
+        className="absolute inset-0"
+        style={{ background: "radial-gradient(ellipse at 50% 38%, transparent 45%, rgba(3,4,12,0.6) 100%)" }}
       />
-
-      <div
-
-        className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 rounded-full blur-[120px] transition-all duration-700"
-
-        style={{ background: "var(--nx-aurora-b)" }}
-
-      />
-
-      <div
-
-        className="absolute top-1/3 right-1/4 w-1/3 h-1/3 rounded-full blur-[100px] transition-all duration-700 opacity-60"
-
-        style={{ background: "var(--nx-aurora-c)" }}
-
-      />
-
     </div>
-
   );
-
 }
-

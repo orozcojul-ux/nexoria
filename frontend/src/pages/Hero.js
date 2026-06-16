@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { PremiumBadge, PremiumButton, PremiumCard, PremiumSection, PageShell } from "@/components/ui-premium";
 import HeroName from "@/components/HeroName";
 import RankBadge from "@/components/RankBadge";
+import ClassImage from "@/components/ClassImage";
 import { getRankStyle } from "@/lib/rank-styles";
 import { useInventorySync } from "@/hooks/useInventorySync";
 
@@ -140,7 +141,10 @@ export default function Hero() {
                   <Crown className="w-3 h-3" />
                   {activeTitle?.name || "Novice"}
                 </div>
-                <div className="text-sm text-cyan-400 mt-1 font-display tracking-wide" data-testid="hero-class">{user.class_name}</div>
+                <div className="flex items-center gap-2 mt-1" data-testid="hero-class">
+                  <ClassImage classId={user.class_id || user.class_name} color="#22d3ee" size={28} alt={user.class_name || ""} />
+                  <span className="text-sm text-cyan-400 font-display tracking-wide">{user.class_name}</span>
+                </div>
               </div>
             </div>
 

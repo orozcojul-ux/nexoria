@@ -1,0 +1,468 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fmFade 0.2s ease;
+}
+
+@keyframes fmFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fmSlideUp {
+  from { transform: translateY(30px) scale(0.97); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes fmSpin {
+  to { transform: rotate(360deg); }
+}
+
+.modal {
+  position: relative;
+  width: 520px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 8px;
+  color: #e8e0f0;
+  background: linear-gradient(180deg, #0f0c20 0%, #080612 50%, #0a0816 100%);
+  border: 2px solid #c8960a;
+  box-shadow:
+    0 0 0 1px rgba(100, 70, 0, 0.5),
+    0 0 40px rgba(180, 130, 10, 0.3),
+    0 0 80px rgba(100, 60, 0, 0.2),
+    inset 0 0 30px rgba(0, 0, 0, 0.7);
+  animation: fmSlideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Coins dorés */
+.corner { position: absolute; z-index: 20; line-height: 0; }
+.cTL { top: 0; left: 0; }
+.cTR { top: 0; right: 0; transform: scaleX(-1); }
+.cBL { bottom: 0; left: 0; transform: scaleY(-1); }
+.cBR { bottom: 0; right: 0; transform: scale(-1, -1); }
+
+/* Cristaux violets intérieurs */
+.crystal { position: absolute; z-index: 21; }
+.crTL { top: 16px; left: 16px; }
+.crTR { top: 16px; right: 16px; }
+.crBL { bottom: 16px; left: 16px; }
+.crBR { bottom: 16px; right: 16px; }
+
+/* HEADER */
+.header {
+  position: relative;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 20px;
+  background: linear-gradient(180deg, rgba(20, 14, 40, 0.98) 0%, rgba(12, 9, 25, 0.95) 100%);
+  border-bottom: 2px solid #8a6a1a;
+  border-radius: 8px 8px 0 0;
+}
+
+.castleImg {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(200, 150, 10, 0.6));
+}
+
+.castleEmoji {
+  font-size: 36px;
+  filter: drop-shadow(0 0 8px rgba(200, 150, 10, 0.6));
+}
+
+.spinner {
+  animation: fmSpin 0.9s linear infinite;
+}
+
+.title {
+  flex: 1;
+  margin: 0;
+  font-family: "Cinzel Decorative", serif;
+  font-weight: 700;
+  font-size: 22px;
+  color: #c8960a;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-shadow: 0 0 20px rgba(200, 150, 10, 0.5), 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(180, 130, 20, 0.4);
+  border-radius: 4px;
+  color: #8a7a5a;
+  font-size: 18px;
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #c8960a;
+  border-color: #c8960a;
+}
+
+/* COÛT */
+.costBox {
+  padding: 16px 24px 12px;
+  background: rgba(8, 6, 18, 0.6);
+  border-bottom: 1px solid rgba(180, 130, 20, 0.15);
+}
+
+.costLine {
+  font-family: "Cinzel", serif;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.costMuted { color: #8a8aaa; font-weight: 400; }
+.costGold { color: #c8960a; font-weight: 600; }
+.costCyan { color: #00d4ff; font-weight: 600; }
+
+.errBanner {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background: rgba(220, 50, 50, 0.1);
+  border: 1px solid rgba(220, 50, 50, 0.4);
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  color: #f87171;
+}
+
+/* FORMULAIRE */
+.form {
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.field {
+  position: relative;
+}
+
+.input {
+  width: 100%;
+  height: 56px;
+  background: linear-gradient(180deg, #1c1828 0%, #14111e 100%);
+  border: 1px solid #8a6a1a;
+  border-radius: 6px;
+  padding: 0 44px 0 18px;
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  color: #e8e0f0;
+  letter-spacing: 0.5px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input::placeholder {
+  color: #5a5070;
+  font-weight: 500;
+}
+
+.input:focus {
+  border-color: #c8960a;
+  box-shadow: 0 0 0 2px rgba(200, 150, 10, 0.2), inset 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.inputTag {
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+
+.inputTag::placeholder {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.textarea {
+  width: 100%;
+  height: 110px;
+  resize: none;
+  background: linear-gradient(180deg, #1c1828 0%, #14111e 100%);
+  border: 1px solid #8a6a1a;
+  border-radius: 6px;
+  padding: 14px 18px;
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  color: #e8e0f0;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.textarea::placeholder { color: #5a5070; }
+
+.textarea:focus {
+  border-color: #c8960a;
+  box-shadow: 0 0 0 2px rgba(200, 150, 10, 0.2), inset 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Runes décoratives */
+.rune {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
+  color: rgba(180, 130, 20, 0.5);
+  pointer-events: none;
+}
+
+.runeSmall { font-size: 14px; color: rgba(180, 130, 20, 0.4); }
+
+.runeTR {
+  top: 10px;
+  right: 12px;
+  transform: none;
+  font-size: 16px;
+  color: rgba(180, 130, 20, 0.4);
+}
+
+.runeBL {
+  top: auto;
+  bottom: 10px;
+  left: 12px;
+  right: auto;
+  transform: none;
+  font-size: 14px;
+  color: rgba(180, 130, 20, 0.3);
+}
+
+.resizeIcon {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  pointer-events: none;
+}
+
+.counter {
+  position: absolute;
+  right: 2px;
+  bottom: -18px;
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 500;
+  font-size: 11px;
+  color: #4a4a6a;
+}
+
+.counterDevise {
+  position: absolute;
+  right: 0;
+  bottom: -18px;
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 500;
+  font-size: 11px;
+  color: #4a4a6a;
+}
+
+/* COULEUR */
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.colorLabel {
+  flex-shrink: 0;
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #8a8aaa;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.gems {
+  display: flex;
+  gap: 8px;
+}
+
+.gem {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.gem:hover {
+  border-color: var(--gem, rgba(255, 255, 255, 0.4));
+  transform: scale(1.05);
+}
+
+.gemSelected {
+  transform: scale(1.1);
+}
+
+.gemIcon {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  display: block;
+}
+
+/* BOUTON FONDER */
+.submitWrap {
+  position: relative;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.submitBtn {
+  position: relative;
+  width: 100%;
+  height: 80px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  cursor: pointer;
+  overflow: visible;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.submitBg {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #4a1a8a 0%, #2d0f5a 50%, #1a0840 100%);
+}
+
+.submitGlow {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: radial-gradient(ellipse at 50% 100%, rgba(124, 58, 237, 0.6) 0%, transparent 70%);
+}
+
+.submitBorder {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  border: 2px solid #c8960a;
+  box-shadow:
+    0 0 20px rgba(200, 150, 10, 0.4),
+    0 0 40px rgba(124, 58, 237, 0.3),
+    inset 0 0 20px rgba(124, 58, 237, 0.1);
+  pointer-events: none;
+}
+
+.submitText {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.submitLine1 {
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  color: #f5c842;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 20px rgba(245, 200, 66, 0.8),
+    0 0 40px rgba(245, 200, 66, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+.submitLine2 {
+  margin-top: 2px;
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: rgba(200, 160, 60, 0.8);
+  letter-spacing: 2px;
+}
+
+.submitBtn:not(:disabled):hover {
+  transform: translateY(-3px);
+}
+
+.submitBtn:not(:disabled):hover .submitBorder {
+  box-shadow:
+    0 0 30px rgba(200, 150, 10, 0.6),
+    0 8px 30px rgba(124, 58, 237, 0.5),
+    inset 0 0 24px rgba(124, 58, 237, 0.18);
+}
+
+.submitBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+  transform: none;
+}
+
+/* Ornements latéraux (ailes) */
+.wing {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 60px;
+  z-index: 3;
+  pointer-events: none;
+  line-height: 0;
+}
+
+.wingL { left: -10px; }
+.wingR { right: -10px; }
+
+.wingDiaTop { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); }
+.wingDiaBot { position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); }
+
+.submitTopDiamond {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.submitBotDiamond {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}

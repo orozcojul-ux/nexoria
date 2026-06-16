@@ -183,10 +183,12 @@
 .page-banner-heading {
   margin-top: 1rem;
   padding-bottom: 0.15rem;
+  text-align: center;
 }
 
 .page-banner-heading--compact {
   margin-top: 0.65rem;
+  text-align: center;
 }
 
 .page-banner-kicker {

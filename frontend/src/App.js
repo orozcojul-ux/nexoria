@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { I18nProvider } from "@/contexts/I18nContext";
@@ -42,6 +42,7 @@ import Tickets from "@/pages/Tickets";
 import Nexus from "@/pages/Nexus";
 import Classes from "@/pages/Classes";
 import Events from "@/pages/Events";
+import UnderConstruction from "@/pages/UnderConstruction";
 import BroadcastOverlay from "@/components/BroadcastOverlay";
 import StaffAlertOverlay from "@/components/StaffAlertOverlay";
 import NexusOverlay from "@/components/NexusOverlay";
@@ -71,6 +72,14 @@ function MaintenanceGate({ children }) {
   return children;
 }
 
+/** Racine : les héros connectés vont au feed, les visiteurs voient la landing. */
+function RootRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user) return <Navigate to="/feed" replace />;
+  return <Landing />;
+}
+
 function AppRouter() {
   const location = useLocation();
   const { banInfo } = useAuth();
@@ -86,7 +95,7 @@ function AppRouter() {
       <NexusFAB />
       <AetherTicker />
       <Routes>
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={<RootRoute />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
@@ -116,6 +125,10 @@ function AppRouter() {
         <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><Layout><Admin /></Layout></ProtectedRoute>} />
         <Route path="/profile/:username" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
+        <Route path="/communaute" element={<ProtectedRoute><Layout><UnderConstruction title="Communauté" /></Layout></ProtectedRoute>} />
+        <Route path="/conditions" element={<ProtectedRoute><Layout><UnderConstruction title="Conditions d'utilisation" /></Layout></ProtectedRoute>} />
+        <Route path="/confidentialite" element={<ProtectedRoute><Layout><UnderConstruction title="Politique de confidentialité" /></Layout></ProtectedRoute>} />
+        <Route path="*" element={<ProtectedRoute><Layout><UnderConstruction /></Layout></ProtectedRoute>} />
       </Routes>
     </MaintenanceGate>
   );

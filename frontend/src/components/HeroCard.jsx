@@ -15,6 +15,7 @@ import { useInventorySync } from "@/hooks/useInventorySync";
 import { getHeroAvatarDataURL } from "@/lib/NexusPixelArt";
 import { getTitleLabel } from "@/lib/title-labels";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
+import ClassImage from "@/components/ClassImage";
 import styles from "./HeroCard.module.css";
 
 /** @deprecated Use PremiumBadge — kept for backward compatibility */
@@ -324,6 +325,35 @@ export default function HeroCard({ userId, open, onClose, onWhisper }) {
 
                   <h2 className={styles.heroName}>{u.username}</h2>
                   <p className={styles.heroSubtitle}>{getTitleLabel(u)}</p>
+                  {(u.class_id || u.class_name) && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 10,
+                        margin: "10px 0 4px",
+                      }}
+                    >
+                      <ClassImage
+                        classId={u.class_id || u.class_name}
+                        color={classColor}
+                        size={44}
+                        alt={u.class_name || ""}
+                      />
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          letterSpacing: "0.06em",
+                          color: classColor,
+                          textShadow: `0 0 12px ${classColor}66`,
+                        }}
+                      >
+                        {u.class_name}
+                      </span>
+                    </div>
+                  )}
                   <p className={styles.levelLine}>
                     <span className={styles.levelLabel}>Niveau </span>
                     <span className={styles.levelNum}>{u.level || 1}</span>

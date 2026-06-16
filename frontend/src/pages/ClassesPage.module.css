@@ -1,0 +1,335 @@
+@import url("https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@400;600;700&family=Rajdhani:wght@500;600;700&display=swap");
+
+/* ============================================================
+   PAGE
+   ============================================================ */
+.page {
+  position: relative;
+  min-height: 100vh;
+  background: transparent;
+  font-family: "Rajdhani", sans-serif;
+  color: #e8e0f0;
+}
+.inner {
+  position: relative;
+  z-index: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 40px 60px 40px;
+}
+
+/* ============================================================
+   ORNEMENTS PARTAGÉS
+   ============================================================ */
+.corner {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+}
+.cTL { top: -2px; left: -2px; }
+.cTR { top: -2px; right: -2px; transform: scaleX(-1); }
+.cBL { bottom: -2px; left: -2px; transform: scaleY(-1); }
+.cBR { bottom: -2px; right: -2px; transform: scale(-1, -1); }
+
+/* ============================================================
+   BLOC 1 — BANNIÈRE
+   ============================================================ */
+.banner {
+  position: relative;
+  width: 100%;
+  height: 260px;
+  overflow: hidden;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  margin-top: 24px;
+  border: 2px solid #8a6a1a;
+  box-shadow: inset 0 0 40px rgba(180, 130, 20, 0.1), 0 0 0 1px #1a1400;
+  background-position: center top;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+.bannerOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(0deg, rgba(4, 6, 15, 0.95) 0%, rgba(4, 6, 15, 0.3) 40%, rgba(4, 6, 15, 0.1) 100%);
+}
+.bannerTitle {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  white-space: nowrap;
+  font-family: "Cinzel Decorative", serif;
+  font-weight: 700;
+  font-size: 64px;
+  letter-spacing: 4px;
+  color: #c8960a;
+  text-shadow:
+    0 0 30px rgba(200, 150, 10, 0.7),
+    0 0 60px rgba(200, 150, 10, 0.3),
+    0 4px 8px rgba(0, 0, 0, 0.9);
+}
+
+.bannerSub {
+  font-weight: 500;
+  font-size: 13px;
+  color: #5a5a7a;
+  margin-top: 8px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+/* ============================================================
+   BLOC 2 — BADGE CLASSE ACTUELLE
+   ============================================================ */
+.currentBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  background: rgba(0, 212, 255, 0.08);
+  border: 1px solid rgba(0, 212, 255, 0.4);
+  border-radius: 20px;
+  margin-bottom: 28px;
+}
+.currentStar { color: #00d4ff; font-size: 14px; }
+.currentLabel {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #7a7aaa;
+}
+.currentValue { color: #00d4ff; }
+
+/* ============================================================
+   BLOC 3 — CODEX
+   ============================================================ */
+.codexHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.codexStar { color: #c8960a; font-size: 18px; }
+.codexTitle {
+  font-family: "Cinzel", serif;
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #c8960a;
+}
+.codexSub {
+  font-weight: 500;
+  font-size: 13px;
+  color: #4a4a6a;
+  margin-left: 10px;
+  align-self: flex-end;
+  padding-bottom: 2px;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 16px 0 28px 0;
+}
+.filter {
+  padding: 6px 18px;
+  border-radius: 20px;
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #7a7a9a;
+}
+.filter:hover {
+  border-color: rgba(0, 212, 255, 0.4);
+  color: #c0c0e0;
+}
+.filterActive {
+  background: rgba(0, 212, 255, 0.12);
+  border: 1px solid #00d4ff;
+  color: #00d4ff;
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.2);
+}
+
+/* ============================================================
+   GRILLE DE CARTES
+   ============================================================ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.card {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 3 / 4;
+  border-radius: 8px;
+  overflow: visible;
+  cursor: pointer;
+  border: 2px solid #8a6a1a;
+  box-shadow:
+    inset 0 0 20px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(180, 130, 20, 0.2),
+    0 4px 20px rgba(0, 0, 0, 0.6);
+  transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+.card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+}
+.cardCurrent {
+  box-shadow: 0 0 0 2px #00d4ff, 0 0 20px rgba(0, 212, 255, 0.3);
+}
+.cardCurrent:hover {
+  box-shadow: 0 0 0 2px #00d4ff, 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 212, 255, 0.3);
+}
+
+.topDiamond {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 11;
+}
+
+.taClasse {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 12;
+  background: rgba(0, 212, 255, 0.15);
+  border: 1px solid #00d4ff;
+  border-radius: 3px;
+  padding: 3px 8px;
+  font-weight: 600;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #00d4ff;
+  text-transform: uppercase;
+}
+
+.heroImg {
+  position: relative;
+  width: 100%;
+  height: 65%;
+  border-radius: 6px 6px 0 0;
+  background-position: center top;
+  background-size: cover;
+  background-repeat: no-repeat;
+  flex-shrink: 0;
+}
+.heroImgFade {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(0deg, #07081a 0%, rgba(7, 8, 26, 0.7) 40%, transparent 100%);
+}
+
+.className {
+  position: relative;
+  z-index: 2;
+  margin-top: -22px;
+  font-family: "Cinzel", serif;
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.5px;
+  text-align: center;
+  padding: 8px 12px 4px;
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #07081a 0%, #04050f 100%);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: 0 0 6px 6px;
+}
+
+.affRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.affLabel {
+  width: 80px;
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #6a6a8a;
+}
+.affTrack {
+  display: block;
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.affFill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.grimoire {
+  width: 100%;
+  height: 32px;
+  margin-top: 6px;
+  background: transparent;
+  border: 1px solid rgba(180, 130, 20, 0.5);
+  border-radius: 4px;
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #c8960a;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.grimoire:hover {
+  background: rgba(180, 130, 20, 0.12);
+  border-color: #c8960a;
+  box-shadow: 0 0 12px rgba(200, 150, 10, 0.2);
+  color: #f5c842;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 1200px) {
+  .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .bannerTitle { font-size: 44px; }
+}
+@media (max-width: 600px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inner { padding: 0 16px 40px 16px; }
+  .bannerTitle { font-size: 30px; letter-spacing: 2px; }
+}

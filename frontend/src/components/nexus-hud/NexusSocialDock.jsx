@@ -2,6 +2,7 @@ import React from "react";
 import { Users, Crown, UserPlus, VolumeX, Snowflake, EyeOff, MessageCircle } from "lucide-react";
 import HeroName from "@/components/HeroName";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
+import ClassImage from "@/components/ClassImage";
 
 export default function NexusSocialDock({
   players,
@@ -39,8 +40,11 @@ export default function NexusSocialDock({
                       <HeroName user={p} size="sm" />
                       {p.sid === you?.sid && <span className="text-[9px] text-cyan-400 ml-1">(vous)</span>}
                     </div>
-                    <div className="nexus-hero-class">
-                      {p.class_name} · niv. {p.level}{p.rank ? ` · ${p.rank}` : ""}
+                    <div className="nexus-hero-class" style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      {(p.class_id || p.class_name) && (
+                        <ClassImage classId={p.class_id || p.class_name} size={16} alt={p.class_name || ""} />
+                      )}
+                      <span>{p.class_name} · niv. {p.level}{p.rank ? ` · ${p.rank}` : ""}</span>
                     </div>
                   </div>
                 </button>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Castle, Users, Crown, ShieldCheck, Send, Coins, UserPlus, LogOut, X, Plus, Mail, Trash2, Shield } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import { Castle, Users, Crown, ShieldCheck, Send, Coins, UserPlus, LogOut, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,24 +9,23 @@ import HeroName from "@/components/HeroName";
 import { sfx } from "@/lib/sfx";
 import {
   PageShell,
-  PremiumSection,
-  PremiumStat,
   PremiumCard,
   PremiumButton,
   PremiumModal,
 } from "@/components/ui-premium";
-import { usePageBanner } from "@/lib/page-banners";
+import GuildesPage from "@/pages/GuildesPage";
+import FonderOrdreModal from "@/components/FonderOrdreModal";
 
 const ROLE_LABEL = { chef: "Chef", officier: "Officier", membre: "Membre" };
 const ROLE_COLOR = { chef: "#FFD700", officier: "#F97316", membre: "#9CA3AF" };
 
 export default function Guilds() {
-  const banner = usePageBanner("guilds");
   const { user, refresh } = useAuth();
   const [mine, setMine] = useState({ guild: null, membership: null });
   const [guilds, setGuilds] = useState([]);
   const [invites, setInvites] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [browseList, setBrowseList] = useState(false);
 
   const load = async () => {
     const [m, g, inv] = await Promise.all([
@@ -38,183 +37,63 @@ export default function Guilds() {
   };
   useEffect(() => { load(); }, []);
 
-  const accept = async (inviteId) => {
-    try {
-      await api.post(`/guilds/invites/${inviteId}/accept`);
-      toast.success("Vous avez rejoint l'ordre !");
-      sfx.success();
-      await load(); await refresh();
-    } catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
-  };
-  const decline = async (inviteId) => {
-    await api.post(`/guilds/invites/${inviteId}/decline`);
-    await load();
-  };
-
-  if (mine.guild) return <GuildDashboard data={mine} reload={async () => { await load(); await refresh(); }} />;
+  if (mine.guild && !browseList) {
+    return <GuildDashboard data={mine} reload={async () => { await load(); await refresh(); }} onBrowse={() => setBrowseList(true)} />;
+  }
 
   const totalMembers = guilds.reduce((acc, g) => acc + (g.member_count || 0), 0);
   const topGuild = [...guilds].sort((a, b) => (b.level || 0) - (a.level || 0))[0];
 
-  return (
-    <PageShell
-      testid="guilds-page"
-      banner={banner}
-    >
-      <StarField density={50} />
-      <div className="space-y-8">
-        <div>
-          <PremiumButton variant="violet" size="lg" icon={Plus} onClick={() => setShowCreate(true)} testid="open-create-guild">
-            Fonder un Ordre
-          </PremiumButton>
-        </div>
+  const myGuildId = mine.guild?.guild_id;
+  const guildes = guilds.map((g, i) => {
+    const isMine = !!myGuildId && g.guild_id === myGuildId;
+    return {
+      id: g.guild_id,
+      name: g.name,
+      emblem_url: g.emblem_url,
+      banner_color: g.banner_color,
+      tag: g.tag,
+      level: g.level,
+      member_count: g.member_count,
+      rank: i + 1,
+      isMine,
+      onClick: isMine ? () => setBrowseList(false) : undefined,
+    };
+  });
 
-        {/* STATS */}
-        <PremiumSection title="Pulse des Ordres" subtitle="Vue globale" icon={Shield} tone="violet">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <PremiumStat icon={Castle} label="Ordres fondés" value={guilds.length} sub="Bannières dressées" tone="violet" testid="guild-stat-count" />
-            <PremiumStat icon={Users} label="Héros enrôlés" value={totalMembers} sub="Tous ordres confondus" tone="cyan" testid="guild-stat-members" />
-            <PremiumStat icon={Crown} label="Ordre dominant" value={topGuild?.tag || "—"} sub={topGuild ? `Niveau ${topGuild.level}` : "Aucun"} tone="gold" testid="guild-stat-top" />
-            <PremiumStat icon={Mail} label="Invitations" value={invites.length} sub="En attente" tone="emerald" testid="guild-stat-invites" />
-          </div>
-        </PremiumSection>
-
-        {/* INVITES */}
-        {invites.length > 0 && (
-          <PremiumSection title="Invitations reçues" subtitle="Réponds avant qu'elles n'expirent" icon={Mail} tone="gold">
-            <div className="space-y-2" data-testid="guild-invites">
-              {invites.map((inv) => (
-                <PremiumCard key={inv.invite_id} tone="gold" className="flex items-center justify-between gap-3 flex-wrap" testid={`invite-${inv.invite_id}`}>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-display font-bold text-base text-yellow-100">
-                      {inv.guild?.name} <span className="text-zinc-500 text-sm">[{inv.guild?.tag}]</span>
-                    </div>
-                    <div className="text-xs text-zinc-400 italic mt-1 truncate">{inv.guild?.description || "—"}</div>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <PremiumButton variant="cyan" size="sm" onClick={() => accept(inv.invite_id)} testid={`invite-accept-${inv.invite_id}`}>
-                      Accepter
-                    </PremiumButton>
-                    <PremiumButton variant="ghost" size="sm" onClick={() => decline(inv.invite_id)}>
-                      Refuser
-                    </PremiumButton>
-                  </div>
-                </PremiumCard>
-              ))}
-            </div>
-          </PremiumSection>
-        )}
-
-        {/* GUILDS LIST */}
-        <PremiumSection title="Ordres existants" subtitle={`${guilds.length} bannière(s)`} icon={Castle} tone="violet">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {guilds.length === 0 && (
-              <PremiumCard tone="violet" hover={false} className="col-span-full text-center py-10">
-                <Castle className="w-12 h-12 text-purple-400/60 mx-auto mb-2" />
-                <p className="text-zinc-400 italic">Aucun ordre n'a encore été fondé…</p>
-                <p className="text-zinc-600 text-xs mt-1">Sois le premier à hisser ta bannière.</p>
-              </PremiumCard>
-            )}
-            {guilds.map((g) => (
-              <motion.div
-                key={g.guild_id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                whileHover={{ y: -3, scale: 1.01 }}
-                transition={{ duration: 0.2 }}
-                className="relative rounded-2xl border-2 p-5 overflow-hidden bg-gradient-to-br from-[#0F0820]/90 via-[#0A0613]/90 to-[#1A0B3D]/70 backdrop-blur"
-                style={{
-                  borderColor: `${g.banner_color}66`,
-                  boxShadow: `0 0 24px ${g.banner_color}33, inset 0 0 12px ${g.banner_color}11`,
-                }}
-                data-testid={`guild-card-${g.guild_id}`}
-              >
-                <div className="absolute -top-12 -right-12 w-44 h-44 rounded-full blur-3xl opacity-30" style={{ background: g.banner_color }} />
-                <div className="relative">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div
-                      className="w-12 h-12 rounded-xl flex items-center justify-center font-display font-black text-xs shrink-0 text-white tracking-tight"
-                      style={{
-                        background: `radial-gradient(circle, white 0%, ${g.banner_color} 70%)`,
-                        boxShadow: `0 0 18px ${g.banner_color}88`,
-                      }}
-                    >
-                      {g.tag}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-display font-black text-base text-white truncate">{g.name}</h3>
-                      <div className="text-[10px] uppercase tracking-[0.3em] font-bold truncate" style={{ color: g.banner_color }}>
-                        [{g.tag}] · Niv. {g.level}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-xs text-zinc-400 italic mb-3 line-clamp-2 min-h-[2.4em]">
-                    {g.description || "—"}
-                  </div>
-                  <div className="flex justify-between font-mono-stat text-xs pt-2 border-t border-white/5">
-                    <span className="text-cyan-300"><Users className="w-3 h-3 inline mr-1" /> {g.member_count}/{g.max_members}</span>
-                    <span className="text-violet-300">{g.xp || 0} XP</span>
-                    <span className="text-yellow-300">{g.vault_aether} ✦</span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </PremiumSection>
-      </div>
-
-      <AnimatePresence>
-        {showCreate && <CreateGuildDialog onClose={() => setShowCreate(false)} onCreated={async () => { setShowCreate(false); await load(); await refresh(); }} userLevel={user?.level || 1} userAether={user?.aether || 0} />}
-      </AnimatePresence>
-    </PageShell>
-  );
-}
-
-function CreateGuildDialog({ onClose, onCreated, userLevel, userAether }) {
-  const [form, setForm] = useState({ name: "", tag: "", description: "", banner_color: "#7C3AED" });
-  const [saving, setSaving] = useState(false);
-  const submit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await api.post("/guilds", form);
-      toast.success(`L'ordre « ${form.name} » est fondé !`);
-      sfx.success();
-      await onCreated();
-    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
-    finally { setSaving(false); }
+  const stats = {
+    ordres_fondes: guilds.length,
+    heros_enroles: totalMembers,
+    ordre_dominant: topGuild?.tag || "–",
+    invitations: invites.length,
   };
+
   return (
-    <PremiumModal open onClose={onClose} title="Fonder un Ordre" icon={Castle} maxWidth="max-w-md" testid="create-guild-dialog">
-      <form onSubmit={submit} className="p-5 space-y-3">
-        <div className="text-xs text-zinc-500 italic">Coût : 1000 Aether · Requiert le niveau 10 minimum.</div>
-        <div className="text-[10px] font-mono-stat font-bold">
-          Niveau actuel : <span className={userLevel >= 10 ? "text-green-400" : "text-red-400"}>{userLevel}</span> ·
-          Aether : <span className={userAether >= 1000 ? "text-green-400" : "text-red-400"}>{userAether}</span>
-        </div>
-        <input value={form.name} required minLength={3} maxLength={30} placeholder="Nom de l'Ordre"
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="guild-name" />
-        <input value={form.tag} required minLength={2} maxLength={5} placeholder="Tag (2-5 lettres, ex: ZEN)"
-          onChange={(e) => setForm({ ...form, tag: e.target.value.toUpperCase() })}
-          className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm font-mono-stat uppercase" data-testid="guild-tag" />
-        <textarea value={form.description} maxLength={500} placeholder="Devise de l'ordre..." rows={3}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="guild-desc" />
-        <div className="flex items-center gap-2">
-          <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Couleur :</label>
-          <input type="color" value={form.banner_color} onChange={(e) => setForm({ ...form, banner_color: e.target.value })}
-            className="w-10 h-8 rounded border border-white/10" data-testid="guild-color" />
-        </div>
-        <PremiumButton type="submit" variant="violet" size="sm" disabled={saving || userLevel < 10 || userAether < 1000} className="w-full" testid="guild-create-submit">
-          Fonder l'Ordre (-1000 ✦)
-        </PremiumButton>
-      </form>
-    </PremiumModal>
+    <>
+      <GuildesPage
+        guildes={guildes}
+        stats={stats}
+        onFonder={() => setShowCreate(true)}
+      />
+
+      <FonderOrdreModal
+        isOpen={showCreate}
+        onClose={() => setShowCreate(false)}
+        hero={{ level: user?.level || 1, aether: user?.aether || 0 }}
+        onFonder={async ({ nom, tag, devise, couleur }) => {
+          await api.post("/guilds", { name: nom, tag, description: devise, banner_color: couleur });
+          toast.success(`L'ordre « ${nom} » est fondé !`);
+          sfx.success();
+          setShowCreate(false);
+          await load();
+          await refresh();
+        }}
+      />
+    </>
   );
 }
 
-function GuildDashboard({ data, reload }) {
+function GuildDashboard({ data, reload, onBrowse }) {
   const { guild, membership } = data;
   const [detail, setDetail] = useState(null);
   const [tab, setTab] = useState("members"); // members | chat | vault
@@ -258,6 +137,10 @@ function GuildDashboard({ data, reload }) {
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
+            <button onClick={() => onBrowse?.()} data-testid="browse-guilds"
+              className="px-3 py-1.5 rounded border border-violet-500/40 text-violet-300 text-xs font-bold flex items-center gap-1">
+              <Castle className="w-3 h-3" /> Tous les ordres
+            </button>
             {isOfficer && (
               <button onClick={() => setShowInvite(true)} data-testid="open-invite"
                 className="px-3 py-1.5 rounded border border-cyan-500/40 text-cyan-300 text-xs font-bold flex items-center gap-1">

@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { PremiumBadge } from "@/components/ui-premium";
+import ClassImage from "@/components/ClassImage";
 import styles from "./ProfilePage.module.css";
 
 /* ============================================================
@@ -263,6 +264,13 @@ export default function ProfilePage({
             <h1 className={styles.heroName} data-testid="profile-username">{name}</h1>
             <div className={styles.discordLine} data-testid="profile-discord-name">Discord · {discordName}</div>
             <div className={styles.classLine}>
+              <ClassImage
+                classId={hero.class_id || hero.class_name}
+                color="#e8c66a"
+                size={30}
+                alt={className}
+                style={{ marginRight: 4, verticalAlign: "middle" }}
+              />
               <span>{className} · Niveau <span data-testid="profile-level">{level}</span></span>
               <span className={styles.classArrow}>▶</span>
               <span className={styles.rankWord}>{cosmicRank}</span>

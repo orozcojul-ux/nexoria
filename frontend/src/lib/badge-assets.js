@@ -28,6 +28,31 @@ export const CLASS_BADGE_FILES = {
   inventor: "inventor",
 };
 
+/**
+ * Class character art (premium portraits dropped in /assets/classes/).
+ * Keys are normalized (lowercase, accents stripped) and cover both the
+ * back-end EN ids and the FR display ids/names so any source resolves.
+ */
+export const CLASS_IMAGE_FILES = {
+  mage: "mage",
+  guerrier: "guerrier",
+  warrior: "guerrier",
+  assassin: "assassin",
+  paladin: "paladin",
+  alchimiste: "alchimiste",
+  alchemist: "alchimiste",
+  explorateur: "explorateur",
+  explorer: "explorateur",
+  necromancien: "necromancien",
+  necromancer: "necromancien",
+  architecte: "architecte",
+  architect: "architecte",
+  chronomancien: "chronomancien",
+  chronomancer: "chronomancien",
+  inventeur: "inventeur",
+  inventor: "inventeur",
+};
+
 /** Achievement / item rarity frames */
 export const RARITY_BADGE_FILES = {
   common: "common",
@@ -51,6 +76,25 @@ export function getRankBadgeSrc(rank) {
 export function getClassBadgeSrc(classId) {
   const file = CLASS_BADGE_FILES[classId];
   return file ? assetUrl("classes", file) : null;
+}
+
+/** Normalize any class identifier (EN id, FR id or FR display name). */
+export function normalizeClassKey(classId) {
+  return String(classId || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+/**
+ * Resolve the class character art URL. Always returns a path: if the id is
+ * unknown it points to /assets/classes/default.png so the <img> onError can
+ * fall back to a styled empty frame.
+ */
+export function getClassImageSrc(classId) {
+  const file = CLASS_IMAGE_FILES[normalizeClassKey(classId)];
+  return `${BASE}/assets/classes/${file || "default"}.png`;
 }
 
 export function getRarityBadgeSrc(rarity) {

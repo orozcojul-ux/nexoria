@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   Home, Star, Shield, Trophy, Calendar, Diamond as DiamondIcon,
   MessageCircle, Headphones, Users, BookOpen, User, Package, Scroll, Store,
-  Menu, ChevronUp, ChevronDown, LayoutDashboard, LogOut,
+  Menu, ChevronUp, ChevronDown, LayoutDashboard, LogOut, Settings,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
@@ -43,6 +43,7 @@ const PLAYER_NAV = [
     fallback: "Personnalisation",
     items: [
       { to: "/hero", labelKey: "nav.profile", fallback: "Profil", icon: User, testid: "nav-hero" },
+      { to: "/settings", labelKey: "nav.settings", fallback: "Modifier le profil", icon: Settings, testid: "nav-settings" },
       { to: "/inventory", labelKey: "nav.inventory", fallback: "Inventaire", icon: Package, testid: "nav-inventory" },
       { to: "/quests", labelKey: "nav.quests", fallback: "Quêtes", icon: Scroll, testid: "nav-quests" },
     ],
