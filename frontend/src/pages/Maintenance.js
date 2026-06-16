@@ -139,7 +139,11 @@ export default function Maintenance() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.15, duration: 0.5 }}
         >
-          <SystemsPanel systems={systems} />
+          <div className="maint-panels-row">
+            <SystemsPanel systems={systems} />
+            <MaintenanceBetaGate />
+          </div>
+
           <MaintenanceGlobalProgress
             systems={systems}
             updatedAt={statusData?.updated_at}
@@ -161,8 +165,6 @@ export default function Maintenance() {
               {text.discord_label}
             </a>
           </div>
-
-          <MaintenanceBetaGate />
         </motion.div>
 
         <div className="maint-spacer" />

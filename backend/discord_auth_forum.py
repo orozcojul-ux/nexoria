@@ -92,6 +92,34 @@ async def notify_auth_event(event: str, user: dict) -> bool:
     return ok
 
 
+async def notify_beta_redeemed(name: str) -> bool:
+    """Annonce qu'un joueur a activé une clé beta testeur (salon dédié)."""
+    message = f"🔑 **{name}** a reçu une clé BETA TESTEUR"
+    try:
+        ok = await discord_sync.post_notification(message, channel_id=DEFAULT_AUTH_FORUM_CHANNEL_ID)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Discord beta notification failed: %s (%s)", exc, name)
+        return False
+    if ok:
+        logger.info("Discord beta notification sent for %s", name)
+    else:
+        logger.warning("Discord beta notification failed: publication refusée par Discord (%s)", name)
+    return ok
+
+
+def schedule_beta_redeemed(name: str) -> None:
+    """Fire-and-forget — annonce l'activation d'une clé beta."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        logger.warning("Discord beta notification failed: pas de boucle asyncio active")
+        return
+    task = loop.create_task(notify_beta_redeemed(name))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    logger.info("Discord beta notification scheduled for %s", name)
+
+
 def schedule_auth_event(event: str, user: dict) -> None:
     """Fire-and-forget Discord auth announcement (ne ralentit pas la requête)."""
     # Dé-doublonnage des connexions pour éviter le spam.

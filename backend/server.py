@@ -2218,6 +2218,16 @@ async def redeem_beta_key(payload: dict, request: Request, response: Response):
             {"key": key},
             {"$inc": {"uses": 1}, "$set": {"last_used_at": now_utc().isoformat()}},
         )
+        # Annonce Discord — on n'expose jamais la clé elle-même.
+        name = None
+        try:
+            current = await get_current_user(request, db)
+            name = current.get("username")
+        except HTTPException:
+            name = None
+        if not name:
+            name = doc.get("label") or "Un nouveau testeur"
+        discord_auth_forum.schedule_beta_redeemed(name)
     response.set_cookie(
         BETA_COOKIE, key, httponly=True, secure=True, samesite="none",
         max_age=30 * 24 * 3600, path="/",
