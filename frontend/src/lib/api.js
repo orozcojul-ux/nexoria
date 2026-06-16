@@ -7,6 +7,9 @@ export const API_URL = `${BASE}/api`;
 // localStorage n'est plus utilisé pour l'auth afin d'éviter qu'une connexion
 // dans une fenêtre écrase le compte d'une autre.
 const TOKEN_KEY = "nexoria_token";
+// Clé beta = accès testeur pendant la maintenance. Stockée en localStorage
+// pour persister entre les onglets/sessions du testeur.
+const BETA_KEY = "nexoria_beta_key";
 
 const api = axios.create({
   baseURL: API_URL,
@@ -18,6 +21,11 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  const beta = getBetaKey();
+  if (beta) {
+    config.headers = config.headers || {};
+    config.headers["X-Beta-Key"] = beta;
   }
   return config;
 });
@@ -35,6 +43,15 @@ export function setToken(token) {
   try {
     window.dispatchEvent(new CustomEvent("nexoria:token-changed", { detail: { hasToken: !!token } }));
   } catch { /* ignore */ }
+}
+
+export function setBetaKey(key) {
+  if (key) localStorage.setItem(BETA_KEY, key);
+  else localStorage.removeItem(BETA_KEY);
+}
+
+export function getBetaKey() {
+  return localStorage.getItem(BETA_KEY) || "";
 }
 
 export function getToken() {

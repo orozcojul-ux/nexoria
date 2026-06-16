@@ -9,6 +9,8 @@ import api from "@/lib/api";
 import MaintenanceBrand from "@/components/maintenance/MaintenanceBrand";
 import MaintenanceGlobalProgress from "@/components/maintenance/MaintenanceGlobalProgress";
 import MaintenanceStaffGate from "@/components/maintenance/MaintenanceStaffGate";
+import MaintenanceBetaGate from "@/components/maintenance/MaintenanceBetaGate";
+import MaintenanceCountdown from "@/components/maintenance/MaintenanceCountdown";
 import { resolveMaintenanceText, normalizeMaintenanceSystems } from "@/lib/maintenance-content";
 import { stripHtml } from "@/lib/stripHtml";
 import "@/pages/Maintenance.css";
@@ -74,6 +76,7 @@ export default function Maintenance() {
       const { data } = await api.get("/maintenance/status");
       setStatusData(data);
       if (!data.enabled) navigate("/feed");
+      else if (data.beta_access) navigate("/");
     } catch {
       setStatusData({ enabled: true, html: {}, systems: DEFAULT_SYSTEMS });
     }
@@ -127,6 +130,7 @@ export default function Maintenance() {
               {text.body_sub}
             </p>
           )}
+          <MaintenanceCountdown openAt={statusData?.open_at} />
         </motion.section>
 
         <motion.div
@@ -157,6 +161,8 @@ export default function Maintenance() {
               {text.discord_label}
             </a>
           </div>
+
+          <MaintenanceBetaGate />
         </motion.div>
 
         <div className="maint-spacer" />

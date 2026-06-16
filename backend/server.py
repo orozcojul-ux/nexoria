@@ -2103,10 +2103,30 @@ def _maintenance_html(doc: dict) -> dict:
 
 async def get_maintenance() -> dict:
     doc = await db.system_settings.find_one({"key": "maintenance"}, {"_id": 0})
-    base = {"enabled": False, "title": "Maintenance du Nexus", "message": "", "subtitle": "", "html": {}, "systems": {}, "updated_at": None}
+    base = {"enabled": False, "title": "Maintenance du Nexus", "message": "", "subtitle": "", "html": {}, "systems": {}, "open_at": None, "updated_at": None}
     if not doc:
         return base
     return {**base, **{k: v for k, v in doc.items() if k != "key"}}
+
+
+# ---------- Clés beta (accès testeurs pendant la maintenance) ----------
+BETA_COOKIE = "nexoria_beta"
+_BETA_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _gen_beta_key() -> str:
+    def part(n: int) -> str:
+        return "".join(_secrets.choice(_BETA_ALPHABET) for _ in range(n))
+    return f"BETA-{part(4)}-{part(4)}"
+
+
+async def has_beta_access(request: Request) -> bool:
+    """True if the request carries a header/cookie matching an active beta key."""
+    key = request.headers.get("x-beta-key") or request.cookies.get(BETA_COOKIE)
+    if not key:
+        return False
+    doc = await db.beta_keys.find_one({"key": key.strip().upper(), "active": True})
+    return bool(doc)
 
 
 async def is_maintenance_active() -> tuple[bool, str]:
@@ -2138,7 +2158,7 @@ async def _maintenance_system_status() -> dict:
 
 
 @api.get("/system/maintenance")
-async def maintenance_status():
+async def maintenance_status(request: Request):
     """Public endpoint — frontend polls this to render the maintenance overlay."""
     doc = await get_maintenance()
     enabled, _ = await is_maintenance_active()
@@ -2151,11 +2171,13 @@ async def maintenance_status():
         "html": _maintenance_html(doc),
         "env_locked": MAINTENANCE_MODE_ENV,
         "systems": systems,
+        "open_at": doc.get("open_at"),
+        "beta_access": await has_beta_access(request),
     }
 
 
 @api.get("/maintenance/status")
-async def maintenance_full_status():
+async def maintenance_full_status(request: Request):
     """Rich status for the immersive maintenance page."""
     doc = await get_maintenance()
     enabled, message = await is_maintenance_active()
@@ -2168,8 +2190,86 @@ async def maintenance_full_status():
         "html": _maintenance_html(doc),
         "env_locked": MAINTENANCE_MODE_ENV,
         "systems": systems,
+        "open_at": doc.get("open_at"),
+        "beta_access": await has_beta_access(request),
         "updated_at": doc.get("updated_at"),
     }
+
+
+@api.post("/maintenance/beta")
+async def redeem_beta_key(payload: dict, request: Request, response: Response):
+    """Public — un testeur saisit une clé beta pour débloquer l'accès au site."""
+    key = str(payload.get("key", "")).strip().upper()
+    if not key:
+        raise HTTPException(400, "Clé requise")
+    doc = await db.beta_keys.find_one({"key": key})
+    if not doc or not doc.get("active", True):
+        raise HTTPException(404, "Clé beta invalide ou révoquée")
+    already = (
+        request.cookies.get(BETA_COOKIE) == key
+        or request.headers.get("x-beta-key", "").strip().upper() == key
+    )
+    max_uses = int(doc.get("max_uses", 0) or 0)
+    uses = int(doc.get("uses", 0) or 0)
+    if not already and max_uses and uses >= max_uses:
+        raise HTTPException(403, "Cette clé a atteint son nombre maximal d'utilisations")
+    if not already:
+        await db.beta_keys.update_one(
+            {"key": key},
+            {"$inc": {"uses": 1}, "$set": {"last_used_at": now_utc().isoformat()}},
+        )
+    response.set_cookie(
+        BETA_COOKIE, key, httponly=True, secure=True, samesite="none",
+        max_age=30 * 24 * 3600, path="/",
+    )
+    return {"ok": True, "label": doc.get("label") or ""}
+
+
+@api.get("/admin/beta-keys")
+async def list_beta_keys(user: dict = Depends(get_admin_dep)):
+    return await db.beta_keys.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+
+@api.post("/admin/beta-keys")
+async def create_beta_keys(payload: dict, user: dict = Depends(get_admin_dep)):
+    label = str(payload.get("label", ""))[:80]
+    max_uses = max(0, min(100000, int(payload.get("max_uses", 0) or 0)))
+    count = max(1, min(50, int(payload.get("count", 1) or 1)))
+    created = []
+    for _ in range(count):
+        key = _gen_beta_key()
+        while await db.beta_keys.find_one({"key": key}):
+            key = _gen_beta_key()
+        doc = {
+            "key": key,
+            "label": label,
+            "active": True,
+            "max_uses": max_uses,
+            "uses": 0,
+            "created_at": now_utc().isoformat(),
+            "created_by": user["username"],
+            "last_used_at": None,
+        }
+        await db.beta_keys.insert_one(doc)
+        doc.pop("_id", None)
+        created.append(doc)
+    return {"created": created}
+
+
+@api.post("/admin/beta-keys/{key}/toggle")
+async def toggle_beta_key(key: str, user: dict = Depends(get_admin_dep)):
+    doc = await db.beta_keys.find_one({"key": key})
+    if not doc:
+        raise HTTPException(404, "Clé introuvable")
+    new_active = not doc.get("active", True)
+    await db.beta_keys.update_one({"key": key}, {"$set": {"active": new_active}})
+    return {"ok": True, "active": new_active}
+
+
+@api.delete("/admin/beta-keys/{key}")
+async def delete_beta_key(key: str, user: dict = Depends(get_admin_dep)):
+    await db.beta_keys.delete_one({"key": key})
+    return {"ok": True}
 
 
 @api.post("/staff/maintenance-login")
@@ -2194,6 +2294,8 @@ async def staff_maintenance_login(req: LoginReq, response: Response):
         "last_activity_at": now_utc().isoformat(),
     })
     set_session_cookie(response, token)
+    await touch_user_last_seen(user["user_id"])
+    discord_auth_forum.schedule_auth_event("login", user)
     result = public_user(user)
     result["session_token"] = token
     return result
@@ -2260,6 +2362,16 @@ async def set_maintenance(payload: dict, user: dict = Depends(get_admin_dep)):
             "progress": max(0, min(100, int(row.get("progress", default["progress"])))),
             "icon": default["icon"],
         }
+    open_at_raw = payload.get("open_at", current.get("open_at"))
+    open_at = None
+    if open_at_raw:
+        try:
+            dt = datetime.fromisoformat(str(open_at_raw).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            open_at = dt.isoformat()
+        except Exception:
+            open_at = None
     doc = {
         "enabled": enabled,
         "title": title,
@@ -2267,6 +2379,7 @@ async def set_maintenance(payload: dict, user: dict = Depends(get_admin_dep)):
         "subtitle": subtitle,
         "html": html,
         "systems": systems,
+        "open_at": open_at,
         "updated_at": now_utc().isoformat(),
         "updated_by": user["username"],
     }
@@ -4394,6 +4507,9 @@ async def maintenance_gate(request: Request, call_next):
             return await call_next(request)
     except HTTPException:
         pass
+    # Allow beta testers holding a valid key cookie
+    if reason == "maintenance" and await has_beta_access(request):
+        return await call_next(request)
     return JSONResponse(
         status_code=503,
         content={

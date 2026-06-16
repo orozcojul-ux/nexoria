@@ -65,7 +65,7 @@ function MaintenanceGate({ children }) {
 
   if (maint === null || authLoading) return null;
   const isStaff = user?.role === "admin" || user?.role === "moderator";
-  if (maint.enabled && !isStaff && location.pathname !== "/maintenance") {
+  if (maint.enabled && !isStaff && !maint.beta_access && location.pathname !== "/maintenance") {
     window.location.replace("/maintenance");
     return null;
   }

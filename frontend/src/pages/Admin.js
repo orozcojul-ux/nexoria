@@ -13,6 +13,7 @@ import BroadcastPanel from "@/components/BroadcastPanel";
 import HeroName from "@/components/HeroName";
 import MaintenanceTextField from "@/components/admin/MaintenanceTextField";
 import MaintenancePreview from "@/components/admin/MaintenancePreview";
+import BetaKeysAdmin from "@/components/admin/BetaKeysAdmin";
 import ForumModerationAdmin from "@/components/admin/ForumModerationAdmin";
 import NewsAdmin from "@/components/admin/NewsAdmin";
 import AdminEditHeroDialog from "@/components/admin/AdminEditHeroDialog";
@@ -22,6 +23,15 @@ import { ONLINE_GATE_HTML_FIELDS, DEFAULT_ONLINE_GATE_HTML, normalizeOnlineGateH
 import "@/pages/Maintenance.css";
 
 const SURFACE = "relative rounded-xl border border-white/10 bg-gradient-to-br from-[#0F0820]/80 via-[#0A0613]/80 to-[#1A0B3D]/80 backdrop-blur";
+
+/** Convertit un ISO (UTC) en valeur locale pour <input type="datetime-local">. */
+function isoToLocalInput(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
 
 export default function Admin() {
   const { t } = useI18n();
@@ -37,6 +47,7 @@ export default function Admin() {
     html: {},
     systems: {},
     subtitle: "",
+    open_at: "",
   });
   const [onlineGate, setOnlineGate] = useState({
     open: true,
@@ -72,6 +83,7 @@ export default function Admin() {
         html: normalizeMaintenanceHtml(m.data?.html),
         systems: normalizeMaintenanceSystems(m.data?.systems),
         subtitle: m.data?.subtitle || "",
+        open_at: m.data?.open_at || "",
       });
       setOnlineGate({
         open: og.data?.open !== false,
@@ -101,6 +113,7 @@ export default function Admin() {
     html: normalizeMaintenanceHtml(maintenance.html),
     systems: normalizeMaintenanceSystems(maintenance.systems),
     subtitle: (maintenance.subtitle || "").slice(0, 300),
+    open_at: maintenance.open_at || null,
   });
 
   const toggleMaintenance = async () => {
@@ -452,6 +465,30 @@ export default function Admin() {
             />
 
             <div className="pt-2 border-t border-white/10">
+              <p className="text-[10px] uppercase tracking-[0.35em] text-cyan-400 font-bold mb-2">Compte à rebours d'ouverture</p>
+              <p className="text-xs text-zinc-500 mb-2">Date/heure d'ouverture affichée sur la page maintenance. Laissez vide pour masquer le compte à rebours.</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="datetime-local"
+                  value={isoToLocalInput(maintenance.open_at)}
+                  onChange={(e) => setMaintenance((prev) => ({ ...prev, open_at: e.target.value ? new Date(e.target.value).toISOString() : "" }))}
+                  className="bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-cyan-500/50"
+                  data-testid="maintenance-open-at"
+                />
+                {maintenance.open_at && (
+                  <button
+                    type="button"
+                    onClick={() => setMaintenance((prev) => ({ ...prev, open_at: "" }))}
+                    className="px-3 py-1.5 rounded-md text-xs border border-white/15 text-zinc-400 hover:bg-white/5"
+                    data-testid="maintenance-open-at-clear"
+                  >
+                    Effacer
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-white/10">
               <p className="text-[10px] uppercase tracking-[0.35em] text-cyan-400 font-bold mb-3">Avancement des systèmes</p>
               <div className="space-y-5">
                 {MAINTENANCE_SYSTEM_KEYS.map(({ key, label, defaultProgress }) => {
@@ -518,6 +555,10 @@ export default function Admin() {
                 Restaurer le style Nexoria
               </button>
             </div>
+          </div>
+
+          <div className="pt-4 border-t border-white/10">
+            <BetaKeysAdmin />
           </div>
 
           <div className="flex items-center gap-3 pt-2 border-t border-white/10">
