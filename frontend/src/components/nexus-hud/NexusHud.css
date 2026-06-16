@@ -1,0 +1,630 @@
+/* Nexus Online — HUD premium */
+
+.nexus-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(124, 58, 237, 0.12) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(0, 229, 255, 0.08) 0%, transparent 50%),
+    linear-gradient(160deg, #05030d 0%, #0a0613 45%, #12082a 100%);
+}
+
+.nexus-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 80%, rgba(124, 58, 237, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 80% 20%, rgba(0, 229, 255, 0.05) 0%, transparent 35%);
+  animation: nexus-ambient 12s ease-in-out infinite alternate;
+}
+
+@keyframes nexus-ambient {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
+.nexus-canvas-zone {
+  position: absolute;
+  inset: 0;
+  top: 5.75rem;
+}
+
+.nexus-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid rgba(201, 165, 101, 0.12);
+  background: linear-gradient(180deg, rgba(8, 6, 18, 0.92) 0%, rgba(8, 6, 18, 0.72) 100%);
+  backdrop-filter: blur(16px);
+}
+
+.nexus-brand { display: flex; align-items: center; gap: 0.65rem; }
+
+.nexus-brand-mark {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 35% 30%, rgba(124, 58, 237, 0.5) 0%, rgba(8, 6, 18, 0.95) 70%);
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.25);
+  border: 1px solid rgba(201, 165, 101, 0.2);
+}
+
+.nexus-brand-title {
+  margin: 0;
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #f8fafc;
+}
+
+.nexus-brand-sub {
+  margin: 0.1rem 0 0;
+  font-size: 0.58rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgba(201, 165, 101, 0.75);
+}
+
+.nexus-stat-chips { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+
+.nexus-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #d4d4d8;
+}
+
+.nexus-chip--live { border-color: rgba(74, 222, 128, 0.35); color: #86efac; }
+.nexus-chip--cyan { border-color: rgba(0, 229, 255, 0.25); color: #a5f3fc; }
+
+.nexus-chip-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.8);
+}
+
+.nexus-topbar-actions { display: flex; align-items: center; gap: 0.4rem; }
+
+.nexus-icon-btn {
+  width: 2.1rem; height: 2.1rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.35);
+  color: #d4d4d8;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+
+.nexus-icon-btn:hover { border-color: rgba(0, 229, 255, 0.35); color: #a5f3fc; }
+.nexus-icon-btn--active { border-color: rgba(0, 229, 255, 0.5); background: rgba(0, 229, 255, 0.08); color: #67e8f9; }
+.nexus-icon-btn--gold { border-color: rgba(201, 165, 101, 0.35); color: #e8c97a; }
+
+.nexus-action-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.4rem 0.7rem; border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: #e4e4e7; cursor: pointer;
+}
+
+.nexus-action-btn--active { border-color: rgba(0, 229, 255, 0.5); background: rgba(0, 229, 255, 0.08); color: #67e8f9; }
+.nexus-action-btn--staff { border-color: rgba(201, 165, 101, 0.35); color: #e8c97a; }
+
+.nexus-pulse-bar {
+  position: absolute; top: 3.25rem; left: 0; right: 0; z-index: 29;
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.4rem 1rem;
+  border-bottom: 1px solid rgba(124, 58, 237, 0.15);
+  background: rgba(5, 3, 13, 0.55);
+  backdrop-filter: blur(10px);
+  overflow-x: auto;
+}
+
+.nexus-pulse-room-name {
+  font-family: 'Cinzel', serif;
+  font-size: 0.72rem; font-weight: 600;
+  letter-spacing: 0.06em; color: #f4f4f5;
+  white-space: nowrap;
+}
+
+.nexus-pulse-divider { width: 1px; height: 1.1rem; background: rgba(255,255,255,0.1); flex-shrink: 0; }
+
+.nexus-pulse-widget {
+  display: flex; align-items: center; gap: 0.35rem;
+  padding: 0.2rem 0.55rem; border-radius: 0.35rem;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(0,0,0,0.25);
+  font-size: 0.62rem; color: #a1a1aa; white-space: nowrap;
+}
+
+.nexus-hud-panel {
+  position: relative;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(201, 165, 101, 0.15);
+  background: linear-gradient(155deg, rgba(12, 10, 28, 0.9) 0%, rgba(6, 6, 14, 0.88) 100%);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+
+.nexus-hud-panel-head {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(0,0,0,0.2);
+}
+
+.nexus-hud-panel-title {
+  font-size: 0.58rem; font-weight: 700;
+  letter-spacing: 0.28em; text-transform: uppercase;
+  color: #c9a565;
+}
+
+.nexus-hud-panel-count { margin-left: auto; font-size: 0.65rem; color: #67e8f9; font-weight: 700; }
+
+.nexus-social-dock {
+  position: absolute; top: 6.25rem; right: 1rem; z-index: 30;
+  width: 15.5rem; max-height: calc(100vh - 8rem);
+  display: flex; flex-direction: column;
+}
+
+.nexus-social-body { overflow-y: auto; flex: 1; padding: 0.35rem; }
+
+.nexus-hero-row {
+  display: flex; align-items: center; gap: 0.45rem;
+  width: 100%; padding: 0.45rem 0.5rem;
+  border: 1px solid transparent; border-radius: 0.45rem;
+  background: transparent; text-align: left; cursor: pointer;
+}
+
+.nexus-hero-row:hover { border-color: rgba(0,229,255,0.2); background: rgba(0,229,255,0.04); }
+
+.nexus-hero-avatar {
+  width: 1.75rem; height: 1.75rem; border-radius: 0.4rem;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 800; color: #fff;
+  background: linear-gradient(135deg, #4c1d95, #7c3aed);
+  flex-shrink: 0;
+}
+
+.nexus-hero-meta { flex: 1; min-width: 0; }
+.nexus-hero-name { font-size: 0.72rem; font-weight: 600; color: #f4f4f5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nexus-hero-class { font-size: 0.58rem; color: #71717a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.nexus-hero-actions { display: flex; gap: 0.2rem; opacity: 0; }
+.nexus-hero-row:hover .nexus-hero-actions { opacity: 1; }
+
+.nexus-hero-action {
+  width: 1.35rem; height: 1.35rem; border: none; border-radius: 0.3rem;
+  background: rgba(0,0,0,0.4); color: #a1a1aa;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+
+.nexus-chat-dock { position: absolute; bottom: 1rem; left: 1rem; z-index: 30; }
+.nexus-chat-dock--open { width: min(24rem, calc(100vw - 18rem)); }
+
+.nexus-chat-fab {
+  width: 2.75rem; height: 2.75rem; border-radius: 50%;
+  border: 1px solid rgba(0,229,255,0.35);
+  background: linear-gradient(145deg, rgba(12,10,28,0.95), rgba(6,6,14,0.95));
+  color: #67e8f9; display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+
+.nexus-channel-tabs { display: flex; gap: 0.15rem; padding: 0.35rem; overflow-x: auto; border-bottom: 1px solid rgba(255,255,255,0.06); }
+
+.nexus-channel-tab {
+  display: flex; align-items: center; gap: 0.25rem;
+  padding: 0.35rem 0.45rem; border: none; background: transparent;
+  font-size: 0.55rem; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: #71717a; cursor: pointer;
+  border-bottom: 2px solid transparent; white-space: nowrap;
+}
+
+.nexus-channel-tab--active { color: #a5f3fc; border-bottom-color: #22d3ee; }
+
+.nexus-chat-log { flex: 1; overflow-y: auto; padding: 0.5rem; font-size: 0.72rem; max-height: 38vh; }
+.nexus-chat-input-row { display: flex; gap: 0.35rem; padding: 0.45rem; border-top: 1px solid rgba(255,255,255,0.06); }
+.nexus-chat-input {
+  flex: 1; background: rgba(5,3,13,0.9); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 0.4rem; padding: 0.45rem; font-size: 0.72rem; color: #f4f4f5;
+}
+
+.nexus-boot {
+  position: absolute; inset: 0; top: 5.75rem; z-index: 25;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(5,3,13,0.88); backdrop-filter: blur(12px);
+}
+
+.nexus-boot-card {
+  max-width: 26rem; padding: 2rem;
+  border-radius: 0.75rem; border: 1px solid rgba(201,165,101,0.2);
+  background: linear-gradient(155deg, rgba(12,10,28,0.95), rgba(6,6,14,0.92));
+  text-align: center;
+}
+
+.nexus-boot-title { font-family: 'Cinzel', serif; font-size: 1.15rem; color: #f8fafc; margin: 0 0 0.5rem; }
+.nexus-boot-sub { font-size: 0.82rem; color: #a1a1aa; margin: 0 0 1.25rem; }
+.nexus-boot-btn {
+  padding: 0.55rem 1.25rem; border-radius: 0.5rem;
+  border: 1px solid rgba(0,229,255,0.4); background: rgba(0,229,255,0.08);
+  color: #a5f3fc; font-size: 0.72rem; font-weight: 700; cursor: pointer;
+}
+
+.nexus-map-backdrop {
+  position: fixed; inset: 0; z-index: 85;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem; background: rgba(5,3,13,0.88); backdrop-filter: blur(10px);
+}
+
+.nexus-map-shell {
+  width: min(56rem, 100%); max-height: 88vh;
+  display: flex; flex-direction: column;
+  border-radius: 0.75rem; border: 1px solid rgba(201,165,101,0.22);
+  background: linear-gradient(155deg, rgba(10,8,20,0.98), rgba(6,6,14,0.96));
+  overflow: hidden;
+}
+
+.nexus-room-card {
+  text-align: left; padding: 0.85rem; border-radius: 0.55rem;
+  border: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3);
+  cursor: pointer; transition: transform 0.15s, border-color 0.2s;
+}
+
+.nexus-room-card:hover:not(:disabled) { border-color: rgba(0,229,255,0.35); transform: translateY(-2px); }
+.nexus-room-card--here { border-color: rgba(0,229,255,0.5); background: rgba(0,229,255,0.06); }
+.nexus-room-card:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.nexus-pulse-room { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+
+.nexus-channel-badge {
+  margin-left: 0.15rem; padding: 0 0.3rem; border-radius: 9999px;
+  background: #ef4444; color: #fff; font-size: 0.5rem; font-weight: 700;
+}
+
+.nexus-map-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.nexus-map-group-title {
+  font-family: 'Cinzel', serif;
+  font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.28em; text-transform: uppercase;
+  color: #c9a565; margin: 0 0 0.75rem;
+}
+
+.nexus-boot-portal {
+  width: 4.5rem; height: 4.5rem; border-radius: 50%;
+  border: 1px solid rgba(201,165,101,0.25);
+  background: radial-gradient(circle at 35% 30%, rgba(124,58,237,0.4) 0%, rgba(8,6,18,0.95) 70%);
+  box-shadow: 0 0 32px rgba(124,58,237,0.3);
+}
+
+.nexus-announce {
+  position: absolute; top: 6.5rem; left: 50%; transform: translateX(-50%);
+  z-index: 40; max-width: 42rem; width: calc(100% - 2rem);
+  padding: 0.55rem 1rem; border-radius: 0.65rem;
+  border: 1px solid rgba(201,165,101,0.35);
+  background: linear-gradient(90deg, rgba(201,165,101,0.12), rgba(124,58,237,0.08), rgba(201,165,101,0.12));
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+.nexus-gm-picker {
+  position: absolute; top: 7rem; left: 50%; transform: translateX(-50%);
+  z-index: 35; padding: 0.45rem 0.75rem; border-radius: 0.5rem;
+  border: 1px solid rgba(201,165,101,0.35);
+  background: rgba(8,6,18,0.92); backdrop-filter: blur(10px);
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.72rem; color: #e8c97a;
+}
+
+@media (max-width: 900px) {
+  .nexus-social-dock { display: none; }
+  .nexus-realm-pulse { display: none; }
+  .nexus-chat-dock--open { width: min(22rem, calc(100vw - 2rem)); }
+  .nexus-stat-chips { display: none; }
+}
+
+.nexus-event-ribbon {
+  position: absolute; left: 1rem; top: 7rem; z-index: 28;
+  display: flex; flex-direction: column; gap: 0.45rem;
+  max-width: 14rem;
+}
+
+.nexus-event-card {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.5rem 0.65rem; border-radius: 0.5rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(8,6,18,0.82); backdrop-filter: blur(10px);
+  font-size: 0.68rem; color: #f4f4f5;
+  animation: nexus-event-in 0.5s ease-out;
+}
+
+.nexus-event-card--boss { border-color: rgba(239,68,68,0.4); box-shadow: 0 0 20px rgba(239,68,68,0.12); }
+.nexus-event-card--rift { border-color: rgba(167,139,250,0.4); box-shadow: 0 0 20px rgba(167,139,250,0.12); }
+
+.nexus-event-label {
+  font-size: 0.5rem; letter-spacing: 0.22em; text-transform: uppercase;
+  color: #a1a1aa; margin-bottom: 0.1rem;
+}
+
+.nexus-event-value { font-weight: 600; color: #fafafa; }
+
+@keyframes nexus-event-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.nexus-realm-pulse {
+  position: absolute; bottom: 1rem; right: 17.5rem; z-index: 28;
+  width: 11.5rem; padding: 0.55rem 0.65rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(201,165,101,0.18);
+  background: rgba(8,6,18,0.78); backdrop-filter: blur(12px);
+}
+
+.nexus-realm-pulse-head {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.52rem; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: #c9a565; margin-bottom: 0.45rem;
+}
+
+.nexus-realm-meter { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.3rem; }
+.nexus-realm-meter-label { font-size: 0.5rem; color: #71717a; width: 2rem; }
+.nexus-realm-meter-track {
+  flex: 1; height: 4px; border-radius: 9999px;
+  background: rgba(255,255,255,0.06); overflow: hidden;
+}
+.nexus-realm-meter-fill { height: 100%; border-radius: 9999px; transition: width 0.6s ease; }
+.nexus-realm-meter-fill--world { background: linear-gradient(90deg, #7c3aed, #22d3ee); }
+.nexus-realm-meter-fill--zone { background: linear-gradient(90deg, #c9a565, #f59e0b); }
+.nexus-realm-meter-val { font-size: 0.55rem; color: #a5f3fc; font-weight: 700; width: 1.25rem; text-align: right; }
+
+.nexus-realm-wave {
+  height: 2px; margin-top: 0.35rem; border-radius: 9999px;
+  background: linear-gradient(90deg, transparent, rgba(0,229,255,0.5), transparent);
+  animation: nexus-wave 2.4s ease-in-out infinite;
+}
+
+.nexus-realm-wave--alt { animation-delay: 1.2s; opacity: 0.7; }
+
+@keyframes nexus-wave {
+  0%, 100% { transform: scaleX(0.3); opacity: 0.4; }
+  50% { transform: scaleX(1); opacity: 1; }
+}
+
+/* Compagnons — panneau latéral in-game */
+.nexus-friends-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.nexus-friends-panel {
+  position: fixed;
+  top: 5.75rem;
+  right: 0;
+  bottom: 0;
+  z-index: 46;
+  width: min(26rem, 100vw);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(201, 165, 101, 0.2);
+  background: linear-gradient(165deg, rgba(10, 8, 22, 0.97) 0%, rgba(5, 4, 12, 0.98) 100%);
+  backdrop-filter: blur(18px);
+  box-shadow: -8px 0 40px rgba(0, 0, 0, 0.5);
+}
+
+.nexus-friends-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.nexus-friends-title {
+  margin: 0;
+  font-family: 'Cinzel', serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #f8fafc;
+}
+
+.nexus-friends-sub {
+  margin: 0.15rem 0 0;
+  font-size: 0.55rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(201, 165, 101, 0.7);
+}
+
+.nexus-friends-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.nexus-friends-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.35rem;
+  border-radius: 0.45rem;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #71717a;
+  cursor: pointer;
+  position: relative;
+}
+
+.nexus-friends-tab:hover { color: #d4d4d8; background: rgba(255, 255, 255, 0.04); }
+.nexus-friends-tab--active {
+  color: #c9a565;
+  border-color: rgba(201, 165, 101, 0.25);
+  background: rgba(201, 165, 101, 0.08);
+}
+
+.nexus-friends-tab-badge {
+  position: absolute;
+  top: -2px;
+  right: 2px;
+  min-width: 0.95rem;
+  height: 0.95rem;
+  padding: 0 0.2rem;
+  border-radius: 9999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.45rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nexus-friends-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.55rem;
+}
+
+.nexus-friends-list,
+.nexus-friends-requests {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.nexus-friend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.nexus-friend-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #4c1d95, #7c3aed);
+  flex-shrink: 0;
+  overflow: hidden;
+  image-rendering: pixelated;
+}
+
+.nexus-friend-meta { flex: 1; min-width: 0; }
+
+.nexus-friend-msg-btn {
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  background: rgba(0, 229, 255, 0.06);
+  color: #67e8f9;
+  font-size: 0.55rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.nexus-friend-status {
+  font-size: 0.48rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.35rem;
+  border-radius: 9999px;
+}
+
+.nexus-friend-status--on {
+  color: #86efac;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.nexus-friend-status--off {
+  color: #71717a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nexus-friend-avatar--pixel,
+.nexus-hero-avatar--pixel {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: visible;
+  background: rgba(10, 8, 22, 0.55);
+  border-color: rgba(201, 165, 101, 0.22);
+}
+
+.nexus-hero-avatar--pixel {
+  width: 1.75rem;
+  height: 2.1rem;
+  border-radius: 0.35rem;
+}
+
+.nexus-friends-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #71717a;
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+.nexus-action-btn--friends {
+  border-color: rgba(201, 165, 101, 0.3);
+  color: #e8c97a;
+}
+
+.nexus-action-btn--friends.nexus-action-btn--active {
+  border-color: rgba(201, 165, 101, 0.55);
+  background: rgba(201, 165, 101, 0.1);
+}

@@ -57,7 +57,11 @@ TITLES = [
     {"id": "roi_createurs", "name": "Roi des Créateurs", "unlock_level": 200},
     {"id": "legende_vivante", "name": "Légende Vivante", "unlock_level": 500},
     {"id": "elu_cosmique", "name": "Élu Cosmique", "unlock_level": 999},
+    {"id": "starforged", "name": "Forgé des Étoiles", "unlock_level": 1},
+    {"id": "void_walker", "name": "Marcheur du Vide", "unlock_level": 1},
 ]
+
+SHOP_ONLY_TITLES = frozenset({"starforged", "void_walker"})
 
 # 30 Badges (categories: participation, social, creation, collection, secrets)
 BADGES = [
@@ -69,6 +73,7 @@ BADGES = [
     {"id": "daily_streak_7", "name": "Habitué", "category": "participation", "icon": "Calendar", "rarity": "rare", "description": "7 jours consécutifs", "color": "#3B82F6"},
     {"id": "daily_streak_30", "name": "Pilier", "category": "participation", "icon": "CalendarCheck", "rarity": "epic", "description": "30 jours consécutifs", "color": "#A855F7"},
     # Social
+    {"id": "discord_herald", "name": "Héraut Discord", "category": "social", "icon": "MessageSquare", "rarity": "rare", "description": "Inscription ou liaison via Discord", "color": "#5865F2"},
     {"id": "loyal_friend", "name": "Ami Fidèle", "category": "social", "icon": "Users", "rarity": "rare", "description": "10 abonnements", "color": "#3B82F6"},
     {"id": "mentor", "name": "Mentor", "category": "social", "icon": "GraduationCap", "rarity": "epic", "description": "100 abonnés", "color": "#A855F7"},
     {"id": "influencer", "name": "Influenceur", "category": "social", "icon": "TrendingUp", "rarity": "legendary", "description": "1000 abonnés", "color": "#EAB308"},
@@ -106,20 +111,90 @@ BADGES = [
     # Secrets / Events
     {"id": "rift_walker", "name": "Marcheur des Failles", "category": "secrets", "icon": "Aperture", "rarity": "divine", "description": "Survécu à une faille dimensionnelle", "color": "#00E5FF"},
     {"id": "oracle_blessed", "name": "Béni de l'Oracle", "category": "secrets", "icon": "Eye", "rarity": "epic", "description": "Consulté l'Oracle 10 fois", "color": "#A855F7"},
+    {"id": "news_scribe", "name": "Scribe des Nouvelles", "category": "creation", "icon": "Newspaper", "rarity": "common", "description": "Premier commentaire sur une actualité", "color": "#22D3EE"},
+    {"id": "news_sage", "name": "Sage du Royaume", "category": "creation", "icon": "BookOpen", "rarity": "rare", "description": "25 commentaires sur les actualités", "color": "#A855F7"},
+    {"id": "news_herald", "name": "Héraut des Chroniques", "category": "creation", "icon": "Megaphone", "rarity": "epic", "description": "100 commentaires sur les actualités", "color": "#FBBF24"},
+    {"id": "guardian_just", "name": "Gardien de la Justice", "category": "social", "icon": "Shield", "rarity": "rare", "description": "Signalement validé par les modérateurs", "color": "#4ADE80"},
     {"id": "hall_of_legends", "name": "Hall of Legends", "category": "secrets", "icon": "Flame", "rarity": "cosmic", "description": "Atteindre le top 10 mondial", "color": "#FF0080"},
     {"id": "boss_slayer", "name": "Tueur de Boss", "category": "secrets", "icon": "Target", "rarity": "legendary", "description": "Participé à la défaite d'un boss mondial", "color": "#EAB308"},
 ]
 
 # Quest templates
 QUEST_TEMPLATES = [
-    {"id": "daily_post", "type": "daily", "name": "Voix du Royaume", "description": "Publier 1 message", "target": 1, "action": "post", "xp": 50, "aether": 20},
-    {"id": "daily_react", "type": "daily", "name": "Encourager les Héros", "description": "Donner 5 réactions", "target": 5, "action": "react", "xp": 30, "aether": 15},
-    {"id": "daily_comment", "type": "daily", "name": "Conseil Sage", "description": "Commenter 3 publications", "target": 3, "action": "comment", "xp": 40, "aether": 20},
     {"id": "daily_login", "type": "daily", "name": "Présence Quotidienne", "description": "Se connecter aujourd'hui", "target": 1, "action": "login", "xp": 25, "aether": 10},
-    {"id": "weekly_posts", "type": "weekly", "name": "Plume Active", "description": "Publier 10 messages cette semaine", "target": 10, "action": "post", "xp": 300, "aether": 150},
-    {"id": "weekly_react", "type": "weekly", "name": "Soutien Fervent", "description": "Donner 50 réactions cette semaine", "target": 50, "action": "react", "xp": 200, "aether": 100},
+    {"id": "daily_forum_reply", "type": "daily", "name": "Voix du Conseil", "description": "Répondre à 2 sujets du forum", "target": 2, "action": "forum_reply", "xp": 50, "aether": 25},
+    {"id": "daily_oracle", "type": "daily", "name": "Murmures de l'Oracle", "description": "Consulter l'Oracle une fois", "target": 1, "action": "oracle", "xp": 40, "aether": 20},
+    {"id": "daily_nexus", "type": "daily", "name": "Marche du Nexus", "description": "Entrer dans le Nexus Online", "target": 1, "action": "nexus_enter", "xp": 35, "aether": 15},
+    {"id": "weekly_forum_threads", "type": "weekly", "name": "Chroniqueur", "description": "Ouvrir 3 débats au forum", "target": 3, "action": "forum_thread", "xp": 300, "aether": 150},
+    {"id": "weekly_forum_replies", "type": "weekly", "name": "Orateur des Salles", "description": "Poster 15 réponses au forum", "target": 15, "action": "forum_reply", "xp": 320, "aether": 160},
+    {"id": "weekly_guild_chat", "type": "weekly", "name": "Fraternité d'Ordre", "description": "Envoyer 10 messages de guilde", "target": 10, "action": "guild_chat", "xp": 220, "aether": 110},
     {"id": "weekly_oracle", "type": "weekly", "name": "Sagesse de l'Oracle", "description": "Consulter l'Oracle 3 fois", "target": 3, "action": "oracle", "xp": 250, "aether": 120},
+    {"id": "weekly_friends", "type": "weekly", "name": "Liens d'Amitié", "description": "Envoyer 5 missives à un compagnon", "target": 5, "action": "friend_message", "xp": 180, "aether": 90},
     {"id": "monthly_grind", "type": "monthly", "name": "Marathonien", "description": "Gagner 5000 XP ce mois", "target": 5000, "action": "xp", "xp": 1500, "aether": 800},
+]
+
+# Défis communautaires affichés sur l'accueil / événements (objectifs collectifs)
+COMMUNITY_CHALLENGES = [
+    {
+        "challenge_id": "forum_echoes",
+        "sort_order": 1,
+        "name": "Échos du Conseil",
+        "description": "La communauté doit échanger 500 réponses sur les forums pour réveiller l'Oracle collectif.",
+        "target": 500,
+        "action": "forum_reply",
+        "action_label": "Réponses forum",
+        "link": "/forum",
+        "tone": "violet",
+        "icon": "MessageSquare",
+    },
+    {
+        "challenge_id": "forum_chronicles",
+        "sort_order": 2,
+        "name": "Chroniques du Royaume",
+        "description": "Ouvrir 80 nouveaux débats pour alimenter la mémoire vivante de NEXORIA.",
+        "target": 80,
+        "action": "forum_thread",
+        "action_label": "Sujets ouverts",
+        "link": "/forum",
+        "tone": "cyan",
+        "icon": "ScrollText",
+    },
+    {
+        "challenge_id": "oracle_convergence",
+        "sort_order": 3,
+        "name": "Convergence Mystique",
+        "description": "300 consultations de l'Oracle pour percer le voile entre les mondes.",
+        "target": 300,
+        "action": "oracle_log",
+        "action_label": "Consultations",
+        "link": "/oracle",
+        "tone": "amber",
+        "icon": "Sparkles",
+    },
+    {
+        "challenge_id": "guild_banners",
+        "sort_order": 4,
+        "name": "Bannières Unies",
+        "description": "200 messages échangés dans les guildes pour sceller l'alliance des ordres.",
+        "target": 200,
+        "action": "guild_chat",
+        "action_label": "Messages de guilde",
+        "link": "/guilds",
+        "tone": "gold",
+        "icon": "Castle",
+    },
+    {
+        "challenge_id": "fellowship_bonds",
+        "sort_order": 5,
+        "name": "Tisserands d'Amitié",
+        "description": "150 missives entre compagnons pour renforcer les liens du royaume.",
+        "target": 150,
+        "action": "friend_message",
+        "action_label": "Missives envoyées",
+        "link": "/friends",
+        "tone": "emerald",
+        "icon": "Users",
+    },
 ]
 
 # Inventory item templates — Reliques

@@ -1,355 +1,357 @@
 /**
- * NEXORIA — Tableau de bord (Vue d'ensemble).
- * Premium dashboard: 5 KPI stats + interactive Nexus map + social feed + sidebar widgets.
+ * NEXORIA — Feed / Tableau de bord (actualités + widgets jeu)
  */
 import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
 import {
-  Heart, MessageCircle, Send, Loader2, Flame, Feather, ScrollText, Trash2,
-  Users as UsersIcon, Eye, Calendar, ShieldCheck, Sparkles, Trophy,
+  Flame, Newspaper, ArrowRight, Trophy, Sparkles, Radio,
+  Scroll, ShoppingBag, Castle, Map, Zap, Coins, Target, ChevronRight,
 } from "lucide-react";
-import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
-import { sfx } from "@/lib/sfx";
+import { useI18n } from "@/contexts/I18nContext";
 import HeroName from "@/components/HeroName";
-import NexusMapWidget from "@/components/NexusMapWidget";
-import { PremiumSection, PremiumCard, PremiumButton } from "@/components/ui-premium";
+import { OnlinePlayersPanel } from "@/components/cms/DashboardPanels";
+import CommunityChallengesWidget from "@/components/CommunityChallengesWidget";
+import { PremiumCard } from "@/components/ui-premium";
+import { useRealmPulseStats } from "@/hooks/useRealmPulseStats";
+import "./feed.css";
 
-function StatCard({ icon: Icon, label, value, sub, color, testid }) {
+const FEATURED_NEWS = 3;
+
+const CAT_LABELS = {
+  event: "pub.news.cat.event",
+  update: "pub.news.cat.update",
+  community: "pub.news.cat.community",
+  announce: "pub.news.cat.announce",
+};
+
+const CAT_BANNERS = {
+  event: "/assets/banners/events.webp",
+  update: "/assets/banners/admin.webp",
+  community: "/assets/banners/guilds.webp",
+  announce: "/assets/banners/shop.webp",
+};
+
+const CAT_ICONS = {
+  event: "⚔",
+  update: "📜",
+  community: "👥",
+  announce: "🗺",
+};
+
+const QUICK_LINKS = [
+  { to: "/quests", labelKey: "nav.quests", icon: Scroll, color: "#A855F7" },
+  { to: "/shop", labelKey: "nav.shop", icon: ShoppingBag, color: "#EAB308" },
+  { to: "/oracle", labelKey: "nav.oracle", icon: Sparkles, color: "#06B6D4" },
+  { to: "/kingdom", labelKey: "nav.kingdom", icon: Castle, color: "#F59E0B" },
+  { to: "/events", labelKey: "nav.events", icon: Flame, color: "#EF4444" },
+];
+
+function FeaturedNewsCard({ article, index, t, lead = false }) {
+  const cat = article.category || "announce";
+  const catKey = CAT_LABELS[cat] || CAT_LABELS.announce;
+  const image = article.image_url || CAT_BANNERS[cat] || CAT_BANNERS.announce;
+  const icon = CAT_ICONS[cat] || CAT_ICONS.announce;
+  const summary = (article.content || "").trim();
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -3 }}
-      className="relative rounded-2xl border p-4 overflow-hidden backdrop-blur"
-      style={{
-        background: `linear-gradient(135deg, ${color}1A 0%, rgba(15,8,32,0.85) 100%)`,
-        borderColor: `${color}55`,
-        boxShadow: `0 0 22px ${color}22, inset 0 0 10px ${color}11`,
-      }}
-      data-testid={testid}
+      transition={{ delay: index * 0.06 }}
+      className={lead ? "feed-news-card--lead" : undefined}
     >
-      <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full blur-3xl opacity-50 pointer-events-none" style={{ background: color }} />
-      <div className="relative flex items-start gap-3">
-        <div
-          className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: `${color}25`, boxShadow: `0 0 14px ${color}55` }}
-        >
-          <Icon className="w-5 h-5" style={{ color }} />
+      <Link
+        to={`/news/${article.news_id}`}
+        className="feed-news-card"
+        data-testid={`feed-featured-news-${article.news_id}`}
+      >
+        <div className="feed-news-card-media" style={{ backgroundImage: `url(${image})` }}>
+          <div className="feed-news-card-shade" />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[9px] uppercase tracking-[0.35em] font-bold text-zinc-400">{label}</div>
-          <div className="font-mono-stat font-black text-2xl text-white mt-0.5">{value}</div>
-          <div className="text-[10px] text-zinc-500 mt-0.5 truncate">{sub}</div>
+        <div className="feed-news-card-body">
+          <span className="feed-news-cat">{t(catKey)}</span>
+          <h3 className="feed-news-card-title">{article.title}</h3>
+          {summary && <p className="feed-news-card-excerpt">{summary}</p>}
         </div>
-      </div>
+        <span className="feed-news-card-icon" aria-hidden>{icon}</span>
+      </Link>
     </motion.div>
   );
 }
 
-function PostCard({ post, onReact, onOpenComments, comments, onComment, openId, currentUser, onDelete }) {
-  const [text, setText] = useState("");
-  const isOpen = openId === post.post_id;
-  const canDelete = currentUser && (
-    currentUser.user_id === post.user_id ||
-    currentUser.role === "admin" ||
-    currentUser.role === "moderator"
-  );
+function NewsListItem({ article, index, t }) {
+  const cat = article.category || "announce";
+  const catKey = CAT_LABELS[cat] || CAT_LABELS.announce;
 
   return (
-    <motion.article initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="py-4 border-b border-violet-500/10 last:border-0" data-testid={`feed-post-${post.post_id}`}>
-      <div className="flex gap-3">
-        <Link to={`/profile/${post.author?.username || ''}`} className="shrink-0">
-          <div className="relative">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center font-display font-bold text-sm ring-1 ring-violet-400/30">
-              {post.author?.avatar_url ? <img src={post.author.avatar_url} alt="" className="w-full h-full rounded-full object-cover" /> : (post.author?.username?.[0] || "?").toUpperCase()}
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#0A0A0E] border border-violet-400/40 flex items-center justify-center text-[8px] font-mono-stat text-violet-300 font-bold">
-              {post.author?.level || 1}
-            </div>
-          </div>
-        </Link>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2 mb-1 flex-wrap">
-            <Link to={`/profile/${post.author?.username || ''}`} className="hover:opacity-80 transition-opacity">
-              <HeroName user={post.author} size="base" />
-            </Link>
-            <span className="text-[9px] uppercase tracking-[0.25em] font-bold text-cyan-400">{post.author?.class_name}</span>
-            <span className="text-xs text-zinc-600">· {new Date(post.created_at).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-          </div>
-          <div className="text-zinc-200 leading-relaxed whitespace-pre-wrap break-words">{post.content}</div>
-          <div className="mt-3 flex items-center gap-5 text-xs text-zinc-400">
-            <button onClick={() => onReact(post.post_id)} data-testid={`react-${post.post_id}`}
-              className="flex items-center gap-1.5 hover:text-pink-400 transition-colors group">
-              <Heart className="w-4 h-4 group-hover:scale-110 transition-transform" />
-              <span className="font-mono-stat">{post.reactions}</span>
-            </button>
-            <button onClick={() => onOpenComments(post.post_id)} data-testid={`comments-${post.post_id}`}
-              className="flex items-center gap-1.5 hover:text-cyan-300 transition-colors">
-              <MessageCircle className="w-4 h-4" />
-              <span className="font-mono-stat">{post.comments_count}</span>
-            </button>
-            {canDelete && (
-              <button onClick={() => onDelete(post.post_id)} data-testid={`delete-post-${post.post_id}`}
-                className="flex items-center gap-1.5 text-zinc-600 hover:text-red-400 transition-colors ml-auto">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          {isOpen && (
-            <div className="mt-3 pl-3 border-l border-violet-400/20 space-y-2">
-              {comments.map((c) => (
-                <div key={c.comment_id} className="text-sm">
-                  <span className="font-bold text-cyan-300">{c.author?.username}</span>
-                  <span className="text-zinc-300 ml-2">{c.content}</span>
-                </div>
-              ))}
-              <form onSubmit={(e) => { e.preventDefault(); if (!text.trim()) return; onComment(post.post_id, text); setText(""); }} className="flex gap-2 mt-2">
-                <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Votre réponse..."
-                  className="flex-1 bg-white/5 border border-violet-400/20 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-violet-400/60"
-                  data-testid={`comment-input-${post.post_id}`} />
-                <button type="submit" className="px-3 py-1.5 rounded bg-violet-500/20 border border-violet-400/40 text-violet-200 text-xs font-bold" data-testid={`comment-submit-${post.post_id}`}>Sceller</button>
-              </form>
-            </div>
-          )}
-        </div>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04 }}
+      className="feed-news-row"
+      data-testid={`feed-news-${article.news_id}`}
+    >
+      <div className="feed-news-row-body">
+        <span className="feed-news-row-cat">{t(catKey)}</span>
+        <h3 className="feed-news-row-title">{article.title}</h3>
       </div>
-    </motion.article>
+      <Link
+        to={`/news/${article.news_id}`}
+        className="feed-news-row-btn"
+        data-testid={`feed-news-read-${article.news_id}`}
+      >
+        {t("feed.news.read")}
+        <ArrowRight className="w-3 h-3 inline ml-1" />
+      </Link>
+    </motion.div>
+  );
+}
+
+function QuickActionsWidget() {
+  const { t } = useI18n();
+  return (
+    <div className="feed-widget-panel" data-testid="feed-quick-actions">
+      <div className="feed-widget-title text-violet-300">
+        <Target className="w-3 h-3" /> {t("feed.quick_access")}
+      </div>
+      <div className="feed-quick-grid">
+        {QUICK_LINKS.map(({ to, labelKey, icon: Icon, color }) => (
+          <Link key={to} to={to} className="feed-quick-link">
+            <Icon className="w-3.5 h-3.5 shrink-0" style={{ color }} />
+            <span className="truncate">{t(labelKey)}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DailyQuestsWidget({ quests }) {
+  const { t } = useI18n();
+  const daily = quests.filter((q) => q.type === "daily").slice(0, 3);
+  if (daily.length === 0) return null;
+
+  return (
+    <div className="feed-widget-panel" data-testid="feed-daily-quests">
+      <div className="feed-widget-title text-emerald-300">
+        <Scroll className="w-3 h-3" /> {t("feed.daily_quests")}
+      </div>
+      {daily.map((q) => {
+        const pct = Math.min(100, (q.progress / q.target) * 100);
+        return (
+          <div key={q.quest_id || q.user_id_quest_id} className="feed-quest-item">
+            <div className="feed-quest-head">
+              <span className="truncate">{q.name}</span>
+              <span className="shrink-0 text-zinc-500">{q.progress}/{q.target}</span>
+            </div>
+            <div className="feed-quest-track">
+              <div
+                className="feed-quest-fill"
+                style={{ width: `${q.completed ? 100 : pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+      <Link to="/quests" className="feed-widget-link text-emerald-300 hover:text-emerald-200">
+        {t("feed.all_quests")} <ChevronRight className="w-3 h-3" />
+      </Link>
+    </div>
   );
 }
 
 export default function Feed() {
-  const { user, refresh } = useAuth();
-  const { presence } = useNexusSocket();
-  const [posts, setPosts] = useState([]);
-  const [content, setContent] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [openId, setOpenId] = useState(null);
-  const [comments, setComments] = useState([]);
+  const { user } = useAuth();
+  const { openNexus } = useNexusSocket();
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const {
+    siteOnline, visits, events, signups, updatedAt,
+  } = useRealmPulseStats();
+  const [news, setNews] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
-  const [boss, setBoss] = useState(null);
-  const [xpPerPost, setXpPerPost] = useState(null);
-  const [stats, setStats] = useState({
-    heroes: 0, heroes_online: 0, guilds: 0, events: 0,
-    new_signups: 0, visits_today: 0, server_stability: 99.9,
-  });
-
-  const loadFeed = async () => {
-    const { data } = await api.get("/feed");
-    setPosts(data);
-  };
+  const [communityChallenges, setCommunityChallenges] = useState([]);
+  const [quests, setQuests] = useState([]);
 
   useEffect(() => {
-    loadFeed();
+    api.get("/news", { params: { limit: 20 } })
+      .then((r) => setNews(r.data || []))
+      .catch(() => setNews([]));
     api.get("/leaderboard/xp").then((r) => setLeaderboard(r.data.slice(0, 5))).catch(() => {});
-    api.get("/boss").then((r) => setBoss(r.data)).catch(() => {});
-    api.get("/game/xp-rules").then((r) => setXpPerPost(r.data.post)).catch(() => {});
-    api.get("/stats/public").then((r) => setStats((s) => ({ ...s, ...r.data }))).catch(() => {});
+    api.get("/community-challenges").then((r) => setCommunityChallenges(r.data || [])).catch(() => {});
+    api.get("/quests").then((r) => setQuests(r.data || [])).catch(() => {});
   }, []);
 
-  // Heroes online — pull from WebSocket presence (real-time)
-  const heroesOnline = presence?.total ?? stats.heroes_online;
+  const featured = news.slice(0, FEATURED_NEWS);
+  const moreNews = news.slice(FEATURED_NEWS);
+  const xpPct = user?.xp_pct ?? 0;
 
-  const publish = async (e) => {
-    e.preventDefault();
-    if (!content.trim()) return;
-    setPosting(true);
-    try {
-      const { data } = await api.post("/posts", { content });
-      sfx.success();
-      const gained = data?.xp_gained ?? xpPerPost ?? 0;
-      toast.success(`Votre voix résonne dans le royaume (+${gained} XP)`);
-      setContent("");
-      await loadFeed();
-      await refresh();
-    } catch (err) {
-      console.error("Publish failed", err);
-      toast.error("Le scribe est troublé...");
-    }
-    finally { setPosting(false); }
-  };
-
-  const react = async (postId) => {
-    try { await api.post(`/posts/${postId}/react`); sfx.click(); await loadFeed(); }
-    catch (err) { console.error("React failed", err); }
-  };
-
-  const openComments = async (postId) => {
-    if (openId === postId) { setOpenId(null); return; }
-    setOpenId(postId);
-    const { data } = await api.get(`/posts/${postId}/comments`);
-    setComments(data);
-  };
-
-  const addComment = async (postId, text) => {
-    await api.post(`/posts/${postId}/comments`, { content: text });
-    sfx.click();
-    const { data } = await api.get(`/posts/${postId}/comments`);
-    setComments(data);
-    await loadFeed();
-    await refresh();
-  };
-
-  const deletePost = async (postId) => {
-    if (!window.confirm("Supprimer définitivement cette publication ?")) return;
-    try {
-      await api.delete(`/posts/${postId}`);
-      toast.success("Publication retirée");
-      sfx.click();
-      await loadFeed();
-    } catch (e) { toast.error(e.response?.data?.detail || "Suppression impossible"); }
+  const enterNexus = () => {
+    openNexus?.();
+    navigate("/nexus");
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6" data-testid="feed-page">
-      {/* === HEADER === */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="feed-page" data-testid="feed-page">
+      <header className="feed-header">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.4em] text-violet-300 font-bold mb-1">Tableau de bord</div>
-          <h1 className="font-display font-black text-3xl sm:text-4xl tracking-tight">
-            Bonjour, <span className="text-gradient">{user?.username}</span>
+          <p className="text-[10px] uppercase tracking-[0.4em] text-[var(--nx-accent)] font-bold mb-1">
+            {t("feed.kicker")}
+          </p>
+          <h1 className="font-display font-black text-2xl sm:text-3xl text-white">
+            {t("feed.greeting")}, <HeroName user={user} size="lg" showIcon={false} className="inline" />
           </h1>
-          <p className="text-zinc-400 text-sm mt-1 italic">Voici l'état du Nexus aujourd'hui — les Voiles te sont favorables.</p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-2 rounded-full border border-green-400/40 bg-green-500/10">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" style={{ boxShadow: "0 0 8px rgba(74,222,128,0.9)" }} />
-          <span className="text-[10px] uppercase tracking-[0.3em] text-green-200 font-bold">Nexus Online · Live</span>
+        <div className="feed-live-badge">
+          <Radio className="w-3 h-3 animate-pulse" />
+          {t("feed.live")}
         </div>
-      </div>
+      </header>
 
-      {/* === 5 STAT CARDS === */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="dashboard-stats">
-        <StatCard icon={Sparkles}    label="Héros connectés"   value={heroesOnline}            sub="En temps réel"        color="#00E5FF" testid="stat-heroes-online" />
-        <StatCard icon={Eye}         label="Visites aujourd'hui" value={stats.visits_today}    sub="Dernières 24h"        color="#9D4CDD" testid="stat-visits" />
-        <StatCard icon={Calendar}    label="Événements actifs" value={stats.events}            sub="En cours"             color="#F59E0B" testid="stat-events" />
-        <StatCard icon={ShieldCheck} label="Stabilité serveur" value={`${stats.server_stability}%`} sub="Disponibilité"   color="#10B981" testid="stat-stability" />
-        <StatCard icon={UsersIcon}   label="Nouveaux inscrits" value={stats.new_signups}       sub="Dernières 24h"        color="#EC4899" testid="stat-signups" />
-      </div>
-
-      {/* === NEXUS MAP === */}
-      <NexusMapWidget />
-
-      {/* === MAIN GRID === */}
-      <div className="grid lg:grid-cols-12 gap-6">
-        {/* Left column — Composer + Feed */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* COMPOSER */}
-          <PremiumCard tone="cyan" hover={false} testid="composer-card">
-            <form onSubmit={publish}>
-              <div className="flex items-center gap-3 mb-3">
-                <ScrollText className="w-4 h-4 text-cyan-300" />
-                <div className="text-[10px] uppercase tracking-[0.35em] text-cyan-300 font-bold">Carrefour des voix · Compose</div>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center font-display font-bold shrink-0 ring-1 ring-cyan-400/30">
-                  {user?.username?.[0]?.toUpperCase()}
-                </div>
-                <textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder={`Que se passe-t-il dans ton royaume, ${user?.username || "héros"} ?`}
-                  rows={3}
-                  maxLength={1000}
-                  className="flex-1 bg-transparent text-white placeholder-zinc-500 focus:outline-none resize-none"
-                  data-testid="post-composer"
-                />
-              </div>
-              <div className="flex justify-between items-center pt-2 mt-2 border-t border-cyan-500/10">
-                <span className="text-xs font-mono-stat text-zinc-500 flex items-center gap-1">
-                  <Feather className="w-3 h-3" /> {content.length}/1000{xpPerPost ? ` · +${xpPerPost} XP` : ""}
+      <div className="feed-dashboard">
+        <div className="feed-main">
+          <section className="feed-hero-bar" data-testid="feed-hero-widget">
+            <div className="feed-hero-info">
+              <div className="feed-hero-class">{user?.class_name}</div>
+              <div className="feed-hero-meta">
+                <span>Niv. <strong>{user?.level}</strong></span>
+                <span>{user?.rank}</span>
+                <span className="flex items-center gap-1 text-amber-300/90">
+                  <Coins className="w-3 h-3" /> {user?.aether?.toLocaleString()} Aether
                 </span>
-                <PremiumButton type="submit" variant="cyan" size="md" icon={posting ? Loader2 : Send} disabled={posting || !content.trim()} testid="post-submit-btn">
-                  Sceller
-                </PremiumButton>
               </div>
-            </form>
-          </PremiumCard>
+              <div className="feed-hero-xp">
+                <div className="feed-hero-xp-track">
+                  <div className="feed-hero-xp-fill" style={{ width: `${Math.min(100, xpPct)}%` }} />
+                </div>
+                <div className="feed-hero-xp-labels">
+                  <span>{user?.xp?.toLocaleString()} XP</span>
+                  <span>{Math.round(xpPct)}%</span>
+                </div>
+              </div>
+            </div>
+            <div className="feed-hero-actions">
+              <button type="button" onClick={enterNexus} className="feed-hero-nexus-btn" data-testid="feed-enter-nexus">
+                <Map className="w-3.5 h-3.5" /> Entrer dans le Nexus
+              </button>
+              <Link to="/hero" className="feed-hero-link">
+                Voir ma fiche <ChevronRight className="w-3 h-3 inline" />
+              </Link>
+            </div>
+          </section>
 
-          {/* FEED */}
-          <PremiumSection title="Activité de la communauté" subtitle={`${posts.length} parchemin(s)`} icon={ScrollText} tone="cyan">
-            <PremiumCard hover={false} tone="cyan" className="!p-0">
-              <div className="px-5 py-2">
-                {posts.length === 0 && (
-                  <div className="py-16 text-center text-zinc-500 italic">
-                    Le silence règne… sois la première voix.
+          <section data-testid="feed-featured-news-section">
+            <div className="feed-section-head">
+              <h2 className="feed-section-title">
+                <Newspaper className="w-3.5 h-3.5 text-cyan-400" />
+                {t("feed.news.kicker")} · {t("feed.news.section")}
+              </h2>
+              {news.length > 0 && (
+                <span className="feed-section-count">{news.length} article{news.length > 1 ? "s" : ""}</span>
+              )}
+            </div>
+
+            {news.length === 0 ? (
+              <div className="feed-news-empty" data-testid="feed-news-empty">
+                {t("feed.news.empty")}
+              </div>
+            ) : (
+              <>
+                {featured.length > 0 && (
+                  <div className="feed-news-featured">
+                    {featured.map((n, i) => (
+                      <FeaturedNewsCard key={n.news_id} article={n} index={i} t={t} lead={i === 0} />
+                    ))}
                   </div>
                 )}
-                {posts.map((p) => (
-                  <PostCard
-                    key={p.post_id}
-                    post={p}
-                    onReact={react}
-                    onOpenComments={openComments}
-                    comments={openId === p.post_id ? comments : []}
-                    onComment={addComment}
-                    openId={openId}
-                    currentUser={user}
-                    onDelete={deletePost}
-                  />
-                ))}
-              </div>
-            </PremiumCard>
-          </PremiumSection>
+                {moreNews.length > 0 && (
+                  <div className="feed-news-list">
+                    <div className="feed-section-head" style={{ marginBottom: "0.65rem" }}>
+                      <h3 className="feed-section-title">{t("feed.news.more")}</h3>
+                      <span className="feed-section-count">{moreNews.length}</span>
+                    </div>
+                    {moreNews.map((n, i) => (
+                      <NewsListItem key={n.news_id} article={n} index={i} t={t} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
         </div>
 
-        {/* Right sidebar */}
-        <aside className="lg:col-span-4 space-y-4">
-          {boss && (
-            <PremiumCard tone="red" testid="world-boss-widget">
-              <div className="text-[10px] uppercase tracking-[0.3em] text-red-300 font-bold flex items-center gap-1.5 mb-1">
-                <Flame className="w-3 h-3" /> Menace cosmique
-              </div>
-              <div className="font-display font-black text-lg text-white">{boss.name}</div>
-              <div className="text-xs text-zinc-300 mt-1 leading-snug italic line-clamp-3">{boss.description}</div>
-              <div className="mt-3">
-                <div className="flex justify-between font-mono-stat text-xs mb-1">
-                  <span className="text-zinc-400 uppercase tracking-widest">Assaut commun</span>
-                  <span className="text-red-300">{boss.progress}/{boss.target}</span>
-                </div>
-                <div className="h-2 bg-black/40 rounded-full overflow-hidden border border-red-500/30">
-                  <div
-                    className="h-full bg-gradient-to-r from-red-600 via-amber-500 to-red-500"
-                    style={{
-                      width: `${Math.min(100, (boss.progress / boss.target) * 100)}%`,
-                      boxShadow: "0 0 10px rgba(239,68,68,0.8)",
-                    }}
-                  />
-                </div>
-              </div>
-              <Link to="/events" className="block mt-3 text-[10px] uppercase tracking-[0.3em] font-bold text-red-300 hover:text-red-200">
-                Voir l'événement →
-              </Link>
-            </PremiumCard>
-          )}
-
-          <PremiumCard tone="gold" testid="mini-leaderboard">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-yellow-300 font-bold mb-3 flex items-center gap-1.5">
-              <Trophy className="w-3 h-3" /> Cinq plus brillants
+        <aside className="feed-sidebar">
+          <div className="feed-widget-panel" data-testid="dashboard-stats">
+            <div className="feed-widget-title text-cyan-300">
+              <Zap className="w-3 h-3" />
+              Pulsation du royaume
+              <span className="feed-stat-live" title="Mise à jour en direct" />
             </div>
-            <div className="space-y-1.5">
+            <div className="feed-stats-grid">
+              <div className="feed-stat-mini">
+                <div className="feed-stat-mini-value feed-stat-mini-value--live" key={`site-${siteOnline}-${updatedAt}`}>
+                  {siteOnline}
+                </div>
+                <div className="feed-stat-mini-label">{t("feed.stat.online")}</div>
+              </div>
+              <div className="feed-stat-mini">
+                <div className="feed-stat-mini-value feed-stat-mini-value--live" key={`visits-${visits}-${updatedAt}`}>
+                  {visits}
+                </div>
+                <div className="feed-stat-mini-label">{t("feed.stat.visits")}</div>
+              </div>
+              <div className="feed-stat-mini">
+                <div className="feed-stat-mini-value feed-stat-mini-value--live" key={`events-${events}-${updatedAt}`}>
+                  {events}
+                </div>
+                <div className="feed-stat-mini-label">{t("feed.stat.events")}</div>
+              </div>
+              <div className="feed-stat-mini">
+                <div className="feed-stat-mini-value feed-stat-mini-value--live" key={`signups-${signups}-${updatedAt}`}>
+                  {signups}
+                </div>
+                <div className="feed-stat-mini-label">{t("feed.stat.signups")}</div>
+              </div>
+            </div>
+          </div>
+
+          <QuickActionsWidget />
+          <DailyQuestsWidget quests={quests} />
+
+          <CommunityChallengesWidget challenges={communityChallenges} limit={3} />
+
+          <PremiumCard tone="gold" testid="mini-leaderboard" className="!border-[var(--nx-border)] !bg-[var(--nx-surface)]">
+            <div className="text-[10px] uppercase tracking-widest text-yellow-300 font-bold mb-3 flex items-center gap-1.5">
+              <Trophy className="w-3 h-3" /> {t("feed.leaderboard")}
+            </div>
+            <div className="space-y-1">
               {leaderboard.map((u, i) => (
                 <Link
                   to={`/profile/${u.username}`}
                   key={u.user_id}
-                  className="flex items-center gap-2 py-1.5 hover:bg-white/[0.04] rounded px-2 transition-all"
+                  className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-white/[0.04] transition-colors"
                   data-testid={`mini-leaderboard-${i}`}
                 >
-                  <span className={`font-mono-stat font-black w-5 text-sm ${i === 0 ? "text-yellow-300" : i === 1 ? "text-zinc-300" : i === 2 ? "text-orange-400" : "text-zinc-500"}`}>#{i + 1}</span>
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 text-xs flex items-center justify-center font-bold ring-1 ring-violet-400/30">
-                    {u.avatar_url ? <img src={u.avatar_url} alt="" className="w-full h-full rounded-full object-cover" /> : u.username?.[0]?.toUpperCase()}
-                  </div>
-                  <span className="text-sm flex-1 truncate font-display text-white">{u.username}</span>
-                  <span className="font-mono-stat text-xs text-cyan-300">{u.level}</span>
+                  <span className={`font-mono-stat font-bold w-5 text-xs ${i === 0 ? "text-yellow-300" : "text-zinc-500"}`}>
+                    #{i + 1}
+                  </span>
+                  <span className="text-sm flex-1 truncate">
+                    <HeroName user={u} size="sm" showIcon={false} />
+                  </span>
+                  <span className="font-mono-stat text-xs text-[var(--nx-secondary)]">{u.level}</span>
                 </Link>
               ))}
             </div>
-            <Link to="/leaderboards" className="block mt-3 text-[10px] uppercase tracking-[0.3em] font-bold text-yellow-300 hover:text-yellow-200">
-              Hall des Légendes →
+            <Link to="/leaderboards" className="block mt-3 text-[10px] uppercase tracking-widest font-bold text-yellow-300 hover:text-yellow-200">
+              {t("feed.leaderboard_link")} →
             </Link>
           </PremiumCard>
+
+          <OnlinePlayersPanel />
         </aside>
       </div>
     </div>

@@ -1,0 +1,539 @@
+@import url("https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Rajdhani:wght@400;500;600;700&family=Uncial+Antiqua&display=swap");
+
+/* ============================================================
+   PAGE
+   ============================================================ */
+.page {
+  --gold: #c8960a;
+  --gold-light: #f5c842;
+  --gold-dim: #8a6a1a;
+  --rune: rgba(180, 140, 20, 0.32);
+  --violet: #7c3aed;
+  --cyan: #00d4ff;
+  --teal: #00e5c8;
+  --ink: #04060f;
+  --panel: rgba(4, 6, 20, 0.9);
+  --text-muted: #5a5a7a;
+
+  position: relative;
+  min-height: 100vh;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background-color: var(--ink);
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  font-family: "Rajdhani", sans-serif;
+  color: #e8e0c0;
+}
+
+.page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(5, 8, 20, 0.75) 0%, rgba(3, 5, 15, 0.92) 100%);
+  z-index: 0;
+}
+
+.page > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ============================================================
+   ORNATE FRAME (shared by all 3 blocks)
+   ============================================================ */
+/* Cadre = double liseré doré + canal runique au milieu */
+.frame {
+  position: relative;
+  border: 2px solid #c9a44c;
+  border-radius: 2px;
+  box-shadow:
+    inset 0 0 0 1px rgba(60, 45, 12, 0.85),
+    inset 0 0 26px rgba(120, 90, 20, 0.18),
+    0 0 0 1px #2a2000,
+    0 0 18px rgba(120, 90, 10, 0.45);
+}
+
+/* liseré intérieur (2e ligne dorée) */
+.frame::before {
+  content: "";
+  position: absolute;
+  inset: 13px;
+  border: 1px solid rgba(201, 164, 76, 0.85);
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Coins ornementaux */
+.corner {
+  position: absolute;
+  width: 54px;
+  height: 54px;
+  z-index: 12;
+  pointer-events: none;
+  color: #c9a44c;
+}
+.cornerTL { top: -3px; left: -3px; }
+.cornerTR { top: -3px; right: -3px; transform: scaleX(-1); }
+.cornerBL { bottom: -3px; left: -3px; transform: scaleY(-1); }
+.cornerBR { bottom: -3px; right: -3px; transform: scale(-1, -1); }
+
+/* Losanges au milieu de chaque bord */
+.midDiamond {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: linear-gradient(135deg, #e8c66a 0%, #c9a44c 55%, #9a7522 100%);
+  border: 1px solid #6e5418;
+  box-shadow: 0 0 6px rgba(200, 150, 20, 0.5);
+  z-index: 11;
+  pointer-events: none;
+}
+.midTop {
+  top: -8px;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateX(-50%) rotate(45deg);
+}
+.midBottom {
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+}
+.midLeft {
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+}
+.midRight {
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+/* Runes dans le canal entre les deux liserés */
+.runeTop,
+.runeBottom {
+  position: absolute;
+  left: 56px;
+  width: calc(100% - 112px);
+  text-align: center;
+  font-size: 8px;
+  letter-spacing: 4px;
+  color: rgba(201, 164, 76, 0.5);
+  pointer-events: none;
+  z-index: 5;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.runeTop { top: 5px; }
+.runeBottom { bottom: 5px; }
+
+.runeLeft,
+.runeRight {
+  position: absolute;
+  top: 56px;
+  height: calc(100% - 112px);
+  writing-mode: vertical-rl;
+  font-size: 8px;
+  letter-spacing: 4px;
+  color: rgba(201, 164, 76, 0.4);
+  pointer-events: none;
+  z-index: 5;
+  overflow: hidden;
+}
+.runeLeft { left: 5px; }
+.runeRight { right: 5px; }
+
+/* ============================================================
+   BLOCK 1 — HEADER
+   ============================================================ */
+.header {
+  width: 100%;
+  height: 220px;
+  background-position: right center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.headerOverlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(4, 6, 20, 0.97) 0%, rgba(4, 6, 20, 0.6) 55%, transparent 100%);
+  z-index: 1;
+}
+
+.headerInner {
+  position: relative;
+  z-index: 3;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 24px 32px;
+}
+
+/* ---- Avatar ---- */
+.avatarWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.avatarRing {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 3px solid var(--violet);
+  background: radial-gradient(circle, #1a0a3a 0%, #0d0520 100%);
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.8), 0 0 40px rgba(124, 58, 237, 0.3);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Cinzel Decorative", serif;
+  font-size: 42px;
+  color: #d8c8ff;
+}
+.avatarImg { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+.logoBadge {
+  position: absolute;
+  bottom: -4px;
+  left: -4px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #0d0520;
+  border: 2px solid var(--gold);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.logoHex { font-size: 9px; color: var(--gold); margin-bottom: -1px; }
+.logoText { font-size: 6px; font-weight: 700; color: var(--gold); letter-spacing: 0.5px; }
+
+.camBtn {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid #4a4a6a;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+}
+
+/* ---- Hero info ---- */
+.info {
+  flex: 1;
+  min-width: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rankLine {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.heroName {
+  font-family: "Cinzel Decorative", serif;
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--gold-light);
+  letter-spacing: -1px;
+  text-shadow: 0 0 20px rgba(245, 200, 66, 0.5), 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.discordLine { font-size: 13px; color: #7a7aaa; }
+
+.classLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  color: #a0a0d0;
+}
+.classArrow { color: var(--cyan); display: inline-flex; }
+.rankWord { color: var(--cyan); font-weight: 600; }
+
+.titlePill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(180, 130, 20, 0.2);
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  padding: 4px 14px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--gold);
+  text-transform: uppercase;
+}
+
+/* ---- Quick stats ---- */
+.stats {
+  display: flex;
+  gap: 32px;
+  padding-top: 16px;
+}
+.statCol { display: flex; flex-direction: column; gap: 2px; }
+.statLabel {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.statValue {
+  font-weight: 700;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.statXp { color: #6060ff; }
+.statNeutral { color: #e8e0c0; }
+.hexIcon { color: #6060ff; font-size: 14px; }
+
+.xpBar {
+  width: 200px;
+  height: 4px;
+  border-radius: 2px;
+  margin-top: 8px;
+  background: linear-gradient(90deg, #7c3aed 0%, #00d4ff 60%, #a855f7 100%);
+}
+
+/* ---- Action buttons ---- */
+.actions {
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  display: flex;
+  gap: 10px;
+  z-index: 4;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(180, 130, 20, 0.15);
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  padding: 8px 18px;
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--gold);
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.actionBtn:hover { background: rgba(180, 130, 20, 0.3); }
+.actionIcon {
+  width: 36px;
+  padding: 8px 0;
+  justify-content: center;
+}
+
+/* ============================================================
+   BLOCK 2 — ADN + BADGES GRID
+   ============================================================ */
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.panel {
+  position: relative;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  padding: 28px 24px 24px;
+  min-height: 320px;
+}
+
+/* Libellé de section : à l'intérieur, en haut à gauche */
+.panelLabel {
+  position: absolute;
+  top: 22px;
+  left: 30px;
+  z-index: 8;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-shadow: 0 0 8px rgba(200, 150, 20, 0.4);
+}
+
+/* ---- Radar ---- */
+.radarWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: radial-gradient(circle at center, rgba(0, 180, 160, 0.08) 0%, transparent 70%);
+}
+.radarSvg { width: 300px; height: 300px; max-width: 100%; }
+
+/* ---- Badges grid ---- */
+.badgesGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  align-content: start;
+}
+.badgeCell {
+  width: 72px;
+  height: 72px;
+  position: relative;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.badgeEmpty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 32px 0;
+  font-style: italic;
+}
+
+/* ============================================================
+   BLOCK 3 — CHRONIQUE
+   ============================================================ */
+.chronTitle {
+  font-family: "Cinzel Decorative", serif;
+  font-weight: 700;
+  font-size: 28px;
+  color: var(--gold);
+  text-shadow: 0 0 15px rgba(200, 150, 10, 0.4);
+  margin-bottom: 16px;
+}
+
+.scrollWrap { position: relative; }
+
+.scrollTop,
+.scrollBottom {
+  height: 40px;
+  background: radial-gradient(ellipse 95% 100% at 50% 100%, #2a1f0e 0%, #1a1208 60%, transparent 100%);
+  border-radius: 50% 50% 0 0 / 40px 40px 0 0;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5), inset 0 -8px 16px rgba(180, 130, 20, 0.1);
+}
+.scrollBottom {
+  background: radial-gradient(ellipse 95% 100% at 50% 0%, #2a1f0e 0%, #1a1208 60%, transparent 100%);
+  border-radius: 0 0 50% 50% / 0 0 40px 40px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 8px 16px rgba(180, 130, 20, 0.1);
+}
+
+.scrollBody {
+  background: linear-gradient(180deg, #1a150a 0%, #141008 50%, #1a150a 100%);
+  border-left: 3px solid #2a1f0e;
+  border-right: 3px solid #2a1f0e;
+  box-shadow: inset 4px 0 12px rgba(0, 0, 0, 0.5), inset -4px 0 12px rgba(0, 0, 0, 0.5);
+  padding: 0 24px;
+}
+
+.scrollRunes {
+  font-size: 9px;
+  letter-spacing: 6px;
+  color: rgba(180, 140, 20, 0.25);
+  text-align: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(180, 140, 20, 0.1);
+}
+
+.chronList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #3a2a10 #0a0806;
+}
+.chronList::-webkit-scrollbar { width: 8px; }
+.chronList::-webkit-scrollbar-track { background: #0a0806; }
+.chronList::-webkit-scrollbar-thumb { background: #3a2a10; border-radius: 4px; }
+
+.chronEntry {
+  position: relative;
+  padding: 14px 0 14px 16px;
+  border-bottom: 1px solid rgba(180, 140, 20, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chronEntry:last-child { border-bottom: none; }
+.chronBar {
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #7c3aed 0%, rgba(124, 58, 237, 0) 100%);
+}
+.chronText {
+  font-weight: 500;
+  font-size: 14px;
+  color: #c8c0d8;
+  line-height: 1.4;
+}
+.chronDate {
+  font-weight: 400;
+  font-size: 11px;
+  color: #4a4a6a;
+}
+
+.scrollNav {
+  position: absolute;
+  right: -16px;
+  display: flex;
+  width: 12px;
+  height: 20px;
+}
+.scrollNavTop { top: 50px; }
+.scrollNavBottom { bottom: 50px; }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 900px) {
+  .grid2 { grid-template-columns: 1fr; }
+  .header { height: auto; }
+  .headerInner { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .actions { position: static; margin-top: 12px; flex-wrap: wrap; }
+  .stats { flex-wrap: wrap; gap: 20px; }
+}

@@ -606,8 +606,8 @@ ROOMS = {
                     "particle": "#FFFFFF", "ambient": "#000000"},
         "music": "cosmic_elite",
         "access": {"min_rank_titles": ["elu_cosmique", "legende_vivante",
-                                        "maitre_des_ombres", "roi_des_createurs",
-                                        "seigneur_du_temps"],
+                                        "maitre_ombres", "roi_createurs",
+                                        "seigneur_temps"],
                    "staff_bypass": True},
         "landmarks": [
             {"kind": "throne", "tx": 13, "ty": 13, "color": "#FFD700", "scale": 1.8},
@@ -664,6 +664,24 @@ def get_room_scene(room_id: str) -> dict:
         "scene_url": f"/world/rooms/{room_id}.png",
         "thumb_url": f"/world/thumbs/{room_id}.jpg",
     }
+
+
+def get_portal_links(room_id: str) -> list:
+    """Resolved portal targets with display metadata for the isometric client."""
+    room = ROOMS.get(room_id)
+    if not room:
+        return []
+    links = []
+    for tid in room.get("portals_to", []):
+        target = ROOMS.get(tid)
+        if not target:
+            continue
+        links.append({
+            "target": tid,
+            "name": target.get("name", tid),
+            "icon": target.get("icon", "🌀"),
+        })
+    return links
 
 
 def get_room_public(room_id: str) -> dict:

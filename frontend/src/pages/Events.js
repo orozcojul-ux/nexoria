@@ -13,12 +13,13 @@ import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import StarField from "@/components/StarField";
 import {
-  PremiumHero,
+  PageShell,
   PremiumSection,
   PremiumCard,
   PremiumStat,
   PremiumButton,
 } from "@/components/ui-premium";
+import { usePageBanner } from "@/lib/page-banners";
 
 function formatDate(iso) {
   if (!iso) return "—";
@@ -53,44 +54,43 @@ const RIFT_THEME = {
 };
 
 export default function Events() {
+  const banner = usePageBanner("events");
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
-  const [boss, setBoss] = useState(null);
+  const [communityChallenges, setCommunityChallenges] = useState([]);
   const [season, setSeason] = useState(null);
   const [rifts, setRifts] = useState([]);
 
   useEffect(() => {
     api.get("/widgets/events").then((r) => setEvents(r.data || [])).catch(() => {});
-    api.get("/boss").then((r) => setBoss(r.data)).catch(() => {});
+    api.get("/community-challenges").then((r) => setCommunityChallenges(r.data || [])).catch(() => {});
     api.get("/seasons/current").then((r) => setSeason(r.data)).catch(() => {});
     api.get("/widgets/rifts-map").then((r) => setRifts(r.data || [])).catch(() => {});
   }, []);
 
-  const bossPercent = boss ? Math.min(100, (boss.progress / boss.target) * 100) : 0;
+  const featuredChallenge = communityChallenges[0];
+  const featuredPct = featuredChallenge
+    ? Math.min(100, featuredChallenge.percent ?? ((featuredChallenge.progress / featuredChallenge.target) * 100))
+    : 0;
   const activeEvents = events.filter((e) => {
     if (!e.ends_at) return true;
     return new Date(e.ends_at).getTime() > Date.now();
   });
 
   return (
-    <div className="min-h-screen relative" data-testid="events-page">
+    <PageShell
+      wide
+      testid="events-page"
+      banner={banner}
+    >
       <StarField density={60} />
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8">
-        {/* HERO */}
-        <PremiumHero
-          kicker="Chronique cosmique"
-          title={<>Les <span className="text-gradient">Événements</span> du Royaume</>}
-          subtitle="Saisons, boss mondiaux, failles dimensionnelles et rassemblements légendaires. Toute l'actualité vivante de NEXORIA en un seul lieu."
-          image="/shop/cristal_oracle.png"
-          height={300}
-          testid="events-hero"
-        />
+      <div className="space-y-8">
 
         {/* STATS */}
         <PremiumSection title="Pulse du Monde" subtitle="État global du Nexus" icon={Zap} tone="cyan">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <PremiumStat icon={Calendar} label="Événements" value={activeEvents.length} sub="En cours" tone="gold" testid="ev-stat-active" />
-            <PremiumStat icon={Skull} label="Boss mondial" value={boss ? `${Math.floor(bossPercent)}%` : "—"} sub={boss?.name || "Aucun"} tone="red" testid="ev-stat-boss" />
+            <PremiumStat icon={Skull} label="Défi vedette" value={featuredChallenge ? `${Math.floor(featuredPct)}%` : "—"} sub={featuredChallenge?.name || "Aucun"} tone="red" testid="ev-stat-boss" />
             <PremiumStat icon={Crown} label="Saison" value={season?.name?.slice(0, 12) || "—"} sub={season ? timeRemaining(season.ends_at) : "Inactive"} tone="violet" testid="ev-stat-season" />
             <PremiumStat icon={Sparkles} label="Failles" value={rifts.length} sub="Détectées récemment" tone="emerald" testid="ev-stat-rifts" />
           </div>
@@ -103,10 +103,21 @@ export default function Events() {
           </PremiumSection>
         )}
 
-        {/* WORLD BOSS */}
-        {boss && (
-          <PremiumSection title="Boss Mondial" subtitle="Combat collectif" icon={Skull} tone="red">
-            <BossPanel boss={boss} percent={bossPercent} />
+        {/* DÉFIS COMMUNAUTAIRES */}
+        {communityChallenges.length > 0 && (
+          <PremiumSection title="Défis du Royaume" subtitle="Objectifs collectifs — forum, Oracle, guildes…" icon={Target} tone="violet">
+            <div className="grid gap-3 sm:grid-cols-2" data-testid="community-challenges-list">
+              {communityChallenges.map((c, i) => (
+                <motion.div
+                  key={c.challenge_id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                >
+                  <CommunityChallengePanel challenge={c} />
+                </motion.div>
+              ))}
+            </div>
           </PremiumSection>
         )}
 
@@ -194,7 +205,7 @@ export default function Events() {
           </div>
         </PremiumCard>
       </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -269,49 +280,54 @@ function RewardTier({ label, tone, data }) {
   );
 }
 
-function BossPanel({ boss, percent }) {
-  return (
-    <div className="relative rounded-2xl overflow-hidden border border-red-500/40 p-6 bg-gradient-to-br from-red-900/40 via-[#0A0613]/80 to-purple-900/30" data-testid="boss-panel">
-      <div className="absolute inset-0 opacity-40 pointer-events-none" style={{ background: "radial-gradient(circle at 80% 20%, rgba(239,68,68,0.25), transparent 60%)" }} />
-      <div className="relative flex flex-col lg:flex-row gap-6 items-center">
-        <div
-          className="w-28 h-28 rounded-2xl border-2 border-red-400/70 flex items-center justify-center shrink-0"
-          style={{ boxShadow: "0 0 36px rgba(239,68,68,0.7), inset 0 0 18px rgba(239,68,68,0.4)" }}
-        >
-          <Skull className="w-14 h-14 text-red-300" />
-        </div>
-        <div className="flex-1 w-full">
-          <div className="text-[10px] uppercase tracking-[0.4em] text-red-300 font-bold mb-1">Boss mondial actif</div>
-          <h3 className="font-display font-black text-3xl text-white">{boss.name}</h3>
-          <p className="text-zinc-300 text-sm italic mt-2 max-w-2xl">{boss.description}</p>
+function CommunityChallengePanel({ challenge }) {
+  const pct = Math.min(100, challenge.percent ?? ((challenge.progress / Math.max(1, challenge.target)) * 100));
+  const tones = {
+    violet: "border-violet-500/35 text-violet-300",
+    cyan: "border-cyan-500/35 text-cyan-300",
+    amber: "border-amber-500/35 text-amber-300",
+    gold: "border-yellow-500/35 text-yellow-300",
+    emerald: "border-emerald-500/35 text-emerald-300",
+  };
+  const bars = {
+    violet: "from-violet-600 to-fuchsia-400",
+    cyan: "from-cyan-600 to-sky-400",
+    amber: "from-amber-600 to-orange-400",
+    gold: "from-yellow-600 to-amber-400",
+    emerald: "from-emerald-600 to-teal-400",
+  };
+  const tone = tones[challenge.tone] || tones.violet;
+  const bar = bars[challenge.tone] || bars.violet;
 
-          <div className="mt-4 space-y-1">
-            <div className="flex justify-between text-[11px] font-mono-stat">
-              <span className="text-zinc-400">Progression communautaire</span>
-              <span className="text-red-300 font-bold">
-                {boss.progress?.toLocaleString()} / {boss.target?.toLocaleString()}
-              </span>
-            </div>
-            <div className="h-4 rounded-full bg-white/5 overflow-hidden border border-red-500/30">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${percent}%` }}
-                transition={{ duration: 1.5, ease: "easeOut" }}
-                className="h-full rounded-full"
-                style={{
-                  background: "linear-gradient(90deg, #B91C1C, #EF4444, #F59E0B)",
-                  boxShadow: "0 0 14px rgba(239,68,68,0.8)",
-                }}
-              />
-            </div>
-            <div className="flex justify-between text-[10px] mt-1">
-              <span className="text-zinc-500">Action requise : {boss.action || "—"}</span>
-              <span className="font-bold text-red-300">{Math.floor(percent)}%</span>
-            </div>
-          </div>
-        </div>
+  return (
+    <Link
+      to={challenge.link || "/events"}
+      className={`block rounded-2xl border p-5 bg-gradient-to-br from-black/40 to-[#0F0820]/70 hover:border-white/20 transition-colors ${tone.split(" ")[0]}`}
+      data-testid={`events-challenge-${challenge.challenge_id}`}
+    >
+      <div className={`text-[10px] uppercase tracking-[0.35em] font-bold mb-1 ${tone.split(" ")[1]}`}>
+        {challenge.action_label}
       </div>
-    </div>
+      <h3 className="font-display font-black text-xl text-white">{challenge.name}</h3>
+      <p className="text-zinc-400 text-sm italic mt-2 leading-relaxed">{challenge.description}</p>
+      <div className="mt-4 space-y-1">
+        <div className="flex justify-between text-[11px] font-mono-stat">
+          <span className="text-zinc-500">Progression</span>
+          <span className={tone.split(" ")[1]}>
+            {challenge.progress?.toLocaleString()} / {challenge.target?.toLocaleString()}
+          </span>
+        </div>
+        <div className="h-3 rounded-full bg-white/[0.06] overflow-hidden border border-white/[0.05]">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${pct}%` }}
+            transition={{ duration: 1.2, ease: "easeOut" }}
+            className={`h-full rounded-full bg-gradient-to-r ${bar}`}
+          />
+        </div>
+        <div className="text-right text-[10px] font-bold text-zinc-400">{Math.floor(pct)}%</div>
+      </div>
+    </Link>
   );
 }
 

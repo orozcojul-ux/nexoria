@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import * as Lucide from "lucide-react";
 import { Bell, Check, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
 import { useI18n } from "@/contexts/I18nContext";
@@ -10,6 +11,7 @@ import { useNexusSocket } from "@/contexts/NexusSocketContext";
 export default function NotificationsBell() {
   const { t } = useI18n();
   const ns = useNexusSocket();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [notifs, setNotifs] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -98,8 +100,22 @@ export default function NotificationsBell() {
               )}
               {notifs.map((n) => {
                 const Icon = Lucide[n.icon] || Lucide.Bell;
+                const clickable = !!n.link;
+                const go = () => {
+                  if (!n.link) return;
+                  setOpen(false);
+                  navigate(n.link);
+                };
                 return (
-                  <div key={n.notif_id} className={`px-4 py-3 border-b border-white/5 last:border-0 ${!n.read ? "bg-cyan-500/5" : ""}`} data-testid={`notif-${n.notif_id}`}>
+                  <div
+                    key={n.notif_id}
+                    role={clickable ? "button" : undefined}
+                    tabIndex={clickable ? 0 : undefined}
+                    onClick={go}
+                    onKeyDown={(e) => { if (clickable && (e.key === "Enter" || e.key === " ")) go(); }}
+                    className={`px-4 py-3 border-b border-white/5 last:border-0 ${!n.read ? "bg-cyan-500/5" : ""} ${clickable ? "cursor-pointer hover:bg-cyan-500/10" : ""}`}
+                    data-testid={`notif-${n.notif_id}`}
+                  >
                     <div className="flex gap-3">
                       <Icon className="w-4 h-4 text-cyan-400 mt-0.5 shrink-0" />
                       <div className="flex-1 min-w-0">

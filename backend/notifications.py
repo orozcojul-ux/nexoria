@@ -35,3 +35,14 @@ async def push_notification(db, user_id: str, kind: str, title: str, message: st
     except Exception as e:
         logging.getLogger("nexoria.notify").warning(f"push_notification realtime push failed: {e}")
     return doc
+
+
+async def push_staff_alert(db, kind: str, title: str, message: str,
+                           sound: str = "war", icon: str = "Shield", link: str | None = None):
+    """Notify every admin and moderator with a realtime popup-worthy alert."""
+    staff = await db.users.find(
+        {"role": {"$in": ["admin", "moderator"]}},
+        {"_id": 0, "user_id": 1},
+    ).to_list(200)
+    for s in staff:
+        await push_notification(db, s["user_id"], kind, title, message, sound, icon, link)

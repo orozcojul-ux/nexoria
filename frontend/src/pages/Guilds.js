@@ -4,22 +4,24 @@ import { Castle, Users, Crown, ShieldCheck, Send, Coins, UserPlus, LogOut, X, Pl
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { RuneSeal, RuneDivider } from "@/components/Ornaments";
 import StarField from "@/components/StarField";
 import HeroName from "@/components/HeroName";
 import { sfx } from "@/lib/sfx";
 import {
-  PremiumHero,
+  PageShell,
   PremiumSection,
   PremiumStat,
   PremiumCard,
   PremiumButton,
+  PremiumModal,
 } from "@/components/ui-premium";
+import { usePageBanner } from "@/lib/page-banners";
 
 const ROLE_LABEL = { chef: "Chef", officier: "Officier", membre: "Membre" };
 const ROLE_COLOR = { chef: "#FFD700", officier: "#F97316", membre: "#9CA3AF" };
 
 export default function Guilds() {
+  const banner = usePageBanner("guilds");
   const { user, refresh } = useAuth();
   const [mine, setMine] = useState({ guild: null, membership: null });
   const [guilds, setGuilds] = useState([]);
@@ -55,24 +57,17 @@ export default function Guilds() {
   const topGuild = [...guilds].sort((a, b) => (b.level || 0) - (a.level || 0))[0];
 
   return (
-    <div className="min-h-screen relative" data-testid="guilds-page">
+    <PageShell
+      testid="guilds-page"
+      banner={banner}
+    >
       <StarField density={50} />
-      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8">
-        {/* HERO */}
-        <PremiumHero
-          kicker="Ordres mystiques"
-          title={<>Les <span className="text-gradient">Guildes</span></>}
-          subtitle="« Aucun héros ne traverse les Voiles seul. Unissez-vous, et fondez un ordre dont le nom résonnera dans l'éternité. »"
-          image="/shop/armure_cosmique.png"
-          height={280}
-          testid="guilds-hero"
-        >
-          <div className="mt-4">
-            <PremiumButton variant="violet" size="lg" icon={Plus} onClick={() => setShowCreate(true)} testid="open-create-guild">
-              Fonder un Ordre
-            </PremiumButton>
-          </div>
-        </PremiumHero>
+      <div className="space-y-8">
+        <div>
+          <PremiumButton variant="violet" size="lg" icon={Plus} onClick={() => setShowCreate(true)} testid="open-create-guild">
+            Fonder un Ordre
+          </PremiumButton>
+        </div>
 
         {/* STATS */}
         <PremiumSection title="Pulse des Ordres" subtitle="Vue globale" icon={Shield} tone="violet">
@@ -171,7 +166,7 @@ export default function Guilds() {
       <AnimatePresence>
         {showCreate && <CreateGuildDialog onClose={() => setShowCreate(false)} onCreated={async () => { setShowCreate(false); await load(); await refresh(); }} userLevel={user?.level || 1} userAether={user?.aether || 0} />}
       </AnimatePresence>
-    </div>
+    </PageShell>
   );
 }
 
@@ -190,15 +185,8 @@ function CreateGuildDialog({ onClose, onCreated, userLevel, userAether }) {
     finally { setSaving(false); }
   };
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      onClick={onClose} className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <motion.form onClick={(e) => e.stopPropagation()} onSubmit={submit}
-        initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-        className="rune-border rounded-2xl p-6 max-w-md w-full space-y-3" data-testid="create-guild-dialog">
-        <div className="flex justify-between">
-          <h3 className="font-display font-black text-xl text-gradient">Fonder un Ordre</h3>
-          <button type="button" onClick={onClose}><X className="w-4 h-4 text-zinc-500" /></button>
-        </div>
+    <PremiumModal open onClose={onClose} title="Fonder un Ordre" icon={Castle} maxWidth="max-w-md" testid="create-guild-dialog">
+      <form onSubmit={submit} className="p-5 space-y-3">
         <div className="text-xs text-zinc-500 italic">Coût : 1000 Aether · Requiert le niveau 10 minimum.</div>
         <div className="text-[10px] font-mono-stat font-bold">
           Niveau actuel : <span className={userLevel >= 10 ? "text-green-400" : "text-red-400"}>{userLevel}</span> ·
@@ -218,12 +206,11 @@ function CreateGuildDialog({ onClose, onCreated, userLevel, userAether }) {
           <input type="color" value={form.banner_color} onChange={(e) => setForm({ ...form, banner_color: e.target.value })}
             className="w-10 h-8 rounded border border-white/10" data-testid="guild-color" />
         </div>
-        <button type="submit" disabled={saving || userLevel < 10 || userAether < 1000}
-          className="w-full py-2 rounded border border-violet-500/50 text-violet-300 font-display font-bold hover:bg-violet-500/10 disabled:opacity-40 text-sm" data-testid="guild-create-submit">
+        <PremiumButton type="submit" variant="violet" size="sm" disabled={saving || userLevel < 10 || userAether < 1000} className="w-full" testid="guild-create-submit">
           Fonder l'Ordre (-1000 ✦)
-        </button>
-      </motion.form>
-    </motion.div>
+        </PremiumButton>
+      </form>
+    </PremiumModal>
   );
 }
 
@@ -251,9 +238,9 @@ function GuildDashboard({ data, reload }) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 relative" data-testid="guild-dashboard">
+    <PageShell testid="guild-dashboard">
       <StarField density={40} />
-      <div className="rune-border rounded-2xl p-6 mb-6 relative overflow-hidden" style={{ borderColor: `${guild.banner_color}40` }}>
+      <PremiumCard tone="violet" className="p-6 mb-6 relative overflow-hidden" style={{ borderColor: `${guild.banner_color}40` }}>
         <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full blur-3xl opacity-30" style={{ background: guild.banner_color }} />
         <div className="relative flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="w-20 h-20 rounded-2xl flex items-center justify-center font-display font-black text-2xl shrink-0"
@@ -261,7 +248,7 @@ function GuildDashboard({ data, reload }) {
             {guild.tag}
           </div>
           <div className="flex-1">
-            <h1 className="font-display font-black text-3xl ancient-text">{guild.name}</h1>
+            <h1 className="font-display font-black text-3xl">{guild.name}</h1>
             <div className="text-zinc-400 text-sm italic">{guild.description}</div>
             <div className="flex gap-4 mt-2 font-mono-stat text-xs flex-wrap">
               <span><Users className="w-3 h-3 inline" /> {guild.member_count}/{guild.max_members}</span>
@@ -283,7 +270,7 @@ function GuildDashboard({ data, reload }) {
             </button>
           </div>
         </div>
-      </div>
+      </PremiumCard>
 
       <div className="flex gap-2 mb-4 flex-wrap justify-center">
         {[{ id: "members", l: "Membres", i: Users }, { id: "chat", l: "Chat", i: Send }, { id: "vault", l: "Coffre", i: Coins }].map((t) => (
@@ -295,7 +282,7 @@ function GuildDashboard({ data, reload }) {
       </div>
 
       {tab === "members" && detail && (
-        <div className="glass rounded-xl p-4 space-y-2" data-testid="members-list">
+        <PremiumCard tone="cyan" className="p-4 space-y-2" testid="members-list">
           {detail.members.sort((a, b) => (a.role === "chef" ? -1 : 1)).map((m) => (
             <div key={m.user_id} className="flex items-center justify-between p-2 rounded hover:bg-white/[0.02]">
               <div className="flex items-center gap-2">
@@ -321,7 +308,7 @@ function GuildDashboard({ data, reload }) {
               </div>
             </div>
           ))}
-        </div>
+        </PremiumCard>
       )}
       {tab === "chat" && <GuildChat guildId={guild.guild_id} />}
       {tab === "vault" && <GuildVault guild={guild} members={detail?.members || []} isOfficer={isOfficer} reload={async () => { await loadDetail(); await reload(); }} />}
@@ -329,7 +316,7 @@ function GuildDashboard({ data, reload }) {
       <AnimatePresence>
         {showInvite && <InviteDialog guildId={guild.guild_id} onClose={() => setShowInvite(false)} />}
       </AnimatePresence>
-    </div>
+    </PageShell>
   );
 }
 
@@ -352,7 +339,7 @@ function GuildChat({ guildId }) {
     setText(""); load();
   };
   return (
-    <div className="glass rounded-xl p-4 flex flex-col h-[500px]" data-testid="guild-chat">
+    <PremiumCard tone="cyan" className="p-4 flex flex-col h-[500px]" testid="guild-chat">
       <div className="flex-1 overflow-y-auto space-y-2 mb-3 pr-2">
         {msgs.length === 0 && <div className="text-zinc-500 italic text-center py-8">Aucun message — entamez la conversation</div>}
         {msgs.map((m) => (
@@ -370,7 +357,7 @@ function GuildChat({ guildId }) {
           <Send className="w-4 h-4" />
         </button>
       </form>
-    </div>
+    </PremiumCard>
   );
 }
 
@@ -387,12 +374,12 @@ function GuildVault({ guild, members, isOfficer, reload }) {
     catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
   };
   return (
-    <div className="glass rounded-xl p-5 space-y-4" data-testid="guild-vault">
+    <PremiumCard tone="gold" className="p-5 space-y-4" testid="guild-vault">
       <div className="text-center">
         <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold">Coffre commun</div>
         <div className="font-mono-stat text-4xl font-bold text-yellow-400">{guild.vault_aether} ✦</div>
       </div>
-      <RuneDivider className="my-2" />
+      <div className="border-t border-white/10 my-2" />
       <div>
         <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-2">Déposer (gagne de l'XP pour l'ordre)</div>
         <div className="flex gap-2">
@@ -414,7 +401,7 @@ function GuildVault({ guild, members, isOfficer, reload }) {
           </div>
         </div>
       )}
-    </div>
+    </PremiumCard>
   );
 }
 
@@ -429,18 +416,15 @@ function InviteDialog({ guildId, onClose }) {
     } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
   };
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      onClick={onClose} className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <motion.form onClick={(e) => e.stopPropagation()} onSubmit={submit}
-        className="rune-border rounded-2xl p-6 max-w-sm w-full space-y-3" data-testid="invite-dialog">
-        <h3 className="font-display font-black text-lg text-gradient">Inviter un héros</h3>
+    <PremiumModal open onClose={onClose} title="Inviter un héros" icon={UserPlus} maxWidth="max-w-sm" testid="invite-dialog">
+      <form onSubmit={submit} className="p-5 space-y-3">
         <input value={username} onChange={(e) => setUsername(e.target.value)} required
           placeholder="Pseudo exact" className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm" data-testid="invite-username" />
         <div className="flex gap-2 justify-end">
-          <button type="button" onClick={onClose} className="px-3 py-2 rounded border border-white/10 text-xs">Annuler</button>
-          <button type="submit" className="px-3 py-2 rounded border border-cyan-500/40 text-cyan-300 text-sm font-bold" data-testid="invite-submit">Envoyer</button>
+          <PremiumButton variant="ghost" size="sm" onClick={onClose}>Annuler</PremiumButton>
+          <PremiumButton type="submit" variant="cyan" size="sm" testid="invite-submit">Envoyer</PremiumButton>
         </div>
-      </motion.form>
-    </motion.div>
+      </form>
+    </PremiumModal>
   );
 }

@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Unbounded:wght@400;700;900&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 @layer base {
   :root {
@@ -39,26 +39,182 @@
 }
 
 html, body, #root {
-  background: #030305;
-  color: #fff;
+  background: var(--nx-bg, #0a0a12);
+  color: var(--nx-fg, #fff);
   font-family: 'Outfit', sans-serif;
+  transition: background 0.4s ease, color 0.3s ease;
 }
 
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background:
-    radial-gradient(ellipse at top left, rgba(157, 76, 221, 0.08), transparent 50%),
-    radial-gradient(ellipse at bottom right, rgba(0, 229, 255, 0.06), transparent 50%),
-    #030305;
+  background: var(--nx-body-bg, radial-gradient(ellipse at top left, rgba(138, 43, 226, 0.09), transparent 50%), radial-gradient(ellipse at bottom right, rgba(0, 229, 255, 0.06), transparent 50%), #0a0a12);
   min-height: 100vh;
 }
 
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: #0A0A0E; }
-::-webkit-scrollbar-thumb { background: rgba(157, 76, 221, 0.3); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0, 229, 255, 0.4); }
+/* === Theme system === */
+.theme-dark, :root {
+  --nx-bg: #0a0a12;
+  --nx-fg: #ffffff;
+  --nx-surface: rgba(14, 12, 22, 0.92);
+  --nx-input-bg: rgba(255, 255, 255, 0.04);
+  --nx-border: rgba(138, 43, 226, 0.25);
+  --nx-accent: #8a2be2;
+  --nx-secondary: #00e5ff;
+  --nx-glow: rgba(138, 43, 226, 0.22);
+  --nx-aurora-a: rgba(138, 43, 226, 0.35);
+  --nx-aurora-b: rgba(0, 229, 255, 0.22);
+  --nx-aurora-c: rgba(245, 158, 11, 0.12);
+  --nx-body-bg: radial-gradient(ellipse at top left, rgba(138, 43, 226, 0.09), transparent 50%), radial-gradient(ellipse at bottom right, rgba(0, 229, 255, 0.06), transparent 50%), #0a0a12;
+  --nx-bg-hue: 0deg;
+  --nx-bg-sat: 1;
+}
+
+html.theme-flash::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: radial-gradient(circle at center, var(--nx-glow) 0%, transparent 70%);
+  animation: theme-flash-pulse 0.6s ease-out forwards;
+}
+
+@keyframes theme-flash-pulse {
+  0% { opacity: 0.45; }
+  100% { opacity: 0; }
+}
+
+.theme-midnight {
+  --nx-bg-hue: 15deg;
+  --nx-bg: #06080f;
+  --nx-fg: #e8edf5;
+  --nx-surface: rgba(8, 12, 24, 0.94);
+  --nx-input-bg: rgba(255, 255, 255, 0.03);
+  --nx-border: rgba(59, 130, 246, 0.28);
+  --nx-accent: #3b82f6;
+  --nx-secondary: #60a5fa;
+  --nx-glow: rgba(59, 130, 246, 0.25);
+  --nx-aurora-a: rgba(30, 64, 175, 0.4);
+  --nx-aurora-b: rgba(96, 165, 250, 0.2);
+  --nx-aurora-c: rgba(99, 102, 241, 0.15);
+  --nx-body-bg: radial-gradient(ellipse at top, rgba(30, 58, 138, 0.15), transparent 55%), radial-gradient(ellipse at bottom right, rgba(59, 130, 246, 0.08), transparent 50%), #06080f;
+  --nx-bg-hue: 15deg;
+  --nx-bg-sat: 0.9;
+}
+
+.theme-amethyst {
+  --nx-bg: #0c0614;
+  --nx-fg: #faf5ff;
+  --nx-surface: rgba(20, 8, 32, 0.93);
+  --nx-input-bg: rgba(168, 85, 247, 0.06);
+  --nx-border: rgba(168, 85, 247, 0.35);
+  --nx-accent: #a855f7;
+  --nx-secondary: #fbbf24;
+  --nx-glow: rgba(168, 85, 247, 0.3);
+  --nx-aurora-a: rgba(168, 85, 247, 0.4);
+  --nx-aurora-b: rgba(251, 191, 36, 0.15);
+  --nx-aurora-c: rgba(236, 72, 153, 0.12);
+  --nx-body-bg: radial-gradient(ellipse at 30% 0%, rgba(168, 85, 247, 0.12), transparent 50%), radial-gradient(ellipse at 80% 100%, rgba(251, 191, 36, 0.06), transparent 45%), #0c0614;
+  --nx-bg-hue: -10deg;
+  --nx-bg-sat: 1.1;
+}
+
+.theme-ember {
+  --nx-bg: #0f0806;
+  --nx-fg: #fff7ed;
+  --nx-surface: rgba(24, 10, 6, 0.94);
+  --nx-input-bg: rgba(251, 146, 60, 0.06);
+  --nx-border: rgba(249, 115, 22, 0.3);
+  --nx-accent: #f97316;
+  --nx-secondary: #fbbf24;
+  --nx-glow: rgba(249, 115, 22, 0.28);
+  --nx-aurora-a: rgba(234, 88, 12, 0.35);
+  --nx-aurora-b: rgba(251, 191, 36, 0.2);
+  --nx-aurora-c: rgba(239, 68, 68, 0.12);
+  --nx-body-bg: radial-gradient(ellipse at top left, rgba(234, 88, 12, 0.12), transparent 50%), radial-gradient(ellipse at bottom right, rgba(251, 191, 36, 0.07), transparent 50%), #0f0806;
+  --nx-bg-hue: 25deg;
+  --nx-bg-sat: 1.15;
+}
+
+.theme-aurora {
+  --nx-bg: #040d10;
+  --nx-fg: #ecfeff;
+  --nx-surface: rgba(6, 20, 24, 0.93);
+  --nx-input-bg: rgba(34, 211, 238, 0.06);
+  --nx-border: rgba(34, 211, 238, 0.28);
+  --nx-accent: #22d3ee;
+  --nx-secondary: #34d399;
+  --nx-glow: rgba(34, 211, 238, 0.25);
+  --nx-aurora-a: rgba(34, 211, 238, 0.3);
+  --nx-aurora-b: rgba(52, 211, 153, 0.22);
+  --nx-aurora-c: rgba(167, 139, 250, 0.12);
+  --nx-body-bg: radial-gradient(ellipse at 20% 10%, rgba(34, 211, 238, 0.1), transparent 50%), radial-gradient(ellipse at 80% 90%, rgba(52, 211, 153, 0.08), transparent 50%), #040d10;
+  --nx-bg-hue: -30deg;
+  --nx-bg-sat: 1.05;
+}
+
+.nexoria-nav-link--active {
+  background: linear-gradient(90deg, rgba(123, 47, 247, 0.5) 0%, rgba(123, 47, 247, 0.22) 100%);
+  box-shadow: 0 0 18px rgba(123, 47, 247, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ─── Scrollbars thématisées (pas de piste blanche native) ─── */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(123, 47, 247, 0.42) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(123, 47, 247, 0.38);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 211, 238, 0.48);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.nx-scrollbar,
+.nexoria-sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(123, 47, 247, 0.42) transparent;
+}
+
+.nx-scrollbar::-webkit-scrollbar,
+.nexoria-sidebar-scroll::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.nx-scrollbar::-webkit-scrollbar-track,
+.nexoria-sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nx-scrollbar::-webkit-scrollbar-thumb,
+.nexoria-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(123, 47, 247, 0.32);
+  border-radius: 999px;
+}
+
+.nx-scrollbar::-webkit-scrollbar-thumb:hover,
+.nexoria-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 211, 238, 0.45);
+}
 
 ::selection { background: rgba(0, 229, 255, 0.3); color: #fff; }
 
@@ -73,15 +229,15 @@ body {
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
-.glass-violet { border-color: rgba(157, 76, 221, 0.3); box-shadow: 0 0 24px rgba(157, 76, 221, 0.15), inset 0 1px 0 rgba(255,255,255,0.05); }
+.glass-violet { border-color: rgba(138, 43, 226, 0.3); box-shadow: 0 0 24px rgba(138, 43, 226, 0.15), inset 0 1px 0 rgba(255,255,255,0.05); }
 .glass-cyan { border-color: rgba(0, 229, 255, 0.3); box-shadow: 0 0 24px rgba(0, 229, 255, 0.15), inset 0 1px 0 rgba(255,255,255,0.05); }
 
 .glow-cyan { box-shadow: 0 0 16px rgba(0, 229, 255, 0.4); }
-.glow-violet { box-shadow: 0 0 16px rgba(157, 76, 221, 0.5); }
+.glow-violet { box-shadow: 0 0 16px rgba(138, 43, 226, 0.5); }
 .glow-gold { box-shadow: 0 0 16px rgba(255, 215, 0, 0.4); }
 
 .text-gradient {
-  background: linear-gradient(135deg, #9D4CDD 0%, #00E5FF 100%);
+  background: linear-gradient(135deg, #8A2BE2 0%, #00E5FF 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -162,7 +318,7 @@ body {
   position: relative;
   background:
     linear-gradient(rgba(10,8,15,0.7), rgba(10,8,15,0.7)) padding-box,
-    linear-gradient(135deg, #9D4CDD, #00E5FF, #FF0080, #9D4CDD) border-box;
+    linear-gradient(135deg, #8A2BE2, #00E5FF, #FF0080, #8A2BE2) border-box;
   border: 1px solid transparent;
   background-size: 100% 100%, 300% 300%;
   animation: rune-shift 12s linear infinite;
@@ -184,8 +340,8 @@ body {
 
 .eldritch-glow {
   text-shadow:
-    0 0 10px rgba(157, 76, 221, 0.5),
-    0 0 20px rgba(157, 76, 221, 0.3),
+    0 0 10px rgba(138, 43, 226, 0.5),
+    0 0 20px rgba(138, 43, 226, 0.3),
     0 0 30px rgba(0, 229, 255, 0.2);
 }
 
@@ -246,6 +402,22 @@ body {
   50% { opacity: 0.8; }
 }
 .constellation-line { animation: constellation-pulse 3s ease-in-out infinite; }
+
+/* Masquer le badge Emergent s'il est réinjecté dynamiquement */
+#emergent-badge,
+a[href*="emergent.sh"][id="emergent-badge"],
+a[href*="app.emergent.sh"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Pixel art — rendu net façon Dofus/Habbo */
+.pixel-art,
+.pixel-art img {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
 
 @layer base {
   * { border-color: rgba(255, 255, 255, 0.08); }

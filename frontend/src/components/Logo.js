@@ -9,8 +9,8 @@ export default function Logo({ size = 28, withText = true, className = "" }) {
         alt="NEXORIA"
         width={size}
         height={size}
-        className="object-contain drop-shadow-[0_0_10px_rgba(157,76,221,0.6)]"
-        style={{ filter: "drop-shadow(0 0 6px rgba(0,229,255,0.5))" }}
+        className="object-contain"
+        style={{ filter: "drop-shadow(0 0 10px rgba(123,47,247,0.65)) drop-shadow(0 0 4px rgba(0,229,255,0.35))" }}
       />
       {withText && (
         <span className="font-display font-black text-xl bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-cyan-400 tracking-tight">

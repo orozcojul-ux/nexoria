@@ -1,11 +1,11 @@
 import React, { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "@/lib/api";
+import api, { extractBanDetail } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const { setUser, setBanInfo } = useAuth();
   const processed = useRef(false);
 
   useEffect(() => {
@@ -28,6 +28,11 @@ export default function AuthCallback() {
         window.history.replaceState({}, document.title, "/feed");
         navigate("/feed", { state: { user: data } });
       } catch (err) {
+        const ban = extractBanDetail(err);
+        if (ban) {
+          setBanInfo(ban);
+          return;
+        }
         console.error("Auth callback error", err);
         navigate("/login");
       }

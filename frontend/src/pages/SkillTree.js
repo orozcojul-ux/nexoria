@@ -6,10 +6,16 @@ import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { sfx } from "@/lib/sfx";
-import { RuneSeal, RuneDivider } from "@/components/Ornaments";
+import {
+  PageShell,
+  PremiumStat,
+  PremiumCard,
+} from "@/components/ui-premium";
+import { usePageBanner } from "@/lib/page-banners";
 
 export default function SkillTree() {
   const { user, refresh } = useAuth();
+  const banner = usePageBanner("skills");
   const [skills, setSkills] = useState([]);
 
   useEffect(() => {
@@ -35,26 +41,12 @@ export default function SkillTree() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8" data-testid="skill-tree-page">
-      <div className="mb-8 text-center">
-        <div className="flex justify-center mb-3">
-          <RuneSeal icon={Star} color="#A855F7" size={48} />
-        </div>
-        <div className="text-[10px] uppercase tracking-[0.4em] text-violet-300 font-bold mb-2">Voûte céleste</div>
-        <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight">
-          Votre <span className="text-gradient">Constellation</span>
-        </h1>
-        <p className="text-zinc-400 text-sm mt-2 italic scroll-paragraph max-w-xl mx-auto">
-          « Chaque étoile que vous allumez sculpte votre destin. Voyageur, choisissez vos brasiers. »
-        </p>
-        <RuneDivider className="mt-6 mb-6" />
-        <div className="inline-flex items-center gap-3 glass rounded-xl px-5 py-3">
-          <Star className="w-5 h-5 text-violet-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]" />
-          <div className="text-left">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold">Étoiles à allumer</div>
-            <div className="font-mono-stat text-2xl font-bold text-violet-300" data-testid="skill-points">{user.skill_points || 0}</div>
-          </div>
-        </div>
+    <PageShell
+      testid="skill-tree-page"
+      banner={banner}
+    >
+      <div className="flex justify-center mb-6">
+        <PremiumStat icon={Star} label="Étoiles à allumer" value={user.skill_points || 0} tone="violet" testid="skill-points" />
       </div>
 
       <div className="relative min-h-[500px]">
@@ -111,11 +103,11 @@ export default function SkillTree() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.05 }}
-                whileHover={{ scale: 1.04, y: -2 }}
-                className={`glass rounded-xl p-5 text-left transition-all relative overflow-hidden group ${canAllocate ? "hover:shadow-[0_0_28px_rgba(0,229,255,0.25)]" : "opacity-90 cursor-not-allowed"}`}
-                style={{ borderColor: lvl > 0 ? s.color : "rgba(255,255,255,0.08)" }}
+                whileHover={canAllocate ? { scale: 1.04, y: -2 } : undefined}
+                className="text-left w-full"
                 data-testid={`skill-${s.id}`}
               >
+              <PremiumCard tone="violet" hover={canAllocate} className={!canAllocate ? "opacity-90" : ""}>
                 {/* Hexagonal etheric symbol */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="relative w-14 h-14">
@@ -138,11 +130,12 @@ export default function SkillTree() {
                     + Allumer une étoile
                   </div>
                 )}
+              </PremiumCard>
               </motion.button>
             );
           })}
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

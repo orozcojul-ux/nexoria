@@ -2,8 +2,11 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState,
 import { io } from "socket.io-client";
 import { toast } from "sonner";
 import { getToken } from "@/lib/api";
+import api from "@/lib/api";
+import { INVENTORY_UPDATED_EVENT } from "@/hooks/useInventorySync";
 import { useAuth } from "@/contexts/AuthContext";
-import { sfx } from "@/lib/sfx";
+import { publishStaffAlert, STAFF_ALERT_KINDS } from "@/lib/staff-alerts";
+import { isStaffRole } from "@/lib/staff-roles";
 
 /**
  * NexusSocketContext — owns a SINGLE Socket.IO connection at app-level.
@@ -20,6 +23,7 @@ const CHANNELS = ["global", "room", "guild", "whisper", "trade", "event"];
 
 export function NexusSocketProvider({ children }) {
   const { user } = useAuth();
+  const userId = user?.user_id ?? null;
   const socketRef = useRef(null);
 
   const [status, setStatus] = useState("idle"); // idle | connecting | online | offline | error
@@ -37,7 +41,17 @@ export function NexusSocketProvider({ children }) {
   const [popup, setPopup] = useState(null); // {title, body, kind, by_username}
   const [globalAnnounce, setGlobalAnnounce] = useState(null);
   const [pushNotif, setPushNotif] = useState(null); // last notif:new doc — bell consumes
-  const [presence, setPresence] = useState({ total: 0, by_room: {}, active_rooms: 0 });
+  const [friendMessage, setFriendMessage] = useState(null);
+  const [presence, setPresence] = useState({ total: 0, by_room: {}, active_rooms: 0, staff_online: { total: 0, by_role: {}, members: [] } });
+  const [gmLogs, setGmLogs] = useState([]);
+  const [nexusGate, setNexusGate] = useState({ open: true, html: {} });
+
+  const userStaff = isStaffRole(user);
+  const staffAutoConnect = user?.staff_nexus_auto_connect !== false;
+  const nexusGateOpen = nexusGate.open !== false;
+  const mayConnectNexus = nexusGateOpen || userStaff;
+  const autoConnectSocket = userStaff ? staffAutoConnect : nexusGateOpen;
+  const shouldEstablishSocket = mayConnectNexus && (autoConnectSocket || overlayOpen);
 
   // Refs for movement/scene callbacks
   const sceneApiRef = useRef(null); // scene attaches itself here for player_move / item_spawned etc.
@@ -47,19 +61,61 @@ export function NexusSocketProvider({ children }) {
   const attachScene = useCallback((api) => { sceneApiRef.current = api; }, []);
   const detachScene = useCallback(() => { sceneApiRef.current = null; }, []);
 
-  // ---- Connect once per logged-in user ----
+  // ---- Poll Nexus online gate (does not block the rest of the site) ----
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
+      setNexusGate({ open: true, html: {} });
+      return undefined;
+    }
+    const load = () => {
+      api.get("/system/online-gate")
+        .then((r) => setNexusGate(r.data))
+        .catch(() => setNexusGate({ open: true, html: {} }));
+    };
+    load();
+    const id = setInterval(load, 30000);
+    return () => clearInterval(id);
+  }, [userId]);
+
+  // ---- Connect when allowed (auto on login for players / staff opt-in, or manual overlay) ----
+  useEffect(() => {
+    if (!userId) {
       if (socketRef.current) {
         try { socketRef.current.disconnect(); } catch {}
         socketRef.current = null;
       }
       setStatus("idle");
-      return;
+      setRoom(null);
+      setYou(null);
+      setPlayers([]);
+      setChat([]);
+      setFriendMessage(null);
+      setWhisperTarget(null);
+      setOverlayOpen(false);
+      return undefined;
+    }
+    if (!shouldEstablishSocket) {
+      if (socketRef.current) {
+        try { socketRef.current.disconnect(); } catch {}
+        socketRef.current = null;
+      }
+      setStatus(userStaff && !nexusGateOpen ? "nexus_closed" : "idle");
+      setRoom(null);
+      setYou(null);
+      setPlayers([]);
+      return undefined;
     }
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      setStatus("error");
+      return;
+    }
     const BACKEND = process.env.REACT_APP_BACKEND_URL;
+    if (!BACKEND) {
+      console.error("[Nexus] REACT_APP_BACKEND_URL manquant");
+      setStatus("error");
+      return;
+    }
     setStatus("connecting");
     const socket = io(BACKEND, {
       path: "/api/nexus/socket.io",
@@ -73,7 +129,10 @@ export function NexusSocketProvider({ children }) {
 
     socket.on("connect", () => setStatus("online"));
     socket.on("disconnect", () => setStatus("offline"));
-    socket.on("connect_error", () => setStatus("error"));
+    socket.on("connect_error", (err) => {
+      console.warn("[Nexus] connect_error", err?.message);
+      setStatus("error");
+    });
 
     socket.on("room_joined", (payload) => {
       setRoom(payload.room);
@@ -121,6 +180,7 @@ export function NexusSocketProvider({ children }) {
       setUnreadByChannel((u) => ({ ...u, [ch]: (u[ch] || 0) + 1 }));
     });
     socket.on("system_msg", (m) => {
+      if (window.location.pathname === "/maintenance") return;
       if (m.kind === "error" || m.kind === "muted") toast.error(m.text);
       else if (m.kind === "ok" || m.kind === "info" || m.kind === "pickup") toast.success(m.text);
       else if (m.kind === "warn") (toast.warning || toast)(m.text);
@@ -155,6 +215,12 @@ export function NexusSocketProvider({ children }) {
     socket.on("notification:new", (doc) => {
       setPushNotif(doc);
       try { sfx.click(); } catch {}
+      publishStaffAlert(doc);
+    });
+
+    socket.on("friend_message:new", (msg) => {
+      setFriendMessage(msg);
+      try { sfx.click(); } catch {}
     });
 
     // Presence update — global hero counter
@@ -168,11 +234,44 @@ export function NexusSocketProvider({ children }) {
     socket.on("rift_open", (rift) => {
       toast.warning?.(`🌀 Faille dimensionnelle ouverte par ${rift.by_username}`, { duration: 6000 });
     });
+    socket.on("world_boss_update", (data) => {
+      sceneApiRef.current?.onWorldBossUpdate?.(data);
+    });
+    socket.on("rift_update", (data) => {
+      sceneApiRef.current?.onRiftUpdate?.(data);
+    });
+    socket.on("gm_log:new", (entry) => {
+      setGmLogs((prev) => [entry, ...prev].slice(0, 120));
+    });
 
-    // Shop purchase sync — push by backend after successful /shop/purchase
+    // Inventory sync — shop, chest, pickup, GM grant (no page refresh)
+    socket.on("inventory:updated", (data) => {
+      try {
+        window.dispatchEvent(new CustomEvent(INVENTORY_UPDATED_EVENT, { detail: data }));
+      } catch {}
+      try { sfx.chime?.() || sfx.chest?.(); } catch {}
+    });
+
+    socket.on("profile:updated", (data) => {
+      try {
+        window.dispatchEvent(new CustomEvent("nexoria:profile:updated", { detail: data }));
+      } catch {}
+      setYou((prev) => (prev && data?.user_id === prev.user_id ? { ...prev, ...data } : prev));
+      setPlayers((prev) => prev.map((p) => (p.user_id === data?.user_id ? { ...p, ...data } : p)));
+      sceneApiRef.current?.onPlayerProfile?.(data);
+    });
+
+    socket.on("player_profile", (patch) => {
+      if (!patch?.sid) return;
+      setPlayers((prev) => prev.map((p) => (p.sid === patch.sid ? { ...p, ...patch } : p)));
+      sceneApiRef.current?.onPlayerProfile?.(patch);
+    });
+
+    // Shop purchase sync — legacy alias; also dispatches inventory:updated above from backend
     socket.on("shop:purchased", (data) => {
-      // Refresh global presence event listeners + dispatch DOM event for the Shop UI
-      try { window.dispatchEvent(new CustomEvent("nexoria:shop:purchased", { detail: data })); } catch {}
+      try {
+        window.dispatchEvent(new CustomEvent("nexoria:shop:purchased", { detail: data }));
+      } catch {}
       try { sfx.chime?.() || sfx.click?.(); } catch {}
     });
 
@@ -180,7 +279,7 @@ export function NexusSocketProvider({ children }) {
       try { socket.disconnect(); } catch {}
       socketRef.current = null;
     };
-  }, [user]);
+  }, [userId, shouldEstablishSocket, userStaff, nexusGateOpen]);
 
   // ---- API exposed to consumers ----
   const sendChat = useCallback((text, channel = "room", targetUserId = null) => {
@@ -200,6 +299,10 @@ export function NexusSocketProvider({ children }) {
 
   const pickupItem = useCallback((itemId) => {
     socketRef.current?.emit("pickup_item", { item_id: itemId });
+  }, []);
+
+  const bossAttack = useCallback((damage) => {
+    socketRef.current?.emit("boss_attack", { damage });
   }, []);
 
   const gm = useMemo(() => ({
@@ -222,6 +325,9 @@ export function NexusSocketProvider({ children }) {
     worldBoss: (name, hp) => socketRef.current?.emit("gm_world_boss", { name, hp }),
     rift: (room) => socketRef.current?.emit("gm_rift", { room }),
     observe: (target_user_id) => socketRef.current?.emit("gm_observe", { target_user_id }),
+    resetRoom: (room) => socketRef.current?.emit("gm_reset_room", { room }),
+    invasion: (count = 6) => socketRef.current?.emit("gm_invasion", { count }),
+    godmode: (enabled) => socketRef.current?.emit("gm_godmode", { enabled }),
   }), []);
 
   const onInspectResult = useCallback((handler) => {
@@ -239,24 +345,55 @@ export function NexusSocketProvider({ children }) {
 
   // The push notif "slot" — bell clears once consumed
   const consumePushNotif = useCallback(() => setPushNotif(null), []);
+  const consumeFriendMessage = useCallback(() => setFriendMessage(null), []);
+
+  const openNexus = useCallback(() => setOverlayOpen(true), []);
+  const closeNexus = useCallback(() => setOverlayOpen(false), []);
+
+  const reconnectNexus = useCallback(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    setStatus("connecting");
+    if (socket.connected) socket.disconnect();
+    socket.connect();
+  }, []);
+
+  // Tenter une reconnexion à l'ouverture de l'overlay si le socket est coupé
+  const prevOverlayOpen = useRef(false);
+  useEffect(() => {
+    if (overlayOpen && !prevOverlayOpen.current && userId && shouldEstablishSocket && (status === "offline" || status === "error")) {
+      reconnectNexus();
+    }
+    prevOverlayOpen.current = overlayOpen;
+  }, [overlayOpen, userId, status, reconnectNexus, shouldEstablishSocket]);
+
+  // Écoute globale pour ouvrir le Nexus (sidebar Mode Dieu, carte, etc.)
+  useEffect(() => {
+    const onOpen = () => setOverlayOpen(true);
+    window.addEventListener("nexoria:open-nexus", onOpen);
+    return () => window.removeEventListener("nexoria:open-nexus", onOpen);
+  }, []);
 
   const value = useMemo(() => ({
     socket: socketRef.current,
     status, room, you, players, weather, items, isStaff,
     chat, channels: CHANNELS, activeChannel, setActiveChannel,
     whisperTarget, setWhisperTarget, unreadByChannel, markChannelRead,
-    overlayOpen, setOverlayOpen,
+    overlayOpen, setOverlayOpen, openNexus, closeNexus, reconnectNexus,
+    nexusGate,
     popup, dismissPopup, globalAnnounce,
     pushNotif, consumePushNotif,
+    friendMessage, consumeFriendMessage,
     presence,
-    sendChat, move, changeRoom, pickupItem,
+    gmLogs,
+    sendChat, move, changeRoom, pickupItem, bossAttack,
     gm, onInspectResult,
     attachScene, detachScene,
   }), [
     status, room, you, players, weather, items, isStaff, chat, activeChannel,
-    whisperTarget, unreadByChannel, overlayOpen, popup, globalAnnounce, pushNotif, presence,
-    sendChat, move, changeRoom, pickupItem, gm, onInspectResult, attachScene,
-    detachScene, markChannelRead, dismissPopup, consumePushNotif,
+    whisperTarget, unreadByChannel, overlayOpen, popup, globalAnnounce, pushNotif, friendMessage, presence, gmLogs, nexusGate,
+    sendChat, move, changeRoom, pickupItem, bossAttack, gm, onInspectResult, attachScene,
+    detachScene, markChannelRead, dismissPopup, consumePushNotif, consumeFriendMessage, openNexus, closeNexus, reconnectNexus,
   ]);
 
   return <NexusSocketContext.Provider value={value}>{children}</NexusSocketContext.Provider>;

@@ -53,24 +53,49 @@ export const sfx = {
     setTimeout(() => tone(880, 0.2, "sine"), 200);
   },
   fanfare: () => {
-    // Royal medieval fanfare
-    tone(392, 0.18, "sawtooth", 0.05); // G4
-    setTimeout(() => tone(523, 0.18, "sawtooth", 0.05), 180);  // C5
-    setTimeout(() => tone(659, 0.18, "sawtooth", 0.05), 360);  // E5
-    setTimeout(() => tone(784, 0.4,  "sawtooth", 0.06), 540);  // G5 hold
-    setTimeout(() => tone(659, 0.4,  "sawtooth", 0.04), 540);  // E5 harmony
+    tone(392, 0.18, "sawtooth", 0.05);
+    setTimeout(() => tone(523, 0.18, "sawtooth", 0.05), 180);
+    setTimeout(() => tone(659, 0.18, "sawtooth", 0.05), 360);
+    setTimeout(() => tone(784, 0.4,  "sawtooth", 0.06), 540);
+    setTimeout(() => tone(659, 0.4,  "sawtooth", 0.04), 540);
   },
   horn: () => {
-    // Low war horn
     tone(110, 0.5, "sawtooth", 0.06);
     setTimeout(() => tone(82,  0.6, "sawtooth", 0.05), 100);
     setTimeout(() => tone(110, 0.5, "sawtooth", 0.05), 400);
   },
   bell: () => {
-    // Church bell toll
     tone(440, 0.6, "sine", 0.05);
     setTimeout(() => tone(220, 0.6, "sine", 0.04), 50);
     setTimeout(() => tone(440, 0.6, "sine", 0.05), 700);
     setTimeout(() => tone(220, 0.6, "sine", 0.04), 750);
+  },
+  war: () => {
+    tone(98, 0.35, "sawtooth", 0.07);
+    setTimeout(() => tone(147, 0.25, "square", 0.05), 120);
+    setTimeout(() => tone(98, 0.4, "sawtooth", 0.06), 280);
+    setTimeout(() => tone(196, 0.5, "sawtooth", 0.05), 450);
+    setTimeout(() => tone(98, 0.6, "sawtooth", 0.04), 650);
+  },
+  trumpet: () => {
+    tone(523, 0.15, "square", 0.04);
+    setTimeout(() => tone(659, 0.15, "square", 0.04), 150);
+    setTimeout(() => tone(784, 0.15, "square", 0.04), 300);
+    setTimeout(() => tone(1047, 0.35, "square", 0.05), 450);
+  },
+  chime: () => {
+    tone(880, 0.25, "sine", 0.04);
+    setTimeout(() => tone(1175, 0.25, "sine", 0.035), 80);
+    setTimeout(() => tone(1319, 0.35, "sine", 0.03), 160);
+  },
+  drum: () => {
+    tone(80, 0.12, "square", 0.08);
+    setTimeout(() => tone(60, 0.15, "square", 0.07), 200);
+    setTimeout(() => tone(80, 0.12, "square", 0.08), 400);
+    setTimeout(() => tone(60, 0.2, "square", 0.06), 550);
+  },
+  ding: () => {
+    tone(1047, 0.2, "sine", 0.05);
+    setTimeout(() => tone(1319, 0.25, "sine", 0.04), 100);
   },
 };

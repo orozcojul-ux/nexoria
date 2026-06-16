@@ -85,6 +85,11 @@ def _headers(token: str) -> dict:
     return {"Authorization": f"Bot {token}", "User-Agent": "Nexoria/1.0"}
 
 
+def _audit_reason(text: str) -> str:
+    """Discord audit-log reasons travel in HTTP headers — must stay ASCII."""
+    return text.encode("ascii", errors="replace").decode("ascii")
+
+
 async def _fetch_member(client: httpx.AsyncClient, guild_id: str, discord_id: str, token: str):
     r = await client.get(f"{DISCORD_API}/guilds/{guild_id}/members/{discord_id}", headers=_headers(token))
     if r.status_code == 404:
@@ -98,7 +103,7 @@ async def _modify_member_roles(client: httpx.AsyncClient, guild_id: str, discord
     when reconciling multiple roles atomically."""
     r = await client.patch(
         f"{DISCORD_API}/guilds/{guild_id}/members/{discord_id}",
-        headers={**_headers(token), "X-Audit-Log-Reason": reason, "Content-Type": "application/json"},
+        headers={**_headers(token), "X-Audit-Log-Reason": _audit_reason(reason), "Content-Type": "application/json"},
         json={"roles": list(set(new_roles))},
     )
     if r.status_code not in (200, 204):
@@ -124,12 +129,146 @@ async def post_notification(content: str, channel_id: str = None) -> bool:
         return False
 
 
-async def sync_discord_roles(db, user_id: str) -> dict:
-    """Reconcile a NEXORIA user's class + progression roles on Discord.
+_channel_meta_cache: dict[str, dict] = {}
 
-    Returns a result dict: {ok, skipped?, applied?, error?, class_role, progression_role}.
-    Always safe to call — gracefully no-ops on missing config or missing discord_id.
-    """
+
+async def _fetch_channel_meta(client: httpx.AsyncClient, channel_id: str, token: str) -> dict | None:
+    cached = _channel_meta_cache.get(channel_id)
+    if cached:
+        return cached
+    r = await client.get(f"{DISCORD_API}/channels/{channel_id}", headers=_headers(token))
+    if r.status_code != 200:
+        logger.warning(f"discord channel lookup failed: {r.status_code} {r.text[:200]}")
+        return None
+    data = r.json()
+    meta = {
+        "type": data.get("type"),
+        "tags": data.get("available_tags") or [],
+    }
+    _channel_meta_cache[channel_id] = meta
+    return meta
+
+
+async def create_forum_thread(
+    channel_id: str,
+    name: str,
+    *,
+    embeds: list | None = None,
+    content: str = "",
+    auto_archive_duration: int = 4320,
+) -> bool:
+    """Create a thread in a Discord forum or text channel."""
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    if not token or not channel_id:
+        return False
+    message: dict = {}
+    if content:
+        message["content"] = content[:1900]
+    if embeds:
+        message["embeds"] = embeds
+    if not message:
+        return False
+    payload = {
+        "name": (name or "Annonce")[:100],
+        "auto_archive_duration": auto_archive_duration,
+        "message": message,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            meta = await _fetch_channel_meta(client, channel_id, token)
+            if meta:
+                ch_type = meta.get("type")
+                if ch_type == 0:
+                    # Text channel — public thread required (not a GUILD_FORUM).
+                    payload["type"] = 11
+                elif ch_type == 15:
+                    tag_ids = [
+                        t.get("id") for t in meta.get("tags", []) if t.get("id")
+                    ]
+                    if tag_ids:
+                        payload["applied_tags"] = [tag_ids[0]]
+
+            r = await client.post(
+                f"{DISCORD_API}/channels/{channel_id}/threads",
+                headers={**_headers(token), "Content-Type": "application/json"},
+                json=payload,
+            )
+            if r.status_code in (200, 201):
+                return True
+
+            logger.warning(f"discord thread failed: {r.status_code} {r.text[:300]}")
+
+            # Fallback: post embed directly in the channel (text/announcement).
+            if meta and meta.get("type") in (0, 5):
+                r2 = await client.post(
+                    f"{DISCORD_API}/channels/{channel_id}/messages",
+                    headers={**_headers(token), "Content-Type": "application/json"},
+                    json=message,
+                )
+                if r2.status_code in (200, 201):
+                    return True
+                logger.warning(f"discord message fallback failed: {r2.status_code} {r2.text[:300]}")
+            return False
+    except Exception as e:
+        logger.warning(f"discord thread failed: {e}")
+        return False
+
+
+def _build_avatar_url(discord_user: dict, size: int = 256) -> str | None:
+    uid = discord_user.get("id")
+    avatar_hash = discord_user.get("avatar")
+    if not uid or not avatar_hash:
+        return None
+    ext = "gif" if str(avatar_hash).startswith("a_") else "png"
+    return f"https://cdn.discordapp.com/avatars/{uid}/{avatar_hash}.{ext}?size={size}"
+
+
+def _avatar_should_sync_from_discord(user: dict, discord_avatar_url: str | None) -> bool:
+    current = user.get("avatar_url") or ""
+    if not discord_avatar_url:
+        return False
+    if not current:
+        return True
+    if current == user.get("discord_avatar_url"):
+        return True
+    return "cdn.discordapp.com/avatars/" in current
+
+
+def _discord_display_name(member: dict) -> str:
+    du = member.get("user") or {}
+    return member.get("nick") or du.get("global_name") or du.get("username") or ""
+
+
+async def _apply_discord_profile(db, user_id: str, user: dict, member: dict) -> dict:
+    """Refresh Discord username, global name, guild nick and avatar on the NEXORIA profile."""
+    from datetime import datetime, timezone
+
+    du = member.get("user") or {}
+    avatar_url = _build_avatar_url(du)
+    patch = {
+        "discord_username": du.get("username"),
+        "discord_global_name": du.get("global_name"),
+        "discord_guild_nick": member.get("nick"),
+        "discord_avatar_url": avatar_url,
+        "discord_profile_synced_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if _avatar_should_sync_from_discord(user, avatar_url):
+        patch["avatar_url"] = avatar_url
+
+    changed_fields = [
+        k for k, v in patch.items()
+        if k != "discord_profile_synced_at" and user.get(k) != v
+    ]
+    await db.users.update_one({"user_id": user_id}, {"$set": patch})
+    return {
+        "profile_updated": bool(changed_fields),
+        "discord_display_name": _discord_display_name(member),
+        "changed_fields": changed_fields,
+    }
+
+
+async def sync_discord_roles(db, user_id: str) -> dict:
+    """Reconcile Discord profile + guild roles for a linked NEXORIA user."""
     cfg = _config()
     if not is_configured():
         return {"ok": False, "skipped": True, "reason": "discord_not_configured"}
@@ -161,29 +300,43 @@ async def sync_discord_roles(db, user_id: str) -> dict:
                 await _log_sync(db, user_id, False, "Discord user not in guild")
                 return result
 
+            profile_result = await _apply_discord_profile(db, user_id, user, member)
+            result.update(profile_result)
+
             existing_roles = set(member.get("roles", []))
-            # Remove any prior class roles + prior progression roles
             cleaned = existing_roles - ALL_CLASS_ROLE_IDS - ALL_PROGRESSION_ROLE_IDS
-            # Add current class + progression
             if class_role_id:
                 cleaned.add(class_role_id)
             if progression_role_id:
                 cleaned.add(progression_role_id)
 
             if cleaned == existing_roles:
+                msg = "no_change"
+                if profile_result.get("profile_updated"):
+                    msg = f"profile_updated; {profile_result.get('discord_display_name', '')}"
                 result.update({"ok": True, "applied": False, "reason": "no_change"})
-                await _log_sync(db, user_id, True, "no_change")
+                await _log_sync(db, user_id, True, msg)
                 return result
 
-            await _modify_member_roles(client, cfg["guild_id"], discord_id, list(cleaned), cfg["token"],
-                                       reason=f"NEXORIA sync: class={class_id} tier={progression_name}")
+            await _modify_member_roles(
+                client, cfg["guild_id"], discord_id, list(cleaned), cfg["token"],
+                reason=f"NEXORIA sync class={class_id or '-'} tier_id={progression_role_id or '-'}",
+            )
             result.update({"ok": True, "applied": True})
-            await _log_sync(db, user_id, True, f"class={class_id or '-'}; tier={progression_name}")
+            await _log_sync(
+                db, user_id, True,
+                f"class={class_id or '-'}; tier={progression_name}; discord={profile_result.get('discord_display_name', '')}",
+            )
             return result
     except Exception as e:
         result.update({"error": str(e)[:300]})
         await _log_sync(db, user_id, False, str(e)[:300])
         return result
+
+
+async def sync_discord_user(db, user_id: str) -> dict:
+    """Alias — profile + roles."""
+    return await sync_discord_roles(db, user_id)
 
 
 async def _log_sync(db, user_id: str, success: bool, message: str):
@@ -208,7 +361,7 @@ def schedule_sync(db, user_id: str):
         return
     try:
         loop = asyncio.get_event_loop()
-        loop.create_task(sync_discord_roles(db, user_id))
+        loop.create_task(sync_discord_user(db, user_id))
     except RuntimeError:
         # No running loop (e.g., from a sync context) — fall through
         pass

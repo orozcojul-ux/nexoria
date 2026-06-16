@@ -1,72 +1,80 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Globe2, ArrowRight, Wifi } from "lucide-react";
-import { RuneSeal, RuneDivider } from "@/components/Ornaments";
-import StarField from "@/components/StarField";
+import { Globe2, ArrowRight, Wifi, Loader2, Lock } from "lucide-react";
+import api from "@/lib/api";
+import { PageShell, PremiumCard, PremiumStat, PremiumButton } from "@/components/ui-premium";
+import StaffOnlinePanel from "@/components/StaffOnlinePanel";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
+import { usePageBanner } from "@/lib/page-banners";
+import { resolveOnlineClosedText } from "@/lib/online-gate-content";
+import { EMPTY_STAFF_ONLINE } from "@/lib/staff-roles";
 
 /**
- * The /nexus route is now a thin CTA page. The actual world UI lives in
- * <NexusOverlay /> mounted at the App level, so the socket connection and
- * Phaser scene persist across navigation.
+ * Route /nexus — ouvre automatiquement l'overlay du monde isométrique.
  */
 export default function Nexus() {
+  const banner = usePageBanner("nexus");
   const ns = useNexusSocket();
-  const open = ns?.overlayOpen;
-  const setOpen = ns?.setOverlayOpen;
-  const status = ns?.status;
-  const players = ns?.players || [];
+  const { openNexus, status, presence = {}, nexusGate = {} } = ns || {};
+  const closed = status === "nexus_closed";
+  const closedText = closed ? resolveOnlineClosedText(nexusGate.html) : null;
+  const [polledStaff, setPolledStaff] = useState(EMPTY_STAFF_ONLINE);
 
-  // Auto-open on first visit
   useEffect(() => {
-    if (ns && !open) setOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    openNexus?.();
+  }, [openNexus]);
+
+  useEffect(() => {
+    const load = () => {
+      api.get("/stats/public")
+        .then((r) => setPolledStaff(r.data?.staff_online || EMPTY_STAFF_ONLINE))
+        .catch(() => setPolledStaff(EMPTY_STAFF_ONLINE));
+    };
+    load();
+    const id = setInterval(load, 30000);
+    return () => clearInterval(id);
   }, []);
 
+  const staffOnline = presence?.staff_online ?? polledStaff;
+  const enterNexus = () => openNexus?.();
+
   return (
-    <div className="max-w-3xl mx-auto p-6 lg:p-10 relative" data-testid="nexus-page">
-      <StarField density={60} />
-      <div className="text-center relative">
-        <div className="flex justify-center mb-3"><RuneSeal icon={Globe2} color="#00E5FF" size={56} /></div>
-        <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-300 font-bold mb-2">Hub Social MMORPG</div>
-        <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight">
-          Nexus <span className="text-gradient">Online</span>
-        </h1>
-        <p className="text-zinc-400 text-sm mt-3 italic max-w-xl mx-auto">
-          « Une dimension parallèle où les héros se rencontrent en chair et en éther. »
-        </p>
-        <RuneDivider className="my-6 max-w-md mx-auto" />
-
-        <motion.button
-          whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
-          onClick={() => setOpen?.(true)}
-          data-testid="nexus-enter-button"
-          className="inline-flex items-center gap-3 px-8 py-4 rounded-xl bg-gradient-to-r from-purple-700 via-violet-700 to-cyan-600 border-2 border-cyan-300/40 text-white font-display font-black text-lg shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_40px_rgba(0,229,255,0.5)] transition-shadow">
-          <Globe2 className="w-5 h-5" /> Entrer dans le Nexus <ArrowRight className="w-5 h-5" />
-        </motion.button>
-
-        <div className="mt-6 inline-flex items-center gap-2 text-xs text-zinc-400">
-          <Wifi className={`w-3 h-3 ${status === "online" ? "text-green-400" : "text-zinc-500"}`} />
-          {status === "online" ? (
-            <>Connexion permanente · <span className="text-cyan-300 font-bold">{players.length} héros</span> dans le Nexus</>
-          ) : status === "connecting" ? "Connexion en cours..." : "Hors-ligne"}
+    <PageShell
+      testid="nexus-page"
+      banner={banner}
+    >
+      {closed ? (
+        <PremiumCard tone="amber" className="max-w-xl mx-auto text-center space-y-3" testid="nexus-closed-card">
+          <Lock className="w-10 h-10 text-amber-400 mx-auto" />
+          <p className="text-xs uppercase tracking-widest text-amber-300/80">{closedText?.badge}</p>
+          <h2 className="font-display text-xl text-zinc-100">{closedText?.title_line1}</h2>
+          <p className="text-sm text-zinc-400">{closedText?.body}</p>
+          {closedText?.body_sub && <p className="text-xs text-zinc-500">{closedText.body_sub}</p>}
+          <p className="text-xs text-cyan-400/80 pt-2">Le reste du site reste accessible — feed, forum, boutique, etc.</p>
+        </PremiumCard>
+      ) : (
+        <div className="text-center">
+          <motion.div whileHover={{ scale: 1.02 }} className="inline-block mt-2">
+            <PremiumButton variant="cyan" size="lg" icon={status === "connecting" ? Loader2 : Globe2} onClick={enterNexus} testid="nexus-enter-button">
+              {status === "connecting" ? "Connexion au Nexus…" : "Entrer dans le Nexus"} <ArrowRight className="w-5 h-5" />
+            </PremiumButton>
+          </motion.div>
+          <div className="mt-4 inline-flex items-center gap-2 text-xs text-zinc-400 justify-center">
+            <Wifi className={`w-3 h-3 ${status === "online" ? "text-green-400" : "text-zinc-500"}`} />
+            {status === "online" ? "Connecté au royaume" : status === "connecting" ? "Connexion..." : status === "error" ? "Serveur inaccessible — vérifiez que le backend tourne sur :8000" : "Hors ligne"}
+          </div>
         </div>
+      )}
 
-        <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto text-left">
-          <Hint title="Plein écran" body="Le Nexus s'ouvre par-dessus le site. Quitter ne déconnecte pas." />
-          <Hint title="Multi-canaux" body="Global · Salle · Guilde · Chuchoter · Commerce · Événement" />
-          <Hint title="Temps réel" body="Aucun rafraîchissement. Tout est poussé en WebSocket." />
-        </div>
+      <div className="grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+        <StaffOnlinePanel staffOnline={staffOnline} closed={closed} compact testid="nexus-staff-online" />
+        <PremiumStat icon={Globe2} label="Salles actives" value={closed ? "—" : (presence.active_rooms || 0)} tone="violet" />
+        <PremiumStat icon={Globe2} label="Statut" value={closed ? "Fermé" : status === "online" ? "Live" : "—"} tone="emerald" />
       </div>
-    </div>
-  );
-}
 
-function Hint({ title, body }) {
-  return (
-    <div className="p-3 rounded-lg border border-white/10 bg-white/5">
-      <div className="text-[10px] uppercase tracking-widest text-cyan-300 font-bold">{title}</div>
-      <div className="text-xs text-zinc-400 mt-1">{body}</div>
-    </div>
+      <PremiumCard tone="violet" className="max-w-xl mx-auto text-center text-sm text-zinc-400">
+        Le monde isométrique s&apos;ouvre en plein écran lors des événements. Le serveur Nexus n&apos;est pas ouvert en permanence.
+      </PremiumCard>
+    </PageShell>
   );
 }

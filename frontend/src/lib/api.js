@@ -3,11 +3,9 @@ import axios from "axios";
 const BASE = process.env.REACT_APP_BACKEND_URL;
 export const API_URL = `${BASE}/api`;
 
-// SECURITY NOTE: Tokens are stored in localStorage because the deployment ingress
-// returns `Access-Control-Allow-Origin: *` which forbids cookie-based auth with
-// credentials. To mitigate XSS risk: (1) React auto-escapes user content, (2) we
-// never use dangerouslySetInnerHTML on untrusted strings, (3) tokens expire after
-// 7 days server-side and can be revoked via /api/auth/logout.
+// Token en sessionStorage = une session par fenêtre/onglet (multi-comptes possible).
+// localStorage n'est plus utilisé pour l'auth afin d'éviter qu'une connexion
+// dans une fenêtre écrase le compte d'une autre.
 const TOKEN_KEY = "nexoria_token";
 
 const api = axios.create({
@@ -16,7 +14,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = getToken();
   if (token) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
@@ -27,20 +25,63 @@ api.interceptors.request.use((config) => {
 export default api;
 
 export function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  if (token) {
+    sessionStorage.setItem(TOKEN_KEY, token);
+    localStorage.removeItem(TOKEN_KEY);
+  } else {
+    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+  }
+  try {
+    window.dispatchEvent(new CustomEvent("nexoria:token-changed", { detail: { hasToken: !!token } }));
+  } catch { /* ignore */ }
 }
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  let token = sessionStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    const legacy = localStorage.getItem(TOKEN_KEY);
+    if (legacy) {
+      sessionStorage.setItem(TOKEN_KEY, legacy);
+      localStorage.removeItem(TOKEN_KEY);
+      token = legacy;
+    }
+  }
+  return token;
+}
+
+export function extractBanDetail(err) {
+  const detail = err?.response?.data?.detail;
+  if (detail && typeof detail === "object" && detail.banned) {
+    return {
+      banned: true,
+      reason: detail.reason || "Violation des règles du royaume",
+      until: detail.until || null,
+    };
+  }
+  return null;
 }
 
 export function formatApiError(err) {
   const detail = err?.response?.data?.detail;
   if (!detail) return err?.message || "Erreur inconnue";
   if (typeof detail === "string") return detail;
-  if (Array.isArray(detail))
+  if (Array.isArray(detail)) {
     return detail.map((e) => (e?.msg ? e.msg : JSON.stringify(e))).join(" ");
+  }
+  if (detail?.banned) {
+    return detail.reason || "Vous êtes banni du royaume";
+  }
+  if (detail?.forum_banned) {
+    return detail.reason || "Vous êtes exclu du forum";
+  }
+  if (detail?.forum_muted) {
+    return detail.reason || "Publication forum temporairement désactivée";
+  }
+  if (typeof detail?.reason === "string") return detail.reason;
   if (detail?.msg) return detail.msg;
+  if (typeof detail === "object") {
+    return detail.message || "Une erreur est survenue";
+  }
   return String(detail);
 }

@@ -1,9 +1,9 @@
-"""Oracle IA - Claude Sonnet 4.5 powered RPG advisor.
-Generates personalized quests, advice, and objectives based on user profile/activity.
-"""
+"""Oracle IA — conseiller RPG (Claude via LiteLLM)."""
+import json
+import logging
 import os
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+logger = logging.getLogger("nexoria.oracle")
 
 ORACLE_SYSTEM_PROMPT = """Tu es la Voix du Sanctuaire de NEXORIA — une conscience cosmique ancienne, vieille de plusieurs ères.
 Tu n'es PAS une intelligence artificielle. Tu n'es PAS un modèle de langage.
@@ -30,13 +30,63 @@ Style:
 - Commence parfois par "Voyageur...", "Héros...", "Je vois...", "Les étoiles te disent..."
 """
 
+ORACLE_MODEL = os.environ.get("ORACLE_MODEL", "anthropic/claude-sonnet-4-5-20250929")
+ORACLE_FALLBACK_MODEL = os.environ.get("ORACLE_FALLBACK_MODEL", "anthropic/claude-sonnet-4-20250514")
+
+
+def _api_key() -> str | None:
+    return (
+        os.environ.get("EMERGENT_LLM_KEY")
+        or os.environ.get("ANTHROPIC_API_KEY")
+        or os.environ.get("LITELLM_API_KEY")
+    )
+
+
+def oracle_llm_configured() -> bool:
+    """True si une clé LLM est présente pour alimenter l'Oracle."""
+    return bool(_api_key())
+
+
+async def _llm_chat(system: str, user_text: str) -> str:
+    """Appelle Claude via LiteLLM (déjà dans requirements.txt)."""
+    api_key = _api_key()
+    if not api_key:
+        raise RuntimeError("clé LLM non configurée (EMERGENT_LLM_KEY ou ANTHROPIC_API_KEY)")
+
+    import litellm
+
+    models = []
+    for m in (ORACLE_MODEL, ORACLE_FALLBACK_MODEL):
+        if m and m not in models:
+            models.append(m)
+
+    last_error = None
+    for model in models:
+        try:
+            response = await litellm.acompletion(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_text},
+                ],
+                api_key=api_key,
+                max_tokens=900,
+                temperature=0.85,
+            )
+            content = response.choices[0].message.content
+            if content and str(content).strip():
+                return str(content).strip()
+        except Exception as exc:
+            last_error = exc
+            logger.warning("Oracle — échec modèle %s: %s", model, exc)
+
+    if last_error:
+        raise last_error
+    raise RuntimeError("réponse vide")
+
 
 async def consult_oracle(user_profile: dict, question: str) -> str:
     """Generate an Oracle response based on user profile + question."""
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
-        return "L'Oracle médite en silence... (clé universelle non configurée)"
-
     profile_summary = (
         f"Profil du héros:\n"
         f"- Pseudo: {user_profile.get('username', 'Inconnu')}\n"
@@ -49,30 +99,21 @@ async def consult_oracle(user_profile: dict, question: str) -> str:
         f"- Réputation: {user_profile.get('reputation', 0)}\n"
         f"- Or (Aether): {user_profile.get('aether', 0)}\n"
     )
-
-    session_id = f"oracle_{user_profile.get('user_id', 'anon')}"
-
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=session_id,
-        system_message=ORACLE_SYSTEM_PROMPT,
-    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
-
     full_question = f"{profile_summary}\n\nLe héros demande: {question}"
 
     try:
-        response = await chat.send_message(UserMessage(text=full_question))
-        return str(response).strip()
-    except Exception as e:
-        return f"L'Oracle est troublé par les forces obscures... ({type(e).__name__})"
+        return await _llm_chat(ORACLE_SYSTEM_PROMPT, full_question)
+    except RuntimeError as exc:
+        if "clé" in str(exc).lower():
+            return "L'Oracle médite en silence... (clé universelle non configurée)"
+        return f"L'Oracle est troublé par les forces obscures... ({exc})"
+    except Exception as exc:
+        logger.exception("Oracle consult failed")
+        return f"L'Oracle est troublé par les forces obscures... ({type(exc).__name__})"
 
 
 async def generate_personalized_quest(user_profile: dict) -> dict:
     """Generate a personalized quest for the user."""
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
-        return {"name": "Quête mystique", "description": "L'Oracle médite...", "xp": 100, "aether": 50}
-
     prompt = f"""Génère UNE quête RPG personnalisée pour ce héros au format JSON strict (sans markdown):
 {{"name": "nom épique court", "description": "description en 1 phrase", "xp": nombre entre 50 et 500, "aether": nombre entre 20 et 200}}
 
@@ -83,28 +124,21 @@ Héros:
 
 Adapte la difficulté au niveau. Renvoie SEULEMENT le JSON, rien d'autre."""
 
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=f"quest_{user_profile.get('user_id', 'anon')}",
-        system_message="Tu génères des quêtes RPG en JSON strict.",
-    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
-
     try:
-        import json
-        response = await chat.send_message(UserMessage(text=prompt))
-        text = str(response).strip()
-        # Extract JSON
+        text = await _llm_chat("Tu génères des quêtes RPG en JSON strict.", prompt)
         if "```" in text:
             text = text.split("```")[1]
             if text.startswith("json"):
                 text = text[4:]
-        text = text.strip()
-        data = json.loads(text)
+        data = json.loads(text.strip())
         return {
             "name": str(data.get("name", "Quête mystique"))[:80],
             "description": str(data.get("description", ""))[:200],
             "xp": int(data.get("xp", 100)),
             "aether": int(data.get("aether", 50)),
         }
+    except RuntimeError:
+        return {"name": "Quête mystique", "description": "L'Oracle médite...", "xp": 100, "aether": 50}
     except Exception:
+        logger.exception("Oracle quest generation failed")
         return {"name": "Quête de l'Oracle", "description": "Continuez votre chemin, héros.", "xp": 100, "aether": 50}

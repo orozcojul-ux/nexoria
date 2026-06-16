@@ -1,61 +1,104 @@
 import React, { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Globe2, Wifi, WifiOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
+import "./NexusFAB.css";
+
+function NexusPortalIcon() {
+  return (
+    <svg className="nexus-fab-portal" viewBox="0 0 32 32" fill="none" aria-hidden>
+      <defs>
+        <linearGradient id="nexusFabViolet" x1="16" y1="4" x2="16" y2="28" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#C4B5FD" />
+          <stop offset="1" stopColor="#7C3AED" />
+        </linearGradient>
+        <linearGradient id="nexusFabCyan" x1="16" y1="10" x2="16" y2="22" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#A5F3FC" />
+          <stop offset="1" stopColor="#22D3EE" />
+        </linearGradient>
+        <radialGradient id="nexusFabCore" cx="16" cy="16" r="8" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FFF8E7" />
+          <stop offset="0.5" stopColor="#E8C97A" />
+          <stop offset="1" stopColor="rgba(201,165,101,0)" />
+        </radialGradient>
+      </defs>
+      <circle cx="16" cy="16" r="13" stroke="url(#nexusFabViolet)" strokeWidth="0.8" opacity="0.7" />
+      <circle cx="16" cy="16" r="9" stroke="url(#nexusFabCyan)" strokeWidth="0.6" opacity="0.55" strokeDasharray="3 2" />
+      <path
+        d="M16 6 L18 14 L16 12 L14 14 Z M16 26 L18 18 L16 20 L14 18 Z M6 16 L14 18 L12 16 L14 14 Z M26 16 L18 18 L20 16 L18 14 Z"
+        fill="url(#nexusFabCyan)"
+        opacity="0.9"
+      />
+      <circle cx="16" cy="16" r="4" fill="url(#nexusFabCore)" />
+      <circle cx="16" cy="16" r="1.5" fill="#FFF8E7" />
+    </svg>
+  );
+}
 
 /**
- * Floating action button to enter the Nexus from any authenticated page.
- * Persistent across navigation. Hidden while the overlay is open.
+ * Bouton flottant — portail vers le Nexus Online.
  */
 export default function NexusFAB() {
   const { user } = useAuth();
   const ns = useNexusSocket();
+  const location = useLocation();
   const [hover, setHover] = useState(false);
 
   if (!user || !ns) return null;
   if (ns.overlayOpen) return null;
+  if (location.pathname === "/maintenance") return null;
 
+  const closed = ns.status === "nexus_closed";
   const connected = ns.status === "online";
-  const StatusIcon = connected ? Wifi : WifiOff;
-  // Use global presence count if available, otherwise fall back to room count
   const onlineCount = ns.presence?.total ?? (ns.players?.length || 0);
 
   return (
-    <div className="fixed bottom-6 right-24 z-[60] flex flex-col items-end gap-2">
+    <div className="nexus-fab-root">
       <AnimatePresence>
         {hover && (
           <motion.div
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 10 }}
-            className="px-3 py-2 rounded-lg glass border border-cyan-500/30 text-xs font-display whitespace-nowrap pointer-events-none"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2 }}
+            className="nexus-fab-tooltip"
           >
-            <div className="font-bold text-cyan-300">Entrer dans le Nexus</div>
-            <div className="text-zinc-400 text-[10px] flex items-center gap-1 mt-0.5">
-              <StatusIcon className={`w-3 h-3 ${connected ? "text-green-400" : "text-zinc-500"}`} />
-              {connected ? `${onlineCount} héros en ligne` : "Connexion..."}
-            </div>
+            <p className="nexus-fab-tooltip-title">Nexus Online</p>
+            <p className="nexus-fab-tooltip-sub">
+              <span
+                className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                style={{
+                  background: closed ? "#f59e0b" : connected ? "#4ade80" : "#71717a",
+                  boxShadow: connected ? "0 0 8px rgba(74,222,128,0.8)" : "none",
+                }}
+              />
+              {closed
+                ? "Serveur Nexus fermé — le site reste accessible"
+                : connected
+                  ? `${onlineCount} héros dans le Nexus`
+                  : "Connexion au portail…"}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
 
       <motion.button
         type="button"
-        whileHover={{ scale: 1.08 }}
+        whileHover={{ scale: 1.05 }}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
-        onClick={() => ns.setOverlayOpen(true)}
+        onClick={() => ns?.openNexus?.()}
         data-testid="nexus-fab"
-        aria-label="Entrer dans le Nexus"
-        className="relative w-14 h-14 rounded-full bg-gradient-to-br from-purple-600 via-violet-700 to-cyan-600 border-2 border-cyan-300/50 shadow-[0_0_20px_rgba(124,58,237,0.6)] flex items-center justify-center transition-transform active:scale-95"
+        aria-label="Ouvrir le Nexus Online"
+        className="nexus-fab-btn"
       >
-        <Globe2 className="w-6 h-6 text-white pointer-events-none" />
-        {connected && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-green-400 border-2 border-[#0A0613] animate-pulse pointer-events-none" />
-        )}
-        {onlineCount > 0 && (
-          <span className="absolute -bottom-1 -left-1 px-1.5 h-4 rounded-full bg-cyan-500 text-[9px] font-bold text-white flex items-center justify-center min-w-[16px] border border-cyan-300/60 pointer-events-none">
+        <span className="nexus-fab-ring" aria-hidden />
+        <span className="nexus-fab-ring nexus-fab-ring--inner" aria-hidden />
+        <NexusPortalIcon />
+        {connected && <span className="nexus-fab-live" aria-hidden />}
+        {connected && onlineCount > 0 && (
+          <span className="nexus-fab-count" aria-hidden>
             {onlineCount > 99 ? "99+" : onlineCount}
           </span>
         )}

@@ -4,6 +4,8 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-ro
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { I18nProvider } from "@/contexts/I18nContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import { UserPrefsSync } from "@/components/AppProviders";
 import { NexusSocketProvider } from "@/contexts/NexusSocketContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
@@ -11,11 +13,14 @@ import api from "@/lib/api";
 
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import Register from "@/pages/Register";
 import AuthCallback from "@/pages/AuthCallback";
 import DiscordCallback from "@/pages/DiscordCallback";
 import Hero from "@/pages/Hero";
 import Feed from "@/pages/Feed";
+import NewsArticle from "@/pages/NewsArticle";
 import SkillTree from "@/pages/SkillTree";
 import Kingdom from "@/pages/Kingdom";
 import Inventory from "@/pages/Inventory";
@@ -38,23 +43,26 @@ import Nexus from "@/pages/Nexus";
 import Classes from "@/pages/Classes";
 import Events from "@/pages/Events";
 import BroadcastOverlay from "@/components/BroadcastOverlay";
+import StaffAlertOverlay from "@/components/StaffAlertOverlay";
 import NexusOverlay from "@/components/NexusOverlay";
 import NexusFAB from "@/components/NexusFAB";
 import AetherTicker from "@/components/AetherTicker";
 
 function MaintenanceGate({ children }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const location = useLocation();
   const [maint, setMaint] = useState(null);
 
   useEffect(() => {
-    api.get("/system/maintenance").then((r) => setMaint(r.data)).catch(() => setMaint({ enabled: false }));
-    const id = setInterval(() => api.get("/system/maintenance").then((r) => setMaint(r.data)).catch(() => {}), 30000);
+    const load = () => {
+      api.get("/system/maintenance").then((r) => setMaint(r.data)).catch(() => setMaint({ enabled: false }));
+    };
+    load();
+    const id = setInterval(load, 30000);
     return () => clearInterval(id);
   }, []);
 
-  if (maint === null) return null;
-  // Maintenance ON + non-admin + not already on maintenance route → redirect
+  if (maint === null || authLoading) return null;
   const isStaff = user?.role === "admin" || user?.role === "moderator";
   if (maint.enabled && !isStaff && location.pathname !== "/maintenance") {
     window.location.replace("/maintenance");
@@ -73,16 +81,20 @@ function AppRouter() {
   return (
     <MaintenanceGate>
       <BroadcastOverlay />
+      <StaffAlertOverlay />
       <NexusOverlay />
       <NexusFAB />
       <AetherTicker />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/register" element={<Register />} />
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/auth/discord/callback" element={<DiscordCallback />} />
         <Route path="/feed" element={<ProtectedRoute><Layout><Feed /></Layout></ProtectedRoute>} />
+        <Route path="/news/:newsId" element={<ProtectedRoute><Layout><NewsArticle /></Layout></ProtectedRoute>} />
         <Route path="/hero" element={<ProtectedRoute><Layout><Hero /></Layout></ProtectedRoute>} />
         <Route path="/skills" element={<ProtectedRoute><Layout><SkillTree /></Layout></ProtectedRoute>} />
         <Route path="/kingdom" element={<ProtectedRoute><Layout><Kingdom /></Layout></ProtectedRoute>} />
@@ -111,17 +123,21 @@ function AppRouter() {
 
 function App() {
   return (
-    <div className="App dark">
+    <div className="App">
       <BrowserRouter>
         <I18nProvider>
-          <AuthProvider>
-            <NexusSocketProvider>
-              <AppRouter />
-              <Toaster theme="dark" position="top-right" toastOptions={{
-                style: { background: 'rgba(18,18,26,0.95)', border: '1px solid rgba(0,229,255,0.2)', color: '#fff' }
-              }} />
-            </NexusSocketProvider>
-          </AuthProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <UserPrefsSync>
+                <NexusSocketProvider>
+                  <AppRouter />
+                  <Toaster theme="dark" position="top-right" toastOptions={{
+                    style: { background: "var(--nx-surface)", border: "1px solid var(--nx-border)", color: "var(--nx-fg)" },
+                  }} />
+                </NexusSocketProvider>
+              </UserPrefsSync>
+            </AuthProvider>
+          </ThemeProvider>
         </I18nProvider>
       </BrowserRouter>
     </div>

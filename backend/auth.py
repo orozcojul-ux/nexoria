@@ -75,6 +75,25 @@ async def get_current_user(request: Request, db) -> dict:
     if expires_at and expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Session expired")
 
+    # Throttled activity ping (max once per 60s) — drives site_online accuracy
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    last_act = session.get("last_activity_at")
+    should_touch = True
+    if last_act:
+        try:
+            last_dt = datetime.fromisoformat(last_act) if isinstance(last_act, str) else last_act
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            should_touch = (now - last_dt).total_seconds() >= 60
+        except Exception:
+            should_touch = True
+    if should_touch:
+        await db.user_sessions.update_one(
+            {"session_token": token},
+            {"$set": {"last_activity_at": now_iso}},
+        )
+
     user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0, "password_hash": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")

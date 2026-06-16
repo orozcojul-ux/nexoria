@@ -3,41 +3,45 @@ import { motion, AnimatePresence } from "framer-motion";
 import * as Lucide from "lucide-react";
 import {
   ShoppingBag, Coins, Check, Sparkles, Crown, Shield, Sword, Gift, Flame,
-  Star, X, Plus, Minus, Wifi, Trophy, Zap, ChevronRight,
+  Star, X, Plus, Minus, Wifi, Trophy, Zap, ChevronRight, Ticket,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { sfx } from "@/lib/sfx";
+import { useProfileSync } from "@/hooks/useProfileSync";
+import { RARITY } from "@/lib/design-tokens";
+import { PremiumButton, PremiumCard, PageShell } from "@/components/ui-premium";
+import { drawPixelBanner } from "@/lib/pixelArtUi";
+import { usePageBanner } from "@/lib/page-banners";
+import { useI18n } from "@/contexts/I18nContext";
 
-const CATS = [
-  { id: "all",        label: "Tout",         icon: ShoppingBag },
-  { id: "cosmetic",   label: "Cosmétiques",  icon: Crown },
-  { id: "boost",      label: "Boosts",       icon: Zap },
-  { id: "consumable", label: "Consommables", icon: Sparkles },
-  { id: "kingdom",    label: "Royaume",      icon: Shield },
+const CAT_KEYS = [
+  { id: "all", key: "shop.cat.all", icon: ShoppingBag },
+  { id: "chest", key: "shop.cat.chest", icon: Gift },
+  { id: "cosmetic", key: "shop.cat.cosmetic", icon: Crown },
+  { id: "mount", key: "shop.cat.mount", icon: Star },
+  { id: "title", key: "shop.cat.title", icon: Trophy },
+  { id: "aura", key: "shop.cat.aura", icon: Flame },
+  { id: "consumable", key: "shop.cat.consumable", icon: Sparkles },
+  { id: "boost", key: "shop.cat.boost", icon: Zap },
+  { id: "pass", key: "shop.cat.pass", icon: Ticket },
+  { id: "kingdom", key: "shop.cat.kingdom", icon: Shield },
 ];
 
-// Hero "featured" visual mapping — uses the 4 Nano Banana images
+// Bannières pixel art — style Dofus/WoW (plus d'images IA)
 const FEATURED_VISUALS = [
-  { id: "f1", img: "/shop/epee_legendaire.png", title: "Lames Cosmiques", subtitle: "Collection Légendaire" },
-  { id: "f2", img: "/shop/armure_cosmique.png", title: "Armures du Néant", subtitle: "Édition Cosmique" },
-  { id: "f3", img: "/shop/monture_mythique.png", title: "Montures Mythiques", subtitle: "Compagnons Stellaires" },
-  { id: "f4", img: "/shop/coffre_divin.png", title: "Coffres Divins", subtitle: "Trésors Sacrés" },
+  { id: "f1", theme: "gold", title: "Lames Cosmiques", subtitle: "Collection Légendaire" },
+  { id: "f2", theme: "violet", title: "Armures du Néant", subtitle: "Édition Cosmique" },
+  { id: "f3", theme: "cyan", title: "Montures Mythiques", subtitle: "Compagnons Stellaires" },
+  { id: "f4", theme: "emerald", title: "Coffres Divins", subtitle: "Trésors Sacrés" },
 ];
-
-const RARITY = {
-  common:    { fr: "Commun",     color: "#9CA3AF", glow: "rgba(156,163,175,0.5)" },
-  rare:      { fr: "Rare",       color: "#3B82F6", glow: "rgba(59,130,246,0.6)" },
-  epic:      { fr: "Épique",     color: "#A855F7", glow: "rgba(168,85,247,0.7)" },
-  legendary: { fr: "Légendaire", color: "#F59E0B", glow: "rgba(245,158,11,0.7)" },
-  mythic:    { fr: "Mythique",   color: "#EF4444", glow: "rgba(239,68,68,0.75)" },
-  divine:    { fr: "Divin",      color: "#FBBF24", glow: "rgba(251,191,36,0.85)" },
-  cosmic:    { fr: "Cosmique",   color: "#FFFFFF", glow: "rgba(255,255,255,0.9)" },
-};
 
 export default function Shop() {
   const { user, refresh } = useAuth();
+  const { t } = useI18n();
+  const banner = usePageBanner("shop");
+  const CATS = CAT_KEYS.map((c) => ({ ...c, label: t(c.key) }));
   const [items, setItems] = useState([]);
   const [owned, setOwned] = useState({ cosmetics: [], consumables: [], perks: [], boosts: [] });
   const [cat, setCat] = useState("all");
@@ -59,21 +63,25 @@ export default function Shop() {
     return () => clearInterval(id);
   }, []);
 
-  // ===== WebSocket sync — refresh inventory instantly on purchase event from backend =====
+  // Shop purchase sync — listens to inventory bus and legacy shop event
   useEffect(() => {
-    const handler = (e) => {
-      sfx.chime?.() || sfx.chest?.();
-      load();
-      refresh();
+    const onInventory = () => { load(); refresh(); };
+    const onShop = () => { load(); refresh(); };
+    window.addEventListener("nexoria:inventory:updated", onInventory);
+    window.addEventListener("nexoria:shop:purchased", onShop);
+    return () => {
+      window.removeEventListener("nexoria:inventory:updated", onInventory);
+      window.removeEventListener("nexoria:shop:purchased", onShop);
     };
-    window.addEventListener("nexoria:shop:purchased", handler);
-    return () => window.removeEventListener("nexoria:shop:purchased", handler);
   }, [load, refresh]);
+
+  useProfileSync(useCallback(() => { load(); refresh(); }, [load, refresh]));
 
   const ownedSkus = useMemo(() => {
     const s = new Set();
-    (owned.cosmetics || []).forEach((c) => s.add(c.sku));
-    (owned.perks || []).forEach((c) => s.add(c.sku));
+    ["cosmetics", "perks", "mounts", "auras", "titles", "passes"].forEach((k) => {
+      (owned[k] || []).forEach((c) => s.add(c.sku));
+    });
     return s;
   }, [owned]);
 
@@ -126,9 +134,18 @@ export default function Shop() {
   };
 
   const featured = FEATURED_VISUALS[featuredIdx];
+  const featuredBanner = useMemo(
+    () => drawPixelBanner(900, 224, featured.theme),
+    [featured.theme],
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0A0613] via-[#05030D] to-[#1A0B3D]" data-testid="shop-page">
+    <PageShell
+      wide
+      className="min-h-screen"
+      testid="shop-page"
+      banner={banner}
+    >
       {/* ===== Header ===== */}
       <div className="px-6 py-4 border-b border-purple-500/20 backdrop-blur bg-black/30 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
@@ -182,8 +199,12 @@ export default function Shop() {
             <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-2 px-2">Mes acquis</div>
             <div className="px-2 space-y-1 text-xs text-zinc-400">
               <div>✨ Cosmétiques : <span className="text-cyan-200">{owned.cosmetics?.length || 0}</span></div>
+              <div>🐺 Montures : <span className="text-purple-200">{owned.mounts?.length || 0}</span></div>
+              <div>🏷 Titres : <span className="text-amber-200">{owned.titles?.length || 0}</span></div>
+              <div>🔥 Auras : <span className="text-orange-200">{owned.auras?.length || 0}</span></div>
               <div>⚡ Boosts : <span className="text-purple-200">{owned.boosts?.length || 0}</span></div>
               <div>🧪 Consommables : <span className="text-emerald-200">{owned.consumables?.length || 0}</span></div>
+              <div>🎫 Passe : <span className="text-pink-200">{owned.passes?.length || 0}</span></div>
               <div>🏰 Royaume : <span className="text-yellow-200">{owned.perks?.length || 0}</span></div>
             </div>
           </div>
@@ -198,8 +219,9 @@ export default function Shop() {
                 initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }} transition={{ duration: 0.8 }}
                 className="absolute inset-0">
-                <img src={featured.img} alt={featured.title}
-                  className="w-full h-full object-cover"
+                <img src={featuredBanner} alt={featured.title}
+                  className="w-full h-full object-cover pixel-art"
+                  style={{ imageRendering: "pixelated" }}
                   loading="lazy" />
                 <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0A0613] via-transparent to-transparent" />
@@ -238,7 +260,8 @@ export default function Shop() {
                 {bestSellers.map((it, i) => (
                   <ItemCard key={it.sku} item={it} compact rank={i + 1}
                     owned={ownedSkus.has(it.sku)} buying={buying === it.sku}
-                    onBuy={() => buyOne(it.sku)} onAdd={() => addToCart(it)} aether={user?.aether ?? 0} />
+                    onBuy={() => buyOne(it.sku)} onAdd={() => addToCart(it)} aether={user?.aether ?? 0}
+                    userLevel={user?.level ?? 1} />
                 ))}
               </div>
             </Section>
@@ -254,7 +277,8 @@ export default function Shop() {
                 {filtered.map((it) => (
                   <ItemCard key={it.sku} item={it}
                     owned={ownedSkus.has(it.sku)} buying={buying === it.sku}
-                    onBuy={() => buyOne(it.sku)} onAdd={() => addToCart(it)} aether={user?.aether ?? 0} />
+                    onBuy={() => buyOne(it.sku)} onAdd={() => addToCart(it)} aether={user?.aether ?? 0}
+                    userLevel={user?.level ?? 1} />
                 ))}
               </div>
             )}
@@ -311,7 +335,7 @@ export default function Shop() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </PageShell>
   );
 }
 
@@ -329,16 +353,21 @@ function Section({ title, icon: Icon, accent = "text-cyan-300", children }) {
   );
 }
 
-function ItemCard({ item, owned, buying, onBuy, onAdd, aether, rank, compact }) {
+function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, rank, compact }) {
+  const { t } = useI18n();
   const r = RARITY[item.rarity] || RARITY.common;
+  const requiredLevel = item.unlock_level ?? 1;
+  const levelOk = userLevel >= requiredLevel;
   const canAfford = (aether ?? 0) >= (item.price || 0);
+  const canBuy = canAfford && levelOk && !owned;
   const Ico = item.icon && Lucide[item.icon] ? Lucide[item.icon] : Sparkles;
   return (
-    <motion.div
-      whileHover={{ y: -4 }} transition={{ duration: 0.2 }}
-      className={`relative rounded-xl border-2 p-3 bg-gradient-to-br from-black/40 to-purple-900/20 overflow-hidden group`}
+    <PremiumCard
+      tone="violet"
+      hover
+      className={`overflow-hidden relative ${compact ? "p-2" : ""}`}
+      testid={`shop-item-${item.sku}`}
       style={{ borderColor: `${r.color}66`, boxShadow: `0 0 16px ${r.glow}` }}
-      data-testid={`shop-item-${item.sku}`}
     >
       {rank && (
         <div className="absolute top-2 right-2 text-[10px] font-black text-yellow-300 bg-yellow-500/10 border border-yellow-500/40 rounded-full w-6 h-6 flex items-center justify-center">
@@ -369,17 +398,20 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, rank, compact }) 
         <div className="flex items-center justify-center gap-1 text-yellow-300 font-mono-stat font-black text-base">
           <Coins className="w-3 h-3" /> {item.price}
         </div>
+        {!levelOk && requiredLevel > 1 && (
+          <div className="text-[10px] text-amber-400/90 mt-1 font-semibold">{t("shop.level_required", { level: requiredLevel })}</div>
+        )}
       </div>
       <div className="mt-3 flex gap-1">
         {owned ? (
           <button disabled className="flex-1 px-2 py-1.5 rounded border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-not-allowed">
-            Acquis
+            {t("shop.owned")}
           </button>
         ) : (
           <>
-            <button onClick={onBuy} disabled={!canAfford || buying} data-testid={`shop-buy-${item.sku}`}
+            <button onClick={onBuy} disabled={!canBuy || buying} data-testid={`shop-buy-${item.sku}`}
               className="flex-1 px-2 py-1.5 rounded border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 text-xs font-bold disabled:opacity-40">
-              {buying ? "..." : "Acheter"}
+              {buying ? "..." : !levelOk ? t("shop.level_insufficient") : t("shop.buy")}
             </button>
             <button onClick={onAdd} title="Ajouter au panier"
               data-testid={`shop-cart-${item.sku}`}
@@ -389,6 +421,6 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, rank, compact }) 
           </>
         )}
       </div>
-    </motion.div>
+    </PremiumCard>
   );
 }

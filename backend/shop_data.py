@@ -11,6 +11,13 @@ SHOP_ITEMS = [
     {"sku": "frame_cosmic", "name": "Cadre Cosmique", "category": "cosmetic", "price": 5000, "icon": "Frame", "rarity": "cosmic", "description": "Bordure cosmique pulsante — exclusivité ultime", "unlock_level": 50},
     {"sku": "banner_dragon", "name": "Bannière du Dragon", "category": "cosmetic", "price": 800, "icon": "Flag", "rarity": "epic", "description": "Étendard ancestral du dragon", "unlock_level": 10},
     {"sku": "banner_phoenix", "name": "Bannière du Phénix", "category": "cosmetic", "price": 1200, "icon": "Flame", "rarity": "epic", "description": "Étendard renaissant du phénix", "unlock_level": 15},
+    {"sku": "banner_nebula", "name": "Bannière Nébuleuse", "category": "cosmetic", "price": 900, "icon": "Sparkles", "rarity": "epic", "description": "Volutes cosmiques violettes", "unlock_level": 12},
+    {"sku": "banner_aurora", "name": "Bannière Aurore", "category": "cosmetic", "price": 950, "icon": "Zap", "rarity": "epic", "description": "Lueurs boréales cyan", "unlock_level": 14},
+    {"sku": "banner_void", "name": "Bannière du Vide", "category": "cosmetic", "price": 1400, "icon": "Moon", "rarity": "legendary", "description": "Abîme stellaire profond", "unlock_level": 22},
+    {"sku": "banner_gold", "name": "Bannière Royale", "category": "cosmetic", "price": 2000, "icon": "Crown", "rarity": "legendary", "description": "Or impérial du royaume", "unlock_level": 28},
+    {"sku": "banner_frost", "name": "Bannière de Givre", "category": "cosmetic", "price": 1100, "icon": "Snowflake", "rarity": "epic", "description": "Glace éternelle des sommets", "unlock_level": 16},
+    {"sku": "banner_blood", "name": "Bannière Sanglante", "category": "cosmetic", "price": 1300, "icon": "Droplet", "rarity": "legendary", "description": "Pour les guerriers impitoyables", "unlock_level": 20},
+    {"sku": "banner_emerald", "name": "Bannière Émeraude", "category": "cosmetic", "price": 1000, "icon": "Leaf", "rarity": "epic", "description": "Verdure des forêts anciennes", "unlock_level": 13},
 
     # ---------- Boosts (time-limited) ----------
     {"sku": "boost_xp_2x_1h", "name": "Élixir d'XP — 1h", "category": "boost", "price": 200, "icon": "Zap", "rarity": "rare", "description": "Double XP pendant 1 heure", "boost_type": "xp_multiplier", "boost_value": 2, "duration_minutes": 60, "unlock_level": 1},
@@ -32,6 +39,26 @@ SHOP_ITEMS = [
     {"sku": "kingdom_throne_room", "name": "Salle du Trône", "category": "kingdom", "price": 12000, "icon": "Crown", "rarity": "mythic", "description": "Trône personnel affiché sur votre profil, badge royal exclusif", "unlock_level": 50, "perk": "throne"},
     {"sku": "kingdom_treasury", "name": "Trésorerie Royale", "category": "kingdom", "price": 18000, "icon": "Coins", "rarity": "mythic", "description": "Génère 200 Aether par jour passivement (cumulable avec Mine)", "unlock_level": 60, "perk": "treasury"},
     {"sku": "kingdom_constellation", "name": "Constellation Personnelle", "category": "kingdom", "price": 25000, "icon": "Sparkles", "rarity": "divine", "description": "Constellation unique tracée dans le ciel de NEXORIA portant votre nom", "unlock_level": 80, "perk": "constellation"},
+
+    # ---------- Chests (instant relic open) ----------
+    {"sku": "chest_ancient", "name": "Coffre Ancien", "category": "chest", "price": 100, "icon": "Gift", "rarity": "rare", "description": "Ouvre immédiatement un coffre de reliques", "unlock_level": 1},
+    {"sku": "chest_royal", "name": "Coffre Royal", "category": "chest", "price": 250, "icon": "Gift", "rarity": "epic", "description": "Coffre royal — meilleures chances d'Épique", "unlock_level": 10, "popularity": 3},
+    {"sku": "chest_divine", "name": "Coffre Divin", "category": "chest", "price": 500, "icon": "Gift", "rarity": "legendary", "description": "Coffre divin — reliques rares garanties", "unlock_level": 25, "popularity": 5},
+
+    # ---------- Mounts ----------
+    {"sku": "mount_stellar_wolf", "name": "Loup Stellaire", "category": "mount", "price": 2200, "icon": "Dog", "rarity": "epic", "description": "Compagnon lupin des brumes stellaires", "unlock_level": 18},
+    {"sku": "mount_phoenix_wing", "name": "Ailes du Phénix", "category": "mount", "price": 4500, "icon": "Bird", "rarity": "legendary", "description": "Monture ailée renaissante", "unlock_level": 35, "popularity": 4},
+
+    # ---------- Shop Titles ----------
+    {"sku": "title_starforged", "name": "Titre : Forgé des Étoiles", "category": "title", "price": 1800, "icon": "Star", "rarity": "epic", "description": "Titre exclusif boutique", "unlock_level": 15, "title_id": "starforged"},
+    {"sku": "title_void_walker", "name": "Titre : Marcheur du Vide", "category": "title", "price": 3500, "icon": "Moon", "rarity": "legendary", "description": "Titre légendaire du néant", "unlock_level": 40, "title_id": "void_walker"},
+
+    # ---------- Auras ----------
+    {"sku": "aura_crimson", "name": "Aura Cramoisie", "category": "aura", "price": 1200, "icon": "Flame", "rarity": "epic", "description": "Aura de flammes sombres autour de votre avatar", "unlock_level": 12, "aura_kind": "shadow"},
+    {"sku": "aura_aurora", "name": "Aura Boréale", "category": "aura", "price": 2000, "icon": "Sparkles", "rarity": "legendary", "description": "Aura cyan pulsante visible dans le Nexus", "unlock_level": 22, "aura_kind": "cyan", "popularity": 2},
+
+    # ---------- Season Pass ----------
+    {"sku": "pass_season_1", "name": "Passe Saison I", "category": "pass", "price": 8000, "icon": "Ticket", "rarity": "mythic", "description": "Accès premium aux récompenses de la saison en cours", "unlock_level": 10, "season_id": "season_1"},
 ]
 
 

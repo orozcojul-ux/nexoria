@@ -1,47 +1,12 @@
 import Phaser from "phaser";
+import {
+  TILE_W, TILE_H, CLASS_HEX, CLASS_COLOR_INT, RARITY_HEX,
+  ensureCharTexture, ensureTileTexture, preloadLandmarkSprites, preloadClassSprites,
+  resolvePlayerTexture, tryDrawSpriteLandmark,
+} from "./NexusPixelArt";
 
-/* ===================== ISOMETRIC CONFIG ===================== */
-export const TILE_W = 64;
-export const TILE_H = 32;
-
-export const CLASS_HEX = {
-  mage: "#9D4CDD", warrior: "#EF4444", assassin: "#71717A", paladin: "#EAB308",
-  alchemist: "#10B981", explorer: "#00BFFF", necromancer: "#7928CA",
-  architect: "#A855F7", chronomancer: "#00E5FF", inventor: "#FFD700",
-};
-export const CLASS_COLOR_INT = Object.fromEntries(
-  Object.entries(CLASS_HEX).map(([k, v]) => [k, parseInt(v.replace("#", "0x"))])
-);
-
-export const RARITY_HEX = {
-  common: "#9CA3AF", rare: "#00BFFF", epic: "#A855F7",
-  legendary: "#EAB308", mythic: "#EF4444", divine: "#FBBF24", cosmic: "#FFFFFF",
-};
-
-const THEME_FLOOR = {
-  cosmic: { base: 0x1A0F2E, edge: 0x4C1D95, accent: 0x9D4CDD },
-  tavern: { base: 0x3D2817, edge: 0x78350F, accent: 0xEAB308 },
-  arena:  { base: 0x0F172A, edge: 0x1E3A8A, accent: 0x00E5FF },
-  market: { base: 0x2D1B47, edge: 0x7C3AED, accent: 0xFCD34D },
-  guilds: { base: 0x1F1B47, edge: 0x312E81, accent: 0x10B981 },
-  boss_valley: { base: 0x2A0A0A, edge: 0x7F1D1D, accent: 0xEF4444 },
-  hall: { base: 0x1F1730, edge: 0x5B21B6, accent: 0xFCD34D },
-  library: { base: 0x1A1230, edge: 0x4C1D95, accent: 0xA78BFA },
-  archives: { base: 0x171429, edge: 0x312E81, accent: 0x60A5FA },
-  oracle: { base: 0x2B0F47, edge: 0x7C3AED, accent: 0xE879F9 },
-  rift:   { base: 0x0A0613, edge: 0x7928CA, accent: 0x00E5FF },
-  alchemy: { base: 0x0F2A1F, edge: 0x065F46, accent: 0x34D399 },
-  workshop: { base: 0x221A0F, edge: 0x92400E, accent: 0xFBBF24 },
-  time_temple: { base: 0x0A1A2A, edge: 0x0E7490, accent: 0x22D3EE },
-  necropolis: { base: 0x0F0820, edge: 0x312E81, accent: 0x9D4CDD },
-  dream_garden: { base: 0x0A1F1F, edge: 0x0F766E, accent: 0x5EEAD4 },
-  observatory: { base: 0x020617, edge: 0x1E3A8A, accent: 0x60A5FA },
-  camp: { base: 0x1F1810, edge: 0x78350F, accent: 0xFB923C },
-  relics: { base: 0x1F1730, edge: 0x7C3AED, accent: 0xFCD34D },
-  pantheon: { base: 0x161429, edge: 0x4338CA, accent: 0xFCD34D },
-  cosmic_elite: { base: 0x000000, edge: 0x7928CA, accent: 0xFFFFFF },
-  council: { base: 0x0F0A1F, edge: 0xB45309, accent: 0xFCD34D },
-};
+/* Re-export for consumers */
+export { TILE_W, TILE_H, CLASS_HEX, CLASS_COLOR_INT, RARITY_HEX };
 
 /* Rank → aura config (titles from game_data) */
 const RANK_AURA = {
@@ -54,7 +19,21 @@ const RANK_AURA = {
   // Roi des Créateurs — violet glow
   roi_des_createurs: { kind: "violet", color: 0xA855F7, secondary: 0x9D4CDD },
   // Seigneur du Temps — cyan ticks
-  seigneur_du_temps: { kind: "cyan", color: 0x00E5FF, secondary: 0x60A5FA },
+  starforged: { kind: "golden", color: 0xFFD700, secondary: 0xF59E0B },
+  void_walker: { kind: "shadow", color: 0x4C1D95, secondary: 0x1E1B4B },
+};
+
+/* Shop aura SKU → visual kind */
+const SHOP_AURA = {
+  aura_crimson: { kind: "shadow", color: 0xEF4444, secondary: 0x7F1D1D },
+  aura_aurora: { kind: "cyan", color: 0x00E5FF, secondary: 0x67E8F9 },
+};
+
+/* Equipped frame SKU → ring style */
+const FRAME_STYLES = {
+  frame_runic: { color: 0x3B82F6, stroke: 0x00E5FF, scale: 1.15 },
+  frame_celestial: { color: 0xF59E0B, stroke: 0xFCD34D, scale: 1.2 },
+  frame_cosmic: { color: 0xFFFFFF, stroke: 0x9D4CDD, scale: 1.28, pulse: true },
 };
 
 /* ===================== ISOMETRIC HELPERS ===================== */
@@ -63,97 +42,6 @@ export function tileToScreen(tx, ty, originX, originY) {
     x: originX + (tx - ty) * (TILE_W / 2),
     y: originY + (tx + ty) * (TILE_H / 2),
   };
-}
-
-/* ===================== PIXEL ART CHARACTER ===================== */
-function ensureCharTexture(scene, classId, role) {
-  const key = `char_${classId}_${role}`;
-  if (scene.textures.exists(key)) return key;
-  const W = 24, H = 32;
-  const g = scene.add.graphics();
-  const bodyColor = CLASS_COLOR_INT[classId] || 0x9CA3AF;
-  const outline = role === "admin" ? 0xFFD700 : role === "moderator" ? 0xF97316 : 0x0A0613;
-  const skin = 0xF5D0A9;
-  const hair = role === "admin" ? 0xFFD700 : role === "moderator" ? 0xF97316 : 0x1F1B2E;
-  const px = (x, y, color, alpha = 1) => { g.fillStyle(color, alpha); g.fillRect(x, y, 1, 1); };
-
-  g.fillStyle(0x000000, 0.45);
-  g.fillEllipse(W / 2, H - 2, 14, 5);
-
-  // Legs
-  for (let y = 22; y < 28; y++) {
-    px(W / 2 - 3, y, 0x1F1B2E); px(W / 2 - 2, y, bodyColor);
-    px(W / 2 + 1, y, bodyColor); px(W / 2 + 2, y, 0x1F1B2E);
-  }
-  for (let y = 28; y < 30; y++) {
-    for (let x = W / 2 - 4; x <= W / 2 - 1; x++) px(x, y, 0x000000);
-    for (let x = W / 2 + 0; x <= W / 2 + 3; x++) px(x, y, 0x000000);
-  }
-  // Torso
-  for (let y = 13; y < 22; y++) { px(W / 2 - 5, y, outline); px(W / 2 + 4, y, outline); }
-  for (let x = W / 2 - 4; x <= W / 2 + 3; x++) { px(x, 13, outline); px(x, 22, outline); }
-  for (let y = 14; y < 22; y++) for (let x = W / 2 - 4; x <= W / 2 + 3; x++) px(x, y, bodyColor);
-  for (let x = W / 2 - 3; x <= W / 2; x++) px(x, 15, 0xFFFFFF, 0.25);
-  px(W / 2, 17, 0xFFFFFF, 0.9);
-  px(W / 2 - 1, 18, 0xFFFFFF, 0.6);
-  px(W / 2 + 1, 18, 0xFFFFFF, 0.6);
-  px(W / 2, 19, 0xFFFFFF, 0.9);
-  // Arms
-  for (let y = 14; y < 21; y++) {
-    px(W / 2 - 6, y, outline); px(W / 2 - 5, y, bodyColor);
-    px(W / 2 + 4, y, bodyColor); px(W / 2 + 5, y, outline);
-  }
-  px(W / 2 - 6, 20, skin); px(W / 2 - 5, 21, skin);
-  px(W / 2 + 5, 20, skin); px(W / 2 + 4, 21, skin);
-  // Neck
-  for (let y = 11; y < 13; y++) for (let x = W / 2 - 2; x <= W / 2 + 1; x++) px(x, y, skin);
-  // Head
-  for (let y = 4; y < 11; y++) { px(W / 2 - 5, y, 0x000000); px(W / 2 + 4, y, 0x000000); }
-  for (let x = W / 2 - 4; x <= W / 2 + 3; x++) { px(x, 3, 0x000000); px(x, 11, 0x000000); }
-  for (let y = 4; y < 11; y++) for (let x = W / 2 - 4; x <= W / 2 + 3; x++) px(x, y, skin);
-  for (let x = W / 2 - 4; x <= W / 2 + 3; x++) { px(x, 4, hair); px(x, 5, hair); }
-  px(W / 2 - 4, 6, hair); px(W / 2 + 3, 6, hair);
-  px(W / 2 - 2, 7, 0x000000); px(W / 2 + 1, 7, 0x000000);
-  px(W / 2 - 1, 9, 0x000000); px(W / 2 + 0, 9, 0x000000);
-
-  if (role === "admin") {
-    for (let x = W / 2 - 4; x <= W / 2 + 3; x++) px(x, 2, 0xFFD700);
-    px(W / 2 - 4, 1, 0xFFD700); px(W / 2 - 1, 0, 0xFFD700);
-    px(W / 2 + 2, 0, 0xFFD700); px(W / 2 + 4, 1, 0xFFD700);
-  } else if (role === "moderator") {
-    for (let x = W / 2 - 4; x <= W / 2 + 3; x++) px(x, 3, 0xF97316);
-    px(W / 2 - 4, 2, 0xF97316); px(W / 2 + 3, 2, 0xF97316);
-  }
-  g.generateTexture(key, W, H);
-  g.destroy();
-  return key;
-}
-
-/* ===================== TILE TEXTURE ===================== */
-function ensureTileTexture(scene, theme, variant = "base") {
-  const key = `tile_${theme}_${variant}`;
-  if (scene.textures.exists(key)) return key;
-  const cfg = THEME_FLOOR[theme] || THEME_FLOOR.cosmic;
-  const W = TILE_W, H = TILE_H;
-  const g = scene.add.graphics();
-  const fill = variant === "edge" ? cfg.accent : cfg.base;
-  g.fillStyle(fill, 1);
-  g.beginPath();
-  g.moveTo(W / 2, 0); g.lineTo(W, H / 2);
-  g.lineTo(W / 2, H); g.lineTo(0, H / 2);
-  g.closePath().fillPath();
-  g.lineStyle(1, 0xFFFFFF, 0.05);
-  g.beginPath(); g.moveTo(W / 2, 1); g.lineTo(W - 1, H / 2); g.strokePath();
-  g.lineStyle(1, cfg.edge, 0.6);
-  g.beginPath();
-  g.moveTo(W / 2, 0); g.lineTo(W, H / 2);
-  g.moveTo(W / 2, H); g.lineTo(0, H / 2);
-  g.moveTo(W / 2, 0); g.lineTo(0, H / 2);
-  g.moveTo(W / 2, H); g.lineTo(W, H / 2);
-  g.strokePath();
-  g.generateTexture(key, W, H);
-  g.destroy();
-  return key;
 }
 
 /* ===================== PHASER SCENE ===================== */
@@ -175,10 +63,18 @@ export class NexusIsoScene extends Phaser.Scene {
     this.initialItems = data.items || [];
     this.initialWeather = data.weather || "clear";
     this.onMoveEmit = data.onMoveEmit;
+    this.onPortalTravel = data.onPortalTravel;
+    this.portalZones = [];
+    this.worldBossData = null;
+    this.bossContainer = null;
+    this.riftContainer = null;
+    this.warping = false;
     this.sceneUrl = data.sceneUrl || (data.room?.id ? `/world/rooms/${data.room.id}.png` : null);
   }
 
   preload() {
+    preloadLandmarkSprites(this);
+    preloadClassSprites(this);
     if (this.sceneUrl) {
       const key = `room_scene_${this.room?.id || "default"}`;
       if (!this.textures.exists(key)) {
@@ -199,40 +95,45 @@ export class NexusIsoScene extends Phaser.Scene {
     this.worldH = totalH + 200;
 
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x0A0613, 0x0A0613, 0x1A0B3D, 0x05030D, 1);
+    bg.fillGradientStyle(0x080512, 0x080512, 0x1A0B3D, 0x030208, 1);
     bg.fillRect(0, 0, this.worldW, this.worldH);
-    // Atmospheric backdrop from the curated scene PNG (Fantasy House asset pack)
     if (this.sceneKey && this.textures.exists(this.sceneKey)) {
       const img = this.add.image(this.worldW / 2, this.worldH / 2, this.sceneKey);
       img.setOrigin(0.5, 0.5);
       const tex = this.textures.get(this.sceneKey).getSourceImage();
       const sx = this.worldW / tex.width;
       const sy = this.worldH / tex.height;
-      const scale = Math.max(sx, sy) * 1.05;
+      const scale = Math.max(sx, sy) * 1.08;
       img.setScale(scale);
-      img.setAlpha(0.22);
-      img.setBlendMode(Phaser.BlendModes.SCREEN);
-      img.setScrollFactor(0.85);
+      img.setAlpha(0.08);
+      img.setBlendMode(Phaser.BlendModes.MULTIPLY);
+      img.setScrollFactor(0.92);
     }
-    for (let i = 0; i < 80; i++) {
+    for (let i = 0; i < 120; i++) {
       const x = Math.random() * this.worldW;
-      const y = Math.random() * this.worldH * 0.6;
-      const r = Math.random() < 0.8 ? 1 : 2;
-      const c = this.add.circle(x, y, r, 0xFFFFFF, 0.3 + Math.random() * 0.5);
-      this.tweens.add({ targets: c, alpha: 0.1, yoyo: true, repeat: -1, duration: 1200 + Math.random() * 2000 });
+      const y = Math.random() * this.worldH * 0.65;
+      const r = Math.random() < 0.7 ? 1 : 2;
+      const tint = Math.random() < 0.3 ? 0xc9a565 : Math.random() < 0.5 ? 0x67e8f9 : 0xffffff;
+      const c = this.add.circle(x, y, r, tint, 0.25 + Math.random() * 0.55);
+      this.tweens.add({ targets: c, alpha: 0.08, yoyo: true, repeat: -1, duration: 1400 + Math.random() * 2400 });
     }
 
     const theme = room.theme || "cosmic";
     ensureTileTexture(this, theme, "base");
     ensureTileTexture(this, theme, "edge");
+    ensureTileTexture(this, theme, "center");
+
+    const midX = Math.floor(room.tiles_x / 2);
+    const midY = Math.floor(room.tiles_y / 2);
 
     this.floorLayer = this.add.container(0, 0);
     for (let ty = 0; ty < room.tiles_y; ty++) {
       for (let tx = 0; tx < room.tiles_x; tx++) {
         const { x, y } = tileToScreen(tx, ty, this.originX, this.originY);
         const isEdge = tx === 0 || ty === 0 || tx === room.tiles_x - 1 || ty === room.tiles_y - 1;
-        const isCenter = (tx === Math.floor(room.tiles_x / 2) && ty === Math.floor(room.tiles_y / 2));
-        const key = isEdge ? `tile_${theme}_edge` : `tile_${theme}_base`;
+        const isCenter = tx === midX && ty === midY;
+        const variant = isEdge ? "edge" : isCenter ? "center" : "base";
+        const key = `tile_v2_${theme}_${variant}`;
         const tile = this.add.image(x, y, key).setOrigin(0.5, 0).setInteractive(
           new Phaser.Geom.Polygon([
             new Phaser.Geom.Point(TILE_W / 2, 0),
@@ -242,13 +143,12 @@ export class NexusIsoScene extends Phaser.Scene {
           ]),
           Phaser.Geom.Polygon.Contains,
         );
-        tile.on("pointerover", () => tile.setTint(0x00E5FF));
+        tile.on("pointerover", () => tile.setTint(0x67e8f9));
         tile.on("pointerout", () => tile.clearTint());
         tile.on("pointerdown", () => {
           if (this.gmPickerMode) { this.onTileClick && this.onTileClick({ tx, ty }); return; }
           this.requestMoveTo(tx, ty);
         });
-        if (isCenter) tile.setTint(0xFFD700);
         this.floorLayer.add(tile);
       }
     }
@@ -271,15 +171,24 @@ export class NexusIsoScene extends Phaser.Scene {
     this.initialPlayers.forEach((p) => this.upsertPlayer(p));
     this.initialItems.forEach((it) => this.spawnItem(it));
 
+    this.spawnPortals();
+    if (room.world_boss) this.setWorldBoss(room.world_boss);
+    if (room.active_rift) this.setActiveRift(room.active_rift);
+
     this.time.delayedCall(50, () => {
       const me = this.players[this.you.sid];
       if (me) this.cameras.main.centerOn(me.x, me.y);
     });
 
     this.add.text(this.worldW / 2, 16, room.name.toUpperCase(), {
-      fontFamily: "Cinzel, serif", fontSize: "22px", color: "#FFD700",
-      fontStyle: "bold", stroke: "#000", strokeThickness: 3,
-    }).setOrigin(0.5).setAlpha(0.9);
+      fontFamily: "Cinzel, serif", fontSize: "24px", color: "#E8C97A",
+      fontStyle: "bold", stroke: "#0A0613", strokeThickness: 4,
+    }).setOrigin(0.5).setAlpha(0.95);
+    const sub = this.add.text(this.worldW / 2, 40, "— Sanctuaire du Nexus —", {
+      fontFamily: "Cinzel, serif", fontSize: "10px", color: "#67E8F9",
+      stroke: "#0A0613", strokeThickness: 2, letterSpacing: 4,
+    }).setOrigin(0.5).setAlpha(0.7);
+    this.tweens.add({ targets: sub, alpha: 0.45, yoyo: true, repeat: -1, duration: 2800 });
   }
 
   /* --- movement --- */
@@ -307,8 +216,32 @@ export class NexusIsoScene extends Phaser.Scene {
   }
 
   /* --- players --- */
-  addRankAura(container, rank) {
-    const aura = RANK_AURA[rank];
+  addCosmeticFrame(container, frameSku) {
+    const style = FRAME_STYLES[frameSku];
+    if (!style) return null;
+    const ring = this.add.ellipse(0, 4, 34 * style.scale, 14 * style.scale, style.color, 0.15);
+    ring.setStrokeStyle(2, style.stroke, 0.85);
+    container.add(ring);
+    container.sendToBack(ring);
+    if (style.pulse) {
+      this.tweens.add({ targets: ring, scaleX: 1.12, scaleY: 1.12, alpha: 0.08, yoyo: true, repeat: -1, duration: 900 });
+    }
+    return ring;
+  }
+
+  resolveAura(profile) {
+    if (profile?.active_aura_sku && SHOP_AURA[profile.active_aura_sku]) {
+      return SHOP_AURA[profile.active_aura_sku];
+    }
+    const title = profile?.active_title;
+    if (title && RANK_AURA[title]) return RANK_AURA[title];
+    return null;
+  }
+
+  addRankAura(container, auraOrTitle) {
+    const aura = typeof auraOrTitle === "object" && auraOrTitle?.kind
+      ? auraOrTitle
+      : RANK_AURA[auraOrTitle];
     if (!aura) return null;
     const auraGfx = this.add.graphics();
     container.add(auraGfx);
@@ -372,6 +305,8 @@ export class NexusIsoScene extends Phaser.Scene {
     const screen = tileToScreen(lm.tx, lm.ty, this.originX, this.originY);
     const x = screen.x + TILE_W / 2;
     const y = screen.y + TILE_H / 2;
+    if (tryDrawSpriteLandmark(this, this.decorLayer, lm, x, y)) return;
+
     const color = lm.color ? parseInt(lm.color.replace("#", "0x")) : 0x9D4CDD;
     const scale = lm.scale || 1;
 
@@ -489,6 +424,183 @@ export class NexusIsoScene extends Phaser.Scene {
       this.decorLayer.add(t);
     }
     this.decorLayer.add([halo, ring]);
+  }
+
+  computePortalTilePositions(count) {
+    const { tiles_x, tiles_y } = this.room;
+    const margin = 1;
+    const candidates = [];
+    for (let tx = margin + 1; tx < tiles_x - margin - 1; tx++) {
+      candidates.push({ tx, ty: margin });
+      candidates.push({ tx, ty: tiles_y - margin - 1 });
+    }
+    for (let ty = margin + 1; ty < tiles_y - margin - 1; ty++) {
+      candidates.push({ tx: margin, ty });
+      candidates.push({ tx: tiles_x - margin - 1, ty });
+    }
+    if (!candidates.length) return [];
+    const step = Math.max(1, Math.floor(candidates.length / Math.max(count, 1)));
+    const result = [];
+    for (let i = 0; i < count; i++) {
+      result.push(candidates[Math.min(i * step, candidates.length - 1)]);
+    }
+    return result;
+  }
+
+  spawnPortals() {
+    const portals = this.room.portals || [];
+    if (!portals.length) return;
+    const positions = this.computePortalTilePositions(portals.length);
+    this.portalZones = [];
+    portals.forEach((portal, i) => {
+      const { tx, ty } = positions[i] || positions[0];
+      const screen = tileToScreen(tx, ty, this.originX, this.originY);
+      const x = screen.x + TILE_W / 2;
+      const y = screen.y + TILE_H / 2;
+      const color = 0x00E5FF;
+      const halo = this.add.circle(x, y - 16, 34, color, 0.35);
+      const ring = this.add.circle(x, y - 16, 24, 0x000000, 1);
+      ring.setStrokeStyle(3, color, 1);
+      this.tweens.add({ targets: ring, scaleX: 1.12, scaleY: 1.12, yoyo: true, repeat: -1, duration: 900 });
+      this.tweens.add({ targets: halo, alpha: 0.12, yoyo: true, repeat: -1, duration: 1400 });
+      const label = this.add.text(x, y + 14, `${portal.icon || "🌀"} ${portal.name || portal.target}`, {
+        fontFamily: "Cinzel, serif", fontSize: "10px", color: "#FFFFFF",
+        stroke: "#000", strokeThickness: 2,
+      }).setOrigin(0.5);
+      const zone = this.add.zone(x, y - 16, 60, 60);
+      zone.setInteractive({ useHandCursor: true });
+      zone.on("pointerover", () => {
+        halo.setScale(1.08);
+        ring.setStrokeStyle(4, 0x9D4CDD, 1);
+        label.setColor("#00E5FF");
+      });
+      zone.on("pointerout", () => {
+        halo.setScale(1);
+        ring.setStrokeStyle(3, color, 1);
+        label.setColor("#FFFFFF");
+      });
+      zone.on("pointerdown", (pointer, _lx, _ly, event) => {
+        if (event?.stopPropagation) event.stopPropagation();
+        this.triggerPortalWarp(portal.target);
+      });
+      this.portalZones.push({ tx, ty, target: portal.target });
+      this.entityLayer.add([halo, ring, label, zone]);
+    });
+    this.sortDepth();
+  }
+
+  triggerPortalWarp(targetRoomId) {
+    if (this.warping || !targetRoomId || !this.you) return;
+    const me = this.players[this.you.sid];
+    if (!me) return;
+    this.warping = true;
+    const flash = this.add.circle(me.x, me.y, 28, 0x9D4CDD, 0.9);
+    const ring = this.add.circle(me.x, me.y, 18, 0x00E5FF, 0.6);
+    ring.setStrokeStyle(2, 0xFFFFFF, 0.8);
+    this.tweens.add({ targets: [flash, ring], scale: 2.5, alpha: 0, duration: 450 });
+    this.tweens.add({
+      targets: me, alpha: 0, scale: 0.6, duration: 420,
+      onComplete: () => {
+        this.onPortalTravel && this.onPortalTravel(targetRoomId);
+        this.warping = false;
+      },
+    });
+  }
+
+  clearWorldBoss() {
+    if (this.bossContainer) {
+      this.bossContainer.destroy();
+      this.bossContainer = null;
+    }
+    this.worldBossData = null;
+  }
+
+  setWorldBoss(boss) {
+    if (!boss || boss.room !== this.room?.id) {
+      this.clearWorldBoss();
+      return;
+    }
+    if (this.bossContainer && this.worldBossData?.boss_id === boss.boss_id) {
+      this.worldBossData = boss;
+      const hpPct = Math.max(0, Math.min(1, (boss.hp || 0) / (boss.max_hp || 1)));
+      if (this.bossContainer.hpFill) {
+        this.bossContainer.hpFill.width = hpPct * 88;
+        this.bossContainer.hpFill.x = -44 + hpPct * 44;
+      }
+      return;
+    }
+    this.clearWorldBoss();
+    this.worldBossData = boss;
+    const screen = tileToScreen(boss.tx, boss.ty, this.originX, this.originY);
+    const x = screen.x + TILE_W / 2;
+    const y = screen.y + TILE_H / 2 - 20;
+    const container = this.add.container(x, y);
+    const shadow = this.add.ellipse(0, 28, 56, 18, 0x000000, 0.45);
+    const body = this.add.ellipse(0, 4, 52, 68, 0x7F1D1D, 1);
+    body.setStrokeStyle(3, 0xEF4444, 1);
+    const hornL = this.add.triangle(-22, -18, 0, 20, -8, 0, 8, 0, 0x450A0A, 1);
+    const hornR = this.add.triangle(22, -18, 0, 20, -8, 0, 8, 0, 0x450A0A, 1);
+    const eyeL = this.add.circle(-10, -8, 5, 0xFFD700, 1);
+    const eyeR = this.add.circle(10, -8, 5, 0xFFD700, 1);
+    const pupilL = this.add.circle(-10, -8, 2, 0x000000, 1);
+    const pupilR = this.add.circle(10, -8, 2, 0x000000, 1);
+    const aura = this.add.circle(0, 0, 44, 0xEF4444, 0.2);
+    this.tweens.add({ targets: aura, scale: 1.25, alpha: 0.06, yoyo: true, repeat: -1, duration: 1100 });
+    this.tweens.add({ targets: body, y: 6, yoyo: true, repeat: -1, duration: 1800, ease: "Sine.easeInOut" });
+    const name = this.add.text(0, -58, `⚔ ${boss.name}`, {
+      fontFamily: "Cinzel, serif", fontSize: "11px", color: "#FCA5A5",
+      stroke: "#000", strokeThickness: 3,
+    }).setOrigin(0.5);
+    const hpPct = Math.max(0, Math.min(1, (boss.hp || 0) / (boss.max_hp || 1)));
+    const hpBg = this.add.rectangle(0, -72, 88, 8, 0x000000, 0.85);
+    const hpFill = this.add.rectangle(-44 + hpPct * 44, -72, hpPct * 88, 6, 0xEF4444, 1);
+    hpFill.setOrigin(0, 0.5);
+    container.add([shadow, aura, body, hornL, hornR, eyeL, eyeR, pupilL, pupilR, name, hpBg, hpFill]);
+    container.hpFill = hpFill;
+    container.bossData = boss;
+    body.setInteractive({ useHandCursor: true });
+    body.on("pointerdown", () => {
+      this.onBossAttack && this.onBossAttack(boss);
+    });
+    this.bossContainer = container;
+    this.entityLayer.add(container);
+    this.sortDepth();
+  }
+
+  clearRift() {
+    if (this.riftContainer) {
+      this.riftContainer.destroy();
+      this.riftContainer = null;
+    }
+  }
+
+  setActiveRift(rift) {
+    this.clearRift();
+    if (!rift) return;
+    const cx = Math.floor(this.room.tiles_x / 2);
+    const cy = Math.floor(this.room.tiles_y / 2);
+    const screen = tileToScreen(cx, cy, this.originX, this.originY);
+    const x = screen.x + TILE_W / 2;
+    const y = screen.y + TILE_H / 2 - 24;
+    const container = this.add.container(x, y);
+    const outer = this.add.circle(0, 0, 52, 0x7928CA, 0.25);
+    const mid = this.add.circle(0, 0, 36, 0x00E5FF, 0.35);
+    const core = this.add.circle(0, 0, 18, 0xFFFFFF, 0.5);
+    core.setStrokeStyle(2, 0x9D4CDD, 0.9);
+    const ring = this.add.circle(0, 0, 44, 0x000000, 0);
+    ring.setStrokeStyle(3, 0x00E5FF, 0.8);
+    const label = this.add.text(0, -68, "🌀 FAILLE DIMENSIONNELLE", {
+      fontFamily: "Cinzel, serif", fontSize: "10px", color: "#00E5FF",
+      stroke: "#000", strokeThickness: 2,
+    }).setOrigin(0.5);
+    this.tweens.add({ targets: outer, scale: 1.2, alpha: 0.1, yoyo: true, repeat: -1, duration: 1600 });
+    this.tweens.add({ targets: mid, scale: 0.85, alpha: 0.5, yoyo: true, repeat: -1, duration: 900 });
+    this.tweens.add({ targets: ring, rotation: Math.PI * 2, repeat: -1, duration: 5000 });
+    this.tweens.add({ targets: core, scale: 1.3, alpha: 0.3, yoyo: true, repeat: -1, duration: 600 });
+    container.add([outer, mid, ring, core, label]);
+    this.riftContainer = container;
+    this.entityLayer.add(container);
+    this.sortDepth();
   }
 
   drawBookshelf(x, y) {
@@ -742,8 +854,9 @@ export class NexusIsoScene extends Phaser.Scene {
     const key = ensureCharTexture(this, npc.class_id || "explorer", npc.role || "user");
     const container = this.add.container(sx, sy);
     const ring = this.add.ellipse(0, 4, 28, 10, 0x9CA3AF, 0.35);
-    const sprite = this.add.sprite(0, -16, key).setOrigin(0.5, 0.85);
-    sprite.setScale(1.5);
+    const sprite = this.add.sprite(0, -20, key).setOrigin(0.5, 0.88);
+    sprite.setScale(2.05);
+    if (sprite.texture) sprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
     const nameText = this.add.text(0, -52, npc.name || "PNJ", {
       fontFamily: "Cinzel, serif", fontSize: "11px", color: "#CFA8FF",
       fontStyle: "bold", stroke: "#000", strokeThickness: 3,
@@ -793,15 +906,16 @@ export class NexusIsoScene extends Phaser.Scene {
       this.updateNameTag(existing);
       return;
     }
-    const key = ensureCharTexture(this, p.class_id, p.role);
+    const { key, scale } = resolvePlayerTexture(this, p.class_id, p.role);
     const screen = tileToScreen(p.tx, p.ty, this.originX, this.originY);
     const sx = screen.x + TILE_W / 2;
     const sy = screen.y + TILE_H / 2;
     const container = this.add.container(sx, sy);
     const ring = this.add.ellipse(0, 4, 30, 12, CLASS_COLOR_INT[p.class_id] || 0x9CA3AF, 0.45);
     ring.setStrokeStyle(1, 0xFFFFFF, 0.45);
-    const sprite = this.add.sprite(0, -16, key).setOrigin(0.5, 0.85);
-    sprite.setScale(1.6);
+    const sprite = this.add.sprite(0, -20, key).setOrigin(0.5, 0.88);
+    sprite.setScale(scale);
+    if (sprite.texture) sprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
     if (p.role === "admin" || p.role === "moderator") {
       this.tweens.add({ targets: ring, scaleX: 1.25, scaleY: 1.25, alpha: 0.15, yoyo: true, repeat: -1, duration: 900 });
     } else {
@@ -825,8 +939,9 @@ export class NexusIsoScene extends Phaser.Scene {
     container.subText = subText;
     this.updateNameTag(container);
     if (p.invisible) container.setAlpha(0.35);
-    // Rank aura
-    this.addRankAura(container, p.active_title);
+    if (p.active_frame) this.addCosmeticFrame(container, p.active_frame);
+    const auraCfg = this.resolveAura(p);
+    if (auraCfg) this.addRankAura(container, auraCfg);
 
     sprite.setInteractive({ useHandCursor: true });
     sprite.on("pointerdown", (pointer, lx, ly, event) => {
@@ -852,7 +967,8 @@ export class NexusIsoScene extends Phaser.Scene {
     const mute = p.muted ? " 🔇" : "";
     const freeze = p.frozen ? " ❄" : "";
     container.nameText.setText(`${crown}${p.username}${mute}${freeze}`);
-    container.subText.setText(`${p.class_name} · niv ${p.level}`);
+    const rank = p.rank ? ` · ${p.rank}` : "";
+    container.subText.setText(`${p.class_name} · niv ${p.level}${rank}`);
   }
 
   movePlayer(sid, tx, ty, facing, teleport = false) {
@@ -881,6 +997,19 @@ export class NexusIsoScene extends Phaser.Scene {
     this.tweens.add({ targets: c, alpha: 0, duration: 200, onComplete: () => { c.destroy(); delete this.players[sid]; } });
   }
 
+  setPlayerProfile(sid, patch) {
+    const c = this.players[sid];
+    if (!c || !c.profile) return;
+    Object.assign(c.profile, patch);
+    this.updateNameTag(c);
+    if ("invisible" in patch) c.setAlpha(patch.invisible ? 0.35 : 1);
+    if ("active_frame" in patch || "active_aura_sku" in patch || "active_title" in patch) {
+      c.destroy();
+      delete this.players[sid];
+      this.addPlayer(c.profile);
+    }
+  }
+
   setPlayerStatus(sid, patch) {
     const c = this.players[sid];
     if (!c || !c.profile) return;
@@ -894,17 +1023,20 @@ export class NexusIsoScene extends Phaser.Scene {
     if (!c) return;
     const bg = this.add.graphics();
     const t = this.add.text(0, 0, text.slice(0, 80), {
-      fontFamily: "ui-sans-serif", fontSize: "12px", color: "#0A0613",
+      fontFamily: "Cinzel, ui-sans-serif", fontSize: "12px", color: "#E0F7FF",
       wordWrap: { width: 180 }, align: "center",
     }).setOrigin(0.5);
-    const padX = 8, padY = 5;
+    const padX = 10, padY = 6;
     const w = Math.ceil(t.width) + padX * 2;
     const h = Math.ceil(t.height) + padY * 2;
-    bg.fillStyle(0xF9FAFB, 0.96);
-    bg.lineStyle(1, 0x9D4CDD, 0.8);
-    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 6);
-    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 6);
-    bg.fillTriangle(-4, h / 2, 4, h / 2, 0, h / 2 + 6);
+    bg.fillStyle(0x0A0613, 0.92);
+    bg.lineStyle(2, 0x00E5FF, 0.85);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 8);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 8);
+    bg.lineStyle(1, 0x9D4CDD, 0.5);
+    bg.strokeRoundedRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4, 6);
+    bg.fillStyle(0x00E5FF, 0.9);
+    bg.fillTriangle(-5, h / 2, 5, h / 2, 0, h / 2 + 7);
     const bubble = this.add.container(c.x, c.y - 72, [bg, t]);
     bubble.setAlpha(0);
     this.tweens.add({ targets: bubble, alpha: 1, y: c.y - 80, duration: 200 });
@@ -1030,7 +1162,7 @@ export class NexusIsoScene extends Phaser.Scene {
       }
       this.sortDepth();
     } else {
-      const step = Math.min(dist, 3.5);
+      const step = Math.min(dist, me.profile?.fly ? 8 : 3.5);
       me.x += (dx / dist) * step;
       me.y += (dy / dist) * step;
       this.sortDepth();

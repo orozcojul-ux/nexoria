@@ -4,8 +4,9 @@ import { Link } from "react-router-dom";
 import { Globe, Users, Sparkles, Filter, Wifi, WifiOff, Crown, ShieldCheck, Compass } from "lucide-react";
 import api from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
-import { RuneSeal, RuneDivider } from "@/components/Ornaments";
+import { PageShell, PremiumCard, PremiumModal } from "@/components/ui-premium";
 import StarField from "@/components/StarField";
+import { usePageBanner } from "@/lib/page-banners";
 
 /**
  * Atlas Éthérique — interactive constellation showing every hero in the realm.
@@ -42,6 +43,7 @@ const ZONES = [
 
 export default function WorldMap() {
   const { t } = useI18n();
+  const banner = usePageBanner("world");
   const [heroes, setHeroes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [classFilter, setClassFilter] = useState("all");
@@ -82,21 +84,12 @@ export default function WorldMap() {
   const classes = Object.keys(CLASS_COLORS);
 
   return (
-    <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 relative" data-testid="world-map-page">
+    <PageShell
+      wide
+      testid="world-map-page"
+      banner={banner}
+    >
       <StarField density={80} />
-      <div className="text-center mb-6 relative">
-        <div className="flex justify-center mb-3">
-          <RuneSeal icon={Globe} color="#00E5FF" size={48} />
-        </div>
-        <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-400 font-bold mb-1">Atlas éthérique</div>
-        <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight">
-          Carte du <span className="text-gradient">Monde</span>
-        </h1>
-        <p className="text-zinc-400 text-sm mt-2 italic scroll-paragraph max-w-2xl mx-auto">
-          « Chaque étoile est un héros. La pulsation indique ceux qui veillent encore. »
-        </p>
-        <RuneDivider className="mt-5 mb-6 max-w-md mx-auto" />
-      </div>
 
       {/* Stats bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" data-testid="world-stats">
@@ -107,7 +100,7 @@ export default function WorldMap() {
       </div>
 
       {/* Filters */}
-      <div className="glass rounded-xl p-4 mb-6 flex flex-wrap items-center gap-3" data-testid="world-filters">
+      <PremiumCard tone="cyan" className="p-4 mb-6 flex flex-wrap items-center gap-3" testid="world-filters">
         <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold flex items-center gap-1">
           <Filter className="w-3 h-3" /> Filtres
         </div>
@@ -134,7 +127,7 @@ export default function WorldMap() {
           {onlineOnly ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
           Actifs uniquement
         </button>
-      </div>
+      </PremiumCard>
 
       {/* The map */}
       <div
@@ -232,7 +225,7 @@ export default function WorldMap() {
           {hovered && (
             <motion.div
               initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="absolute pointer-events-none px-3 py-2 rounded-lg glass border border-cyan-500/30 text-xs whitespace-nowrap z-40"
+              className="absolute pointer-events-none px-3 py-2 rounded-lg border border-cyan-500/30 bg-[#0A0613]/90 backdrop-blur text-xs whitespace-nowrap z-40"
               style={{ left: `${hovered.x}%`, top: `${hovered.y}%`, transform: "translate(-50%, calc(-100% - 16px))" }}
               data-testid="hero-tooltip"
             >
@@ -271,31 +264,27 @@ export default function WorldMap() {
       <AnimatePresence>
         {selected && <HeroDetail hero={selected} onClose={() => setSelected(null)} />}
       </AnimatePresence>
-    </div>
+    </PageShell>
   );
 }
 
 function Stat({ icon: Icon, label, value, color }) {
   return (
-    <div className="glass rounded-xl p-3 flex items-center gap-3">
+    <PremiumCard tone="cyan" className="p-3 flex items-center gap-3">
       <Icon className="w-5 h-5" style={{ color, filter: `drop-shadow(0 0 6px ${color}66)` }} />
       <div>
         <div className="font-mono-stat text-xl font-bold text-white">{value}</div>
         <div className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">{label}</div>
       </div>
-    </div>
+    </PremiumCard>
   );
 }
 
 function HeroDetail({ hero, onClose }) {
   const color = CLASS_COLORS[hero.class_id] || "#9CA3AF";
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      onClick={onClose} className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <motion.div onClick={(e) => e.stopPropagation()}
-        initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9 }}
-        className="rune-border rounded-2xl p-6 max-w-md w-full text-center relative overflow-hidden"
-        data-testid="hero-detail-modal">
+      <PremiumModal open onClose={onClose} title={hero.username} maxWidth="max-w-md" testid="hero-detail-modal">
+        <div className="p-6 text-center relative overflow-hidden">
         <div className="absolute -top-20 -left-20 w-40 h-40 rounded-full blur-3xl" style={{ background: `${color}40` }} />
         <div className="relative">
           <div className="w-20 h-20 mx-auto rounded-full mb-4 flex items-center justify-center font-display font-black text-3xl"
@@ -303,7 +292,7 @@ function HeroDetail({ hero, onClose }) {
             {hero.username[0]?.toUpperCase()}
           </div>
           <div className="text-[10px] uppercase tracking-[0.3em] font-bold mb-1" style={{ color }}>{hero.class_name}</div>
-          <h3 className="font-display font-black text-2xl ancient-text mb-1 flex items-center justify-center gap-2">
+          <h3 className="font-display font-black text-2xl mb-1 flex items-center justify-center gap-2">
             {hero.role === "admin" && <Crown className="w-5 h-5 text-yellow-400" />}
             {hero.role === "moderator" && <ShieldCheck className="w-5 h-5 text-orange-400" />}
             {hero.username}
@@ -318,7 +307,7 @@ function HeroDetail({ hero, onClose }) {
             Consulter son codex →
           </Link>
         </div>
-      </motion.div>
-    </motion.div>
+        </div>
+      </PremiumModal>
   );
 }

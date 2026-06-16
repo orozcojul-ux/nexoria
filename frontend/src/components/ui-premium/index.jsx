@@ -3,9 +3,16 @@
  * All pages should compose with these to guarantee consistent visual language.
  */
 import React from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
-import { SECTION_TONE } from "@/lib/design-tokens";
+import { SECTION_TONE, RARITY } from "@/lib/design-tokens";
+import PixelBanner from "@/components/PixelBanner";
+import PageBanner from "@/components/PageBanner";
+import NexoriaCopyright from "@/components/NexoriaCopyright";
+import { getRarityBadgeSrc } from "@/lib/badge-assets";
+
+export { PageBanner };
 
 /* ============== PREMIUM CARD ============== */
 export function PremiumCard({ tone = "violet", className = "", glow = true, hover = true, children, onClick, testid, ...rest }) {
@@ -16,8 +23,8 @@ export function PremiumCard({ tone = "violet", className = "", glow = true, hove
       transition={{ duration: 0.2 }}
       onClick={onClick}
       data-testid={testid}
-      className={`relative rounded-xl border ${t.border} bg-gradient-to-br from-[#0F0820]/80 via-[#0A0613]/80 to-[#0F0820]/80 backdrop-blur p-4 transition-all ${className}`}
-      style={glow ? { boxShadow: `0 0 24px ${t.color}33, inset 0 0 12px ${t.color}11` } : undefined}
+      className={`relative rounded-xl border ${t.border} bg-gradient-to-br from-[var(--nx-surface)]/90 via-[var(--nx-bg)]/85 to-[var(--nx-surface)]/90 backdrop-blur p-4 transition-all ${className}`}
+      style={glow ? { boxShadow: `0 0 24px ${t.color}33, inset 0 0 12px ${t.color}11, 0 0 0 1px var(--nx-border)` } : { borderColor: "var(--nx-border)" }}
       {...rest}
     >
       {children}
@@ -127,14 +134,22 @@ export function PremiumSidebar({ items = [], active, onSelect, footer, testidPre
   );
 }
 
+
 /* ============== PREMIUM HERO BANNER ============== */
-export function PremiumHero({ title, subtitle, kicker, image, ctaLabel, onCta, ctaIcon, height = 280, testid, children }) {
+export function PremiumHero({
+  title, subtitle, kicker, image, pixelTheme = "violet", usePixelArt = true,
+  ctaLabel, onCta, ctaIcon, height = 280, testid, children,
+}) {
+  const showPixel = usePixelArt && !image;
   return (
-    <div className="relative rounded-2xl overflow-hidden border border-purple-500/40 group"
+    <div className="relative rounded-2xl overflow-hidden border border-purple-500/40 group pixel-art"
       style={{ height }} data-testid={testid}>
-      {image && (
-        <img src={image} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-      )}
+      {showPixel ? (
+        <PixelBanner theme={pixelTheme} width={900} height={height} className="absolute inset-0 h-full" />
+      ) : image ? (
+        <img src={image} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy"
+          style={{ imageRendering: usePixelArt ? "pixelated" : "auto" }} />
+      ) : null}
       <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/40 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-t from-[#0A0613] via-transparent to-transparent" />
       {/* Cosmic dust particles */}
@@ -160,22 +175,31 @@ export function PremiumHero({ title, subtitle, kicker, image, ctaLabel, onCta, c
   );
 }
 
-/* ============== PREMIUM BADGE (rarity-aware) ============== */
-import { RARITY } from "@/lib/design-tokens";
+/* ============== PREMIUM BADGE (rarity-aware, pixel medallion) ============== */
+
 export function PremiumBadge({ badge, size = "md", testid }) {
-  const r = RARITY[badge.rarity] || RARITY.common;
-  const sz = size === "sm" ? "w-12 h-12 text-xl" : size === "lg" ? "w-20 h-20 text-4xl" : "w-16 h-16 text-3xl";
+  const safe = badge || {};
+  const r = RARITY[safe.rarity] || RARITY.common;
+  const sz = size === "sm" ? "w-12 h-12" : size === "lg" ? "w-20 h-20" : "w-16 h-16";
+  const name = safe.name || "Badge Mystérieux";
+  const src = getRarityBadgeSrc(safe.rarity || "common");
+
   return (
     <div
-      title={`${badge.name} — ${r.fr}`}
-      data-testid={testid || `badge-${badge.badge_id || badge.id || badge.name}`}
-      className={`relative ${sz} rounded-lg ${r.border} border-2 bg-gradient-to-br ${r.bg} flex items-center justify-center cursor-pointer group transition-all hover:scale-110`}
-      style={{ boxShadow: `0 0 12px ${r.glow}, inset 0 0 8px ${r.glow}` }}
+      title={`${name}${safe.description ? ` — ${safe.description}` : ""} · ${r.fr}`}
+      data-testid={testid || `badge-${safe.badge_id || safe.id || name.toLowerCase().replace(/\s+/g, "-")}`}
+      className={`relative ${sz} rounded-lg cursor-pointer group transition-all hover:scale-110`}
+      style={{ boxShadow: `0 0 14px ${r.glow}` }}
     >
-      <span className="drop-shadow-lg">{badge.icon || "✨"}</span>
-      {badge.rarity === "cosmic" && (
+      <img
+        src={src}
+        alt=""
+        className="w-full h-full rounded-lg object-cover"
+        draggable={false}
+      />
+      {safe.rarity === "cosmic" && (
         <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
-          <div className="absolute -inset-1 bg-gradient-to-r from-cyan-300 via-purple-400 to-cyan-300 opacity-30 animate-pulse" />
+          <div className="absolute -inset-1 bg-gradient-to-r from-cyan-300 via-purple-400 to-cyan-300 opacity-25 animate-pulse" />
         </div>
       )}
     </div>
@@ -184,22 +208,27 @@ export function PremiumBadge({ badge, size = "md", testid }) {
 
 /* ============== PREMIUM MODAL ============== */
 export function PremiumModal({ open, onClose, title, icon: Icon, maxWidth = "max-w-3xl", children, testid, footer }) {
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
           onClick={onClose} data-testid={testid}>
           <motion.div
             initial={{ scale: 0.92, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, y: 30 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
             onClick={(e) => e.stopPropagation()}
-            className={`relative w-full ${maxWidth} max-h-[90vh] bg-gradient-to-br from-[#0F0820] via-[#0A0613] to-[#1A0B3D] border border-purple-500/40 rounded-2xl overflow-hidden shadow-[0_0_60px_rgba(157,76,221,0.4)] flex flex-col`}>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-gradient-to-r from-purple-900/30 to-transparent">
+            className={`relative w-full ${maxWidth} max-h-[90vh] border rounded-2xl overflow-hidden shadow-[0_0_60px_var(--nx-glow)] flex flex-col`}
+            style={{
+              background: "linear-gradient(145deg, var(--nx-surface) 0%, var(--nx-bg) 55%, var(--nx-surface) 100%)",
+              borderColor: "var(--nx-border)",
+            }}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10" style={{ background: "color-mix(in srgb, var(--nx-accent) 12%, transparent)" }}>
               <div className="flex items-center gap-2">
-                {Icon && <Icon className="w-5 h-5 text-yellow-300" />}
-                <span className="font-display font-black text-lg uppercase tracking-widest text-purple-200">{title}</span>
+                {Icon && <Icon className="w-5 h-5" style={{ color: "var(--nx-secondary)" }} />}
+                <span className="font-display font-black text-lg uppercase tracking-widest" style={{ color: "var(--nx-fg)" }}>{title}</span>
               </div>
               <button onClick={onClose}
                 className="w-8 h-8 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white flex items-center justify-center transition-all">
@@ -211,6 +240,46 @@ export function PremiumModal({ open, onClose, title, icon: Icon, maxWidth = "max
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
+/* ============== PAGE SHELL (global layout wrapper) ============== */
+/** Standard page wrapper — cosmic gradient + consistent padding for all app pages. */
+export function PageShell({ children, wide = false, className = "", testid, banner, hideCopyright = false }) {
+  return (
+    <div
+      className={`min-h-screen relative ${className}`}
+      data-testid={testid}
+    >
+      <div className={`relative mx-auto ${wide ? "max-w-7xl" : "max-w-6xl"} px-4 sm:px-6 py-6 sm:py-10 ${banner ? "space-y-5" : "space-y-6"}`}>
+        {banner && <PageBanner {...banner} />}
+        {children}
+        {!hideCopyright && <NexoriaCopyright />}
+      </div>
+    </div>
+  );
+}
+
+/** Compact centered header when a full PremiumHero banner is not needed. */
+export function PremiumPageHeader({ kicker, title, subtitle, icon: Icon, tone = "cyan", action, children }) {
+  const t = SECTION_TONE[tone] || SECTION_TONE.cyan;
+  return (
+    <div className="text-center mb-2">
+      {Icon && (
+        <Icon
+          className={`w-10 h-10 mx-auto mb-3 ${t.text}`}
+          style={{ filter: `drop-shadow(0 0 12px ${t.color})` }}
+        />
+      )}
+      {kicker && (
+        <div className={`text-[10px] uppercase tracking-[0.4em] font-bold mb-2 ${t.text}`}>{kicker}</div>
+      )}
+      <h1 className="font-display font-black text-3xl sm:text-5xl tracking-tight text-white">{title}</h1>
+      {subtitle && <p className="text-zinc-400 text-sm mt-2 max-w-2xl mx-auto">{subtitle}</p>}
+      {children}
+      {action && <div className="mt-4 flex justify-center">{action}</div>}
+    </div>
   );
 }

@@ -39,12 +39,13 @@ class TestStatsPublic:
         r = requests.get(f"{BASE_URL}/api/stats/public", timeout=15)
         assert r.status_code == 200, r.text[:200]
         j = r.json()
-        for k in ["heroes", "heroes_online", "guilds", "events",
+        for k in ["heroes", "heroes_online", "site_online", "guilds", "events",
                   "new_signups", "visits_today", "server_stability"]:
             assert k in j, f"missing key {k} -> {j}"
         # Type sanity
         assert isinstance(j["heroes"], int)
         assert isinstance(j["heroes_online"], int)
+        assert isinstance(j["site_online"], int)
         assert isinstance(j["guilds"], int)
         assert isinstance(j["events"], int)
         assert isinstance(j["new_signups"], int)

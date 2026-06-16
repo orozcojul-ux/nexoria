@@ -23,13 +23,17 @@ from datetime import datetime, timezone, timedelta
 import socketio
 
 from auth import get_user_by_token
-from nexus_rooms import ROOMS, can_access  # noqa: F401
+import online_gate
+from nexus_rooms import ROOMS, can_access, get_portal_links  # noqa: F401
 
 logger = logging.getLogger("nexoria.nexus")
 
 DEFAULT_ROOM = "place_centrale"
+NEXUS_PRESENCE_TTL_SEC = 4 * 3600  # restore last room/position within 4h
 
 STAFF_ROLES = {"admin", "moderator"}
+STAFF_ROLE_LABELS = {"admin": "Sage", "moderator": "Modérateur"}
+STAFF_ROLE_ORDER = ("admin", "moderator")
 WEATHERS = {"clear", "rain", "storm", "eclipse", "aurora"}
 CHAT_CHANNELS = {"global", "room", "guild", "whisper", "trade", "event"}
 
@@ -39,11 +43,13 @@ _rooms_state = {r: {} for r in ROOMS}
 _chat_buffer = {r: [] for r in ROOMS}
 _room_weather = {r: "clear" for r in ROOMS}
 _room_items = {r: [] for r in ROOMS}
+_room_world_state = {r: {"boss": None, "rift": None} for r in ROOMS}
 _user_sids = {}
 _global_state = {"started_at": time.time()}
 
 _db_ref = None
 _sio_ref = None
+_hooks: dict = {}
 
 
 def _now_iso():
@@ -51,9 +57,9 @@ def _now_iso():
 
 
 async def _audit(action: str, actor: dict, target: dict | None = None, payload: dict | None = None):
-    """Persist a GM action to gm_audit_log."""
+    """Persist a GM action to gm_audit_log and push live entry to online staff."""
     if _db_ref is None:
-        return
+        return None
     doc = {
         "audit_id": f"gm_{uuid.uuid4().hex[:12]}",
         "action": action,
@@ -69,10 +75,47 @@ async def _audit(action: str, actor: dict, target: dict | None = None, payload: 
         await _db_ref.gm_audit_log.insert_one(doc)
     except Exception as e:
         logger.warning(f"[gm_audit] insert failed: {e}")
+    # Live stream to connected Gardiens
+    if _sio_ref is not None:
+        entry = {k: v for k, v in doc.items()}
+        for sid, p in list(_players.items()):
+            if p.get("role") in STAFF_ROLES:
+                try:
+                    await _sio_ref.emit("gm_log:new", entry, to=sid)
+                except Exception:
+                    pass
+    return doc
+
+
+def _staff_online_payload():
+    """Online staff members deduped by user_id, grouped by role grade."""
+    seen = set()
+    members = []
+    by_role = {role: 0 for role in STAFF_ROLE_ORDER}
+    for p in _players.values():
+        uid = p.get("user_id")
+        role = p.get("role")
+        if not uid or uid in seen or role not in STAFF_ROLES:
+            continue
+        if p.get("invisible"):
+            continue
+        seen.add(uid)
+        by_role[role] = by_role.get(role, 0) + 1
+        members.append({
+            "user_id": uid,
+            "username": p.get("username"),
+            "role": role,
+            "role_label": STAFF_ROLE_LABELS.get(role, role),
+            "rank": p.get("rank"),
+            "room": p.get("room"),
+            "avatar_url": p.get("avatar_url"),
+        })
+    members.sort(key=lambda m: (STAFF_ROLE_ORDER.index(m["role"]) if m["role"] in STAFF_ROLE_ORDER else 9, m.get("username") or ""))
+    return {"total": len(members), "by_role": by_role, "members": members}
 
 
 def _presence_payload():
-    """Returns {total, by_room: {room_id: unique_users}, active_rooms}.
+    """Returns {total, by_room, active_rooms, staff_online}.
     Dedupes by user_id so multi-tab = 1 hero. Self-heals against orphan
     _rooms_state entries by cross-checking with _user_sids.
     """
@@ -82,7 +125,12 @@ def _presence_payload():
         by_room[r] = len(uids)
     total = len(_user_sids)
     active = sum(1 for n in by_room.values() if n > 0)
-    return {"total": total, "by_room": by_room, "active_rooms": active}
+    return {
+        "total": total,
+        "by_room": by_room,
+        "active_rooms": active,
+        "staff_online": _staff_online_payload(),
+    }
 
 
 async def _broadcast_presence(sio):
@@ -90,6 +138,16 @@ async def _broadcast_presence(sio):
         await sio.emit("presence:update", _presence_payload())
     except Exception as e:
         logger.warning(f"presence broadcast failed: {e}")
+
+
+def _room_payload(room_id: str) -> dict:
+    """Room descriptor enriched with portal links and live world entities."""
+    base = dict(ROOMS[room_id])
+    base["portals"] = get_portal_links(room_id)
+    ws = _room_world_state.get(room_id, {})
+    base["world_boss"] = ws.get("boss")
+    base["active_rift"] = ws.get("rift")
+    return base
 
 
 def _lite(p: dict, viewer_role: str = "user") -> dict:
@@ -102,6 +160,10 @@ def _lite(p: dict, viewer_role: str = "user") -> dict:
         "rank": p.get("rank"),
         "guild_id": p.get("guild_id"),
         "avatar_url": p.get("avatar_url"),
+        "active_frame": p.get("active_frame"),
+        "active_banner": p.get("active_banner"),
+        "active_aura_sku": p.get("active_aura_sku"),
+        "active_mount": p.get("active_mount"),
         "tx": p["tx"], "ty": p["ty"], "room": p["room"],
         "muted": bool(p.get("muted")),
         "frozen": bool(p.get("frozen")),
@@ -109,6 +171,61 @@ def _lite(p: dict, viewer_role: str = "user") -> dict:
         "facing": p.get("facing", "SE"),
     }
     return out
+
+
+def _resolve_spawn(user: dict) -> tuple[str, int, int, str]:
+    """Return (room_id, tx, ty, facing) — restore saved presence when recent."""
+    room = DEFAULT_ROOM
+    spawn = ROOMS[room]["spawn"]
+    tx, ty, facing = spawn["tx"], spawn["ty"], "SE"
+    pres = user.get("nexus_presence") or {}
+    if not pres:
+        return room, tx, ty, facing
+    try:
+        updated = pres.get("updated_at")
+        if updated:
+            updated_dt = datetime.fromisoformat(str(updated).replace("Z", "+00:00"))
+            if updated_dt.tzinfo is None:
+                updated_dt = updated_dt.replace(tzinfo=timezone.utc)
+            age = (datetime.now(timezone.utc) - updated_dt).total_seconds()
+            if age > NEXUS_PRESENCE_TTL_SEC:
+                return room, tx, ty, facing
+        saved_room = pres.get("room")
+        if not saved_room or saved_room not in ROOMS:
+            return room, tx, ty, facing
+        allowed, _ = can_access(user, saved_room)
+        if not allowed:
+            return room, tx, ty, facing
+        room = saved_room
+        cfg = ROOMS[room]
+        spawn = cfg["spawn"]
+        tx = max(0, min(cfg["tiles_x"] - 1, int(pres.get("tx", spawn["tx"]))))
+        ty = max(0, min(cfg["tiles_y"] - 1, int(pres.get("ty", spawn["ty"]))))
+        facing = pres.get("facing") or "SE"
+    except Exception as e:
+        logger.warning(f"[nexus] restore presence failed: {e}")
+    return room, tx, ty, facing
+
+
+async def _persist_nexus_presence(user_id: str, room: str, tx: int, ty: int, facing: str):
+    """Save last known Nexus location when the user fully disconnects."""
+    if _db_ref is None:
+        return
+    try:
+        await _db_ref.users.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "nexus_presence": {
+                    "room": room,
+                    "tx": tx,
+                    "ty": ty,
+                    "facing": facing,
+                    "updated_at": _now_iso(),
+                },
+            }},
+        )
+    except Exception as e:
+        logger.warning(f"[nexus] persist presence failed: {e}")
 
 
 def _visible_players_for(viewer: dict):
@@ -125,10 +242,76 @@ def _visible_players_for(viewer: dict):
     return out
 
 
-def build_socketio_app(db):
+_watchdog_started = False
+
+
+async def _remove_player_sid(sid, sio=None):
+    """Shared cleanup when a player disconnects (manual kick or socket drop)."""
+    p = _players.pop(sid, None)
+    if not p:
+        return None
+    room = p["room"]
+    _rooms_state[room].pop(sid, None)
+    s = _user_sids.get(p["user_id"])
+    if s:
+        s.discard(sid)
+        if not s:
+            _user_sids.pop(p["user_id"], None)
+            await _persist_nexus_presence(
+                p["user_id"], p["room"], p["tx"], p["ty"], p.get("facing", "SE"),
+            )
+    if sio is not None:
+        await sio.emit("player_leave", {"sid": sid, "user_id": p["user_id"]}, to=room)
+        await _broadcast_presence(sio)
+    return p
+
+
+async def disconnect_user(user_id: str):
+    """Force-disconnect all Nexus sockets for a user (logout, ban, session purge)."""
+    if _sio_ref is None or not user_id:
+        return
+    sids = list(_user_sids.get(user_id, set()))
+    for sid in sids:
+        try:
+            await _remove_player_sid(sid, _sio_ref)
+            await _sio_ref.disconnect(sid)
+        except Exception as e:
+            logger.warning(f"[nexus] disconnect_user sid={sid} failed: {e}")
+
+
+async def _session_presence_watchdog():
+    """Kick Nexus sockets whose user no longer has a valid session."""
+    while True:
+        await asyncio.sleep(45)
+        if _db_ref is None or _sio_ref is None:
+            continue
+        now_iso = datetime.now(timezone.utc).isoformat()
+        for uid in list(_user_sids.keys()):
+            try:
+                session = await _db_ref.user_sessions.find_one({
+                    "user_id": uid,
+                    "expires_at": {"$gt": now_iso},
+                })
+                if not session:
+                    await disconnect_user(uid)
+            except Exception as e:
+                logger.warning(f"[nexus] session watchdog uid={uid}: {e}")
+
+
+def _ensure_presence_watchdog():
+    global _watchdog_started
+    if _watchdog_started:
+        return
+    _watchdog_started = True
+    asyncio.create_task(_session_presence_watchdog())
+
+
+def build_socketio_app(db, hooks=None):
     """Build & return the ASGI app wrapping the Socket.IO server."""
-    global _db_ref, _sio_ref
+    global _db_ref, _sio_ref, _hooks
     _db_ref = db
+    if hooks:
+        _hooks.update(hooks)
     sio = socketio.AsyncServer(
         async_mode="asgi",
         cors_allowed_origins="*",
@@ -147,6 +330,10 @@ def build_socketio_app(db):
         user = await get_user_by_token(token, db)
         if not user:
             logger.info(f"[nexus] reject {sid}: invalid token")
+            return False
+        allowed, _ = await online_gate.nexus_access_for_user(db, user)
+        if not allowed:
+            logger.info(f"[nexus] reject {sid}: nexus online gate closed")
             return False
         # Ban check
         bu = user.get("banned_until")
@@ -171,6 +358,7 @@ def build_socketio_app(db):
 
         room = DEFAULT_ROOM
         spawn = ROOMS[room]["spawn"]
+        room, tx, ty, facing = _resolve_spawn(user)
         player = {
             "sid": sid,
             "user_id": user["user_id"],
@@ -182,10 +370,14 @@ def build_socketio_app(db):
             "active_title": user.get("active_title", "novice"),
             "rank": user.get("rank", "Novice"),
             "avatar_url": user.get("avatar_url"),
+            "active_frame": user.get("active_frame"),
+            "active_banner": user.get("active_banner"),
+            "active_aura_sku": user.get("active_aura_sku"),
+            "active_mount": user.get("active_mount"),
             "guild_id": guild_id,
-            "tx": spawn["tx"], "ty": spawn["ty"],
+            "tx": tx, "ty": ty,
             "room": room,
-            "facing": "SE",
+            "facing": facing,
             "muted": False, "frozen": False, "invisible": False,
             "joined_at": time.time(),
         }
@@ -196,7 +388,7 @@ def build_socketio_app(db):
 
         # Send room snapshot to the new player
         await sio.emit("room_joined", {
-            "room": ROOMS[room],
+            "room": _room_payload(room),
             "players": _visible_players_for(player),
             "chat_history": _chat_buffer[room][-40:],
             "weather": _room_weather[room],
@@ -212,24 +404,21 @@ def build_socketio_app(db):
             await sio.emit("player_join", _lite(player), to=room, skip_sid=sid)
         # Global presence update (visible to everyone)
         await _broadcast_presence(sio)
+        hook = _hooks.get("on_nexus_join")
+        if hook:
+            try:
+                await hook(player["user_id"])
+            except Exception as e:
+                logger.warning(f"[nexus] on_nexus_join hook failed: {e}")
+        _ensure_presence_watchdog()
         logger.info(f"[nexus] {user['username']} ({player['role']}) joined {room}")
         return True
 
     @sio.event
     async def disconnect(sid):
-        p = _players.pop(sid, None)
-        if not p:
-            return
-        room = p["room"]
-        _rooms_state[room].pop(sid, None)
-        s = _user_sids.get(p["user_id"])
-        if s:
-            s.discard(sid)
-            if not s:
-                _user_sids.pop(p["user_id"], None)
-        await sio.emit("player_leave", {"sid": sid, "user_id": p["user_id"]}, to=room)
-        await _broadcast_presence(sio)
-        logger.info(f"[nexus] {p['username']} left {room}")
+        p = await _remove_player_sid(sid, sio)
+        if p:
+            logger.info(f"[nexus] {p.get('username')} left {p.get('room')}")
 
     # -------------- Movement --------------
     @sio.event
@@ -323,18 +512,60 @@ def build_socketio_app(db):
             for other_sid, other in _players.items():
                 if other.get("guild_id") == p["guild_id"]:
                     await sio.emit("chat", msg, to=other_sid)
-            return
-        if channel == "global" or channel == "trade" or channel == "event":
+        elif channel == "global" or channel == "trade" or channel == "event":
             # Broadcast to every connected player
             for other_sid in _players:
                 await sio.emit("chat", msg, to=other_sid)
+        else:
+            # Default: room channel (local)
+            room = p["room"]
+            buf = _chat_buffer[room]
+            buf.append(msg)
+            del buf[:-60]
+            await sio.emit("chat", msg, to=room)
+
+        hook = _hooks.get("on_chat_message")
+        if hook:
+            try:
+                await hook(p["user_id"], channel)
+            except Exception as e:
+                logger.warning(f"on_chat_message hook failed: {e}")
+
+    @sio.event
+    async def boss_attack(sid, data):
+        """Strike the world boss in the current room — grants boss_slayer on defeat."""
+        p = _players.get(sid)
+        if not p:
             return
-        # Default: room channel (local)
         room = p["room"]
-        buf = _chat_buffer[room]
-        buf.append(msg)
-        del buf[:-60]
-        await sio.emit("chat", msg, to=room)
+        ws = _room_world_state.get(room) or {}
+        boss = ws.get("boss")
+        if not boss or boss.get("hp", 0) <= 0:
+            await sio.emit("system_msg", {"kind": "error", "text": "Aucun boss à frapper ici."}, to=sid)
+            return
+        dmg = max(10, min(500, int((data or {}).get("damage", 0) or (p.get("level", 1) * 8 + 20))))
+        boss["hp"] = max(0, boss.get("hp", 0) - dmg)
+        attackers = boss.setdefault("attackers", [])
+        if p["user_id"] not in attackers:
+            attackers.append(p["user_id"])
+        if boss["hp"] <= 0:
+            defeated = list(attackers)
+            ws["boss"] = None
+            hook = _hooks.get("on_boss_defeated")
+            if hook:
+                try:
+                    await hook(defeated)
+                except Exception as e:
+                    logger.warning(f"on_boss_defeated hook failed: {e}")
+            for other_sid in _players:
+                await sio.emit("world_boss_update", {"room": room, "boss": None}, to=other_sid)
+                await sio.emit("system_msg", {
+                    "kind": "event",
+                    "text": f"⚔ {boss.get('name', 'Boss')} a été vaincu !",
+                }, to=other_sid)
+        else:
+            for other_sid in list(_rooms_state.get(room, {}).keys()):
+                await sio.emit("world_boss_update", {"room": room, "boss": boss}, to=other_sid)
 
     @sio.event
     async def change_room(sid, data):
@@ -369,7 +600,7 @@ def build_socketio_app(db):
         _rooms_state[new_room][sid] = _lite(p)
         await sio.enter_room(sid, new_room)
         await sio.emit("room_joined", {
-            "room": ROOMS[new_room],
+            "room": _room_payload(new_room),
             "players": _visible_players_for(p),
             "chat_history": _chat_buffer[new_room][-40:],
             "weather": _room_weather[new_room],
@@ -405,6 +636,7 @@ def build_socketio_app(db):
             "item": item,
         }, to=sid)
         # Persist item to user inventory if game data id present
+        persisted = False
         try:
             if item.get("template_id") and _db_ref is not None:
                 from game_data import ITEM_TEMPLATES
@@ -422,8 +654,15 @@ def build_socketio_app(db):
                             "obtained_at": _now_iso(),
                             "source": "nexus_spawn",
                         })
+                        persisted = True
         except Exception as e:
             logger.warning(f"[nexus] pickup persistence failed: {e}")
+        if persisted:
+            await push_inventory_updated(p["user_id"], "pickup", {
+                "name": item.get("name"),
+                "template_id": item.get("template_id"),
+                "item_id": item_id,
+            })
 
     # ====================================================================
     # ============== GAME MASTER (STAFF-ONLY) COMMANDS ===================
@@ -699,7 +938,7 @@ def build_socketio_app(db):
             gm["tx"], gm["ty"] = target["tx"], target["ty"]
             _rooms_state[target["room"]][sid] = _lite(gm)
             await sio.emit("room_joined", {
-                "room": ROOMS[target["room"]],
+                "room": _room_payload(target["room"]),
                 "players": _visible_players_for(gm),
                 "chat_history": _chat_buffer[target["room"]][-40:],
                 "weather": _room_weather[target["room"]],
@@ -738,7 +977,7 @@ def build_socketio_app(db):
             target["tx"], target["ty"] = gm["tx"], gm["ty"]
             _rooms_state[gm["room"]][target["sid"]] = _lite(target)
             await sio.emit("room_joined", {
-                "room": ROOMS[gm["room"]],
+                "room": _room_payload(gm["room"]),
                 "players": _visible_players_for(target),
                 "chat_history": _chat_buffer[gm["room"]][-40:],
                 "weather": _room_weather[gm["room"]],
@@ -846,10 +1085,17 @@ def build_socketio_app(db):
         # Try notify target if connected
         try:
             from notifications import push_notification
+            import discord_rewards
             await push_notification(db, target_user_id, "aether",
                                     "Le Conseil intervient",
                                     f"Un Gardien a ajusté votre Aether de {amount:+d}.",
                                     sound="chime", icon="Coins")
+            if amount != 0:
+                discord_rewards.schedule_reward_notify(
+                    db, target_user_id, "Game Master",
+                    aether=amount,
+                    extra=[f"Solde : {new_val} Aether"],
+                )
         except Exception:
             pass
 
@@ -889,6 +1135,11 @@ def build_socketio_app(db):
                                     sound="chime", icon="Gift")
         except Exception:
             pass
+        await push_inventory_updated(target_user_id, "gm_give", {
+            "name": name,
+            "rarity": rarity,
+            "icon": icon,
+        })
 
     @sio.event
     async def gm_prison(sid, data):
@@ -959,12 +1210,15 @@ def build_socketio_app(db):
             "spawned_by": gm["username"],
             "spawned_at": time.time(),
             "tx": ROOMS[gm["room"]]["spawn"]["tx"],
-            "ty": ROOMS[gm["room"]]["spawn"]["ty"],
+            "ty": ROOMS[gm["room"]]["spawn"]["ty"] + 2,
             "room": gm["room"],
         }
-        # Announce to everyone, not just room
+        _room_world_state[gm["room"]]["boss"] = boss
+        # Announce globally (toast) + sync canvas in the boss room
         for other_sid in _players:
             await sio.emit("world_boss_spawn", boss, to=other_sid)
+        for other_sid in list(_rooms_state[gm["room"]].keys()):
+            await sio.emit("world_boss_update", {"room": gm["room"], "boss": boss}, to=other_sid)
         await _send_ok(sid, f"Boss invoqué : {name} ({hp} PV)")
         await _audit("world_boss", gm, None, {"name": name, "hp": hp, "room": gm["room"]})
 
@@ -977,10 +1231,14 @@ def build_socketio_app(db):
         room_id = (data or {}).get("room") or gm["room"]
         if room_id not in ROOMS:
             return await _send_err(sid, "Salle invalide.")
-        await sio.emit("rift_open", {
+        rift = {
             "ts": time.time(), "room": room_id,
             "by_username": gm["username"],
-        }, to=room_id)
+        }
+        _room_world_state[room_id]["rift"] = rift
+        await sio.emit("rift_open", rift, to=room_id)
+        for other_sid in list(_rooms_state[room_id].keys()):
+            await sio.emit("rift_update", {"room": room_id, "rift": rift}, to=other_sid)
         await _send_ok(sid, "Faille dimensionnelle ouverte.")
         await _audit("rift", gm, None, {"room": room_id})
 
@@ -1006,7 +1264,7 @@ def build_socketio_app(db):
             await sio.enter_room(sid, target["room"])
             _rooms_state[target["room"]][sid] = _lite(gm)
             await sio.emit("room_joined", {
-                "room": ROOMS[target["room"]],
+                "room": _room_payload(target["room"]),
                 "players": _visible_players_for(gm),
                 "chat_history": _chat_buffer[target["room"]][-40:],
                 "weather": _room_weather[target["room"]],
@@ -1026,7 +1284,113 @@ def build_socketio_app(db):
         await _send_ok(sid, f"Vous observez {target['username']} (invisible).")
         await _audit("observe", gm, target, {})
 
+    @sio.event
+    async def gm_reset_room(sid, data):
+        """Clear spawned items, boss and rift in a room."""
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        room_id = (data or {}).get("room") or gm["room"]
+        if room_id not in ROOMS:
+            return await _send_err(sid, "Salle invalide.")
+        for item in list(_room_items.get(room_id, [])):
+            await sio.emit("item_removed", {"item_id": item["item_id"]}, to=room_id)
+        _room_items[room_id] = []
+        _room_world_state[room_id]["boss"] = None
+        _room_world_state[room_id]["rift"] = None
+        for other_sid in list(_rooms_state[room_id].keys()):
+            await sio.emit("world_boss_update", {"room": room_id, "boss": None}, to=other_sid)
+            await sio.emit("rift_update", {"room": room_id, "rift": None}, to=other_sid)
+        await sio.emit("system_msg", {
+            "kind": "warn",
+            "text": f"La zone {ROOMS[room_id]['name']} a été réinitialisée par un Gardien.",
+        }, to=room_id)
+        await _send_ok(sid, f"Salle {ROOMS[room_id]['name']} réinitialisée.")
+        await _audit("reset_room", gm, None, {"room": room_id})
+
+    @sio.event
+    async def gm_invasion(sid, data):
+        """Spawn ephemeral invader entities around the room center."""
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        room_id = gm["room"]
+        count = max(3, min(12, int((data or {}).get("count", 6) or 6)))
+        spawn = ROOMS[room_id]["spawn"]
+        icons = ["👾", "💀", "🦂", "🔥"]
+        for i in range(count):
+            tx = max(1, min(ROOMS[room_id]["tiles_x"] - 2, spawn["tx"] + (i % 4) - 2))
+            ty = max(1, min(ROOMS[room_id]["tiles_y"] - 2, spawn["ty"] + (i // 4) - 1))
+            item = {
+                "item_id": f"inv_{uuid.uuid4().hex[:10]}",
+                "name": "Ombre envahissante",
+                "icon": icons[i % len(icons)],
+                "rarity": "mythic",
+                "tx": tx, "ty": ty,
+                "ephemeral": True,
+            }
+            _room_items[room_id].append(item)
+            await sio.emit("item_spawned", item, to=room_id)
+        await sio.emit("system_msg", {
+            "kind": "warn",
+            "text": f"⚔️ Invasion ! {count} entités hostiles dans {ROOMS[room_id]['name']}.",
+        }, to=room_id)
+        for other_sid in _players:
+            if _players[other_sid].get("role") not in STAFF_ROLES:
+                await sio.emit("system_msg", {
+                    "kind": "warn",
+                    "text": f"⚔️ Invasion détectée dans {ROOMS[room_id]['name']} !",
+                }, to=other_sid)
+        await _send_ok(sid, f"Invasion lancée ({count} entités).")
+        await _audit("invasion", gm, None, {"room": room_id, "count": count})
+
+    @sio.event
+    async def gm_godmode(sid, data):
+        """Toggle noclip / fly / god mode for the acting Gardien."""
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        enabled = bool((data or {}).get("enabled", True))
+        gm["godmode"] = enabled
+        gm["noclip"] = enabled
+        gm["fly"] = enabled
+        _rooms_state[gm["room"]][sid] = _lite(gm)
+        await sio.emit("player_status", {
+            "sid": sid, "godmode": enabled, "noclip": enabled, "fly": enabled,
+        }, to=gm["room"])
+        await _send_ok(sid, f"Mode dieu {'activé' if enabled else 'désactivé'}.")
+        await _audit("godmode", gm, None, {"enabled": enabled})
+
     return socketio.ASGIApp(sio, socketio_path="api/nexus/socket.io")
+
+
+async def push_inventory_updated(user_id: str, source: str, detail: dict | None = None):
+    """Notify client(s) that inventory or shop holdings changed — no page refresh needed."""
+    payload = {
+        "source": source,
+        "ts": _now_iso(),
+        **(detail or {}),
+    }
+    await push_to_user(user_id, "inventory:updated", payload)
+
+
+async def push_profile_updated(user_id: str, fields: dict):
+    """Push profile/cosmetic changes to the user and broadcast to their Nexus room."""
+    if not fields:
+        return
+    payload = {"user_id": user_id, "ts": _now_iso(), **fields}
+    await push_to_user(user_id, "profile:updated", payload)
+    if _sio_ref is None:
+        return
+    for sid, p in list(_players.items()):
+        if p.get("user_id") != user_id:
+            continue
+        p.update(fields)
+        _rooms_state[p["room"]][sid] = _lite(p)
+        try:
+            await _sio_ref.emit("player_profile", {"sid": sid, **fields}, to=p["room"])
+        except Exception as e:
+            logger.warning(f"player_profile broadcast failed: {e}")
 
 
 async def push_to_user(user_id: str, event: str, payload: dict):
@@ -1041,6 +1405,16 @@ async def push_to_user(user_id: str, event: str, payload: dict):
             await _sio_ref.emit(event, payload, to=s)
         except Exception as e:
             logger.warning(f"push_to_user emit failed for sid={s} event={event}: {e}")
+
+
+def get_online_user_ids():
+    """User IDs currently connected to the Nexus realtime layer."""
+    return set(_user_sids.keys())
+
+
+def staff_online_summary():
+    """Public snapshot of online staff (for REST when Socket.IO is disconnected)."""
+    return _staff_online_payload()
 
 
 def online_summary():

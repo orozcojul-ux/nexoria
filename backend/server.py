@@ -6,8 +6,13 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
+MAINTENANCE_UPLOAD_DIR = ROOT_DIR / "uploads" / "maintenance"
+MAINTENANCE_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+CONTENT_UPLOAD_DIR = ROOT_DIR / "uploads" / "content"
+CONTENT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 import os
+import re
 import uuid
 import secrets as _secrets
 import logging
@@ -15,8 +20,9 @@ import httpx
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
@@ -26,14 +32,30 @@ from auth import (
     set_session_cookie, clear_session_cookie, get_current_user, generate_user_id,
 )
 from game_data import (
-    CLASSES, SKILLS, KINGDOM_BUILDINGS, RARITIES, TITLES, BADGES,
+    CLASSES, SKILLS, KINGDOM_BUILDINGS, RARITIES, TITLES, BADGES, SHOP_ONLY_TITLES,
     QUEST_TEMPLATES, ITEM_TEMPLATES, xp_for_level, level_from_xp, rank_from_level,
+    COMMUNITY_CHALLENGES,
 )
-from oracle import consult_oracle, generate_personalized_quest
+try:
+    from oracle import consult_oracle, generate_personalized_quest, oracle_llm_configured
+except Exception as _oracle_err:
+    logging.warning("Oracle IA — import échoué: %s", _oracle_err)
+
+    async def consult_oracle(*args, **kwargs):
+        return "L'Oracle médite en silence... (module indisponible — vérifiez EMERGENT_LLM_KEY)"
+
+    async def generate_personalized_quest(*args, **kwargs):
+        return {"name": "Quête locale", "description": "Oracle IA indisponible.", "xp": 100, "aether": 50}
+
+    def oracle_llm_configured():
+        return False
 from shop_data import SHOP_ITEMS, get_shop_item
-from notifications import push_notification
+from notifications import push_notification, push_staff_alert
 import discord_auth
 import discord_sync
+import discord_rewards
+import discord_auth_forum
+import online_gate
 import asyncio
 import nexus_world
 
@@ -48,6 +70,21 @@ api = APIRouter(prefix="/api")
 
 logger = logging.getLogger("nexoria")
 logging.basicConfig(level=logging.INFO)
+
+OWNER_USERNAME = os.environ.get("OWNER_USERNAME", "SmouzYi")
+MAINTENANCE_MODE_ENV = os.environ.get("MAINTENANCE_MODE", "").strip().lower() in ("true", "1", "yes", "on")
+
+# Routes always reachable while site is locked (maintenance or online gate)
+MAINTENANCE_PUBLIC_PATHS = frozenset({
+    "/api/maintenance/status",
+    "/api/system/maintenance",
+    "/api/system/online-gate",
+    "/api/online/status",
+    "/api/staff/maintenance-login",
+    "/api/auth/logout",
+    "/api/auth/forgot-password",
+    "/api/auth/reset-password",
+})
 
 # ---------- Helpers ----------
 def now_utc():
@@ -88,6 +125,11 @@ def public_user(user: dict) -> dict:
         user["xp_current_level"] = xp_curr
         user["xp_next"] = xp_next
         user["xp_pct"] = round(min(100.0, max(0.0, (xp - xp_curr) / span * 100)), 2)
+
+    title_id = user.get("active_title") or "novice"
+    title_doc = next((t for t in TITLES if t["id"] == title_id), None)
+    user["active_title_name"] = title_doc["name"] if title_doc else title_id.replace("_", " ").title()
+
     return user
 
 
@@ -125,7 +167,7 @@ def enforce_ban_or_raise(user: dict):
 async def get_admin_dep(request: Request):
     user = await get_current_user(request, db)
     if user.get("role") != "admin":
-        raise HTTPException(403, "Admin only")
+        raise HTTPException(403, "Réservé aux Archontes (admin uniquement)")
     return user
 
 
@@ -136,6 +178,20 @@ async def get_staff_dep(request: Request):
     return user
 
 
+async def get_optional_user_dep(request: Request) -> Optional[dict]:
+    """Return the current user when authenticated, else None (no 401)."""
+    try:
+        return await get_current_user(request, db)
+    except HTTPException as exc:
+        if exc.status_code in (401, 403):
+            return None
+        raise
+
+
+def is_staff_user(user: dict | None) -> bool:
+    return bool(user and user.get("role") in ("admin", "moderator"))
+
+
 async def add_chronicle(user_id: str, text: str, kind: str = "event"):
     await db.chronicles.insert_one({
         "chronicle_id": f"chr_{uuid.uuid4().hex[:12]}",
@@ -144,6 +200,18 @@ async def add_chronicle(user_id: str, text: str, kind: str = "event"):
         "kind": kind,
         "created_at": now_utc().isoformat(),
     })
+
+
+async def enforce_owner_roles():
+    """Garantit que le propriétaire reste admin — idempotent au démarrage.
+    Les promotions staff (modérateur / sage) faites via l'admin sont conservées."""
+    owner = await db.users.find_one({"username": OWNER_USERNAME}, {"_id": 0, "user_id": 1, "role": 1})
+    if not owner:
+        logger.warning("NEXORIA: propriétaire '%s' introuvable en base", OWNER_USERNAME)
+        return
+    if owner.get("role") != "admin":
+        await db.users.update_one({"user_id": owner["user_id"]}, {"$set": {"role": "admin"}})
+        logger.info("NEXORIA: %s promu admin (propriétaire)", OWNER_USERNAME)
 
 # Pre-build a lookup for badge definitions to enrich user_badges quickly
 _BADGE_DEFS_BY_ID = {b["id"]: b for b in BADGES}
@@ -196,30 +264,233 @@ async def grant_badge(user_id: str, badge_id: str):
         "ding",
         badge_def.get("icon", "Award"),
     )
+    discord_rewards.schedule_reward_notify(db, user_id, "Badge débloqué", badge_name=badge_def["name"])
     return True
+
+
+async def track_login_streak(user_id: str) -> int:
+    """Increment daily login streak and grant streak badges."""
+    user = await db.users.find_one({"user_id": user_id}, {"last_login_date": 1, "login_streak": 1})
+    if not user:
+        return 0
+    today = now_utc().date().isoformat()
+    if user.get("last_login_date") == today:
+        return user.get("login_streak", 1)
+    yesterday = (now_utc() - timedelta(days=1)).date().isoformat()
+    streak = (user.get("login_streak", 0) + 1) if user.get("last_login_date") == yesterday else 1
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"last_login_date": today, "login_streak": streak}},
+    )
+    if streak >= 7:
+        await grant_badge(user_id, "daily_streak_7")
+    if streak >= 30:
+        await grant_badge(user_id, "daily_streak_30")
+    return streak
+
+
+async def check_chatter_badges(user_id: str):
+    """Grant participation badges based on Nexus chat messages written."""
+    count = await db.nexus_messages.count_documents({"user_id": user_id})
+    if count >= 100:
+        await grant_badge(user_id, "chatter_100")
+    if count >= 1000:
+        await grant_badge(user_id, "chatter_1000")
+    if count >= 10000:
+        await grant_badge(user_id, "chatter_10000")
+
+
+async def check_hall_of_legends(user_id: str):
+    """Top 10 mondial XP — badge réservé à un classement réel (pas en base vide / dev)."""
+    total_users = await db.users.count_documents({})
+    if total_users < 10:
+        return
+
+    hero = await db.users.find_one({"user_id": user_id}, {"xp": 1})
+    if not hero or hero.get("xp", 0) <= 0:
+        return
+
+    ranked = await db.users.find(
+        {"xp": {"$gt": 0}},
+        {"user_id": 1, "xp": 1},
+    ).sort("xp", -1).limit(10).to_list(10)
+
+    # Hall complet uniquement : au moins 10 héros classés avec de l'XP
+    if len(ranked) < 10:
+        return
+
+    if any(u["user_id"] == user_id for u in ranked):
+        await grant_badge(user_id, "hall_of_legends")
+
+
+async def on_nexus_chat_message(user_id: str, channel: str):
+    """Persist Nexus chat and evaluate chatter badges (whispers excluded)."""
+    if channel == "whisper":
+        return
+    await db.nexus_messages.insert_one({
+        "user_id": user_id,
+        "channel": channel,
+        "created_at": now_utc().isoformat(),
+    })
+    await check_chatter_badges(user_id)
+
+
+async def on_boss_defeated(user_ids: list):
+    for uid in user_ids:
+        await grant_badge(uid, "boss_slayer")
+
+
+async def on_nexus_join(user_id: str):
+    await progress_quests(user_id, "nexus_enter", 1)
+
+
+async def touch_user_last_seen(user_id: str, min_interval_seconds: int = 300):
+    """Throttled visit heartbeat (default max once per 5 minutes per user)."""
+    now = now_utc()
+    user = await db.users.find_one({"user_id": user_id}, {"last_seen": 1})
+    if not user:
+        return
+    last = user.get("last_seen")
+    if last:
+        try:
+            last_dt = datetime.fromisoformat(last) if isinstance(last, str) else last
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            if (now - last_dt).total_seconds() < min_interval_seconds:
+                return
+        except Exception:
+            pass
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"last_seen": now.isoformat()}},
+    )
+
+
+def _current_quest_periods() -> set:
+    """Valid period keys for active daily/weekly/monthly quests."""
+    now = now_utc()
+    return {
+        now.date().isoformat(),
+        now.strftime("%Y-W%U"),
+        now.strftime("%Y-%m"),
+    }
+
+
+async def count_site_online() -> int:
+    """Users with a valid session active in the last 5 minutes."""
+    now = now_utc()
+    cutoff = (now - timedelta(minutes=5)).isoformat()
+    now_iso = now.isoformat()
+    try:
+        return len(await db.user_sessions.distinct("user_id", {
+            "expires_at": {"$gt": now_iso},
+            "$or": [
+                {"last_activity_at": {"$gt": cutoff}},
+                {"last_activity_at": {"$exists": False}, "created_at": {"$gt": cutoff}},
+            ],
+        }))
+    except Exception:
+        return 0
+
+
+async def get_active_boost_multiplier(user_id: str, boost_type: str) -> float:
+    """Return active boost multiplier (1.0 = none). Uses max if several overlap."""
+    now_iso = now_utc().isoformat()
+    boosts = await db.user_boosts.find({
+        "user_id": user_id,
+        "boost_type": boost_type,
+        "expires_at": {"$gt": now_iso},
+    }, {"boost_value": 1}).to_list(10)
+    if not boosts:
+        return 1.0
+    return max(float(b.get("boost_value", 1)) for b in boosts)
+
+
+async def maybe_process_daily_login(user_id: str):
+    """Once per calendar day: login quest + streak (any page, not only /hero)."""
+    today = now_utc().date().isoformat()
+    user = await db.users.find_one({"user_id": user_id}, {"last_daily_quest_date": 1})
+    if not user or user.get("last_daily_quest_date") == today:
+        return
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"last_daily_quest_date": today}},
+    )
+    await progress_quests(user_id, "login", 1)
+    await track_login_streak(user_id)
+    # Passive aether from kingdom perks (same logic as daily-login endpoint)
+    fresh = await db.users.find_one({"user_id": user_id}, {"last_passive_aether_date": 1})
+    if fresh and fresh.get("last_passive_aether_date") != today:
+        perks = await db.user_perks.find({"user_id": user_id}, {"sku": 1}).to_list(50)
+        skus = {p.get("sku") for p in perks}
+        passive = 0
+        if "kingdom_aether_mine" in skus:
+            passive += 50
+        if "kingdom_treasury" in skus:
+            passive += 200
+        if passive > 0:
+            await grant_aether(user_id, passive, "Aether passif quotidien")
+            await db.users.update_one(
+                {"user_id": user_id},
+                {"$set": {"last_passive_aether_date": today}},
+            )
+
+
+async def reconcile_user_progress(user_id: str):
+    """Fix XP/level desync when level was set manually above XP-derived level."""
+    user = await db.users.find_one({"user_id": user_id})
+    if not user:
+        return
+    lvl = user.get("level", 1)
+    xp = user.get("xp", 0)
+    floor = xp_for_level(lvl) if lvl >= 2 else 0
+    if level_from_xp(xp) < lvl:
+        await db.users.update_one({"user_id": user_id}, {"$set": {"xp": max(xp, floor)}})
 
 
 async def grant_xp(user_id: str, amount: int, reason: str = ""):
     user = await db.users.find_one({"user_id": user_id})
     if not user:
         return
-    new_xp = user.get("xp", 0) + amount
+    if amount > 0:
+        mult = await get_active_boost_multiplier(user_id, "xp_multiplier")
+        if mult > 1:
+            amount = int(amount * mult)
     old_level = user.get("level", 1)
+    old_xp = user.get("xp", 0)
+    # Keep admin-granted levels: anchor XP to the floor for the stored level
+    xp_floor = xp_for_level(old_level) if old_level >= 2 else 0
+    if level_from_xp(old_xp) < old_level:
+        old_xp = max(old_xp, xp_floor)
+    new_xp = old_xp + amount
     new_level = level_from_xp(new_xp)
     new_rank = rank_from_level(new_level)
     update = {"xp": new_xp, "level": new_level, "rank": new_rank}
+    level_up_info = None
+    skill_gained = 0
+    tier_changed = None
     if new_level > old_level:
-        update["skill_points"] = user.get("skill_points", 0) + (new_level - old_level)
-        await add_chronicle(user_id, f"A atteint le niveau {new_level} — Rang {new_rank}", "level_up")
-        # Auto-sync Discord roles when level changes (may cross a progression tier)
+        skill_gained = new_level - old_level
+        update["skill_points"] = user.get("skill_points", 0) + skill_gained
         old_tier = discord_sync.progression_tier_from_level(old_level)
         new_tier = discord_sync.progression_tier_from_level(new_level)
-        if new_tier != old_tier:
+        tier_changed = new_tier if new_tier != old_tier else None
+        level_up_info = {"old": old_level, "new": new_level, "rank": new_rank, "tier": tier_changed}
+        await add_chronicle(user_id, f"A atteint le niveau {new_level} — Rang {new_rank}", "level_up")
+        if tier_changed:
             discord_sync.schedule_sync(db, user_id)
-            asyncio.create_task(discord_sync.post_notification(
-                f"🌟 **{user.get('username','?')}** ascende au rang **{new_tier}** (niv. {new_level})"
-            ))
     await db.users.update_one({"user_id": user_id}, {"$set": update})
+    if amount > 0:
+        discord_rewards.schedule_reward_notify(
+            db, user_id, reason or "gain_xp",
+            xp=amount,
+            skill_points=skill_gained,
+            level_up=level_up_info,
+        )
+    if new_level >= 50:
+        await grant_badge(user_id, "class_master")
+    if amount > 0:
+        await check_hall_of_legends(user_id)
     # Mirror to active season score (idempotent upsert)
     active_season = await db.seasons.find_one({"active": True}, {"_id": 0, "season_id": 1})
     if active_season:
@@ -229,20 +500,64 @@ async def grant_xp(user_id: str, amount: int, reason: str = ""):
              "$setOnInsert": {"first_seen_at": now_utc().isoformat()}},
             upsert=True,
         )
+    await push_wallet_updated(user_id)
+    if amount > 0:
+        await progress_quests(user_id, "xp", amount)
 
 
-async def grant_aether(user_id: str, amount: int):
+async def push_wallet_updated(user_id: str):
+    """Push aether/level/xp to client in real time (no page reload)."""
+    try:
+        doc = await db.users.find_one({"user_id": user_id})
+        if not doc:
+            return
+        pu = public_user(doc)
+        await nexus_world.push_profile_updated(user_id, {
+            "user_id": user_id,
+            "aether": pu.get("aether", 0),
+            "level": pu.get("level", 1),
+            "xp": pu.get("xp", 0),
+            "rank": pu.get("rank", "Novice"),
+            "skill_points": pu.get("skill_points", 0),
+            "xp_pct": pu.get("xp_pct", 0),
+        })
+    except Exception:
+        pass
+
+
+async def grant_aether(user_id: str, amount: int, reason: str = "Récompense"):
+    if amount <= 0:
+        return
+    mult = await get_active_boost_multiplier(user_id, "aether_multiplier")
+    if mult > 1:
+        amount = int(amount * mult)
     await db.users.update_one({"user_id": user_id}, {"$inc": {"aether": amount}})
+    await push_wallet_updated(user_id)
+    discord_rewards.schedule_reward_notify(db, user_id, reason, aether=amount)
 
 
-async def grant_reputation(user_id: str, amount: int):
+async def spend_aether(user_id: str, amount: int, reason: str = "Dépense"):
+    if amount <= 0:
+        return
+    await db.users.update_one({"user_id": user_id}, {"$inc": {"aether": -amount}})
+    await push_wallet_updated(user_id)
+    discord_rewards.schedule_reward_notify(db, user_id, reason, aether=-amount)
+
+
+async def grant_reputation(user_id: str, amount: int, reason: str = "gain_reputation"):
+    if amount <= 0:
+        return
     await db.users.update_one({"user_id": user_id}, {"$inc": {"reputation": amount}})
+    discord_rewards.schedule_reward_notify(db, user_id, reason, reputation=amount)
 
 
 async def progress_quests(user_id: str, action: str, amount: int = 1):
-    """Advance all active quests matching the action."""
+    """Advance active quests matching the action (current period only)."""
+    valid_periods = _current_quest_periods()
     quests = await db.user_quests.find({"user_id": user_id, "action": action, "completed": False}).to_list(100)
     for q in quests:
+        if q.get("period") not in valid_periods:
+            continue
         new_progress = q.get("progress", 0) + amount
         completed = new_progress >= q["target"]
         update = {"progress": new_progress, "completed": completed}
@@ -250,7 +565,7 @@ async def progress_quests(user_id: str, action: str, amount: int = 1):
             update["completed_at"] = now_utc().isoformat()
             await db.user_quests.update_one({"_id": q["_id"]}, {"$set": update})
             await grant_xp(user_id, q["xp"], f"quest:{q['quest_id']}")
-            await grant_aether(user_id, q["aether"])
+            await grant_aether(user_id, q["aether"], f"Quête : {q.get('name', q['quest_id'])}")
             await add_chronicle(user_id, f"A accompli la quête « {q['name']} »", "quest")
             # Quest count badges
             completed_count = await db.user_quests.count_documents({"user_id": user_id, "completed": True})
@@ -286,11 +601,16 @@ def pick_random_item():
 
 
 async def open_chest(user_id: str):
-    """Generate 1-3 random items. If user already owns the (name, rarity), skip it (no duplicate).
-    If all items of the rolled rarity are already owned, fallback to another rarity. As last resort,
-    return the items the user got (may be fewer than rolled count)."""
+    """Generate 1-3 random items. Respects inventory slot limit and luck boosts."""
+    slot_limit = await inventory_slot_limit(user_id)
+    owned_count = await db.inventory.count_documents({"user_id": user_id})
+    if owned_count >= slot_limit:
+        raise HTTPException(400, f"Inventaire plein ({slot_limit} emplacements max). Achetez des extensions au royaume.")
     items = []
     count = _secure_weighted_choice([1, 2, 3], [60, 30, 10])
+    count = min(count, slot_limit - owned_count)
+    if count <= 0:
+        raise HTTPException(400, "Inventaire plein")
     # Preload owned (name, rarity) pairs for this user once.
     owned_docs = await db.inventory.find(
         {"user_id": user_id}, {"_id": 0, "name": 1, "rarity": 1}
@@ -298,7 +618,13 @@ async def open_chest(user_id: str):
     owned_set = {(d["name"], d["rarity"]) for d in owned_docs}
 
     rarity_ids = list(RARITIES.keys())
-    weights = [RARITIES[r]["weight"] for r in rarity_ids]
+    base_weights = [RARITIES[r]["weight"] for r in rarity_ids]
+    luck_mult = await get_active_boost_multiplier(user_id, "luck")
+    high_rarities = {"epic", "legendary", "mythic", "divine", "cosmic"}
+    weights = [
+        w * luck_mult if r in high_rarities else w
+        for r, w in zip(rarity_ids, base_weights)
+    ]
 
     attempts = 0
     while len(items) < count and attempts < count * 6:
@@ -333,14 +659,31 @@ async def open_chest(user_id: str):
 # ---------- Models ----------
 class RegisterReq(BaseModel):
     email: EmailStr
-    username: str
-    password: str
+    username: str = Field(..., min_length=3, max_length=20, pattern=r"^[a-zA-Z0-9_]+$")
+    password: str = Field(..., min_length=6)
     class_id: str
 
 
 class LoginReq(BaseModel):
     email: EmailStr
     password: str
+
+
+class ForgotPasswordReq(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordReq(BaseModel):
+    token: str = Field(..., min_length=16)
+    password: str = Field(..., min_length=6)
+
+
+class DiscordExchangeReq(BaseModel):
+    code: str = Field(..., min_length=1)
+
+
+DISCORD_SIGNUP_XP_BONUS = int(os.environ.get("DISCORD_SIGNUP_XP_BONUS", "75"))
+DISCORD_SIGNUP_BADGE_ID = "discord_herald"
 
 
 class PostReq(BaseModel):
@@ -393,9 +736,37 @@ async def get_rarities():
     return list(RARITIES.values())
 
 
+async def has_user_perk(user_id: str, perk: str) -> bool:
+    rows = await db.user_perks.find({"user_id": user_id}, {"sku": 1, "perk": 1}).to_list(100)
+    for row in rows:
+        if row.get("perk") == perk:
+            return True
+        item = get_shop_item(row.get("sku", ""))
+        if item and item.get("perk") == perk:
+            return True
+    return False
+
+
+async def inventory_slot_limit(user_id: str) -> int:
+    base = 100
+    rows = await db.user_perks.find({"user_id": user_id}, {"sku": 1}).to_list(50)
+    extra = sum(10 for r in rows if r.get("sku") == "kingdom_inventory_slot")
+    return base + extra
+
+
 @api.get("/game/titles")
-async def get_titles():
-    return TITLES
+async def get_titles(user: dict = Depends(get_user_dep)):
+    owned = await db.user_titles.find({"user_id": user["user_id"]}, {"title_id": 1}).to_list(50)
+    owned_ids = {r.get("title_id") for r in owned if r.get("title_id")}
+    out = []
+    for t in TITLES:
+        shop_only = t["id"] in SHOP_ONLY_TITLES
+        if shop_only:
+            unlocked = t["id"] in owned_ids
+        else:
+            unlocked = user.get("level", 1) >= t["unlock_level"]
+        out.append({**t, "shop_only": shop_only, "unlocked": unlocked})
+    return out
 
 
 @api.get("/game/badges")
@@ -419,14 +790,53 @@ async def get_xp_rules():
 
 
 # ---------- Auth: register / login ----------
+async def _email_taken(email: str) -> bool:
+    return bool(await db.users.find_one({"email": email.lower().strip()}))
+
+
+async def _username_taken(username: str) -> bool:
+    un = (username or "").strip()
+    if not un:
+        return False
+    return bool(await db.users.find_one({
+        "username": {"$regex": f"^{re.escape(un)}$", "$options": "i"},
+    }))
+
+
+async def find_user_by_username(username: str, fields: dict | None = None):
+    """Recherche un héros par pseudo (insensible à la casse, espaces ignorés)."""
+    un = (username or "").strip()
+    if not un:
+        return None
+    projection = {"_id": 0}
+    if fields:
+        projection.update(fields)
+    return await db.users.find_one({
+        "username": {"$regex": f"^{re.escape(un)}$", "$options": "i"},
+    }, projection)
+
+
+@api.get("/auth/check-availability")
+async def check_availability(email: str = "", username: str = ""):
+    """Vérifie si email / pseudo sont déjà pris (insensible à la casse pour le pseudo)."""
+    email_ok = True
+    username_ok = True
+    if email.strip():
+        email_ok = not await _email_taken(email)
+    if username.strip():
+        username_ok = not await _username_taken(username)
+    return {"email_available": email_ok, "username_available": username_ok}
+
+
 @api.post("/auth/register")
 async def register(req: RegisterReq, response: Response):
-    email = req.email.lower()
+    email = req.email.lower().strip()
+    username = req.username.strip()
     if req.class_id not in CLASSES:
         raise HTTPException(400, "Classe invalide")
-    if await db.users.find_one({"email": email}):
+    if await _email_taken(email):
         raise HTTPException(400, "Email déjà utilisé")
-    if await db.users.find_one({"username": req.username}):
+    if await _username_taken(username):
         raise HTTPException(400, "Pseudo déjà pris")
 
     user_id = generate_user_id()
@@ -434,7 +844,7 @@ async def register(req: RegisterReq, response: Response):
     user_doc = {
         "user_id": user_id,
         "email": email,
-        "username": req.username,
+        "username": username,
         "password_hash": hash_password(req.password),
         "class_id": req.class_id,
         "class_name": cls["name"],
@@ -444,6 +854,19 @@ async def register(req: RegisterReq, response: Response):
         "bio": "",
         "story": "",
         "quote": "",
+        "display_name": "",
+        "status_message": "",
+        "pronouns": "",
+        "location": "",
+        "website_url": "",
+        "social_links": {},
+        "profile_accent": "#7B2FF7",
+        "featured_badge_id": None,
+        "profile_show_stats": True,
+        "profile_show_dna": True,
+        "profile_show_chronicle": True,
+        "profile_visibility": "public",
+        "profile_hide_hero_card": False,
         "level": 1,
         "xp": 0,
         "rank": "Novice",
@@ -451,7 +874,7 @@ async def register(req: RegisterReq, response: Response):
         "aether": 100,
         "skill_points": 1,
         "active_title": "novice",
-        "role": "admin" if email == os.environ.get("ADMIN_EMAIL", "").lower() else "user",
+        "role": "admin" if username.lower() == OWNER_USERNAME.lower() else "user",
         "auth_provider": "local",
         "created_at": now_utc().isoformat(),
         "dna": {"creativity": 10, "ambition": 10, "sociability": 10, "curiosity": 10, "persistence": 10, "influence": 10},
@@ -473,10 +896,13 @@ async def register(req: RegisterReq, response: Response):
         "user_id": user_id,
         "expires_at": session_expiry().isoformat(),
         "created_at": now_utc().isoformat(),
+        "last_activity_at": now_utc().isoformat(),
     })
     set_session_cookie(response, token)
 
-    await add_chronicle(user_id, f"Le héros {req.username} ({cls['name']}) a rejoint NEXORIA", "creation")
+    await touch_user_last_seen(user_id)
+    await add_chronicle(user_id, f"Le héros {username} ({cls['name']}) a rejoint NEXORIA", "creation")
+    discord_auth_forum.schedule_auth_event("register", user_doc)
 
     result = public_user(user_doc)
     result["session_token"] = token
@@ -497,8 +923,11 @@ async def login(req: LoginReq, response: Response):
         "user_id": user["user_id"],
         "expires_at": session_expiry().isoformat(),
         "created_at": now_utc().isoformat(),
+        "last_activity_at": now_utc().isoformat(),
     })
     set_session_cookie(response, token)
+    await touch_user_last_seen(user["user_id"])
+    discord_auth_forum.schedule_auth_event("login", user)
     result = public_user(user)
     result["session_token"] = token
     return result
@@ -511,15 +940,104 @@ async def logout(request: Request, response: Response):
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
+    user_doc = None
+    user_id = None
     if token:
+        session = await db.user_sessions.find_one({"session_token": token})
+        if session:
+            user_id = session.get("user_id")
+            user_doc = await db.users.find_one(
+                {"user_id": user_id},
+                {"username": 1},
+            )
         await db.user_sessions.delete_one({"session_token": token})
     clear_session_cookie(response)
+    if user_id:
+        try:
+            await nexus_world.disconnect_user(user_id)
+        except Exception as e:
+            logger.warning("nexus disconnect on logout failed: %s", e)
+    if user_doc:
+        discord_auth_forum.schedule_auth_event("logout", user_doc)
     return {"ok": True}
+
+
+@api.post("/auth/forgot-password")
+async def forgot_password(req: ForgotPasswordReq):
+    """Demande de réinitialisation — réponse identique que l'email existe ou non."""
+    email = req.email.lower().strip()
+    generic = {
+        "ok": True,
+        "message": "Si un compte avec mot de passe existe pour cet email, un lien de réinitialisation a été généré.",
+    }
+    user = await db.users.find_one({"email": email}, {"user_id": 1, "password_hash": 1})
+    if not user or not user.get("password_hash"):
+        return generic
+
+    token = _secrets.token_urlsafe(32)
+    now = now_utc()
+    await db.password_reset_tokens.insert_one({
+        "token": token,
+        "user_id": user["user_id"],
+        "email": email,
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "used_at": None,
+        "created_at": now.isoformat(),
+    })
+    frontend = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    reset_link = f"{frontend}/reset-password?token={token}"
+    logger.info("Password reset requested for %s — link: %s", email, reset_link)
+    out = {**generic}
+    if os.environ.get("PASSWORD_RESET_EXPOSE_LINK", "").lower() in ("1", "true", "yes"):
+        out["reset_link"] = reset_link
+    return out
+
+
+@api.post("/auth/reset-password")
+async def reset_password(req: ResetPasswordReq):
+    doc = await db.password_reset_tokens.find_one({"token": req.token})
+    if not doc or doc.get("used_at"):
+        raise HTTPException(400, "Lien de réinitialisation invalide ou expiré")
+    try:
+        exp = datetime.fromisoformat(doc["expires_at"])
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+    except Exception:
+        raise HTTPException(400, "Lien de réinitialisation invalide")
+    if exp < now_utc():
+        raise HTTPException(400, "Lien de réinitialisation expiré")
+    pwd_hash = hash_password(req.password)
+    await db.users.update_one(
+        {"user_id": doc["user_id"]},
+        {"$set": {"password_hash": pwd_hash}},
+    )
+    used_at = now_utc().isoformat()
+    await db.password_reset_tokens.update_one(
+        {"token": req.token},
+        {"$set": {"used_at": used_at}},
+    )
+    await db.password_reset_tokens.update_many(
+        {"user_id": doc["user_id"], "used_at": None},
+        {"$set": {"used_at": used_at}},
+    )
+    await db.user_sessions.delete_many({"user_id": doc["user_id"]})
+    return {"ok": True, "message": "Mot de passe mis à jour — vous pouvez vous connecter."}
 
 
 @api.get("/auth/me")
 async def me(user: dict = Depends(get_user_dep)):
-    return public_user(user)
+    await touch_user_last_seen(user["user_id"])
+    await maybe_process_daily_login(user["user_id"])
+    await reconcile_user_progress(user["user_id"])
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    return public_user(fresh or user)
+
+
+@api.post("/auth/heartbeat")
+async def auth_heartbeat(user: dict = Depends(get_user_dep)):
+    """Lightweight activity ping while the user is on the site."""
+    await touch_user_last_seen(user["user_id"], min_interval_seconds=60)
+    return {"ok": True}
 
 
 # ---------- Emergent Google Auth ----------
@@ -541,10 +1059,12 @@ async def google_session(req: SessionExchangeReq, response: Response):
     emergent_token = data["session_token"]
 
     user = await db.users.find_one({"email": email})
+    is_new_google_account = False
     if user:
         # Reject banned user before creating session
         enforce_ban_or_raise(user)
     if not user:
+        is_new_google_account = True
         # New user — assign default class explorer until they pick one
         user_id = generate_user_id()
         username = name.replace(" ", "") or f"Heros{uuid.uuid4().hex[:6]}"
@@ -565,7 +1085,7 @@ async def google_session(req: SessionExchangeReq, response: Response):
             "level": 1, "xp": 0, "rank": "Novice",
             "reputation": 0, "aether": 100, "skill_points": 1,
             "active_title": "novice",
-            "role": "admin" if email == os.environ.get("ADMIN_EMAIL", "").lower() else "user",
+            "role": "admin" if username == OWNER_USERNAME else "user",
             "auth_provider": "google",
             "created_at": now_utc().isoformat(),
             "dna": {"creativity": 15, "ambition": 10, "sociability": 10, "curiosity": 13, "persistence": 10, "influence": 10},
@@ -589,31 +1109,128 @@ async def google_session(req: SessionExchangeReq, response: Response):
         "user_id": user["user_id"],
         "expires_at": session_expiry().isoformat(),
         "created_at": now_utc().isoformat(),
+        "last_activity_at": now_utc().isoformat(),
         "provider": "google",
     })
     set_session_cookie(response, emergent_token)
+    await touch_user_last_seen(user["user_id"])
+    await maybe_process_daily_login(user["user_id"])
+    if is_new_google_account:
+        discord_auth_forum.schedule_auth_event("register", user)
+    else:
+        discord_auth_forum.schedule_auth_event("login", user)
     result = public_user(user)
     result["session_token"] = emergent_token
     return result
 
 
 # ---------- Profile ----------
+async def _resolve_viewer(request: Request):
+    token = request.cookies.get("session_token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if not token:
+        return None
+    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if not session:
+        return None
+    return await db.users.find_one(
+        {"user_id": session["user_id"]},
+        {"_id": 0, "password_hash": 0, "email": 0},
+    )
+
+
+async def _profile_visible_to(viewer: dict | None, target_user: dict) -> bool:
+    visibility = target_user.get("profile_visibility", "public")
+    if viewer and viewer["user_id"] == target_user["user_id"]:
+        return True
+    if viewer and viewer.get("role") in ("admin", "moderator"):
+        return True
+    if visibility == "private":
+        return False
+    if visibility == "friends":
+        return bool(viewer and await _are_friends(viewer["user_id"], target_user["user_id"]))
+    return True
+
+
+async def _hero_card_visible_to(viewer: dict | None, target_user: dict) -> bool:
+    if not target_user.get("profile_hide_hero_card"):
+        return True
+    return await _profile_visible_to(viewer, target_user)
+
+
 class ProfileUpdateReq(BaseModel):
-    bio: Optional[str] = None
-    story: Optional[str] = None
-    quote: Optional[str] = None
-    avatar_url: Optional[str] = None
-    banner_url: Optional[str] = None
+    bio: Optional[str] = Field(None, max_length=500)
+    story: Optional[str] = Field(None, max_length=3000)
+    quote: Optional[str] = Field(None, max_length=200)
+    avatar_url: Optional[str] = Field(None, max_length=512)
+    banner_url: Optional[str] = Field(None, max_length=512)
+    display_name: Optional[str] = Field(None, max_length=32)
+    status_message: Optional[str] = Field(None, max_length=140)
+    pronouns: Optional[str] = Field(None, max_length=24)
+    location: Optional[str] = Field(None, max_length=64)
+    website_url: Optional[str] = Field(None, max_length=256)
+    social_links: Optional[dict] = None
+    profile_accent: Optional[str] = Field(None, max_length=7)
+    featured_badge_id: Optional[str] = None
+    profile_show_stats: Optional[bool] = None
+    profile_show_dna: Optional[bool] = None
+    profile_show_chronicle: Optional[bool] = None
+    profile_visibility: Optional[str] = None
+    profile_hide_hero_card: Optional[bool] = None
     secondary_class_id: Optional[str] = None
     class_id: Optional[str] = None
     active_banner: Optional[str] = None   # SKU of equipped banner cosmetic
     active_frame: Optional[str] = None    # SKU of equipped frame cosmetic
-    language: Optional[str] = None        # User-selected language code (fr/en/es/de/it)
+    active_aura_sku: Optional[str] = None # SKU of equipped shop aura
+    active_mount: Optional[str] = None    # SKU of equipped mount
+    language: Optional[str] = None        # User-selected language code
+    theme: Optional[str] = None           # UI theme: dark/midnight/amethyst/ember/aurora
+    staff_nexus_auto_connect: Optional[bool] = None  # Staff: auto-join Nexus socket on login
+
+
+@api.get("/users/search")
+async def search_users(q: str, user: dict = Depends(get_user_dep)):
+    q = (q or "").strip()
+    if len(q) < 2:
+        return []
+    regex = {"$regex": re.escape(q), "$options": "i"}
+    docs = await db.users.find(
+        {"$or": [{"username": regex}, {"display_name": regex}]},
+        {"_id": 0, "user_id": 1, "username": 1, "display_name": 1, "level": 1, "avatar_url": 1, "class_name": 1, "role": 1},
+    ).sort("level", -1).limit(8).to_list(8)
+    return [public_user(d) for d in docs]
 
 
 @api.put("/profile")
 async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_dep)):
-    update = {k: v for k, v in req.model_dump().items() if v is not None}
+    raw = req.model_dump()
+    update = {k: v for k, v in raw.items() if v is not None}
+    unset_fields = []
+    for cosmetic_key in ("active_banner", "active_frame", "active_aura_sku", "active_mount"):
+        if cosmetic_key in raw and raw[cosmetic_key] in (None, ""):
+            unset_fields.append(cosmetic_key)
+            update.pop(cosmetic_key, None)
+    if "profile_accent" in update:
+        accent = update["profile_accent"]
+        if accent and not re.match(r"^#[0-9A-Fa-f]{6}$", accent):
+            raise HTTPException(400, "Couleur d'accent invalide (format #RRGGBB)")
+    if "profile_visibility" in update:
+        if update["profile_visibility"] not in ("public", "friends", "private"):
+            raise HTTPException(400, "Visibilité invalide")
+    if "featured_badge_id" in update:
+        badge_id = update["featured_badge_id"]
+        if badge_id:
+            owned = await db.user_badges.find_one({"user_id": user["user_id"], "badge_id": badge_id})
+            if not owned:
+                raise HTTPException(400, "Badge non débloqué")
+        else:
+            update["featured_badge_id"] = None
+    if "social_links" in update and update["social_links"] is not None:
+        allowed = {"twitter", "twitch", "youtube", "discord_tag"}
+        update["social_links"] = {k: str(v)[:128] for k, v in update["social_links"].items() if k in allowed and v}
     if "class_id" in update:
         if update["class_id"] not in CLASSES:
             raise HTTPException(400, "Classe invalide")
@@ -630,6 +1247,23 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         owned = await db.user_cosmetics.find_one({"user_id": user["user_id"], "sku": update["active_frame"]})
         if not owned:
             raise HTTPException(400, "Ce cadre n'a pas été acquis")
+    if "active_aura_sku" in update and update["active_aura_sku"]:
+        owned = await db.user_auras.find_one({"user_id": user["user_id"], "sku": update["active_aura_sku"]})
+        if not owned:
+            raise HTTPException(400, "Cette aura n'a pas été acquise")
+    if "active_mount" in update and update["active_mount"]:
+        owned = await db.user_mounts.find_one({"user_id": user["user_id"], "sku": update["active_mount"]})
+        if not owned:
+            raise HTTPException(400, "Cette monture n'a pas été acquise")
+    VALID_THEMES = {"dark", "midnight", "amethyst", "ember", "aurora"}
+    if "theme" in update and update["theme"] not in VALID_THEMES:
+        raise HTTPException(400, "Thème invalide")
+    VALID_LANGUAGES = {"fr", "en", "es", "de", "it", "pt", "nl", "ja"}
+    if "language" in update and update["language"] not in VALID_LANGUAGES:
+        raise HTTPException(400, "Langue invalide")
+    if "staff_nexus_auto_connect" in update:
+        if user.get("role") not in ("admin", "moderator"):
+            update.pop("staff_nexus_auto_connect", None)
     # Language change tracking → polyglot badge after 2 distinct languages
     if "language" in update and update["language"]:
         await db.user_languages.update_one(
@@ -642,7 +1276,25 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         if distinct_count >= 2:
             await grant_badge(user["user_id"], "polyglot")
 
-    await db.users.update_one({"user_id": user["user_id"]}, {"$set": update})
+    ops = {}
+    if update:
+        ops["$set"] = update
+    if unset_fields:
+        ops["$unset"] = {f: "" for f in unset_fields}
+    if ops:
+        await db.users.update_one({"user_id": user["user_id"]}, ops)
+
+    # Real-time profile sync (Nexus cosmetics / title / aura)
+    cosmetic_fields = {k: update[k] for k in (
+        "active_banner", "active_frame", "active_aura_sku", "active_mount", "active_title", "avatar_url",
+    ) if k in update}
+    if "active_banner" in unset_fields:
+        cosmetic_fields["active_banner"] = None
+    if cosmetic_fields:
+        try:
+            await nexus_world.push_profile_updated(user["user_id"], cosmetic_fields)
+        except Exception:
+            pass
 
     # Discord sync triggers
     sync_class_or_progress = "class_id" in update or "level" in update
@@ -668,20 +1320,65 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
 
 
 @api.get("/profile/{username}")
-async def get_profile_by_username(username: str):
+async def get_profile_by_username(username: str, request: Request):
     user = await db.users.find_one({"username": username}, {"_id": 0, "password_hash": 0, "email": 0})
     if not user:
         raise HTTPException(404, "Héros introuvable")
+
+    viewer = await _resolve_viewer(request)
+
+    visibility = user.get("profile_visibility", "public")
+    is_self = viewer and viewer["user_id"] == user["user_id"]
+    is_staff = viewer and viewer.get("role") in ("admin", "moderator")
+
+    if not is_self and not is_staff:
+        if visibility == "private":
+            return {
+                "hidden": True,
+                "reason": "private",
+                "username": user["username"],
+                "display_name": user.get("display_name") or user["username"],
+            }
+        if visibility == "friends":
+            if not viewer or not await _are_friends(viewer["user_id"], user["user_id"]):
+                return {
+                    "hidden": True,
+                    "reason": "friends_only",
+                    "username": user["username"],
+                    "display_name": user.get("display_name") or user["username"],
+                }
+
+    pub = public_user(user)
+    hero_card_available = await _hero_card_visible_to(viewer, user)
     user_badges = await db.user_badges.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(500)
-    return {"profile": public_user(user), "badges": enrich_badges(user_badges), "xp_next": xp_for_level(user["level"] + 1) if user["level"] < 999 else None}
+    return {
+        "hidden": False,
+        "profile": pub,
+        "hero_card_available": hero_card_available,
+        "badges": enrich_badges(user_badges),
+        "xp_next": xp_for_level(user["level"] + 1) if user["level"] < 999 else None,
+    }
 
 
 @api.put("/profile/title")
 async def set_title(req: TitleReq, user: dict = Depends(get_user_dep)):
     title = next((t for t in TITLES if t["id"] == req.title_id), None)
-    if not title or user["level"] < title["unlock_level"]:
+    if not title:
+        raise HTTPException(400, "Titre invalide")
+    shop_owned = await db.user_titles.find_one({
+        "user_id": user["user_id"],
+        "$or": [{"title_id": req.title_id}, {"sku": f"title_{req.title_id}"}],
+    })
+    shop_only = req.title_id in SHOP_ONLY_TITLES
+    if shop_only and not shop_owned:
+        raise HTTPException(400, "Titre boutique non acquis")
+    if not shop_only and user["level"] < title["unlock_level"]:
         raise HTTPException(400, "Titre non débloqué")
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_title": req.title_id}})
+    try:
+        await nexus_world.push_profile_updated(user["user_id"], {"active_title": req.title_id})
+    except Exception:
+        pass
     return {"ok": True}
 
 
@@ -698,6 +1395,7 @@ async def allocate_skill(req: SkillReq, user: dict = Depends(get_user_dep)):
         {"user_id": user["user_id"]},
         {"$set": {"skills_allocated": skills_alloc}, "$inc": {"skill_points": -1}},
     )
+    discord_rewards.schedule_reward_notify(db, user["user_id"], "skill_allocate", skill_points=-1)
     total = sum(skills_alloc.values())
     if total >= 5:
         await grant_badge(user["user_id"], "skill_tree_5")
@@ -764,11 +1462,10 @@ async def open_chest_endpoint(user: dict = Depends(get_user_dep)):
         raise HTTPException(400, f"Aether insuffisant ({cost} requis)")
     # Defensive: collapse any existing duplicates before computing "already owned"
     await dedupe_inventory(user["user_id"])
-    await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": -cost}})
+    await spend_aether(user["user_id"], cost, "open_chest")
     items = await open_chest(user["user_id"])
-    # If user owns everything → refund the cost (no items granted)
     if not items:
-        await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": cost}})
+        await grant_aether(user["user_id"], cost, "chest_refund")
         return {"items": [], "refunded": cost, "reason": "all_owned"}
     # award badges for rarity collection
     for it in items:
@@ -783,6 +1480,14 @@ async def open_chest_endpoint(user: dict = Depends(get_user_dep)):
         await grant_badge(user["user_id"], "relic_hunter")
     if total_items >= 100:
         await grant_badge(user["user_id"], "ultimate_collector")
+    try:
+        await nexus_world.push_inventory_updated(user["user_id"], "chest", {
+            "items_count": len(items),
+            "item_names": [it.get("name") for it in items],
+        })
+        await push_wallet_updated(user["user_id"])
+    except Exception:
+        pass
     return {"items": items}
 
 
@@ -801,14 +1506,16 @@ async def upgrade_building(building_id: str, user: dict = Depends(get_user_dep))
     fresh = await db.users.find_one({"user_id": user["user_id"]})
     if fresh.get("aether", 0) < cost:
         raise HTTPException(400, f"Coût: {cost} Aether")
+    await spend_aether(user["user_id"], cost, f"Amélioration royaume : {building['name']} (niv. {next_level})")
     kingdom[building_id] = {"level": next_level}
     await db.users.update_one(
         {"user_id": user["user_id"]},
-        {"$set": {f"kingdom.{building_id}": {"level": next_level}}, "$inc": {"aether": -cost}},
+        {"$set": {f"kingdom.{building_id}": {"level": next_level}}},
     )
     await add_chronicle(user["user_id"], f"A amélioré son {building['name']} au niveau {next_level}", "kingdom")
     if any(v.get("level", 0) >= 5 for v in kingdom.values()):
         await grant_badge(user["user_id"], "architect_master")
+    await push_wallet_updated(user["user_id"])
     return {"ok": True, "kingdom": kingdom, "cost": cost}
 
 
@@ -841,7 +1548,6 @@ async def create_post(req: PostReq, user: dict = Depends(get_user_dep)):
     post.pop("_id", None)
     XP_PER_POST = 20
     await grant_xp(user["user_id"], XP_PER_POST, "post")
-    await progress_quests(user["user_id"], "post", 1)
     # badges
     count = await db.posts.count_documents({"user_id": user["user_id"]})
     if count >= 1:
@@ -850,10 +1556,6 @@ async def create_post(req: PostReq, user: dict = Depends(get_user_dep)):
         await grant_badge(user["user_id"], "creator")
     if count >= 100:
         await grant_badge(user["user_id"], "innovator")
-    if count >= 100:
-        await grant_badge(user["user_id"], "chatter_100")
-    if count >= 1000:
-        await grant_badge(user["user_id"], "chatter_1000")
     post["xp_gained"] = XP_PER_POST
     return post
 
@@ -892,9 +1594,8 @@ async def react_to_post(post_id: str, user: dict = Depends(get_user_dep)):
     post = await db.posts.find_one({"post_id": post_id})
     if post:
         await grant_xp(post["user_id"], XP_REACTION_RECEIVED, "reaction_received")
-        await grant_reputation(post["user_id"], REP_REACTION_RECEIVED)
+        await grant_reputation(post["user_id"], REP_REACTION_RECEIVED, "reaction_received")
     await grant_xp(user["user_id"], XP_REACT, "react")
-    await progress_quests(user["user_id"], "react", 1)
     count = await db.reactions.count_documents({"user_id": user["user_id"]})
     if count >= 50:
         await grant_badge(user["user_id"], "social_butterfly")
@@ -907,7 +1608,7 @@ async def react_to_post(post_id: str, user: dict = Depends(get_user_dep)):
 async def get_comments(post_id: str):
     comments = await db.comments.find({"post_id": post_id}, {"_id": 0}).sort("created_at", 1).to_list(200)
     user_ids = list({c["user_id"] for c in comments})
-    users = await db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0, "user_id": 1, "username": 1, "avatar_url": 1, "level": 1, "role": 1}).to_list(500)
+    users = await db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0, "user_id": 1, "username": 1, "avatar_url": 1, "level": 1, "rank": 1, "role": 1}).to_list(500)
     umap = {u["user_id"]: u for u in users}
     for c in comments:
         c["author"] = umap.get(c["user_id"], {})
@@ -930,7 +1631,6 @@ async def add_comment(post_id: str, req: CommentReq, user: dict = Depends(get_us
     comment.pop("_id", None)
     await db.posts.update_one({"post_id": post_id}, {"$inc": {"comments_count": 1}})
     await grant_xp(user["user_id"], XP_PER_COMMENT, "comment")
-    await progress_quests(user["user_id"], "comment", 1)
     comment["xp_gained"] = XP_PER_COMMENT
     return comment
 
@@ -1004,13 +1704,63 @@ async def get_quests(user: dict = Depends(get_user_dep)):
 @api.post("/quests/daily-login")
 async def daily_login(user: dict = Depends(get_user_dep)):
     """Mark daily login - progresses login quest."""
-    await progress_quests(user["user_id"], "login", 1)
-    return {"ok": True}
+    await maybe_process_daily_login(user["user_id"])
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"login_streak": 1, "last_passive_aether_date": 1})
+    today = now_utc().date().isoformat()
+    passive = 0
+    if fresh and fresh.get("last_passive_aether_date") == today:
+        perks = await db.user_perks.find({"user_id": user["user_id"]}, {"sku": 1}).to_list(50)
+        skus = {p.get("sku") for p in perks}
+        if "kingdom_aether_mine" in skus:
+            passive += 50
+        if "kingdom_treasury" in skus:
+            passive += 200
+    return {"ok": True, "login_streak": fresh.get("login_streak", 1) if fresh else 1, "passive_aether": passive}
+
+
+@api.get("/oracle/status")
+async def oracle_status(user: dict = Depends(get_user_dep)):
+    unlimited = await has_user_perk(user["user_id"], "oracle_unlimited")
+    kingdom = user.get("kingdom") or {}
+    sanctuary_lvl = kingdom.get("sanctuary", {}).get("level", 0)
+    today = now_utc().date().isoformat()
+    used = await db.oracle_logs.count_documents({
+        "user_id": user["user_id"],
+        "created_at": {"$gte": f"{today}T00:00:00"},
+    })
+    daily_limit = 999 if unlimited else (3 if sanctuary_lvl >= 1 else 1)
+    level_ok = user.get("level", 1) >= 10
+    access_ok = unlimited or sanctuary_lvl >= 1 or user.get("level", 1) >= 20
+    return {
+        "unlimited": unlimited,
+        "sanctuary_level": sanctuary_lvl,
+        "daily_limit": daily_limit,
+        "used_today": used,
+        "level_ok": level_ok,
+        "access_ok": access_ok,
+        "llm_configured": oracle_llm_configured(),
+    }
 
 
 # ---------- Oracle IA ----------
 @api.post("/oracle/consult")
 async def oracle_consult(req: OracleReq, user: dict = Depends(get_user_dep)):
+    if user.get("level", 1) < 10:
+        raise HTTPException(403, "Niveau 10 requis pour accéder au Sanctuaire")
+    unlimited = await has_user_perk(user["user_id"], "oracle_unlimited")
+    kingdom = user.get("kingdom") or {}
+    sanctuary_lvl = kingdom.get("sanctuary", {}).get("level", 0)
+    if not unlimited and sanctuary_lvl < 1 and user.get("level", 1) < 20:
+        raise HTTPException(403, "Améliorez le Sanctuaire de votre royaume (niv. 30) ou atteignez le niveau 20")
+    if not unlimited:
+        today = now_utc().date().isoformat()
+        count = await db.oracle_logs.count_documents({
+            "user_id": user["user_id"],
+            "created_at": {"$gte": f"{today}T00:00:00"},
+        })
+        daily_limit = 3 if sanctuary_lvl >= 1 else 1
+        if count >= daily_limit:
+            raise HTTPException(429, f"Limite quotidienne ({daily_limit}/jour). Achetez le Lien à l'Oracle pour des consultations illimitées.")
     badge_count = await db.user_badges.count_documents({"user_id": user["user_id"]})
     profile = {**user, "badge_count": badge_count, "active_title": user.get("active_title", "novice")}
     response = await consult_oracle(profile, req.question)
@@ -1037,7 +1787,8 @@ async def oracle_quest(user: dict = Depends(get_user_dep)):
 # ---------- Chronicle ----------
 @api.get("/chronicle")
 async def my_chronicle(user: dict = Depends(get_user_dep)):
-    entries = await db.chronicles.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
+    limit = 500 if await has_user_perk(user["user_id"], "chronicle_full") else 100
+    entries = await db.chronicles.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
     return entries
 
 
@@ -1130,7 +1881,7 @@ async def claim_rift(rift_id: str, user: dict = Depends(get_user_dep)):
         items = await open_chest(user["user_id"])
         rewards.extend([f"{i['name']}" for i in items])
     elif rift["type"] == "aether":
-        await grant_aether(user["user_id"], 150)
+        await grant_aether(user["user_id"], 150, "rift")
         rewards.append("150 Aether")
     elif rift["type"] == "badge":
         await grant_badge(user["user_id"], "rift_walker")
@@ -1140,30 +1891,64 @@ async def claim_rift(rift_id: str, user: dict = Depends(get_user_dep)):
     return {"rewards": rewards}
 
 
-# ---------- World Boss ----------
+# ---------- Community challenges (objectifs collectifs) ----------
+async def _community_challenge_progress(action: str) -> int:
+    if action == "forum_reply":
+        return await db.forum_replies.count_documents({})
+    if action == "forum_thread":
+        return await db.forum_threads.count_documents({})
+    if action == "oracle_log":
+        return await db.oracle_logs.count_documents({})
+    if action == "guild_chat":
+        return await db.guild_chat.count_documents({})
+    if action == "friend_message":
+        return await db.friend_messages.count_documents({})
+    return 0
+
+
+async def _ensure_community_challenges():
+    await db.world_boss.update_many({"action": "comment"}, {"$set": {"active": False}})
+    for tmpl in COMMUNITY_CHALLENGES:
+        existing = await db.community_challenges.find_one({"challenge_id": tmpl["challenge_id"]})
+        if not existing:
+            doc = {**tmpl, "active": True, "created_at": now_utc().isoformat()}
+            await db.community_challenges.insert_one(doc)
+
+
+async def _hydrate_community_challenges():
+    await _ensure_community_challenges()
+    challenges = await db.community_challenges.find(
+        {"active": True}, {"_id": 0},
+    ).sort("sort_order", 1).to_list(20)
+    for c in challenges:
+        c["progress"] = await _community_challenge_progress(c["action"])
+        c["percent"] = round(min(100.0, (c["progress"] / max(1, c["target"])) * 100), 1)
+    return challenges
+
+
+@api.get("/community-challenges")
+async def get_community_challenges():
+    return await _hydrate_community_challenges()
+
+
 @api.get("/boss")
 async def get_world_boss():
-    boss = await db.world_boss.find_one({"active": True}, {"_id": 0})
-    if not boss:
-        boss = {
-            "boss_id": f"boss_{uuid.uuid4().hex[:8]}",
-            "name": "Archonte du Néant",
-            "description": "Une entité cosmique menace NEXORIA. Toute la communauté doit accumuler 10 000 commentaires pour le vaincre.",
-            "target": 10000,
-            "progress": 0,
-            "action": "comment",
-            "active": True,
-            "created_at": now_utc().isoformat(),
-        }
-        await db.world_boss.insert_one(boss)
-        boss.pop("_id", None)
-    # compute current progress
-    if boss["action"] == "comment":
-        progress = await db.comments.count_documents({})
-    else:
-        progress = 0
-    boss["progress"] = progress
-    return boss
+    """Défi communautaire vedette — compatibilité avec l'ancien boss mondial."""
+    challenges = await _hydrate_community_challenges()
+    if not challenges:
+        return None
+    featured = next((c for c in challenges if c["progress"] < c["target"]), challenges[0])
+    return {
+        "boss_id": featured["challenge_id"],
+        "name": featured["name"],
+        "description": featured["description"],
+        "target": featured["target"],
+        "progress": featured["progress"],
+        "action": featured.get("action_label", featured["action"]),
+        "link": featured.get("link", "/events"),
+        "active": True,
+        "percent": featured["percent"],
+    }
 
 
 # ---------- Admin ----------
@@ -1192,6 +1977,10 @@ async def admin_delete_user(user_id: str, user: dict = Depends(get_admin_dep)):
         raise HTTPException(400, "Impossible de se supprimer")
     await db.users.delete_one({"user_id": user_id})
     await db.user_sessions.delete_many({"user_id": user_id})
+    try:
+        await nexus_world.disconnect_user(user_id)
+    except Exception:
+        pass
     return {"ok": True}
 
 
@@ -1202,27 +1991,355 @@ async def admin_logs(user: dict = Depends(get_staff_dep)):
 
 
 # ---------- Maintenance Mode (admin toggle) ----------
+DEFAULT_MAINTENANCE_SYSTEMS = {
+    "database": {"label": "Base de données", "status": "maintenance", "progress": 50, "icon": "database"},
+    "site": {"label": "Site", "status": "maintenance", "progress": 30, "icon": "site"},
+    "server": {"label": "Serveur Online", "status": "maintenance", "progress": 10, "icon": "server"},
+}
+
+DEFAULT_MAINTENANCE_HTML = {
+    "brand_name": "NEXORIA",
+    "brand_tagline": "L'ASCENSION COMMENCE",
+    "badge": "Maintenance en cours",
+    "title": "Maintenance\ndu Nexus",
+    "body": "Les Sentinelles restaurent l'équilibre du monde.",
+    "body_sub": "Merci pour votre patience et votre soutien.",
+    "footer": "NEXORIA — Unis dans l'éternité",
+    "discord_label": "Rejoindre Discord",
+}
+
+
+def normalize_maintenance_text(raw: str, max_len: int = 12000, preserve_breaks: bool = False) -> str:
+    if not raw:
+        return ""
+    text = str(raw)[:max_len]
+    text = re.sub(r"<script\b[^>]*>.*?</script>", "", text, flags=re.I | re.S)
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.I)
+    text = re.sub(r"<[^>]+>", "", text)
+    if preserve_breaks:
+        lines = [re.sub(r"[ \t]+", " ", ln).strip() for ln in text.replace("\r\n", "\n").split("\n")]
+        return "\n".join([ln for ln in lines if ln])[:max_len]
+    return re.sub(r"\s+", " ", text).strip()[:max_len]
+
+
+def sanitize_maintenance_html(raw: str, max_len: int = 12000) -> str:
+    if not raw:
+        return ""
+    text = str(raw)[:max_len]
+    text = re.sub(r"<script\b[^>]*>.*?</script>", "", text, flags=re.I | re.S)
+    text = re.sub(r"<iframe\b[^>]*>.*?</iframe>", "", text, flags=re.I | re.S)
+    text = re.sub(r"<object\b[^>]*>.*?</object>", "", text, flags=re.I | re.S)
+    text = re.sub(r"<embed\b[^>]*>.*?</embed>", "", text, flags=re.I | re.S)
+    text = re.sub(r"\son\w+\s*=", " data-blocked=", text, flags=re.I)
+    text = re.sub(r"javascript:", "", text, flags=re.I)
+    # Bloquer src dangereux sur images
+    text = re.sub(
+        r'(<img\b[^>]*\bsrc\s*=\s*["\'])(?!https?://|/uploads/|data:image/(?:png|jpe?g|gif|webp);)[^"\']*(["\'])',
+        r"\1\2",
+        text,
+        flags=re.I,
+    )
+    # Autoriser uploads/content pour images forum/articles
+    return text
+
+
+MAINTENANCE_HTML_LIMITS = {
+    "brand_name": 30000,
+    "brand_tagline": 20000,
+    "badge": 15000,
+    "title": 100000,
+    "body": 100000,
+    "body_sub": 50000,
+    "discord_label": 5000,
+    "footer": 30000,
+}
+
+MAINTENANCE_IMAGE_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
+
+
+def _maintenance_html(doc: dict) -> dict:
+    stored = doc.get("html") if isinstance(doc.get("html"), dict) else {}
+    merged = {**DEFAULT_MAINTENANCE_HTML, **(stored or {})}
+    out = {}
+    for key in DEFAULT_MAINTENANCE_HTML:
+        raw = merged.get(key, DEFAULT_MAINTENANCE_HTML.get(key, ""))
+        preserve = key == "title"
+        out[key] = normalize_maintenance_text(raw, max_len=MAINTENANCE_HTML_LIMITS.get(key, 30000), preserve_breaks=preserve)
+        if not out[key]:
+            out[key] = DEFAULT_MAINTENANCE_HTML.get(key, "")
+    return out
+
+
 async def get_maintenance() -> dict:
     doc = await db.system_settings.find_one({"key": "maintenance"}, {"_id": 0})
-    return doc or {"enabled": False, "message": "", "updated_at": None}
+    base = {"enabled": False, "title": "Maintenance du Nexus", "message": "", "subtitle": "", "html": {}, "systems": {}, "updated_at": None}
+    if not doc:
+        return base
+    return {**base, **{k: v for k, v in doc.items() if k != "key"}}
+
+
+async def is_maintenance_active() -> tuple[bool, str]:
+    """True when env MAINTENANCE_MODE or DB toggle is on."""
+    if MAINTENANCE_MODE_ENV:
+        doc = await get_maintenance()
+        return True, doc.get("message") or "Maintenance du Nexus en cours"
+    doc = await get_maintenance()
+    return bool(doc.get("enabled")), doc.get("message") or ""
+
+
+async def _maintenance_system_status() -> dict:
+    mongo_ok = True
+    try:
+        await db.command("ping")
+    except Exception:
+        mongo_ok = False
+    enabled, _ = await is_maintenance_active()
+    doc = await get_maintenance()
+    stored = doc.get("systems") or {}
+    merged = {}
+    for key, default in DEFAULT_MAINTENANCE_SYSTEMS.items():
+        row = {**default, **(stored.get(key) or {})}
+        row["progress"] = max(0, min(100, int(row.get("progress", default["progress"]))))
+        if key == "database":
+            row["status"] = "operational" if mongo_ok else "offline"
+        merged[key] = row
+    return merged
 
 
 @api.get("/system/maintenance")
 async def maintenance_status():
     """Public endpoint — frontend polls this to render the maintenance overlay."""
-    return await get_maintenance()
+    doc = await get_maintenance()
+    enabled, _ = await is_maintenance_active()
+    systems = await _maintenance_system_status()
+    return {
+        "enabled": enabled,
+        "title": doc.get("title") or "Maintenance du Nexus",
+        "message": doc.get("message") or "",
+        "subtitle": doc.get("subtitle") or "",
+        "html": _maintenance_html(doc),
+        "env_locked": MAINTENANCE_MODE_ENV,
+        "systems": systems,
+    }
+
+
+@api.get("/maintenance/status")
+async def maintenance_full_status():
+    """Rich status for the immersive maintenance page."""
+    doc = await get_maintenance()
+    enabled, message = await is_maintenance_active()
+    systems = await _maintenance_system_status()
+    return {
+        "enabled": enabled,
+        "title": doc.get("title") or "Maintenance du Nexus",
+        "message": message or doc.get("message") or "",
+        "subtitle": doc.get("subtitle") or "",
+        "html": _maintenance_html(doc),
+        "env_locked": MAINTENANCE_MODE_ENV,
+        "systems": systems,
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+@api.post("/staff/maintenance-login")
+async def staff_maintenance_login(req: LoginReq, response: Response):
+    """Staff-only login while global maintenance is active."""
+    enabled, _ = await is_maintenance_active()
+    if not enabled:
+        raise HTTPException(400, "La maintenance n'est pas active")
+    email = req.email.lower()
+    user = await db.users.find_one({"email": email})
+    if not user or not user.get("password_hash") or not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(401, "Identifiants invalides")
+    if user.get("role") not in ("admin", "moderator"):
+        raise HTTPException(403, "Accès refusé — réservé aux Sentinelles")
+    enforce_ban_or_raise(user)
+    token = create_session_token()
+    await db.user_sessions.insert_one({
+        "session_token": token,
+        "user_id": user["user_id"],
+        "expires_at": session_expiry().isoformat(),
+        "created_at": now_utc().isoformat(),
+        "last_activity_at": now_utc().isoformat(),
+    })
+    set_session_cookie(response, token)
+    result = public_user(user)
+    result["session_token"] = token
+    return result
+
+
+@api.post("/upload/image")
+async def content_upload_image(request: Request, file: UploadFile = File(...), user: dict = Depends(get_user_dep)):
+    """Upload image pour éditeurs forum / articles (utilisateurs connectés)."""
+    content_type = (file.content_type or "").lower()
+    if content_type not in MAINTENANCE_IMAGE_TYPES:
+        raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Image trop lourde (max 5 Mo)")
+    filename = f"{uuid.uuid4().hex}{MAINTENANCE_IMAGE_TYPES[content_type]}"
+    dest = CONTENT_UPLOAD_DIR / filename
+    dest.write_bytes(data)
+    base = str(request.base_url).rstrip("/")
+    return {"url": f"{base}/uploads/content/{filename}"}
+
+
+@api.post("/admin/maintenance/upload")
+async def maintenance_upload_image(request: Request, file: UploadFile = File(...), user: dict = Depends(get_admin_dep)):
+    """Upload image pour les éditeurs HTML de la page maintenance."""
+    content_type = (file.content_type or "").lower()
+    if content_type not in MAINTENANCE_IMAGE_TYPES:
+        raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Image trop lourde (max 5 Mo)")
+    filename = f"{uuid.uuid4().hex}{MAINTENANCE_IMAGE_TYPES[content_type]}"
+    dest = MAINTENANCE_UPLOAD_DIR / filename
+    dest.write_bytes(data)
+    base = str(request.base_url).rstrip("/")
+    return {"url": f"{base}/uploads/maintenance/{filename}"}
 
 
 @api.post("/admin/maintenance")
 async def set_maintenance(payload: dict, user: dict = Depends(get_admin_dep)):
-    enabled = bool(payload.get("enabled", False))
-    message = str(payload.get("message", "Royaume en maintenance — revenez bientôt."))[:300]
-    await db.system_settings.update_one(
-        {"key": "maintenance"},
-        {"$set": {"enabled": enabled, "message": message, "updated_at": now_utc().isoformat(), "updated_by": user["username"]}},
-        upsert=True,
-    )
-    return {"enabled": enabled, "message": message}
+    current = await get_maintenance()
+    enabled = bool(payload["enabled"]) if "enabled" in payload else bool(current.get("enabled"))
+    title = str(payload.get("title", current.get("title") or "Maintenance du Nexus"))[:120]
+    message = str(payload.get("message", current.get("message") or ""))[:500]
+    subtitle = str(payload.get("subtitle", current.get("subtitle") or ""))[:300]
+    html_in = payload.get("html") if isinstance(payload.get("html"), dict) else (current.get("html") or {})
+    html = {}
+    for key in DEFAULT_MAINTENANCE_HTML:
+        raw = html_in.get(key, _maintenance_html(current).get(key, ""))
+        limit = MAINTENANCE_HTML_LIMITS.get(key, 30000)
+        html[key] = normalize_maintenance_text(raw, max_len=limit, preserve_breaks=(key == "title"))
+        if not html[key]:
+            html[key] = DEFAULT_MAINTENANCE_HTML.get(key, "")
+    systems_in = payload.get("systems") if isinstance(payload.get("systems"), dict) else (current.get("systems") or {})
+    systems = {}
+    for key, default in DEFAULT_MAINTENANCE_SYSTEMS.items():
+        row = systems_in.get(key) if isinstance(systems_in.get(key), dict) else {}
+        status = str(row.get("status", default["status"]))
+        if status not in ("operational", "sync", "maintenance", "offline"):
+            status = default["status"]
+        label_raw = row.get("label", default["label"])
+        systems[key] = {
+            "label": normalize_maintenance_text(label_raw, max_len=5000) or default["label"],
+            "status": status,
+            "progress": max(0, min(100, int(row.get("progress", default["progress"])))),
+            "icon": default["icon"],
+        }
+    doc = {
+        "enabled": enabled,
+        "title": title,
+        "message": message,
+        "subtitle": subtitle,
+        "html": html,
+        "systems": systems,
+        "updated_at": now_utc().isoformat(),
+        "updated_by": user["username"],
+    }
+    await db.system_settings.update_one({"key": "maintenance"}, {"$set": doc}, upsert=True)
+    return {**doc, "env_locked": MAINTENANCE_MODE_ENV}
+
+
+# ---------- Online Gate — hub social (ouverture événements) ----------
+DEFAULT_ONLINE_GATE_HTML = {
+    "brand_name": "NEXORIA",
+    "brand_tagline": "LA COMMUNAUTÉ AVANT TOUT",
+    "badge": "Nexus fermé",
+    "title": "Le Nexus\nse repose",
+    "body": (
+        "Le serveur Nexus n'est pas ouvert en permanence. Les Sentinelles l'ouvrent "
+        "lors des rassemblements et événements communautaires."
+    ),
+    "body_sub": "Le reste du site reste accessible. Rejoignez le Discord pour la prochaine ouverture.",
+    "footer": "NEXORIA — Unis dans l'éternité",
+    "discord_label": "Rejoindre la communauté",
+}
+
+
+def _online_gate_html(doc: dict) -> dict:
+    stored = doc.get("html") if isinstance(doc.get("html"), dict) else {}
+    merged = {**DEFAULT_ONLINE_GATE_HTML, **(stored or {})}
+    out = {}
+    for key in DEFAULT_ONLINE_GATE_HTML:
+        raw = merged.get(key, DEFAULT_ONLINE_GATE_HTML.get(key, ""))
+        preserve = key == "title"
+        out[key] = normalize_maintenance_text(raw, max_len=MAINTENANCE_HTML_LIMITS.get(key, 30000), preserve_breaks=preserve)
+        if not out[key]:
+            out[key] = DEFAULT_ONLINE_GATE_HTML.get(key, "")
+    return out
+
+
+async def get_online_gate() -> dict:
+    doc = await db.system_settings.find_one({"key": "online_gate"}, {"_id": 0})
+    base = {"open": True, "html": {}, "updated_at": None}
+    if not doc:
+        return base
+    return {**base, **{k: v for k, v in doc.items() if k != "key"}}
+
+
+async def is_online_open() -> bool:
+    doc = await get_online_gate()
+    return bool(doc.get("open", True))
+
+
+async def _site_access_block() -> tuple[bool, str, str]:
+    """Return (blocked, reason, message). reason: maintenance | ''"""
+    maint_enabled, maint_msg = await is_maintenance_active()
+    if maint_enabled:
+        return True, "maintenance", maint_msg or "Maintenance du Nexus en cours"
+    return False, "", ""
+
+
+@api.get("/system/online-gate")
+async def online_gate_status():
+    """Public — frontend polls to know if the social hub is open."""
+    doc = await get_online_gate()
+    return {
+        "open": bool(doc.get("open", True)),
+        "html": _online_gate_html(doc),
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+@api.get("/online/status")
+async def online_gate_public_status():
+    """Public — rich Nexus gate status (Nexus overlay only, does not block the site)."""
+    doc = await get_online_gate()
+    return {
+        "open": bool(doc.get("open", True)),
+        "html": _online_gate_html(doc),
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+@api.post("/admin/online-gate")
+async def set_online_gate(payload: dict, user: dict = Depends(get_admin_dep)):
+    current = await get_online_gate()
+    html_in = payload.get("html") if isinstance(payload.get("html"), dict) else {}
+    html = {}
+    for key in DEFAULT_ONLINE_GATE_HTML:
+        raw = html_in.get(key, _online_gate_html(current).get(key, ""))
+        limit = MAINTENANCE_HTML_LIMITS.get(key, 30000)
+        html[key] = normalize_maintenance_text(raw, max_len=limit, preserve_breaks=(key == "title"))
+        if not html[key]:
+            html[key] = DEFAULT_ONLINE_GATE_HTML.get(key, "")
+    doc = {
+        "key": "online_gate",
+        "open": bool(payload.get("open", current.get("open", True))),
+        "html": html,
+        "updated_at": now_utc().isoformat(),
+        "updated_by": user["username"],
+    }
+    await db.system_settings.update_one({"key": "online_gate"}, {"$set": doc}, upsert=True)
+    return {k: v for k, v in doc.items() if k != "key"}
 
 
 # ---------- Profile self-management (ultra-complete) ----------
@@ -1281,6 +2398,7 @@ async def change_username(req: UsernameChangeReq, user: dict = Depends(get_user_
     await add_chronicle(user["user_id"], f"A changé de nom : {old} → {new_name}", "rename")
     await grant_badge(user["user_id"], "renamed")
     await grant_xp(user["user_id"], 100, "renamed")
+    discord_auth_forum.schedule_auth_event("rename", {"username": new_name, "old_username": old})
     return {"ok": True, "username": new_name}
 
 
@@ -1324,13 +2442,19 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
         raise HTTPException(400, f"Aether insuffisant ({item['price']} requis)")
 
     # Prevent duplicate purchase for non-stackable categories
-    if item["category"] in ("cosmetic", "kingdom"):
-        already_owned = await db.user_cosmetics.find_one({"user_id": user["user_id"], "sku": sku}) \
+    if item["category"] in ("cosmetic", "kingdom", "mount", "title", "aura", "pass"):
+        already_owned = (
+            await db.user_cosmetics.find_one({"user_id": user["user_id"], "sku": sku})
             or await db.user_perks.find_one({"user_id": user["user_id"], "sku": sku})
+            or await db.user_mounts.find_one({"user_id": user["user_id"], "sku": sku})
+            or await db.user_auras.find_one({"user_id": user["user_id"], "sku": sku})
+            or await db.user_titles.find_one({"user_id": user["user_id"], "sku": sku})
+            or await db.user_passes.find_one({"user_id": user["user_id"], "sku": sku})
+        )
         if already_owned:
             raise HTTPException(400, "Vous possédez déjà cet item")
 
-    await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": -item["price"]}})
+    await spend_aether(user["user_id"], item["price"], f"Achat boutique : {item['name']}")
 
     purchase_doc = {
         "purchase_id": f"buy_{uuid.uuid4().hex[:12]}",
@@ -1370,7 +2494,7 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
         })
         if active:
             # Refund the just-debited Aether and abort
-            await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": item["price"]}})
+            await grant_aether(user["user_id"], item["price"], f"Remboursement boutique : {item['name']}")
             await db.shop_purchases.delete_one({"purchase_id": purchase_doc["purchase_id"]})
             raise HTTPException(400, f"Un effet « {item['boost_type']} » est déjà actif jusqu'à {active['expires_at'][:16]}")
         expires = (now_utc() + timedelta(minutes=item["duration_minutes"])).isoformat()
@@ -1396,8 +2520,11 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
             })
             applied["rift_summoned"] = True
         else:
-            # Stack consumables into a single row with quantity++
-            await db.user_consumables.update_one(
+            if sku == "key_chest_cosmic":
+                items_won = await open_chest(user["user_id"])
+                applied["chest_items"] = [i.get("name") for i in items_won]
+            else:
+                await db.user_consumables.update_one(
                 {"user_id": user["user_id"], "sku": sku, "used": False},
                 {"$inc": {"quantity": 1},
                  "$setOnInsert": {
@@ -1408,22 +2535,82 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
             )
             applied["consumable_added"] = sku
     elif item["category"] == "kingdom":
-        await db.user_perks.insert_one({"user_id": user["user_id"], "sku": sku, "obtained_at": now_utc().isoformat()})
+        await db.user_perks.insert_one({
+            "user_id": user["user_id"], "sku": sku,
+            "perk": item.get("perk"),
+            "obtained_at": now_utc().isoformat(),
+        })
         applied["perk_unlocked"] = sku
+        if item.get("perk") == "throne":
+            await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"has_throne": True}})
+        if item.get("perk") in ("treasury",) or item.get("sku") == "kingdom_aether_mine":
+            applied["passive_aether"] = True
+    elif item["category"] == "chest":
+        items_won = await open_chest(user["user_id"])
+        applied["chest_items"] = [i.get("name") for i in items_won]
+    elif item["category"] == "mount":
+        await db.user_mounts.insert_one({"user_id": user["user_id"], "sku": sku, "obtained_at": now_utc().isoformat()})
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_mount": sku}})
+        applied["mount_equipped"] = sku
+    elif item["category"] == "title":
+        title_id = item.get("title_id", sku.replace("title_", ""))
+        await db.user_titles.insert_one({
+            "user_id": user["user_id"], "sku": sku, "title_id": title_id,
+            "obtained_at": now_utc().isoformat(),
+        })
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_title": title_id}})
+        applied["title_equipped"] = title_id
+    elif item["category"] == "aura":
+        await db.user_auras.insert_one({"user_id": user["user_id"], "sku": sku, "obtained_at": now_utc().isoformat()})
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_aura_sku": sku}})
+        applied["aura_equipped"] = sku
+    elif item["category"] == "pass":
+        await db.user_passes.insert_one({
+            "user_id": user["user_id"], "sku": sku,
+            "season_id": item.get("season_id", "season_1"),
+            "obtained_at": now_utc().isoformat(),
+        })
+        applied["pass_unlocked"] = sku
+    else:
+        await grant_aether(user["user_id"], item["price"], f"Remboursement boutique : {item['name']}")
+        await db.shop_purchases.delete_one({"purchase_id": purchase_doc["purchase_id"]})
+        raise HTTPException(400, f"Catégorie boutique non supportée : {item['category']}")
 
     await add_chronicle(user["user_id"], f"A acquis « {item['name']} » à la Boutique d'Aether", "shop")
     await push_notification(db, user["user_id"], "shop", "Achat confirmé", f"« {item['name']} » est à vous", "ding", "ShoppingBag")
 
-    # WebSocket sync: push inventory refresh event so the Shop UI updates instantly
-    # without polling. Listened by NexusSocketContext + Shop page.
+    # WebSocket sync: push inventory refresh without polling.
     try:
-        await nexus_world.push_to_user(user["user_id"], "shop:purchased", {
+        inv_payload = {
             "sku": sku,
             "name": item["name"],
             "category": item["category"],
             "applied": applied,
+        }
+        await nexus_world.push_inventory_updated(user["user_id"], "shop", inv_payload)
+        # Legacy event kept for Shop page listeners during migration
+        await nexus_world.push_to_user(user["user_id"], "shop:purchased", {
+            **inv_payload,
             "ts": now_utc().isoformat(),
         })
+        profile_patch = {}
+        if applied.get("aura_equipped"):
+            profile_patch["active_aura_sku"] = applied["aura_equipped"]
+        if applied.get("title_equipped"):
+            profile_patch["active_title"] = applied["title_equipped"]
+        if applied.get("mount_equipped"):
+            profile_patch["active_mount"] = applied["mount_equipped"]
+        if item["category"] == "cosmetic" and sku.startswith("frame_"):
+            await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_frame": sku}})
+            profile_patch["active_frame"] = sku
+        if profile_patch:
+            await nexus_world.push_profile_updated(user["user_id"], profile_patch)
+        fresh = await db.users.find_one({"user_id": user["user_id"]}, {"aether": 1})
+        if fresh:
+            await nexus_world.push_profile_updated(user["user_id"], {
+                "user_id": user["user_id"],
+                "aether": fresh.get("aether", 0),
+            })
     except Exception:
         pass
 
@@ -1436,6 +2623,10 @@ async def my_shop_inventory(user: dict = Depends(get_user_dep)):
     cosmetics = await db.user_cosmetics.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(200)
     consumables = await db.user_consumables.find({"user_id": user["user_id"], "used": False}, {"_id": 0}).to_list(200)
     perks = await db.user_perks.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(50)
+    mounts = await db.user_mounts.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(50)
+    auras = await db.user_auras.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(50)
+    titles_owned = await db.user_titles.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(50)
+    passes = await db.user_passes.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(20)
     now = now_utc()
     boosts_raw = await db.user_boosts.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(50)
     active_boosts = []
@@ -1447,7 +2638,10 @@ async def my_shop_inventory(user: dict = Depends(get_user_dep)):
                 exp_dt = exp_dt.replace(tzinfo=timezone.utc)
             if exp_dt > now:
                 active_boosts.append(b)
-    return {"cosmetics": cosmetics, "consumables": consumables, "perks": perks, "boosts": active_boosts}
+    return {
+        "cosmetics": cosmetics, "consumables": consumables, "perks": perks, "boosts": active_boosts,
+        "mounts": mounts, "auras": auras, "titles": titles_owned, "passes": passes,
+    }
 
 
 # ---------- Notifications ----------
@@ -1515,14 +2709,22 @@ async def rifts_map():
 
 # ---------- Admin: edit / ban / unban users ----------
 class UserEditReq(BaseModel):
-    username: Optional[str] = None
+    username: Optional[str] = Field(None, min_length=2, max_length=32)
     email: Optional[EmailStr] = None
+    display_name: Optional[str] = Field(None, max_length=32)
     role: Optional[str] = None
+    class_id: Optional[str] = None
+    secondary_class_id: Optional[str] = None
     level: Optional[int] = None
     xp: Optional[int] = None
+    skill_points: Optional[int] = None
     aether: Optional[int] = None
     reputation: Optional[int] = None
     active_title: Optional[str] = None
+    bio: Optional[str] = Field(None, max_length=500)
+    avatar_url: Optional[str] = Field(None, max_length=512)
+    banner_url: Optional[str] = Field(None, max_length=512)
+    clear_ban: Optional[bool] = None
 
 
 class BanReq(BaseModel):
@@ -1532,17 +2734,110 @@ class BanReq(BaseModel):
 
 @api.put("/admin/users/{user_id}")
 async def admin_edit_user(user_id: str, req: UserEditReq, user: dict = Depends(get_admin_dep)):
-    update = {k: v for k, v in req.model_dump().items() if v is not None}
+    data = req.model_dump(exclude_unset=True)
+    clear_ban = data.pop("clear_ban", None)
+    update = dict(data)
+    if not update and not clear_ban:
+        return {"ok": True, "updated_fields": []}
+
     if "role" in update and update["role"] not in ("user", "admin", "moderator"):
         raise HTTPException(400, "Rôle invalide")
-    if "level" in update:
-        update["rank"] = rank_from_level(update["level"])
     target = await db.users.find_one({"user_id": user_id})
     if not target:
         raise HTTPException(404, "Utilisateur introuvable")
-    await db.users.update_one({"user_id": user_id}, {"$set": update})
-    await add_chronicle(user_id, f"Le Conseil a modifié son profil ({', '.join(update.keys())})", "admin")
-    return {"ok": True, "updated_fields": list(update.keys())}
+
+    if "username" in update:
+        update["username"] = update["username"].strip()
+        if update["username"] != target.get("username"):
+            existing = await find_user_by_username(update["username"], {"user_id": 1})
+            if existing and existing["user_id"] != user_id:
+                raise HTTPException(400, "Pseudo déjà pris")
+    if "email" in update:
+        update["email"] = str(update["email"]).lower().strip()
+        if update["email"] != (target.get("email") or "").lower():
+            taken = await db.users.find_one({"email": update["email"], "user_id": {"$ne": user_id}})
+            if taken:
+                raise HTTPException(400, "Email déjà utilisé")
+    if "display_name" in update:
+        update["display_name"] = (update["display_name"] or "").strip()
+    if "class_id" in update:
+        if update["class_id"] not in CLASSES:
+            raise HTTPException(400, "Classe invalide")
+        update["class_name"] = CLASSES[update["class_id"]]["name"]
+    if "secondary_class_id" in update:
+        sec = (update["secondary_class_id"] or "").strip() or None
+        if sec and sec not in CLASSES:
+            raise HTTPException(400, "Classe secondaire invalide")
+        update["secondary_class_id"] = sec
+    if "active_title" in update:
+        title_ids = {t["id"] for t in TITLES}
+        if update["active_title"] not in title_ids:
+            raise HTTPException(400, "Titre invalide")
+    if "skill_points" in update:
+        if update["skill_points"] < 0 or update["skill_points"] > 9999:
+            raise HTTPException(400, "Points de compétence invalides (0–9999)")
+    if "level" in update:
+        if update["level"] < 1 or update["level"] > 999:
+            raise HTTPException(400, "Niveau invalide (1–999)")
+        update["rank"] = rank_from_level(update["level"])
+        if "xp" not in update:
+            lvl = update["level"]
+            floor = xp_for_level(lvl) if lvl >= 2 else 0
+            update["xp"] = max(target.get("xp", 0), floor)
+    if "xp" in update and update["xp"] < 0:
+        raise HTTPException(400, "XP invalide")
+    if "aether" in update and update["aether"] < 0:
+        raise HTTPException(400, "Aether invalide")
+    if "reputation" in update and update["reputation"] < 0:
+        raise HTTPException(400, "Réputation invalide")
+
+    owner_username = os.environ.get("OWNER_USERNAME", "SmouzYi")
+    if target.get("username") == owner_username and "role" in update and update["role"] != "admin":
+        raise HTTPException(400, f"Impossible de rétrograder le propriétaire ({owner_username})")
+    if user_id == user["user_id"] and "role" in update and update["role"] != "admin":
+        raise HTTPException(400, "Impossible de se rétrograder soi-même")
+
+    updated_fields = list(update.keys())
+    if update:
+        if "username" in update and update["username"] != target.get("username"):
+            discord_auth_forum.schedule_auth_event("rename", {
+                "username": update["username"],
+                "old_username": target.get("username"),
+            })
+        await db.users.update_one({"user_id": user_id}, {"$set": update})
+        await add_chronicle(user_id, f"Le Conseil a modifié son profil ({', '.join(update.keys())})", "admin")
+
+    if clear_ban:
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$unset": {"banned_until": "", "ban_reason": ""}},
+        )
+        await db.ban_history.update_many(
+            {"user_id": user_id, "lifted": False},
+            {"$set": {"lifted": True, "lifted_at": now_utc().isoformat()}},
+        )
+        await add_chronicle(user_id, "Banni levé par le Conseil (édition héros)", "unban")
+        updated_fields.append("clear_ban")
+
+    economy_deltas = {}
+    for field in ("aether", "xp", "reputation"):
+        if field in update:
+            delta = int(update[field]) - int(target.get(field, 0) or 0)
+            if delta != 0:
+                economy_deltas[field] = delta
+    if economy_deltas:
+        discord_rewards.schedule_reward_notify(
+            db,
+            user_id,
+            "Modification du Conseil",
+            xp=economy_deltas.get("xp", 0),
+            aether=economy_deltas.get("aether", 0),
+            reputation=economy_deltas.get("reputation", 0),
+            extra=[f"Champs modifiés : {', '.join(updated_fields)}"],
+        )
+    if any(k in update for k in ("aether", "level", "xp", "rank", "skill_points")):
+        await push_wallet_updated(user_id)
+    return {"ok": True, "updated_fields": updated_fields}
 
 
 @api.post("/admin/users/{user_id}/ban")
@@ -1567,6 +2862,10 @@ async def admin_ban_user(user_id: str, req: BanReq, user: dict = Depends(get_sta
     )
     # immediately invalidate all sessions
     await db.user_sessions.delete_many({"user_id": user_id})
+    try:
+        await nexus_world.disconnect_user(user_id)
+    except Exception as e:
+        logger.warning("nexus disconnect on ban failed: %s", e)
     # log
     await db.ban_history.insert_one({
         "ban_id": f"ban_{uuid.uuid4().hex[:12]}",
@@ -1600,32 +2899,88 @@ async def admin_ban_history(user: dict = Depends(get_staff_dep)):
 
 
 # ---------- Discord OAuth ----------
+def _discord_profile_fields(profile: dict) -> dict:
+    return {
+        "discord_id": profile["discord_id"],
+        "discord_username": profile.get("discord_username"),
+        "discord_global_name": profile.get("discord_global_name"),
+        "discord_avatar_url": profile.get("discord_avatar_url"),
+    }
+
+
+def _avatar_should_sync_from_discord(user: dict, profile: dict) -> bool:
+    current = user.get("avatar_url") or ""
+    if not profile.get("discord_avatar_url"):
+        return False
+    if not current:
+        return True
+    if current == user.get("discord_avatar_url"):
+        return True
+    return "cdn.discordapp.com/avatars/" in current
+
+
+@api.get("/auth/discord/status")
+async def discord_status():
+    return {
+        "configured": discord_auth.is_configured(),
+        "signup_xp_bonus": DISCORD_SIGNUP_XP_BONUS,
+        "signup_badge_id": DISCORD_SIGNUP_BADGE_ID,
+    }
+
+
 @api.get("/auth/discord/url")
 async def discord_url():
     if not discord_auth.is_configured():
-        raise HTTPException(503, "Discord OAuth non configuré côté serveur")
+        raise HTTPException(503, detail={"code": "not_configured", "message": "Discord OAuth non configuré côté serveur"})
     return {"url": discord_auth.build_authorize_url()}
 
 
 @api.post("/auth/discord/exchange")
-async def discord_exchange(payload: dict, response: Response):
-    code = payload.get("code")
-    if not code:
-        raise HTTPException(400, "Code manquant")
+async def discord_exchange(req: DiscordExchangeReq, response: Response):
     try:
-        profile = await discord_auth.exchange_code(code)
+        profile = await discord_auth.exchange_code(req.code)
+    except discord_auth.DiscordAuthError as e:
+        raise HTTPException(e.status, detail={"code": e.code, "message": e.message})
     except Exception as e:
-        raise HTTPException(401, f"Échec Discord OAuth: {str(e)[:120]}")
+        logger.exception("Discord OAuth unexpected error")
+        raise HTTPException(500, detail={"code": "internal_error", "message": f"Échec Discord OAuth: {str(e)[:120]}"})
 
     email = profile["email"].lower()
-    existing = await db.users.find_one({"$or": [{"email": email}, {"discord_id": profile["discord_id"]}]})
+    discord_id = profile["discord_id"]
+    by_discord = await db.users.find_one({"discord_id": discord_id})
+    by_email = await db.users.find_one({"email": email})
+
+    if by_discord and by_email and by_discord["user_id"] != by_email["user_id"]:
+        raise HTTPException(
+            409,
+            detail={
+                "code": "discord_account_conflict",
+                "message": "Ce compte Discord est déjà lié à un autre profil NEXORIA",
+            },
+        )
+
+    existing = by_discord or by_email
+    is_new_account = False
+    xp_bonus = 0
+    badge_granted = False
+    discord_linked = False
+
     if existing:
-        # Reject banned user before creating session
         enforce_ban_or_raise(existing)
-        user = existing
+        user_id = existing["user_id"]
+        patch = _discord_profile_fields(profile)
+        if _avatar_should_sync_from_discord(existing, profile):
+            patch["avatar_url"] = profile.get("discord_avatar_url")
         if not existing.get("discord_id"):
-            await db.users.update_one({"user_id": existing["user_id"]}, {"$set": {"discord_id": profile["discord_id"]}})
+            discord_linked = True
+            patch["auth_provider"] = existing.get("auth_provider") or "discord"
+        await db.users.update_one({"user_id": user_id}, {"$set": patch})
+        user = await db.users.find_one({"user_id": user_id})
+        if discord_linked:
+            badge_granted = await grant_badge(user_id, DISCORD_SIGNUP_BADGE_ID)
+        await add_chronicle(user_id, "Connexion via Discord", "login")
     else:
+        is_new_account = True
         user_id = generate_user_id()
         username = profile["username"].replace(" ", "") or f"Heros{uuid.uuid4().hex[:6]}"
         base = username
@@ -1635,26 +2990,50 @@ async def discord_exchange(payload: dict, response: Response):
             username = f"{base}{i}"
         cls = CLASSES["explorer"]
         user = {
-            "user_id": user_id, "email": email, "username": username,
+            "user_id": user_id,
+            "email": email,
+            "username": username,
             "password_hash": None,
-            "discord_id": profile["discord_id"],
-            "class_id": "explorer", "class_name": cls["name"],
+            **{k: v for k, v in _discord_profile_fields(profile).items()},
+            "class_id": "explorer",
+            "class_name": cls["name"],
             "secondary_class_id": None,
-            "avatar_url": profile.get("avatar_url"), "banner_url": None,
-            "bio": "", "story": "", "quote": "",
-            "level": 1, "xp": 0, "rank": "Novice",
-            "reputation": 0, "aether": 100, "skill_points": 1,
+            "avatar_url": profile.get("discord_avatar_url"),
+            "banner_url": None,
+            "bio": "",
+            "story": "",
+            "quote": "",
+            "level": 1,
+            "xp": 0,
+            "rank": "Novice",
+            "reputation": 0,
+            "aether": 100,
+            "skill_points": 1,
             "active_title": "novice",
-            "role": "admin" if email == os.environ.get("ADMIN_EMAIL", "").lower() else "user",
+            "role": "admin" if username == OWNER_USERNAME else "user",
             "auth_provider": "discord",
             "created_at": now_utc().isoformat(),
-            "dna": {"creativity": 15, "ambition": 10, "sociability": 10, "curiosity": 13, "persistence": 10, "influence": 10},
+            "dna": {
+                "creativity": 15,
+                "ambition": 10,
+                "sociability": 10,
+                "curiosity": 13,
+                "persistence": 10,
+                "influence": 10,
+            },
             "kingdom": {b["id"]: {"level": 1 if b["id"] == "castle" else 0} for b in KINGDOM_BUILDINGS},
-            "skills_allocated": {}, "followers": 0, "following": 0,
+            "skills_allocated": {},
+            "followers": 0,
+            "following": 0,
             "needs_class_selection": True,
         }
         await db.users.insert_one(user)
         await add_chronicle(user_id, f"Le héros {username} a rejoint NEXORIA via Discord", "creation")
+        if DISCORD_SIGNUP_XP_BONUS > 0:
+            await grant_xp(user_id, DISCORD_SIGNUP_XP_BONUS, "Inscription via Discord")
+            xp_bonus = DISCORD_SIGNUP_XP_BONUS
+        badge_granted = await grant_badge(user_id, DISCORD_SIGNUP_BADGE_ID)
+        user = await db.users.find_one({"user_id": user_id})
 
     token = create_session_token()
     await db.user_sessions.insert_one({
@@ -1662,17 +3041,51 @@ async def discord_exchange(payload: dict, response: Response):
         "user_id": user["user_id"],
         "expires_at": session_expiry().isoformat(),
         "created_at": now_utc().isoformat(),
+        "last_activity_at": now_utc().isoformat(),
         "provider": "discord",
     })
     set_session_cookie(response, token)
-    # Fire-and-forget Discord role sync after successful Discord login.
+    await touch_user_last_seen(user["user_id"])
+    await maybe_process_daily_login(user["user_id"])
     discord_sync.schedule_sync(db, user["user_id"])
-    asyncio.create_task(discord_sync.post_notification(
-        f"🪄 **{user['username']}** vient de lier son Discord à NEXORIA"
-    ))
-    result = public_user(user)
+    if is_new_account:
+        discord_auth_forum.schedule_auth_event("register", user)
+    else:
+        discord_auth_forum.schedule_auth_event("login", user)
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    result = public_user(fresh or user)
     result["session_token"] = token
+    result["auth_meta"] = {
+        "is_new_account": is_new_account,
+        "discord_linked": discord_linked or is_new_account,
+        "xp_bonus": xp_bonus,
+        "badge_granted": badge_granted,
+        "badge_id": DISCORD_SIGNUP_BADGE_ID if badge_granted else None,
+    }
     return result
+
+
+@api.delete("/auth/discord/unlink")
+async def discord_unlink(user: dict = Depends(get_user_dep)):
+    """Remove Discord link from the NEXORIA profile (does not delete the account)."""
+    if not user.get("discord_id"):
+        raise HTTPException(400, detail={"code": "not_linked", "message": "Aucun compte Discord lié"})
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {
+            "$unset": {
+                "discord_id": "",
+                "discord_username": "",
+                "discord_global_name": "",
+                "discord_guild_nick": "",
+                "discord_avatar_url": "",
+                "discord_profile_synced_at": "",
+            }
+        },
+    )
+    await add_chronicle(user["user_id"], "Compte Discord délié", "settings")
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    return public_user(fresh or user)
 
 
 # ---------- Staff Chat & Broadcasts ----------
@@ -1683,7 +3096,9 @@ class StaffMsgReq(BaseModel):
 class BroadcastReq(BaseModel):
     title: str
     message: str
-    sound: str = "fanfare"  # fanfare | horn | bell
+    sound: str = "fanfare"  # fanfare | horn | bell | war | trumpet | chime | drum
+
+VALID_BROADCAST_SOUNDS = {"fanfare", "horn", "bell", "war", "trumpet", "chime", "drum", "ding"}
 
 
 @api.get("/staff/chat")
@@ -1695,15 +3110,42 @@ async def staff_chat_list(user: dict = Depends(get_staff_dep)):
 
 @api.post("/staff/chat")
 async def staff_chat_post(req: StaffMsgReq, user: dict = Depends(get_staff_dep)):
-    if not req.content.strip():
+    content = req.content.strip()
+    if not content:
         raise HTTPException(400, "Message vide")
+    # Slash commands
+    if content.startswith("/"):
+        parts = content.split(maxsplit=1)
+        cmd = parts[0].lower()
+        arg = parts[1].strip() if len(parts) > 1 else ""
+        if cmd in ("/delete", "/del", "/supprimer"):
+            if not arg:
+                raise HTTPException(400, "Usage: /delete <id_message>")
+            target = await db.staff_chat.find_one({"msg_id": {"$regex": f"^{re.escape(arg)}"}}, {"_id": 0})
+            if not target:
+                raise HTTPException(404, "Message introuvable")
+            if target["author_id"] != user["user_id"] and user.get("role") != "admin":
+                raise HTTPException(403, "Seul l'auteur ou un admin peut supprimer")
+            await db.staff_chat.delete_one({"msg_id": target["msg_id"]})
+            return {"ok": True, "deleted": target["msg_id"]}
+        if cmd == "/help":
+            help_doc = {
+                "msg_id": f"smsg_{uuid.uuid4().hex[:12]}",
+                "author_id": "system", "author_username": "Système", "author_role": "admin",
+                "content": "Commandes: /delete <id> · Émotes: :sword: :shield: :crown: :fire: :star: :heart:",
+                "created_at": now_utc().isoformat(), "system": True,
+            }
+            await db.staff_chat.insert_one(help_doc)
+            help_doc.pop("_id", None)
+            return help_doc
+        raise HTTPException(400, "Commande inconnue — tapez /help")
     doc = {
         "msg_id": f"smsg_{uuid.uuid4().hex[:12]}",
         "author_id": user["user_id"],
         "author_username": user["username"],
         "author_role": user["role"],
         "author_avatar": user.get("avatar_url"),
-        "content": req.content.strip()[:1000],
+        "content": content[:1000],
         "created_at": now_utc().isoformat(),
     }
     await db.staff_chat.insert_one(doc)
@@ -1714,22 +3156,205 @@ async def staff_chat_post(req: StaffMsgReq, user: dict = Depends(get_staff_dep))
 @api.post("/admin/broadcast")
 async def broadcast_alert(req: BroadcastReq, user: dict = Depends(get_admin_dep)):
     """Push an alert visible to ALL connected users with sound."""
+    sound = req.sound if req.sound in VALID_BROADCAST_SOUNDS else "fanfare"
     doc = {
         "alert_id": f"alert_{uuid.uuid4().hex[:12]}",
         "title": req.title[:120],
         "message": req.message[:500],
-        "sound": req.sound,
+        "sound": sound,
         "issued_by": user["username"],
         "created_at": now_utc().isoformat(),
         "expires_at": (now_utc() + timedelta(minutes=10)).isoformat(),
+        "kind": "broadcast",
     }
     await db.broadcasts.insert_one(doc)
     doc.pop("_id", None)
     # Also push to each user's notification feed
     cursor = db.users.find({}, {"user_id": 1, "_id": 0})
     async for u in cursor:
-        await push_notification(db, u["user_id"], "broadcast", req.title, req.message, req.sound, "Megaphone")
+        await push_notification(db, u["user_id"], "broadcast", req.title, req.message, sound, "Megaphone")
     return doc
+
+
+class NewsCreateReq(BaseModel):
+    title: str
+    content: str = ""
+    content_html: Optional[str] = None
+    category: str = "announce"
+    image_url: Optional[str] = None
+    featured: bool = True
+    published: bool = True
+
+
+class NewsUpdateReq(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    content_html: Optional[str] = None
+    category: Optional[str] = None
+    image_url: Optional[str] = None
+    featured: Optional[bool] = None
+    published: Optional[bool] = None
+
+
+NEWS_CATEGORIES = {"event", "update", "community", "announce"}
+
+
+@api.get("/news")
+async def public_news(limit: int = 12, featured_only: bool = False):
+    q = {"published": True}
+    if featured_only:
+        q["featured"] = True
+    items = await db.news.find(q, {"_id": 0}).sort("created_at", -1).limit(min(limit, 30)).to_list(min(limit, 30))
+    return items
+
+
+@api.get("/news/{news_id}")
+async def public_news_article(news_id: str):
+    doc = await db.news.find_one({"news_id": news_id, "published": True}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Article introuvable")
+    return doc
+
+
+class NewsCommentReq(BaseModel):
+    content: str
+
+
+@api.get("/news/{news_id}/comments")
+async def list_news_comments(news_id: str, user: dict = Depends(get_user_dep)):
+    article = await db.news.find_one({"news_id": news_id, "published": True})
+    if not article:
+        raise HTTPException(404, "Article introuvable")
+    comments = await db.news_comments.find(
+        {"news_id": news_id, "hidden": {"$ne": True}},
+        {"_id": 0},
+    ).sort("created_at", 1).limit(200).to_list(200)
+    return comments
+
+
+@api.post("/news/{news_id}/comments")
+async def post_news_comment(news_id: str, req: NewsCommentReq, user: dict = Depends(get_user_dep)):
+    article = await db.news.find_one({"news_id": news_id, "published": True})
+    if not article:
+        raise HTTPException(404, "Article introuvable")
+    content = (req.content or "").strip()
+    if len(content) < 2 or len(content) > 800:
+        raise HTTPException(400, "Commentaire 2-800 caractères")
+    today = now_utc().date().isoformat()
+    daily = await db.news_comments.count_documents({
+        "user_id": user["user_id"],
+        "created_at": {"$gte": f"{today}T00:00:00"},
+    })
+    if daily >= 20:
+        raise HTTPException(429, "Limite de commentaires quotidienne atteinte")
+    doc = {
+        "comment_id": f"nc_{uuid.uuid4().hex[:12]}",
+        "news_id": news_id,
+        "user_id": user["user_id"],
+        "username": user["username"],
+        "avatar_url": user.get("avatar_url"),
+        "role": user.get("role", "user"),
+        "content": content,
+        "hidden": False,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.news_comments.insert_one(doc)
+    doc.pop("_id", None)
+    await grant_xp(user["user_id"], 15, "news_comment")
+    total = await db.news_comments.count_documents({"user_id": user["user_id"]})
+    if total == 1:
+        await grant_badge(user["user_id"], "news_scribe")
+    if total >= 25:
+        await grant_badge(user["user_id"], "news_sage")
+    if total >= 100:
+        await grant_badge(user["user_id"], "news_herald")
+    return doc
+
+
+@api.delete("/news/comments/{comment_id}")
+async def delete_news_comment(comment_id: str, user: dict = Depends(get_user_dep)):
+    c = await db.news_comments.find_one({"comment_id": comment_id})
+    if not c:
+        raise HTTPException(404, "Commentaire introuvable")
+    is_staff = user.get("role") in ("admin", "moderator")
+    if c["user_id"] != user["user_id"] and not is_staff:
+        raise HTTPException(403, "Action interdite")
+    await db.news_comments.update_one(
+        {"comment_id": comment_id},
+        {"$set": {"hidden": True, "moderated_by": user["username"], "moderated_at": now_utc().isoformat()}},
+    )
+    return {"ok": True}
+
+
+@api.get("/admin/news")
+async def admin_list_news(user: dict = Depends(get_staff_dep)):
+    items = await db.news.find({}, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
+    return items
+
+
+@api.post("/admin/news")
+async def admin_create_news(req: NewsCreateReq, user: dict = Depends(get_admin_dep)):
+    cat = req.category if req.category in NEWS_CATEGORIES else "announce"
+    content_html = sanitize_maintenance_html(req.content_html or req.content or "", max_len=12000)
+    plain = strip_forum_plain(content_html) or (req.content or "").strip()
+    if not req.title.strip() or len(plain) < 2:
+        raise HTTPException(400, "Titre et contenu requis")
+    doc = {
+        "news_id": f"news_{uuid.uuid4().hex[:12]}",
+        "title": req.title.strip()[:160],
+        "content": plain[:2000],
+        "content_html": content_html,
+        "category": cat,
+        "image_url": (req.image_url or "").strip()[:512] or None,
+        "featured": req.featured,
+        "published": req.published,
+        "author": user["username"],
+        "created_at": now_utc().isoformat(),
+    }
+    await db.news.insert_one(doc)
+    doc.pop("_id", None)
+    if req.published and req.featured:
+        alert = {
+            "alert_id": f"news_{doc['news_id']}",
+            "title": doc["title"],
+            "message": doc["content"][:500],
+            "sound": "chime",
+            "issued_by": user["username"],
+            "created_at": doc["created_at"],
+            "expires_at": (now_utc() + timedelta(minutes=30)).isoformat(),
+            "kind": "news",
+        }
+        await db.broadcasts.insert_one(alert)
+    return doc
+
+
+@api.put("/admin/news/{news_id}")
+async def admin_update_news(news_id: str, req: NewsUpdateReq, user: dict = Depends(get_admin_dep)):
+    existing = await db.news.find_one({"news_id": news_id})
+    if not existing:
+        raise HTTPException(404, "Article introuvable")
+    patch = {k: v for k, v in req.model_dump().items() if v is not None}
+    if "category" in patch and patch["category"] not in NEWS_CATEGORIES:
+        raise HTTPException(400, "Catégorie invalide")
+    if patch:
+        if "content_html" in patch or "content" in patch:
+            raw_html = patch.get("content_html") or patch.get("content") or existing.get("content_html") or existing.get("content", "")
+            content_html = sanitize_maintenance_html(raw_html, max_len=12000)
+            plain = strip_forum_plain(content_html)
+            patch["content_html"] = content_html
+            patch["content"] = plain[:2000]
+        patch["updated_at"] = now_utc().isoformat()
+        await db.news.update_one({"news_id": news_id}, {"$set": patch})
+    doc = await db.news.find_one({"news_id": news_id}, {"_id": 0})
+    return doc
+
+
+@api.delete("/admin/news/{news_id}")
+async def admin_delete_news(news_id: str, user: dict = Depends(get_admin_dep)):
+    r = await db.news.delete_one({"news_id": news_id})
+    if r.deleted_count == 0:
+        raise HTTPException(404, "Article introuvable")
+    return {"ok": True}
 
 
 @api.get("/broadcasts/active")
@@ -1807,9 +3432,16 @@ async def world_heroes():
         "_id": 0, "user_id": 1, "username": 1, "class_id": 1, "class_name": 1,
         "level": 1, "rank": 1, "avatar_url": 1, "active_title": 1, "role": 1,
     }).to_list(500)
-    # active = had a session in last 15 minutes
-    cutoff = (now_utc() - timedelta(minutes=15)).isoformat()
-    active_sessions = await db.user_sessions.distinct("user_id", {"created_at": {"$gte": cutoff}})
+    # active = valid session with recent activity (5 min)
+    cutoff = (now_utc() - timedelta(minutes=5)).isoformat()
+    now_iso = now_utc().isoformat()
+    active_sessions = await db.user_sessions.distinct("user_id", {
+        "expires_at": {"$gt": now_iso},
+        "$or": [
+            {"last_activity_at": {"$gt": cutoff}},
+            {"last_activity_at": {"$exists": False}, "created_at": {"$gt": cutoff}},
+        ],
+    })
     active_set = set(active_sessions)
     for u in users:
         u["online"] = u["user_id"] in active_set
@@ -1872,7 +3504,7 @@ async def create_guild(req: GuildCreateReq, user: dict = Depends(get_user_dep)):
         "joined_at": now_utc().isoformat(),
         "contribution_xp": 0,
     })
-    await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": -GUILD_CREATE_COST}})
+    await spend_aether(user["user_id"], GUILD_CREATE_COST, "guild_create")
     await add_chronicle(user["user_id"], f"A fondé l'ordre « {name} » [{tag}]", "guild")
     await grant_badge(user["user_id"], "founder_guild")
     guild.pop("_id", None)
@@ -1921,7 +3553,7 @@ def _guild_role_required(membership: dict, allowed: tuple):
 async def invite_to_guild(guild_id: str, req: GuildInviteReq, user: dict = Depends(get_user_dep)):
     membership = await db.guild_members.find_one({"user_id": user["user_id"], "guild_id": guild_id})
     _guild_role_required(membership, ("chef", "officier"))
-    target = await db.users.find_one({"username": req.target_username}, {"_id": 0, "user_id": 1, "username": 1})
+    target = await find_user_by_username(req.target_username, {"user_id": 1, "username": 1})
     if not target:
         raise HTTPException(404, "Héros introuvable")
     if await db.guild_members.find_one({"user_id": target["user_id"]}):
@@ -2065,6 +3697,7 @@ async def post_guild_chat(guild_id: str, req: GuildChatReq, user: dict = Depends
         "content": content, "created_at": now_utc().isoformat(),
     }
     await db.guild_chat.insert_one(msg)
+    await progress_quests(user["user_id"], "guild_chat", 1)
     msg.pop("_id", None)
     return msg
 
@@ -2082,7 +3715,8 @@ async def deposit_vault(guild_id: str, req: GuildVaultReq, user: dict = Depends(
     fresh = await db.users.find_one({"user_id": user["user_id"]})
     if fresh.get("aether", 0) < req.amount:
         raise HTTPException(400, "Aether insuffisant")
-    await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": -req.amount}})
+    g = await db.guilds.find_one({"guild_id": guild_id})
+    await spend_aether(user["user_id"], req.amount, f"Dépôt au coffre — {g['name']}")
     await db.guilds.update_one({"guild_id": guild_id}, {"$inc": {"vault_aether": req.amount, "xp": req.amount // 10}})
     await db.guild_members.update_one({"guild_id": guild_id, "user_id": user["user_id"]}, {"$inc": {"contribution_xp": req.amount}})
     g = await db.guilds.find_one({"guild_id": guild_id})
@@ -2102,7 +3736,7 @@ async def withdraw_vault(guild_id: str, target_user_id: str, req: GuildVaultReq,
     if g.get("vault_aether", 0) < req.amount or req.amount < 1:
         raise HTTPException(400, "Coffre insuffisant")
     await db.guilds.update_one({"guild_id": guild_id}, {"$inc": {"vault_aether": -req.amount}})
-    await db.users.update_one({"user_id": target_user_id}, {"$inc": {"aether": req.amount}})
+    await grant_aether(target_user_id, req.amount, f"Récompense de guilde — {g['name']}")
     await push_notification(db, target_user_id, "guild_reward",
         f"Récompense de l'ordre « {g['name']} »", f"+{req.amount} Aether", "coin", "Coins")
     return {"ok": True}
@@ -2121,14 +3755,87 @@ FORUM_CATEGORIES = [
 ]
 
 
+def strip_forum_plain(raw: str) -> str:
+    if not raw:
+        return ""
+    text = re.sub(r"<br\s*/?>", "\n", str(raw), flags=re.I)
+    text = re.sub(r"<[^>]+>", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _forum_until_active(until_val) -> tuple[bool, str | None]:
+    if not until_val:
+        return False, None
+    try:
+        bu = datetime.fromisoformat(until_val) if isinstance(until_val, str) else until_val
+    except ValueError:
+        return False, None
+    if bu.tzinfo is None:
+        bu = bu.replace(tzinfo=timezone.utc)
+    if bu > datetime.now(timezone.utc):
+        return True, bu.isoformat()
+    return False, None
+
+
+def get_forum_ban_detail(user: dict) -> dict | None:
+    active, until = _forum_until_active(user.get("forum_banned_until"))
+    if not active:
+        return None
+    return {
+        "forum_banned": True,
+        "reason": user.get("forum_ban_reason", "Comportement inapproprié sur le forum"),
+        "until": until,
+    }
+
+
+def get_forum_mute_detail(user: dict) -> dict | None:
+    active, until = _forum_until_active(user.get("forum_muted_until"))
+    if not active:
+        return None
+    return {
+        "forum_muted": True,
+        "reason": user.get("forum_mute_reason", "Restriction temporaire du forum"),
+        "until": until,
+    }
+
+
+def enforce_forum_access(user: dict):
+    """Bloque tout accès au forum (lecture + écriture). Distinct du ban site."""
+    detail = get_forum_ban_detail(user)
+    if detail:
+        raise HTTPException(status_code=403, detail=detail)
+
+
+def enforce_forum_post(user: dict):
+    """Empêche de poster — le forum reste lisible si seulement muté."""
+    enforce_forum_access(user)
+    detail = get_forum_mute_detail(user)
+    if detail:
+        raise HTTPException(status_code=403, detail=detail)
+
+
 class ForumThreadReq(BaseModel):
     category: str
     title: str
     content: str
+    content_html: Optional[str] = None
+
+
+@api.get("/forum/access-status")
+async def forum_access_status(user: dict = Depends(get_user_dep)):
+    """État d'accès forum — distinct du ban site global."""
+    ban = get_forum_ban_detail(user)
+    if ban:
+        return ban
+    mute = get_forum_mute_detail(user)
+    if mute:
+        return {**mute, "forum_banned": False}
+    return {"forum_banned": False, "forum_muted": False}
 
 
 @api.get("/forum/categories")
-async def list_forum_categories():
+async def list_forum_categories(user: dict = Depends(get_user_dep)):
+    enforce_forum_access(user)
     cats = []
     for c in FORUM_CATEGORIES:
         thread_count = await db.forum_threads.count_documents({"category": c["id"]})
@@ -2139,6 +3846,7 @@ async def list_forum_categories():
 
 @api.get("/forum/threads")
 async def list_forum_threads(category: str, user: dict = Depends(get_user_dep)):
+    enforce_forum_access(user)
     if not any(c["id"] == category for c in FORUM_CATEGORIES):
         raise HTTPException(404, "Catégorie introuvable")
     threads = await db.forum_threads.find({"category": category}, {"_id": 0}) \
@@ -2154,24 +3862,28 @@ async def list_forum_threads(category: str, user: dict = Depends(get_user_dep)):
 
 @api.post("/forum/threads")
 async def create_forum_thread(req: ForumThreadReq, user: dict = Depends(get_user_dep)):
+    enforce_forum_post(user)
     if not any(c["id"] == req.category for c in FORUM_CATEGORIES):
         raise HTTPException(404, "Catégorie introuvable")
     title = req.title.strip()
-    content = req.content.strip()
+    content_html = sanitize_maintenance_html(req.content_html or req.content or "", max_len=12000)
+    plain = strip_forum_plain(content_html) or req.content.strip()
     if len(title) < 5 or len(title) > 120:
         raise HTTPException(400, "Titre 5-120 caractères")
-    if len(content) < 10 or len(content) > 5000:
+    if len(plain) < 10 or len(plain) > 5000:
         raise HTTPException(400, "Message 10-5000 caractères")
     thread_id = f"thr_{uuid.uuid4().hex[:12]}"
     now_iso = now_utc().isoformat()
     thread = {
         "thread_id": thread_id, "category": req.category,
-        "user_id": user["user_id"], "title": title, "content": content,
+        "user_id": user["user_id"], "title": title,
+        "content": plain, "content_html": content_html,
         "replies_count": 0, "views": 0,
         "pinned": False, "locked": False,
         "created_at": now_iso, "last_activity_at": now_iso,
     }
     await db.forum_threads.insert_one(thread)
+    await progress_quests(user["user_id"], "forum_thread", 1)
     await grant_xp(user["user_id"], 30, "forum_thread")
     await add_chronicle(user["user_id"], f"A ouvert le débat « {title} »", "forum")
     await grant_badge(user["user_id"], "scholar")
@@ -2181,6 +3893,7 @@ async def create_forum_thread(req: ForumThreadReq, user: dict = Depends(get_user
 
 @api.get("/forum/threads/{thread_id}")
 async def get_forum_thread(thread_id: str, user: dict = Depends(get_user_dep)):
+    enforce_forum_access(user)
     thread = await db.forum_threads.find_one({"thread_id": thread_id}, {"_id": 0})
     if not thread:
         raise HTTPException(404, "Sujet introuvable")
@@ -2200,26 +3913,31 @@ async def get_forum_thread(thread_id: str, user: dict = Depends(get_user_dep)):
 
 class ForumReplyReq(BaseModel):
     content: str
+    content_html: Optional[str] = None
 
 
 @api.post("/forum/threads/{thread_id}/replies")
 async def reply_thread(thread_id: str, req: ForumReplyReq, user: dict = Depends(get_user_dep)):
+    enforce_forum_post(user)
     thread = await db.forum_threads.find_one({"thread_id": thread_id})
     if not thread:
         raise HTTPException(404, "Sujet introuvable")
     if thread.get("locked"):
         raise HTTPException(403, "Sujet verrouillé")
-    content = req.content.strip()
-    if len(content) < 2 or len(content) > 2000:
+    content_html = sanitize_maintenance_html(req.content_html or req.content or "", max_len=4000)
+    plain = strip_forum_plain(content_html) or req.content.strip()
+    if len(plain) < 2 or len(plain) > 2000:
         raise HTTPException(400, "Message 2-2000 caractères")
     reply = {
         "reply_id": f"rpl_{uuid.uuid4().hex[:12]}",
         "thread_id": thread_id, "user_id": user["user_id"],
-        "content": content, "created_at": now_utc().isoformat(),
+        "content": plain, "content_html": content_html,
+        "created_at": now_utc().isoformat(),
     }
     await db.forum_replies.insert_one(reply)
     await db.forum_threads.update_one({"thread_id": thread_id},
         {"$inc": {"replies_count": 1}, "$set": {"last_activity_at": now_utc().isoformat()}})
+    await progress_quests(user["user_id"], "forum_reply", 1)
     await grant_xp(user["user_id"], 10, "forum_reply")
     if thread["user_id"] != user["user_id"]:
         await push_notification(db, thread["user_id"], "forum_reply",
@@ -2257,6 +3975,264 @@ async def lock_thread(thread_id: str, user: dict = Depends(get_staff_dep)):
     if not thread:
         raise HTTPException(404, "Sujet introuvable")
     await db.forum_threads.update_one({"thread_id": thread_id}, {"$set": {"locked": not thread.get("locked", False)}})
+    return {"ok": True}
+
+
+@api.get("/forum/recent")
+async def forum_recent(limit: int = 8, user: dict = Depends(get_user_dep)):
+    enforce_forum_access(user)
+    limit = max(1, min(limit, 20))
+    threads = await db.forum_threads.find(
+        {},
+        {"_id": 0, "thread_id": 1, "category": 1, "title": 1, "last_activity_at": 1, "replies_count": 1, "views": 1},
+    ).sort("last_activity_at", -1).limit(limit).to_list(limit)
+    return threads
+
+
+@api.get("/admin/pulse")
+async def admin_pulse(user: dict = Depends(get_staff_dep)):
+    from datetime import timedelta
+    now = now_utc()
+    week_ago = (now - timedelta(days=7)).isoformat()
+    day_ago = (now - timedelta(days=1)).isoformat()
+    enabled, _ = await is_maintenance_active()
+    online_open = await is_online_open()
+    open_tickets = await db.tickets.count_documents({"status": {"$ne": "closed"}})
+    open_reports = await db.reports.count_documents({"status": "open"})
+    banned = await db.users.count_documents({"banned_until": {"$gt": now.isoformat()}})
+    return {
+        "maintenance_enabled": enabled,
+        "online_open": online_open,
+        "open_tickets": open_tickets,
+        "open_reports": open_reports,
+        "banned_users": banned,
+        "new_users_week": await db.users.count_documents({"created_at": {"$gte": week_ago}}),
+        "forum_threads": await db.forum_threads.count_documents({}),
+        "forum_replies": await db.forum_replies.count_documents({}),
+        "threads_today": await db.forum_threads.count_documents({"created_at": {"$gte": day_ago}}),
+        "replies_today": await db.forum_replies.count_documents({"created_at": {"$gte": day_ago}}),
+        "active_sessions": await count_site_online(),
+    }
+
+
+class ForumThreadEditReq(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    content_html: Optional[str] = None
+
+
+@api.put("/forum/threads/{thread_id}")
+async def edit_forum_thread(thread_id: str, req: ForumThreadEditReq, user: dict = Depends(get_staff_dep)):
+    thread = await db.forum_threads.find_one({"thread_id": thread_id})
+    if not thread:
+        raise HTTPException(404, "Sujet introuvable")
+    title = (req.title or thread.get("title", "")).strip()
+    content_html = sanitize_maintenance_html(req.content_html or req.content or thread.get("content_html") or thread.get("content", ""), max_len=12000)
+    plain = strip_forum_plain(content_html)
+    if len(title) < 5 or len(title) > 120:
+        raise HTTPException(400, "Titre 5-120 caractères")
+    if len(plain) < 10:
+        raise HTTPException(400, "Message trop court")
+    await db.forum_threads.update_one(
+        {"thread_id": thread_id},
+        {"$set": {"title": title, "content": plain, "content_html": content_html, "edited_at": now_utc().isoformat(), "edited_by": user["user_id"]}},
+    )
+    return {"ok": True}
+
+
+class ForumReplyEditReq(BaseModel):
+    content: str
+    content_html: Optional[str] = None
+
+
+@api.put("/forum/replies/{reply_id}")
+async def edit_forum_reply(reply_id: str, req: ForumReplyEditReq, user: dict = Depends(get_staff_dep)):
+    reply = await db.forum_replies.find_one({"reply_id": reply_id})
+    if not reply:
+        raise HTTPException(404, "Réponse introuvable")
+    content_html = sanitize_maintenance_html(req.content_html or req.content or "", max_len=4000)
+    plain = strip_forum_plain(content_html) or req.content.strip()
+    if len(plain) < 2:
+        raise HTTPException(400, "Message trop court")
+    await db.forum_replies.update_one(
+        {"reply_id": reply_id},
+        {"$set": {"content": plain, "content_html": content_html, "edited_at": now_utc().isoformat(), "edited_by": user["user_id"]}},
+    )
+    return {"ok": True}
+
+
+@api.get("/admin/forum/search-user")
+async def admin_forum_search_user(q: str, user: dict = Depends(get_staff_dep)):
+    q = (q or "").strip()
+    if len(q) < 2:
+        raise HTTPException(400, "Recherche trop courte")
+    doc = await db.users.find_one(
+        {"username": {"$regex": q, "$options": "i"}},
+        {
+            "_id": 0, "user_id": 1, "username": 1, "role": 1, "level": 1,
+            "forum_banned_until": 1, "forum_ban_reason": 1,
+            "forum_muted_until": 1, "forum_mute_reason": 1,
+            "banned_until": 1, "ban_reason": 1,
+        },
+    )
+    if not doc:
+        raise HTTPException(404, "Héros introuvable")
+    return doc
+
+
+@api.get("/admin/forum/threads")
+async def admin_forum_threads(user: dict = Depends(get_staff_dep)):
+    threads = await db.forum_threads.find({}, {"_id": 0}).sort("last_activity_at", -1).limit(80).to_list(80)
+    user_ids = list({t["user_id"] for t in threads})
+    udocs = await db.users.find(
+        {"user_id": {"$in": user_ids}},
+        {"_id": 0, "user_id": 1, "username": 1, "role": 1, "level": 1, "forum_muted_until": 1, "forum_banned_until": 1},
+    ).to_list(100)
+    umap = {u["user_id"]: u for u in udocs}
+    cat_map = {c["id"]: c["name"] for c in FORUM_CATEGORIES}
+    for t in threads:
+        t["author"] = umap.get(t["user_id"], {})
+        t["category_name"] = cat_map.get(t["category"], t["category"])
+    return threads
+
+
+@api.delete("/forum/replies/{reply_id}")
+async def delete_forum_reply(reply_id: str, user: dict = Depends(get_user_dep)):
+    reply = await db.forum_replies.find_one({"reply_id": reply_id})
+    if not reply:
+        raise HTTPException(404, "Réponse introuvable")
+    is_staff = user.get("role") in ("admin", "moderator")
+    if not is_staff and reply["user_id"] != user["user_id"]:
+        raise HTTPException(403, "Action interdite")
+    await db.forum_replies.delete_one({"reply_id": reply_id})
+    await db.forum_threads.update_one(
+        {"thread_id": reply["thread_id"]},
+        {"$inc": {"replies_count": -1}},
+    )
+    return {"ok": True}
+
+
+class ForumCleanupReq(BaseModel):
+    mode: str  # stale_zero | older_than | orphan_replies
+    days: int = 30
+    confirm: str = ""
+
+
+@api.post("/admin/forum/cleanup")
+async def admin_forum_cleanup(req: ForumCleanupReq, user: dict = Depends(get_admin_dep)):
+    """Purge forum content — destructive, admin only."""
+    if req.confirm.strip().upper() != "NETTOYER":
+        raise HTTPException(400, 'Tapez « NETTOYER » pour confirmer')
+    cutoff = (now_utc() - timedelta(days=max(1, min(req.days, 3650)))).isoformat()
+    deleted_threads = 0
+    deleted_replies = 0
+
+    if req.mode == "stale_zero":
+        stale = await db.forum_threads.find(
+            {"replies_count": {"$lte": 0}, "created_at": {"$lt": cutoff}},
+            {"thread_id": 1, "_id": 0},
+        ).to_list(5000)
+        for t in stale:
+            await db.forum_replies.delete_many({"thread_id": t["thread_id"]})
+            await db.forum_threads.delete_one({"thread_id": t["thread_id"]})
+            deleted_threads += 1
+    elif req.mode == "older_than":
+        old = await db.forum_threads.find(
+            {"created_at": {"$lt": cutoff}},
+            {"thread_id": 1, "_id": 0},
+        ).to_list(10000)
+        for t in old:
+            r = await db.forum_replies.delete_many({"thread_id": t["thread_id"]})
+            deleted_replies += r.deleted_count
+            await db.forum_threads.delete_one({"thread_id": t["thread_id"]})
+            deleted_threads += 1
+    elif req.mode == "orphan_replies":
+        thread_ids = {t["thread_id"] for t in await db.forum_threads.find({}, {"thread_id": 1, "_id": 0}).to_list(50000)}
+        orphans = await db.forum_replies.find(
+            {"thread_id": {"$nin": list(thread_ids)}},
+            {"reply_id": 1, "_id": 0},
+        ).to_list(50000)
+        for reply in orphans:
+            await db.forum_replies.delete_one({"reply_id": reply["reply_id"]})
+            deleted_replies += 1
+    else:
+        raise HTTPException(400, "Mode invalide (stale_zero | older_than | orphan_replies)")
+
+    await add_chronicle(user["user_id"], f"Nettoyage forum ({req.mode}) — {deleted_threads} sujets, {deleted_replies} réponses", "admin")
+    return {
+        "ok": True,
+        "mode": req.mode,
+        "deleted_threads": deleted_threads,
+        "deleted_replies": deleted_replies,
+    }
+
+
+class ForumMuteReq(BaseModel):
+    duration_hours: int = 24
+    reason: str = "Comportement inapproprié sur le forum"
+
+
+@api.post("/forum/moderation/mute/{user_id}")
+async def forum_mute_user(user_id: str, req: ForumMuteReq, user: dict = Depends(get_staff_dep)):
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    if target.get("role") == "admin":
+        raise HTTPException(400, "Impossible de muter un admin")
+    if user.get("role") == "moderator" and target.get("role") in ("admin", "moderator"):
+        raise HTTPException(403, "Action interdite")
+    hours = max(1, min(req.duration_hours, 24 * 30))
+    muted_until = (now_utc() + timedelta(hours=hours)).isoformat()
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"forum_muted_until": muted_until, "forum_mute_reason": req.reason[:300]}},
+    )
+    await add_chronicle(user_id, f"Mute forum {hours}h par {user['username']}", "forum_mute")
+    return {"ok": True, "forum_muted_until": muted_until}
+
+
+@api.post("/forum/moderation/unmute/{user_id}")
+async def forum_unmute_user(user_id: str, user: dict = Depends(get_staff_dep)):
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$unset": {"forum_muted_until": "", "forum_mute_reason": ""}},
+    )
+    return {"ok": True}
+
+
+@api.post("/forum/moderation/ban/{user_id}")
+async def forum_ban_user(user_id: str, req: BanReq, user: dict = Depends(get_staff_dep)):
+    """Exclusion du forum uniquement — n'affecte PAS l'accès au site."""
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    if target.get("role") == "admin":
+        raise HTTPException(400, "Impossible d'exclure un admin du forum")
+    if user.get("role") == "moderator" and target.get("role") in ("admin", "moderator"):
+        raise HTTPException(403, "Action interdite")
+    hours = max(1, min(req.duration_hours, 24 * 365 * 10))
+    banned_until = (now_utc() + timedelta(hours=hours)).isoformat()
+    await db.users.update_one(
+        {"user_id": user_id},
+        {
+            "$set": {
+                "forum_banned_until": banned_until,
+                "forum_ban_reason": req.reason[:300],
+            },
+            "$unset": {"forum_muted_until": "", "forum_mute_reason": ""},
+        },
+    )
+    await add_chronicle(user_id, f"Exclu de la Tribune {hours}h par {user['username']}", "forum_ban")
+    return {"ok": True, "forum_banned_until": banned_until, "reason": req.reason[:300]}
+
+
+@api.post("/forum/moderation/unban/{user_id}")
+async def forum_unban_user(user_id: str, user: dict = Depends(get_staff_dep)):
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$unset": {"forum_banned_until": "", "forum_ban_reason": ""}},
+    )
+    await add_chronicle(user_id, f"Exclusion forum levée par {user['username']}", "forum_unban")
     return {"ok": True}
 
 
@@ -2311,10 +4287,21 @@ async def create_season(req: SeasonCreateReq, user: dict = Depends(get_admin_dep
     }
     await db.seasons.insert_one(season)
     season.pop("_id", None)
+    alert_doc = {
+        "alert_id": f"season_{season_id}",
+        "title": f"⚔ Nouvelle saison — {req.name}",
+        "message": req.description[:500] or f"La saison « {req.name} » est ouverte !",
+        "sound": "war",
+        "issued_by": user["username"],
+        "created_at": start.isoformat(),
+        "expires_at": (start + timedelta(minutes=30)).isoformat(),
+        "kind": "season",
+    }
+    await db.broadcasts.insert_one(alert_doc)
     all_users = await db.users.find({}, {"_id": 0, "user_id": 1}).to_list(5000)
     for u in all_users:
         await push_notification(db, u["user_id"], "season_start",
-            f"Saison « {req.name} » ouverte", req.description[:200], "ding", "Sparkles")
+            f"Saison « {req.name} » ouverte", req.description[:200], "war", "Sparkles")
     return season
 
 
@@ -2338,7 +4325,7 @@ async def end_season(season_id: str, user: dict = Depends(get_admin_dep)):
         elif rank <= 50:
             reward_aether = season["rewards"]["top_50"]["aether"]
         if reward_aether:
-            await db.users.update_one({"user_id": row["user_id"]}, {"$inc": {"aether": reward_aether}})
+            await grant_aether(row["user_id"], reward_aether, f"Récompense de saison (rang #{rank})")
             await push_notification(db, row["user_id"], "season_reward",
                 f"Récompense saison #{rank}", f"+{reward_aether} Aether", "coin", "Coins")
     await db.seasons.update_one({"season_id": season_id}, {"$set": {"active": False, "ended_at": now_utc().isoformat()}})
@@ -2357,6 +4344,41 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def maintenance_gate(request: Request, call_next):
+    """Block non-staff API access while global maintenance is active."""
+    # CORS preflight must never be blocked — browsers send OPTIONS without auth headers.
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
+    path = request.url.path
+    if not path.startswith("/api"):
+        return await call_next(request)
+    norm = path.rstrip("/") or path
+    if norm in MAINTENANCE_PUBLIC_PATHS or any(norm.startswith(p) for p in ("/api/maintenance/", "/api/online/")):
+        return await call_next(request)
+    blocked, reason, message = await _site_access_block()
+    if not blocked:
+        return await call_next(request)
+    # Allow authenticated staff through
+    try:
+        user = await get_current_user(request, db)
+        if is_staff_user(user):
+            return await call_next(request)
+    except HTTPException:
+        pass
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": message,
+            "maintenance": reason == "maintenance",
+        },
+        headers={
+            "X-Maintenance-Mode": "1" if reason == "maintenance" else "0",
+        },
+    )
+
+
 # ---------- Startup ----------
 
 # ============================================================================
@@ -2368,7 +4390,10 @@ class FriendReq(BaseModel):
 
 @api.post("/friends/request")
 async def send_friend_request(req: FriendReq, user: dict = Depends(get_user_dep)):
-    target = await db.users.find_one({"username": req.target_username}, {"_id": 0, "user_id": 1, "username": 1})
+    target_username = (req.target_username or "").strip()
+    if len(target_username) < 3:
+        raise HTTPException(400, "Pseudo invalide")
+    target = await find_user_by_username(target_username, {"user_id": 1, "username": 1})
     if not target:
         raise HTTPException(404, "Héros introuvable")
     if target["user_id"] == user["user_id"]:
@@ -2398,7 +4423,7 @@ async def send_friend_request(req: FriendReq, user: dict = Depends(get_user_dep)
         "status": "pending", "created_at": now_utc().isoformat(),
     })
     await push_notification(db, target["user_id"], "friend_request",
-        f"{user['username']} souhaite vous lier", "Acceptez ou refusez le pacte d'amitié", "ding", "UserPlus")
+        f"{user['username']} souhaite vous lier", "Acceptez ou refusez le pacte d'amitié", "ding", "UserPlus", link="/friends")
     return {"ok": True, "request_id": request_id}
 
 
@@ -2429,7 +4454,7 @@ async def accept_friend_request(request_id: str, user: dict = Depends(get_user_d
         "user_a": a, "user_b": b, "since": now_utc().isoformat(),
     })
     await push_notification(db, req_doc["from_user"], "friend_accepted",
-        f"{user['username']} a accepté votre demande", "Un nouveau lien d'amitié est forgé", "ding", "Users")
+        f"{user['username']} a accepté votre demande", "Un nouveau lien d'amitié est forgé", "ding", "Users", link="/friends")
     return {"ok": True}
 
 
@@ -2442,6 +4467,21 @@ async def decline_friend_request(request_id: str, user: dict = Depends(get_user_
     return {"ok": True}
 
 
+def _nexus_online_ids():
+    try:
+        import nexus_world
+        return nexus_world.get_online_user_ids()
+    except Exception:
+        return set()
+
+
+def _enrich_friends_online(friends: list) -> list:
+    online = _nexus_online_ids()
+    for f in friends:
+        f["online"] = f.get("user_id") in online
+    return friends
+
+
 @api.get("/friends")
 async def list_friends(user: dict = Depends(get_user_dep)):
     links = await db.friendships.find(
@@ -2449,8 +4489,15 @@ async def list_friends(user: dict = Depends(get_user_dep)):
     ).to_list(500)
     friend_ids = [link["user_b"] if link["user_a"] == user["user_id"] else link["user_a"] for link in links]
     friends = await db.users.find({"user_id": {"$in": friend_ids}},
-        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1, "role": 1, "avatar_url": 1, "rank": 1}).to_list(500)
-    return friends
+        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_id": 1, "class_name": 1,
+         "role": 1, "avatar_url": 1, "rank": 1}).to_list(500)
+    return _enrich_friends_online(friends)
+
+
+@api.get("/friends/requests/count")
+async def friend_requests_count(user: dict = Depends(get_user_dep)):
+    n = await db.friend_requests.count_documents({"to_user": user["user_id"], "status": "pending"})
+    return {"count": n}
 
 
 @api.delete("/friends/{target_user_id}")
@@ -2460,6 +4507,132 @@ async def unfriend(target_user_id: str, user: dict = Depends(get_user_dep)):
     if not result.deleted_count:
         raise HTTPException(404, "Lien d'amitié introuvable")
     return {"ok": True}
+
+
+def _friend_pair_key(a: str, b: str) -> str:
+    x, y = sorted([a, b])
+    return f"{x}|{y}"
+
+
+async def _are_friends(user_a: str, user_b: str) -> bool:
+    a, b = sorted([user_a, user_b])
+    return bool(await db.friendships.find_one({"user_a": a, "user_b": b}))
+
+
+class FriendMessageReq(BaseModel):
+    text: str
+
+
+@api.get("/friends/chat/threads")
+async def list_friend_chat_threads(user: dict = Depends(get_user_dep)):
+    """Conversations with accepted friends — last message + unread count."""
+    links = await db.friendships.find(
+        {"$or": [{"user_a": user["user_id"]}, {"user_b": user["user_id"]}]}, {"_id": 0}
+    ).to_list(500)
+    friend_ids = [
+        link["user_b"] if link["user_a"] == user["user_id"] else link["user_a"]
+        for link in links
+    ]
+    if not friend_ids:
+        return []
+    friends = await db.users.find(
+        {"user_id": {"$in": friend_ids}},
+        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_id": 1, "class_name": 1,
+         "role": 1, "avatar_url": 1, "rank": 1},
+    ).to_list(500)
+    fmap = {f["user_id"]: f for f in friends}
+    online = _nexus_online_ids()
+    threads = []
+    for fid in friend_ids:
+        fdoc = fmap.get(fid)
+        if not fdoc:
+            continue
+        fdoc = dict(fdoc)
+        fdoc["online"] = fid in online
+        pair = _friend_pair_key(user["user_id"], fid)
+        last = await db.friend_messages.find_one(
+            {"pair_key": pair}, {"_id": 0}, sort=[("created_at", -1)]
+        )
+        unread = await db.friend_messages.count_documents({
+            "pair_key": pair, "to_user": user["user_id"], "read": False,
+        })
+        threads.append({
+            "friend": fdoc,
+            "last_message": last,
+            "unread": unread,
+        })
+    threads.sort(
+        key=lambda t: (t["last_message"] or {}).get("created_at", ""),
+        reverse=True,
+    )
+    return threads
+
+
+@api.get("/friends/chat/{friend_id}/messages")
+async def get_friend_messages(
+    friend_id: str,
+    user: dict = Depends(get_user_dep),
+    limit: int = 80,
+    before: str | None = None,
+):
+    if not await _are_friends(user["user_id"], friend_id):
+        raise HTTPException(403, "Vous n'êtes pas liés à ce héros")
+    pair = _friend_pair_key(user["user_id"], friend_id)
+    q = {"pair_key": pair}
+    if before:
+        q["created_at"] = {"$lt": before}
+    msgs = await db.friend_messages.find(q, {"_id": 0}).sort("created_at", -1).limit(min(limit, 100)).to_list(100)
+    msgs.reverse()
+    await db.friend_messages.update_many(
+        {"pair_key": pair, "to_user": user["user_id"], "read": False},
+        {"$set": {"read": True, "read_at": now_utc().isoformat()}},
+    )
+    return msgs
+
+
+@api.post("/friends/chat/{friend_id}/messages")
+async def send_friend_message(friend_id: str, req: FriendMessageReq, user: dict = Depends(get_user_dep)):
+    text = (req.text or "").strip()
+    if not text:
+        raise HTTPException(400, "Message vide")
+    if len(text) > 500:
+        raise HTTPException(400, "Message trop long (500 caractères max)")
+    if not await _are_friends(user["user_id"], friend_id):
+        raise HTTPException(403, "Vous n'êtes pas liés à ce héros")
+    friend = await db.users.find_one({"user_id": friend_id}, {"_id": 0, "user_id": 1, "username": 1})
+    if not friend:
+        raise HTTPException(404, "Héros introuvable")
+    pair = _friend_pair_key(user["user_id"], friend_id)
+    message_id = f"fmsg_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "message_id": message_id,
+        "pair_key": pair,
+        "from_user": user["user_id"],
+        "to_user": friend_id,
+        "text": text,
+        "read": False,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.friend_messages.insert_one(doc)
+    await progress_quests(user["user_id"], "friend_message", 1)
+    push_doc = {k: v for k, v in doc.items() if k != "_id"}
+    push_doc["from_username"] = user.get("username") or "Héros"
+    try:
+        import nexus_world
+        await nexus_world.push_to_user(friend_id, "friend_message:new", push_doc)
+    except Exception:
+        pass
+    try:
+        await push_notification(
+            db, friend_id, "friend_message",
+            f"Message de {push_doc['from_username']}",
+            text[:120] + ("…" if len(text) > 120 else ""),
+            "ding", "MessageCircle",
+            link=f"/friends?chat={user['user_id']}",
+        )
+    except Exception:
+        pass
+    return push_doc
 
 
 # ============================================================================
@@ -2492,6 +4665,13 @@ async def create_ticket(req: TicketCreateReq, user: dict = Depends(get_user_dep)
     }
     await db.tickets.insert_one(ticket)
     ticket.pop("_id", None)
+    await push_staff_alert(
+        db, "staff_ticket",
+        "Nouvelle doléance",
+        f"{user['username']} — {subject[:80]}",
+        sound="war", icon="Ticket",
+        link="/admin?tab=tickets",
+    )
     return ticket
 
 
@@ -2545,11 +4725,18 @@ async def reply_ticket(ticket_id: str, req: TicketReplyReq, user: dict = Depends
     if is_staff and t["status"] == "open":
         update["status"] = "in_progress"
     await db.tickets.update_one({"ticket_id": ticket_id}, {"$inc": {"replies_count": 1}, "$set": update})
-    # Notify the other party
-    other_uid = t["user_id"] if is_staff else None
-    if is_staff and other_uid != user["user_id"]:
-        await push_notification(db, other_uid, "ticket_reply",
-            "Réponse du Conseil à votre doléance", t["subject"][:100], "ding", "MessageCircle")
+    if is_staff and t["user_id"] != user["user_id"]:
+        await push_notification(db, t["user_id"], "ticket_reply",
+            "Réponse du Conseil à votre doléance", t["subject"][:100], "ding", "MessageCircle",
+            link="/tickets")
+    elif not is_staff:
+        await push_staff_alert(
+            db, "staff_ticket_reply",
+            "Réponse joueur — doléance",
+            f"{user['username']} sur « {t['subject'][:60]} »",
+            sound="chime", icon="MessageCircle",
+            link="/admin?tab=tickets",
+        )
     reply.pop("_id", None)
     return reply
 
@@ -2579,6 +4766,144 @@ async def admin_list_tickets(status: str = "all", user: dict = Depends(get_staff
 
 
 # ============================================================================
+# REPORTS — Signalements joueurs / contenus
+# ============================================================================
+REPORT_TARGET_TYPES = {"forum_thread", "forum_reply", "user", "news_article"}
+REPORT_REASONS = {"spam", "harassment", "inappropriate", "cheating", "other"}
+
+
+class ReportCreateReq(BaseModel):
+    target_type: str
+    target_id: str
+    reported_user_id: Optional[str] = None
+    reason: str = "other"
+    details: str = ""
+
+
+@api.post("/reports")
+async def create_report(req: ReportCreateReq, user: dict = Depends(get_user_dep)):
+    if req.target_type not in REPORT_TARGET_TYPES:
+        raise HTTPException(400, "Type de signalement invalide")
+    if req.reason not in REPORT_REASONS:
+        raise HTTPException(400, "Motif invalide")
+    details = (req.details or "").strip()[:1000]
+    if len(details) < 5:
+        raise HTTPException(400, "Décrivez le problème (5 caractères minimum)")
+    cutoff = (now_utc() - timedelta(hours=24)).isoformat()
+    dup = await db.reports.find_one({
+        "reporter_id": user["user_id"],
+        "target_type": req.target_type,
+        "target_id": req.target_id,
+        "created_at": {"$gte": cutoff},
+    })
+    if dup:
+        raise HTTPException(400, "Vous avez déjà signalé ce contenu récemment")
+    reported_user_id = req.reported_user_id
+    context_label = ""
+    extra_thread_id = None
+    if req.target_type == "forum_thread":
+        doc = await db.forum_threads.find_one({"thread_id": req.target_id}, {"_id": 0, "title": 1, "user_id": 1})
+        if not doc:
+            raise HTTPException(404, "Sujet introuvable")
+        reported_user_id = reported_user_id or doc.get("user_id")
+        context_label = doc.get("title", "")[:120]
+    elif req.target_type == "forum_reply":
+        doc = await db.forum_replies.find_one({"reply_id": req.target_id}, {"_id": 0, "user_id": 1, "thread_id": 1})
+        if not doc:
+            raise HTTPException(404, "Réponse introuvable")
+        reported_user_id = reported_user_id or doc.get("user_id")
+        context_label = f"Réponse dans {doc.get('thread_id', '?')}"
+        extra_thread_id = doc.get("thread_id")
+    elif req.target_type == "user":
+        doc = await db.users.find_one({"user_id": req.target_id}, {"_id": 0, "username": 1})
+        if not doc:
+            raise HTTPException(404, "Joueur introuvable")
+        reported_user_id = req.target_id
+        context_label = f"Joueur {doc.get('username', '?')}"
+    elif req.target_type == "news_article":
+        doc = await db.news.find_one({"news_id": req.target_id}, {"_id": 0, "title": 1, "author": 1})
+        if not doc:
+            raise HTTPException(404, "Article introuvable")
+        context_label = doc.get("title", "")[:120]
+    if reported_user_id == user["user_id"]:
+        raise HTTPException(400, "Vous ne pouvez pas vous signaler vous-même")
+    reported = None
+    if reported_user_id:
+        reported = await db.users.find_one({"user_id": reported_user_id}, {"_id": 0, "username": 1})
+    report = {
+        "report_id": f"rpt_{uuid.uuid4().hex[:12]}",
+        "reporter_id": user["user_id"],
+        "reporter_username": user["username"],
+        "target_type": req.target_type,
+        "target_id": req.target_id,
+        "reported_user_id": reported_user_id,
+        "reported_username": reported.get("username") if reported else None,
+        "reason": req.reason,
+        "details": details,
+        "context_label": context_label,
+        "thread_id": extra_thread_id,
+        "status": "open",
+        "created_at": now_utc().isoformat(),
+        "resolved_at": None,
+        "resolved_by": None,
+    }
+    await db.reports.insert_one(report)
+    report.pop("_id", None)
+    who = reported.get("username") if reported else context_label or req.target_id
+    await push_staff_alert(
+        db, "staff_report",
+        "Signalement reçu",
+        f"{user['username']} → {who} ({req.reason})",
+        sound="war", icon="Flag",
+        link="/admin?tab=reports",
+    )
+    return report
+
+
+@api.get("/admin/reports")
+async def admin_list_reports(status: str = "open", user: dict = Depends(get_staff_dep)):
+    q = {} if status == "all" else {"status": status}
+    return await db.reports.find(q, {"_id": 0}).sort("created_at", -1).limit(200).to_list(200)
+
+
+class ReportStatusReq(BaseModel):
+    status: str  # open | resolved | dismissed
+
+
+@api.put("/admin/reports/{report_id}")
+async def admin_resolve_report(report_id: str, req: ReportStatusReq, user: dict = Depends(get_staff_dep)):
+    if req.status not in ("open", "resolved", "dismissed"):
+        raise HTTPException(400, "Statut invalide")
+    existing = await db.reports.find_one({"report_id": report_id})
+    if not existing:
+        raise HTTPException(404, "Signalement introuvable")
+    await db.reports.update_one(
+        {"report_id": report_id},
+        {"$set": {
+            "status": req.status,
+            "resolved_at": now_utc().isoformat() if req.status != "open" else None,
+            "resolved_by": user["username"] if req.status != "open" else None,
+        }},
+    )
+    if req.status == "resolved" and existing.get("status") == "open":
+        reporter_id = existing.get("reporter_id")
+        if reporter_id:
+            await grant_xp(reporter_id, 50, "report_validated")
+            await grant_aether(reporter_id, 25, "report_validated")
+            try:
+                await grant_badge(reporter_id, "guardian_just")
+            except Exception:
+                pass
+            await push_notification(
+                db, reporter_id, "report_resolved",
+                "Signalement traité",
+                "Les modérateurs ont validé votre signalement — merci pour votre vigilance.",
+                "ding", "Shield",
+            )
+    return {"ok": True}
+
+
+# ============================================================================
 # AETHER GRANT — Distribution administrative
 # ============================================================================
 class AetherGrantReq(BaseModel):
@@ -2595,8 +4920,22 @@ async def admin_grant_aether(req: AetherGrantReq, user: dict = Depends(get_admin
     if not target:
         raise HTTPException(404, "Héros introuvable")
     # Allow negative amounts to clawback. Don't underflow.
+    if req.amount > 0:
+        await grant_aether(req.target_user_id, req.amount, f"Don du Conseil — {req.reason or 'admin'}")
+    else:
+        new_aether = max(0, target.get("aether", 0) + req.amount)
+        await db.users.update_one({"user_id": req.target_user_id}, {"$set": {"aether": new_aether}})
+        await push_wallet_updated(req.target_user_id)
+        discord_rewards.schedule_reward_notify(
+            db, req.target_user_id, "Retrait du Conseil",
+            aether=req.amount,
+            extra=[req.reason or "sans motif"],
+        )
+        await add_chronicle(req.target_user_id,
+            f"Le Conseil ({user['username']}) retire {req.amount} Aether · {req.reason or 'sans motif'}",
+            "admin")
+        return {"ok": True, "new_aether": new_aether}
     new_aether = max(0, target.get("aether", 0) + req.amount)
-    await db.users.update_one({"user_id": req.target_user_id}, {"$set": {"aether": new_aether}})
     sign = "+" if req.amount > 0 else ""
     await add_chronicle(req.target_user_id,
         f"Le Conseil ({user['username']}) accorde {sign}{req.amount} Aether · {req.reason or 'sans motif'}",
@@ -2604,6 +4943,7 @@ async def admin_grant_aether(req: AetherGrantReq, user: dict = Depends(get_admin
     await push_notification(db, req.target_user_id, "aether_grant",
         f"{sign}{req.amount} Aether du Conseil",
         req.reason or "Don administratif", "coin", "Coins")
+    await push_wallet_updated(req.target_user_id)
     return {"ok": True, "new_aether": new_aether}
 
 
@@ -2612,8 +4952,12 @@ async def admin_grant_aether(req: AetherGrantReq, user: dict = Depends(get_admin
 # ============================================================================
 @api.post("/discord/sync-me")
 async def discord_sync_me(user: dict = Depends(get_user_dep)):
-    """User-triggered sync of their own roles."""
+    """User-triggered sync: Discord profile (nick, avatar) + guild roles."""
     result = await discord_sync.sync_discord_roles(db, user["user_id"])
+    if result.get("ok") or result.get("profile_updated"):
+        fresh = await db.users.find_one({"user_id": user["user_id"]})
+        if fresh:
+            result["user"] = public_user(fresh)
     return result
 
 
@@ -2683,32 +5027,57 @@ async def list_nexus_rooms_public():
 
 
 @api.get("/stats/public")
-async def public_stats():
+async def public_stats(request: Request):
     """Lightweight public counters for the Landing/Dashboard pages."""
+    viewer = await get_optional_user_dep(request)
+    if viewer:
+        await touch_user_last_seen(viewer["user_id"], min_interval_seconds=60)
     try:
         heroes = await db.users.count_documents({})
         guilds = await db.guilds.count_documents({})
         events_active = 0
         try:
-            now = datetime.now(timezone.utc).isoformat()
-            events_active = await db.events.count_documents({"ends_at": {"$gt": now}})
+            now_iso = datetime.now(timezone.utc).isoformat()
+            events_active = await db.scheduled_events.count_documents({
+                "$or": [
+                    {"ends_at": {"$exists": False}},
+                    {"ends_at": None},
+                    {"ends_at": ""},
+                    {"ends_at": {"$gt": now_iso}},
+                ],
+            })
         except Exception:
             pass
-        # Heroes connected right now (from nexus_world presence)
+        # Joueurs connectés sur le site (session valide + activité récente)
+        try:
+            site_online = await count_site_online()
+        except Exception:
+            site_online = 0
+        # Héros dans le Nexus Online (présence monde)
         try:
             from nexus_world import _players as _nexus_players  # type: ignore
             heroes_online = len({p.get("user_id") for p in _nexus_players.values() if p.get("user_id")})
         except Exception:
             heroes_online = 0
+        try:
+            staff_online = nexus_world.staff_online_summary()
+        except Exception:
+            staff_online = {"total": 0, "by_role": {"admin": 0, "moderator": 0}, "members": []}
         # New signups in the last 24h
         try:
             yesterday_iso = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
             new_signups = await db.users.count_documents({"created_at": {"$gt": yesterday_iso}})
         except Exception:
             new_signups = 0
-        # Visits today — proxy via users who logged in (last_seen) in the last 24h
+        # Visits 24h — joueurs uniques avec session ou last_seen récente
         try:
-            visits_today = await db.users.count_documents({"last_seen": {"$gt": yesterday_iso}})
+            session_users = await db.user_sessions.distinct(
+                "user_id", {"created_at": {"$gt": yesterday_iso}},
+            )
+            seen_users = await db.users.distinct(
+                "user_id", {"last_seen": {"$gt": yesterday_iso}},
+            )
+            visits_today = len(set(session_users) | set(seen_users))
         except Exception:
             visits_today = 0
         # Server stability — bounded by recent error log count (defaults to 99.9%)
@@ -2729,6 +5098,8 @@ async def public_stats():
         return {
             "heroes": heroes,
             "heroes_online": heroes_online,
+            "site_online": site_online,
+            "staff_online": staff_online,
             "guilds": guilds,
             "events": events_active,
             "new_signups": new_signups,
@@ -2736,7 +5107,7 @@ async def public_stats():
             "server_stability": server_stability,
         }
     except Exception:
-        return {"heroes": 0, "heroes_online": 0, "guilds": 0, "events": 0,
+        return {"heroes": 0, "heroes_online": 0, "site_online": 0, "guilds": 0, "events": 0,
                 "new_signups": 0, "visits_today": 0, "server_stability": 99.9}
 
 
@@ -2748,15 +5119,32 @@ async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
     })
     if not u:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    if not await _hero_card_visible_to(viewer, u):
+        reason = "private" if u.get("profile_visibility") == "private" else "friends_only"
+        return {
+            "hidden": True,
+            "reason": reason,
+            "username": u["username"],
+            "display_name": u.get("display_name") or u["username"],
+        }
     inv = await db.inventory.find({"user_id": user_id}, {"_id": 0}).sort("obtained_at", -1).to_list(200)
     badges = await db.user_badges.find({"user_id": user_id}, {"_id": 0}).sort("unlocked_at", -1).to_list(120)
     badges = enrich_badges(badges)
     chronicles = await db.chronicles.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).limit(40).to_list(40)
-    friends_count = await db.friendships.count_documents({"$or": [{"user_id": user_id}, {"friend_id": user_id}], "status": "accepted"})
+    friends_count = await db.friendships.count_documents({
+        "$or": [{"user_a": user_id}, {"user_b": user_id}],
+    })
     guild = None
-    g = await db.guilds.find_one({"members.user_id": user_id}, {"_id": 0, "guild_id": 1, "name": 1, "tag": 1, "color": 1, "rank": 1})
-    if g:
-        guild = g
+    guild_tag = None
+    membership = await db.guild_members.find_one({"user_id": user_id}, {"_id": 0})
+    if membership:
+        guild = await db.guilds.find_one(
+            {"guild_id": membership["guild_id"]},
+            {"_id": 0, "guild_id": 1, "name": 1, "tag": 1, "color": 1, "level": 1},
+        )
+        if guild:
+            guild = {**guild, "rank": membership.get("rank", "membre")}
+            guild_tag = guild.get("tag")
     # Live presence (room name + total in that room) from in-memory state
     location = None
     try:
@@ -2767,22 +5155,83 @@ async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
     except Exception:
         pass
     is_friend = False
+    friend_request_pending = False
     if viewer["user_id"] != user_id:
-        f = await db.friendships.find_one({"$or": [
-            {"user_id": viewer["user_id"], "friend_id": user_id},
-            {"user_id": user_id, "friend_id": viewer["user_id"]},
-        ], "status": "accepted"})
-        is_friend = bool(f)
+        a, b = sorted([viewer["user_id"], user_id])
+        is_friend = bool(await db.friendships.find_one({"user_a": a, "user_b": b}))
+        if not is_friend:
+            friend_request_pending = bool(await db.friend_requests.find_one({
+                "from_user": viewer["user_id"], "to_user": user_id, "status": "pending",
+            }))
+    incoming_friend_request = None
+    if viewer["user_id"] != user_id and not is_friend:
+        inc = await db.friend_requests.find_one(
+            {"from_user": user_id, "to_user": viewer["user_id"], "status": "pending"},
+            {"_id": 0, "request_id": 1, "from_user": 1, "created_at": 1},
+        )
+        if inc:
+            incoming_friend_request = inc
+    # Friends preview for Relations tab
+    friend_links = await db.friendships.find(
+        {"$or": [{"user_a": user_id}, {"user_b": user_id}]}, {"_id": 0},
+    ).sort("since", -1).limit(24).to_list(24)
+    friend_ids = [
+        link["user_b"] if link["user_a"] == user_id else link["user_a"]
+        for link in friend_links
+    ]
+    friends = []
+    if friend_ids:
+        friends = await db.users.find(
+            {"user_id": {"$in": friend_ids}},
+            {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1,
+             "rank": 1, "role": 1, "avatar_url": 1, "active_title": 1},
+        ).to_list(24)
+    # Equipped cosmetics (frame / banner from shop)
+    equipped_cosmetics = {}
+    if u.get("active_frame"):
+        frame_item = get_shop_item(u["active_frame"])
+        if frame_item:
+            equipped_cosmetics["frame"] = {**frame_item, "sku": u["active_frame"], "slot": "frame"}
+    if u.get("active_banner"):
+        banner_item = get_shop_item(u["active_banner"])
+        if banner_item:
+            equipped_cosmetics["banner"] = {**banner_item, "sku": u["active_banner"], "slot": "banner"}
+    title_id = u.get("active_title", "novice")
+    title_doc = next((t for t in TITLES if t["id"] == title_id), None)
+    active_aura = {
+        "title_id": title_id,
+        "title_name": title_doc["name"] if title_doc else title_id.replace("_", " ").title(),
+        "rank": u.get("rank", "Novice"),
+    }
+    u["active_title_name"] = active_aura["title_name"]
+    titles_progress = [
+        {
+            "id": t["id"], "name": t["name"], "unlock_level": t["unlock_level"],
+            "unlocked": (u.get("level") or 1) >= t["unlock_level"],
+            "active": t["id"] == title_id,
+        }
+        for t in TITLES
+    ]
+    quests_completed = await db.user_quests.count_documents({"user_id": user_id, "completed": True})
     return {
-        "user": u,
+        "hidden": False,
+        "user": {**u, "quests_completed": quests_completed},
         "inventory": inv,
         "badges": badges,
         "chronicles": chronicles,
         "friends_count": friends_count,
+        "friends": friends,
         "guild": guild,
+        "guild_tag": guild_tag,
         "location": location,
         "is_friend": is_friend,
+        "friend_request_pending": friend_request_pending,
+        "incoming_friend_request": incoming_friend_request,
         "is_self": viewer["user_id"] == user_id,
+        "equipped_cosmetics": equipped_cosmetics,
+        "active_aura": active_aura,
+        "titles_progress": titles_progress,
+        "dna": u.get("dna") or {},
     }
 
 
@@ -2809,6 +5258,7 @@ async def gm_audit_log(
 
 # ---------- Mount router at the very end (after ALL endpoint declarations) ----------
 app.include_router(api)
+app.mount("/uploads", StaticFiles(directory=str(ROOT_DIR / "uploads")), name="uploads")
 
 # Mount the Nexus Online (Socket.IO) ASGI app.
 # Tried /api/nexus first but the Starlette Mount does not bind cleanly under the
@@ -2817,7 +5267,11 @@ app.include_router(api)
 # The socketio_path is configured as 'api/nexus/socket.io' so requests to
 # /api/nexus/socket.io/... go through ingress (which only forwards /api).
 # We attach the socketio ASGIApp as a fallback after all FastAPI routes.
-_nexus_asgi = nexus_world.build_socketio_app(db)
+_nexus_asgi = nexus_world.build_socketio_app(db, hooks={
+    "on_chat_message": on_nexus_chat_message,
+    "on_boss_defeated": on_boss_defeated,
+    "on_nexus_join": on_nexus_join,
+})
 app.mount("/api/nexus", _nexus_asgi)
 
 
@@ -2831,10 +5285,13 @@ async def startup():
     await db.posts.create_index("post_id", unique=True)
     await db.posts.create_index("created_at")
     await db.user_badges.create_index([("user_id", 1), ("badge_id", 1)], unique=True)
+    await db.nexus_messages.create_index([("user_id", 1), ("created_at", -1)])
     await db.chronicles.create_index([("user_id", 1), ("created_at", -1)])
     await db.user_quests.create_index("user_id_quest_id", unique=True, sparse=True)
     await db.gm_audit_log.create_index([("created_at", -1)])
-    await db.gm_audit_log.create_index("action")
+    await db.friend_requests.create_index([("to_user", 1), ("status", 1)])
+    await db.friend_messages.create_index([("pair_key", 1), ("created_at", -1)])
+    await db.friend_messages.create_index([("to_user", 1), ("read", 1)])
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@nexoria.com").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
@@ -2872,6 +5329,24 @@ async def startup():
         # ensure password is current
         if not verify_password(admin_password, existing.get("password_hash", "")):
             await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+
+    await enforce_owner_roles()
+
+    if MAINTENANCE_MODE_ENV:
+        await db.system_settings.update_one(
+            {"key": "maintenance"},
+            {"$set": {
+                "enabled": True,
+                "message": os.environ.get(
+                    "MAINTENANCE_MESSAGE",
+                    "Les Sentinelles restaurent l'équilibre du monde.",
+                ),
+                "updated_at": now_utc().isoformat(),
+                "updated_by": "env:MAINTENANCE_MODE",
+            }},
+            upsert=True,
+        )
+        logger.info("NEXORIA: MAINTENANCE_MODE=true — site verrouillé (staff autorisé)")
 
     # One-time cleanup: remove the legacy "founder" badge from all beta accounts (per user request)
     try:

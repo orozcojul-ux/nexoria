@@ -11,13 +11,14 @@ import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import StarField from "@/components/StarField";
 import {
-  PremiumHero,
+  PageShell,
   PremiumSection,
   PremiumCard,
   PremiumButton,
   PremiumModal,
   PremiumStat,
 } from "@/components/ui-premium";
+import { usePageBanner } from "@/lib/page-banners";
 
 const STAT_LABEL = {
   creativity: "Créativité",
@@ -30,12 +31,19 @@ const STAT_LABEL = {
   discovery: "Découverte",
 };
 
+import ClassBadge from "@/components/ClassBadge";
+
 function IconByName({ name, className }) {
   const Cmp = Lucide[name] || Lucide.Sparkles;
   return <Cmp className={className} />;
 }
 
+function ClassSigil({ cls, size = "lg" }) {
+  return <ClassBadge classId={cls.id} color={cls.color} size={size} />;
+}
+
 export default function Classes() {
+  const banner = usePageBanner("classes");
   const { user } = useAuth();
   const [classes, setClasses] = useState([]);
   const [activeClass, setActiveClass] = useState(null);
@@ -51,25 +59,19 @@ export default function Classes() {
   }, [classes, statFilter]);
 
   return (
-    <div className="min-h-screen relative" data-testid="classes-page">
+    <PageShell
+      wide
+      testid="classes-page"
+      banner={banner}
+    >
       <StarField density={50} />
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8">
-        {/* HERO */}
-        <PremiumHero
-          kicker="Sanctuaire des Héros"
-          title={<>Choisis ta <span className="text-gradient">Voie</span></>}
-          subtitle="Dix archétypes anciens t'attendent. Chacun forge un destin unique au sein de NEXORIA — ses bonus définissent ton ascension."
-          image="/shop/armure_cosmique.png"
-          height={300}
-          testid="classes-hero"
-        >
-          {user?.class_name && (
-            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-400/40 bg-cyan-500/10 text-cyan-200 text-xs font-bold uppercase tracking-widest">
-              <Crown className="w-3.5 h-3.5" />
-              Ta classe actuelle : {user.class_name}
-            </div>
-          )}
-        </PremiumHero>
+      <div className="space-y-8">
+        {user?.class_name && (
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-400/40 bg-cyan-500/10 text-cyan-200 text-xs font-bold uppercase tracking-widest">
+            <Crown className="w-3.5 h-3.5" />
+            Ta classe actuelle : {user.class_name}
+          </div>
+        )}
 
         {/* STATS OVERVIEW */}
         <PremiumSection title="Codex des Voies" subtitle="10 archétypes — 8 affinités" icon={Sword} tone="violet">
@@ -148,7 +150,7 @@ export default function Classes() {
       </div>
 
       <ClassModal cls={activeClass} onClose={() => setActiveClass(null)} />
-    </div>
+    </PageShell>
   );
 }
 
@@ -170,14 +172,12 @@ function ClassCard({ cls, onSelect }) {
       {/* Sigil */}
       <div className="relative flex items-center justify-between mb-3">
         <div
-          className="w-14 h-14 rounded-xl border-2 flex items-center justify-center"
+          className="w-14 h-14 rounded-xl flex items-center justify-center overflow-hidden"
           style={{
-            borderColor: `${accent}80`,
-            background: `radial-gradient(circle, ${accent}33, transparent 70%)`,
-            boxShadow: `0 0 18px ${accent}66, inset 0 0 10px ${accent}33`,
+            boxShadow: `0 0 18px ${accent}44`,
           }}
         >
-          <IconByName name={cls.icon} className="w-7 h-7" />
+          <ClassSigil cls={cls} />
         </div>
         <div className="text-[10px] uppercase tracking-[0.3em] font-bold" style={{ color: accent }}>
           #{cls.id}
@@ -220,14 +220,10 @@ function ClassModal({ cls, onClose }) {
       <div className="p-6 space-y-5">
         <div className="flex items-center gap-4">
           <div
-            className="w-20 h-20 rounded-2xl border-2 flex items-center justify-center shrink-0"
-            style={{
-              borderColor: `${accent}80`,
-              background: `radial-gradient(circle, ${accent}33, transparent 70%)`,
-              boxShadow: `0 0 24px ${accent}88`,
-            }}
+            className="w-20 h-20 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden"
+            style={{ boxShadow: `0 0 24px ${accent}88` }}
           >
-            <IconByName name={cls.icon} className="w-10 h-10 text-white" />
+            <ClassSigil cls={cls} size="xl" />
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-[0.4em] font-bold" style={{ color: accent }}>

@@ -3,7 +3,7 @@
  * Rooms positioned on a stylized fantasy map. Real-time player counts via Socket.io.
  */
 import React, { useEffect, useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { MapPin, Maximize2, Sparkles, Skull } from "lucide-react";
 import api from "@/lib/api";
@@ -49,8 +49,14 @@ const EDGES = [
 
 export default function NexusMapWidget() {
   const [rooms, setRooms] = useState([]);
-  const { presence } = useNexusSocket();
+  const navigate = useNavigate();
+  const { presence, openNexus } = useNexusSocket() || {};
   const byRoom = presence?.by_room || {};
+
+  const enterNexus = () => {
+    openNexus?.();
+    navigate("/nexus");
+  };
 
   useEffect(() => {
     api.get("/nexus/rooms-public").then((r) => setRooms(r.data || [])).catch(() => {});
@@ -94,13 +100,14 @@ export default function NexusMapWidget() {
             <div className="font-display font-black text-lg text-white">Carte du Nexus — Salles en Temps Réel</div>
           </div>
         </div>
-        <Link
-          to="/nexus"
+        <button
+          type="button"
+          onClick={enterNexus}
           data-testid="map-enter-nexus"
           className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-400/50 text-cyan-200 text-[11px] uppercase tracking-[0.3em] font-bold hover:bg-cyan-500/10 transition-all"
         >
           <Maximize2 className="w-3 h-3" /> Entrer
-        </Link>
+        </button>
       </div>
 
       {/* Map canvas */}

@@ -1,0 +1,480 @@
+/* NEXORIA — Page maintenance AAA */
+
+.maintenance-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  background: #050816;
+}
+
+.maintenance-bg {
+  position: fixed;
+  inset: 0;
+  background: center / cover no-repeat;
+  transform: scale(1.04);
+  z-index: 0;
+}
+
+.maintenance-bg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(5, 8, 22, 0.92) 0%, rgba(5, 8, 22, 0.62) 34%, rgba(5, 8, 22, 0.18) 58%, rgba(5, 8, 22, 0.35) 100%),
+    linear-gradient(180deg, rgba(5, 8, 22, 0.45) 0%, transparent 32%, rgba(5, 8, 22, 0.75) 100%);
+}
+
+.maintenance-glow {
+  position: fixed;
+  right: 8%;
+  top: 42%;
+  width: min(520px, 55vw);
+  height: min(520px, 55vw);
+  transform: translateY(-50%);
+  border-radius: 50%;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.22) 0%, rgba(0, 229, 255, 0.08) 42%, transparent 68%);
+  animation: maint-portal-pulse 6s ease-in-out infinite;
+}
+
+@keyframes maint-portal-pulse {
+  0%, 100% { opacity: 0.55; transform: translateY(-50%) scale(1); }
+  50% { opacity: 1; transform: translateY(-50%) scale(1.06); }
+}
+
+.maintenance-shell {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 1rem;
+}
+
+@media (min-width: 640px) {
+  .maintenance-shell {
+    padding: 2rem 2.5rem 1.25rem;
+  }
+}
+
+/* ── Header ── */
+.maint-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.maint-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.maint-brand-mark {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: radial-gradient(circle at 40% 35%, rgba(123, 47, 247, 0.45) 0%, rgba(60, 20, 120, 0.2) 55%, transparent 75%);
+  box-shadow: 0 0 24px rgba(123, 47, 247, 0.35), inset 0 0 10px rgba(123, 47, 247, 0.2);
+}
+
+.maint-brand-name {
+  font-family: 'Unbounded', sans-serif;
+  font-weight: 900;
+  font-size: 1.2rem;
+  letter-spacing: 0.14em;
+  color: #f8fafc;
+  text-shadow: 0 0 18px rgba(201, 165, 101, 0.25);
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14rem;
+}
+
+.maint-brand-tagline {
+  margin: 0.35rem 0 0;
+  font-size: 8px;
+  letter-spacing: 0.44em;
+  text-transform: uppercase;
+  color: rgba(201, 165, 101, 0.8);
+  font-weight: 600;
+}
+
+.maint-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 229, 255, 0.28);
+  background: rgba(5, 8, 22, 0.65);
+  backdrop-filter: blur(10px);
+  flex-shrink: 0;
+}
+
+.maint-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22d3ee;
+  box-shadow: 0 0 10px #22d3ee;
+  animation: maint-dot-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes maint-dot-pulse {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}
+
+.maint-badge-text {
+  font-size: 8px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #a5f3fc;
+  white-space: nowrap;
+}
+
+/* ── Hero ── */
+.maint-hero {
+  max-width: 36rem;
+  margin-bottom: 2rem;
+}
+
+.maint-hero-title {
+  margin: 0 0 1.1rem;
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  line-height: 1.12;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #f8fafc;
+  text-shadow:
+    0 0 40px rgba(167, 139, 250, 0.35),
+    0 2px 24px rgba(0, 0, 0, 0.6);
+  word-break: break-word;
+}
+
+.maint-hero-body {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: rgba(228, 228, 231, 0.95);
+  max-width: 32rem;
+}
+
+.maint-hero-sub {
+  margin: 0.65rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(161, 161, 170, 0.95);
+  font-style: italic;
+}
+
+/* ── Panneaux ornés ── */
+.maint-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 26rem;
+}
+
+.maint-panel {
+  position: relative;
+  padding: 1.1rem 1.2rem 1.15rem;
+  border-radius: 6px;
+  background: linear-gradient(145deg, rgba(12, 10, 28, 0.88) 0%, rgba(8, 8, 18, 0.82) 100%);
+  border: 1px solid rgba(201, 165, 101, 0.22);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 0 24px rgba(124, 58, 237, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.maint-panel::before,
+.maint-panel::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: rgba(201, 165, 101, 0.45);
+  border-style: solid;
+  pointer-events: none;
+}
+
+.maint-panel::before {
+  top: 5px;
+  left: 5px;
+  border-width: 1px 0 0 1px;
+}
+
+.maint-panel::after {
+  bottom: 5px;
+  right: 5px;
+  border-width: 0 1px 1px 0;
+}
+
+.maint-panel-title {
+  margin: 0 0 0.85rem;
+  font-family: 'Cinzel', serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #c9a565;
+}
+
+/* ── Systèmes ── */
+.maint-systems-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.maint-system-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.maint-system-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.maint-system-icon {
+  width: 15px;
+  height: 15px;
+  color: #d4d4d8;
+  flex-shrink: 0;
+}
+
+.maint-system-label {
+  flex: 1;
+  font-size: 0.84rem;
+  color: #f4f4f5;
+}
+
+.maint-system-pct {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #4ade80;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.5rem;
+  text-align: right;
+}
+
+.maint-system-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.9);
+  flex-shrink: 0;
+}
+
+.maint-system-bar {
+  height: 3px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin-left: 1.35rem;
+}
+
+.maint-system-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22c55e 0%, #4ade80 55%, #86efac 100%);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.65);
+  transition: width 1s ease-out;
+}
+
+/* ── Avancement global ── */
+.maint-global-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.maint-global-ring {
+  --pct: 0;
+  width: 4.25rem;
+  height: 4.25rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: conic-gradient(#4ade80 calc(var(--pct) * 1%), rgba(255, 255, 255, 0.08) 0);
+  box-shadow: 0 0 18px rgba(74, 222, 128, 0.25);
+  position: relative;
+}
+
+.maint-global-ring::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: rgba(8, 10, 18, 0.95);
+}
+
+.maint-global-pct {
+  position: relative;
+  z-index: 1;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #4ade80;
+  font-variant-numeric: tabular-nums;
+}
+
+.maint-global-phase {
+  margin: 0 0 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e4e4e7;
+}
+
+.maint-global-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: rgba(161, 161, 170, 0.95);
+}
+
+.maint-global-bar {
+  height: 4px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.maint-global-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22c55e, #4ade80, #86efac);
+  box-shadow: 0 0 14px rgba(74, 222, 128, 0.55);
+}
+
+.maint-global-updated {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #71717a;
+  letter-spacing: 0.02em;
+}
+
+/* ── Rune staff (accès caché) ── */
+.maint-secret-rune {
+  position: fixed;
+  bottom: 10%;
+  right: 6%;
+  z-index: 50;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  background: radial-gradient(circle, rgba(0, 229, 255, 0.12) 0%, transparent 70%);
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.15);
+  opacity: 0.06;
+  cursor: pointer;
+  transition: opacity 0.25s, box-shadow 0.25s;
+}
+
+.maint-secret-rune:hover,
+.maint-secret-rune:focus-visible {
+  opacity: 0.55;
+  box-shadow: 0 0 24px rgba(0, 229, 255, 0.35);
+  outline: none;
+}
+
+/* ── Discord ── */
+.maint-discord-panel {
+  max-width: 26rem;
+}
+
+.maint-discord-title {
+  margin: 0 0 0.75rem;
+  font-family: 'Cinzel', serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: #a5f3fc;
+}
+
+.maint-discord-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.7rem 1.25rem;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  background: linear-gradient(180deg, rgba(8, 20, 40, 0.9) 0%, rgba(5, 12, 28, 0.95) 100%);
+  color: #e0f7ff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.08);
+}
+
+.maint-discord-btn:hover {
+  border-color: rgba(0, 229, 255, 0.6);
+  box-shadow: 0 0 28px rgba(0, 229, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+/* ── Footer ── */
+.maint-spacer {
+  flex: 1;
+  min-height: 1.5rem;
+}
+
+.maint-footer {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(201, 165, 101, 0.15);
+  text-align: center;
+}
+
+.maint-footer-text {
+  margin: 0;
+  font-size: 8px;
+  letter-spacing: 0.44em;
+  text-transform: uppercase;
+  color: #71717a;
+  font-weight: 600;
+}
+
+/* Admin preview */
+.maintenance-editor-surface {
+  font-family: 'Outfit', sans-serif;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.55;
+}

@@ -1,0 +1,167 @@
+/* Staff admin dock — intégré à la sidebar joueur */
+
+.staff-dock {
+  margin: 0 0.5rem 0.75rem;
+}
+
+.staff-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+  padding: 0 0.25rem;
+}
+
+.staff-dock-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid rgba(123, 47, 247, 0.35);
+  background: rgba(123, 47, 247, 0.12);
+  color: #d8b4fe;
+}
+
+.staff-dock-role--admin {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fcd34d;
+}
+
+.staff-dock-alerts {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.staff-dock-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+}
+
+.staff-dock-alert--ok {
+  border-color: rgba(52, 211, 153, 0.3);
+  background: rgba(52, 211, 153, 0.08);
+  color: #6ee7b7;
+}
+
+.staff-dock-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.staff-dock-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.65rem 0.7rem;
+  min-height: 3.5rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+  text-decoration: none;
+  color: #d4d4d8;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s, box-shadow 0.2s;
+  position: relative;
+}
+
+.staff-dock-tile:hover {
+  border-color: rgba(123, 47, 247, 0.35);
+  background: rgba(123, 47, 247, 0.08);
+  color: #fafafa;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(123, 47, 247, 0.12);
+}
+
+.staff-dock-tile--active {
+  border-color: rgba(123, 47, 247, 0.5);
+  background: linear-gradient(145deg, rgba(123, 47, 247, 0.22) 0%, rgba(60, 20, 120, 0.15) 100%);
+  color: #fff;
+  box-shadow: 0 0 18px rgba(123, 47, 247, 0.2);
+}
+
+.staff-dock-tile-icon {
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 0.45rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.staff-dock-tile--active .staff-dock-tile-icon {
+  background: rgba(123, 47, 247, 0.25);
+  border-color: rgba(167, 139, 250, 0.35);
+}
+
+.staff-dock-tile-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+
+.staff-dock-badge {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  font-weight: 800;
+  color: #fff;
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
+.staff-dock-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(123, 47, 247, 0.45);
+  background: linear-gradient(135deg, rgba(123, 47, 247, 0.28) 0%, rgba(88, 28, 180, 0.2) 100%);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: #e9d5ff;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.staff-dock-cta:hover {
+  border-color: rgba(167, 139, 250, 0.55);
+  background: linear-gradient(135deg, rgba(123, 47, 247, 0.38) 0%, rgba(88, 28, 180, 0.28) 100%);
+  box-shadow: 0 0 20px rgba(123, 47, 247, 0.25);
+  color: #fff;
+}

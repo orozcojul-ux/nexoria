@@ -1,14 +1,22 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Check, Scroll, Sparkles, Coins, Crosshair, Feather } from "lucide-react";
+import { Check, Scroll, Sparkles, Coins, Crosshair, Feather, Target } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
 import { sfx } from "@/lib/sfx";
-import { RuneSeal, RuneDivider } from "@/components/Ornaments";
+import {
+  PageShell,
+  PremiumCard,
+  PremiumButton,
+} from "@/components/ui-premium";
+import { usePageBanner } from "@/lib/page-banners";
+import { useI18n } from "@/contexts/I18nContext";
+
+const TAB_KEYS = { daily: "quests.tab.daily", weekly: "quests.tab.weekly", monthly: "quests.tab.monthly" };
 
 export default function Quests() {
-  const { user, refresh } = useAuth();
+  const banner = usePageBanner("quests");
+  const { t } = useI18n();
   const [quests, setQuests] = useState([]);
   const [tab, setTab] = useState("daily");
   const [oracleQuest, setOracleQuest] = useState(null);
@@ -18,7 +26,16 @@ export default function Quests() {
     const { data } = await api.get("/quests");
     setQuests(data);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const onRefresh = () => load();
+    window.addEventListener("focus", onRefresh);
+    window.addEventListener("nexoria:profile:updated", onRefresh);
+    return () => {
+      window.removeEventListener("focus", onRefresh);
+      window.removeEventListener("nexoria:profile:updated", onRefresh);
+    };
+  }, []);
 
   const generateOracleQuest = async () => {
     setLoadingOracle(true);
@@ -26,128 +43,150 @@ export default function Quests() {
       const { data } = await api.post("/oracle/quest");
       sfx.oracle();
       setOracleQuest(data);
-    } catch { toast.error("Le parchemin reste vierge..."); }
+    } catch { toast.error(t("quests.oracle.error")); }
     finally { setLoadingOracle(false); }
   };
 
   const filtered = quests.filter((q) => q.type === tab);
-  const tabLabels = {
-    daily: "Crépuscule",
-    weekly: "Lune",
-    monthly: "Saison",
-  };
+  const stats = useMemo(() => {
+    const all = quests.filter((q) => q.type === tab);
+    const done = all.filter((q) => q.completed).length;
+    const xp = all.reduce((s, q) => s + (q.completed ? q.xp : 0), 0);
+    const aether = all.reduce((s, q) => s + (q.completed ? q.aether : 0), 0);
+    return { total: all.length, done, xp, aether };
+  }, [quests, tab]);
 
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8" data-testid="quests-page">
-      <div className="mb-8 text-center relative">
-        <div className="flex justify-center mb-3">
-          <RuneSeal icon={Crosshair} color="#FFD700" size={48} />
-        </div>
-        <div className="text-[10px] uppercase tracking-[0.4em] text-yellow-400 font-bold mb-2">Avis aux braves</div>
-        <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight">
-          Tableau de <span className="text-gradient-gold">Chasse</span>
-        </h1>
-        <p className="text-zinc-400 text-sm mt-2 italic scroll-paragraph max-w-2xl mx-auto">
-          « Les missives s'accumulent sur le poteau central de la place. Acceptez votre destin, scellez votre nom dans la chronique. »
-        </p>
-        <RuneDivider className="mt-6" />
+    <PageShell
+      wide
+      testid="quests-page"
+      banner={banner}
+    >
+
+      <div className="quest-summary-grid mb-5">
+        {[
+          { label: t("quests.stat.total"), value: stats.total, icon: Target, color: "text-amber-400" },
+          { label: t("quests.stat.done"), value: stats.done, icon: Check, color: "text-emerald-400" },
+          { label: t("quests.stat.xp"), value: `+${stats.xp}`, icon: Sparkles, color: "text-cyan-400" },
+          { label: t("quests.stat.aether"), value: `+${stats.aether}`, icon: Coins, color: "text-yellow-400" },
+        ].map((s) => {
+          const Ico = s.icon;
+          return (
+            <div key={s.label} className="rounded-xl border border-white/8 bg-black/25 p-3 text-center">
+              <Ico className={`w-4 h-4 mx-auto mb-1 ${s.color}`} />
+              <div className="font-mono-stat font-bold text-lg text-white">{s.value}</div>
+              <div className="text-[9px] uppercase tracking-wider text-zinc-500">{s.label}</div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Help banner — explains how to advance quests */}
-      <div className="parchment rounded-xl p-4 mb-6 border-yellow-500/20 max-w-3xl mx-auto" data-testid="quests-help">
-        <div className="text-[10px] uppercase tracking-[0.3em] text-yellow-400 font-bold font-display mb-2 flex items-center gap-2">
-          <Scroll className="w-3.5 h-3.5" /> Comment progresser ?
-        </div>
-        <ul className="text-xs text-zinc-300 space-y-1 leading-relaxed font-mono-stat">
-          <li>• <span className="text-cyan-300 font-bold">Publier</span> sur la Place Publique fait progresser les quêtes « Voix du Royaume » / « Plume Active ».</li>
-          <li>• <span className="text-cyan-300 font-bold">Réagir</span> aux publications fait progresser « Encourager les Héros » / « Soutien Fervent ».</li>
-          <li>• <span className="text-cyan-300 font-bold">Commenter</span> fait progresser « Conseil Sage ».</li>
-          <li>• <span className="text-cyan-300 font-bold">Consulter l'Oracle</span> au Sanctuaire fait progresser « Sagesse de l'Oracle ».</li>
-          <li>• Une quête accomplie verse automatiquement son XP et son Aether — surveillez la <span className="text-violet-300 font-bold">Chronique</span> sur votre profil.</li>
-        </ul>
-      </div>
-
-      <div className="flex gap-2 mb-6 flex-wrap justify-center" data-testid="quest-tabs">
-        {Object.entries(tabLabels).map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} data-testid={`tab-${id}`}
-            className={`px-5 py-2 rounded-md text-sm font-bold font-display tracking-wide border transition-all ${tab === id ? "bg-yellow-500/10 border-yellow-500/50 text-yellow-300 shadow-[0_0_14px_rgba(255,215,0,0.25)]" : "border-white/10 text-zinc-400 hover:border-white/20"}`}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4 mb-10">
-        {filtered.length === 0 && (
-          <div className="col-span-2 parchment rounded-2xl p-12 text-center text-zinc-500 italic">
-            Le tableau est vide pour ce cycle...
+      <div className="hub-page-header mb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Crosshair className="w-4 h-4 text-amber-400" />
+            <span className="text-sm font-display font-bold text-white">{t("quests.cycle")} {t(TAB_KEYS[tab])}</span>
           </div>
+          <div className="flex flex-wrap gap-2" data-testid="quest-tabs">
+            {Object.entries(TAB_KEYS).map(([id, key]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                data-testid={`tab-${id}`}
+                className={`hub-tab-pill ${tab === id ? "hub-tab-pill--active" : ""}`}
+              >
+                {t(key)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-3 mb-8">
+        {filtered.length === 0 && (
+          <PremiumCard tone="cyan" className="col-span-2 p-10 text-center text-zinc-500 italic text-sm">
+            {t("quests.empty")}
+          </PremiumCard>
         )}
         {filtered.map((q, i) => {
           const pct = Math.min(100, (q.progress / q.target) * 100);
           return (
-            <motion.div key={q.user_id_quest_id}
-              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              className={`parchment rounded-xl p-5 relative overflow-hidden group ${q.completed ? "border-cyan-500/40 shadow-[0_0_18px_rgba(0,229,255,0.15)]" : ""}`}
-              data-testid={`quest-${q.quest_id}`}>
-              {/* Wax seal corner */}
-              <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gradient-to-br from-red-700 to-red-900 border border-red-500/50 flex items-center justify-center shadow-[0_0_8px_rgba(239,68,68,0.4)]">
-                <Feather className="w-3.5 h-3.5 text-yellow-100/80" />
-              </div>
-              <div className="flex items-start gap-3 mb-3 pr-10">
-                <Scroll className={`w-6 h-6 mt-1 ${q.completed ? "text-cyan-400" : "text-yellow-500/80"}`} />
-                <div className="flex-1">
-                  <div className="font-display font-bold text-lg flex items-center gap-2 ancient-text">
-                    {q.name}
-                    {q.completed && <Check className="w-4 h-4 text-cyan-400" />}
+            <motion.div
+              key={q.user_id_quest_id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+            >
+              <PremiumCard
+                tone={q.completed ? "cyan" : "gold"}
+                testid={`quest-${q.quest_id}`}
+                className="relative overflow-hidden h-full"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${q.completed ? "bg-cyan-500/15" : "bg-amber-500/15"}`}>
+                    {q.completed ? <Check className="w-5 h-5 text-cyan-400" /> : <Feather className="w-5 h-5 text-amber-400" />}
                   </div>
-                  <div className="text-sm text-zinc-300 italic mt-1 scroll-paragraph">{q.description}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-display font-bold text-base text-white">{q.name}</div>
+                    <div className="text-xs text-zinc-500 mt-1 leading-relaxed">{q.description}</div>
+                    <div className="mt-3 flex justify-between text-[10px] font-mono-stat uppercase tracking-wider text-zinc-500">
+                      <span>{t("quests.progress")}</span>
+                      <span className="text-cyan-300">{q.progress}/{q.target}</span>
+                    </div>
+                    <div className="h-1.5 bg-black/40 rounded-full overflow-hidden mt-1">
+                      <div
+                        className={`h-full ${q.completed ? "bg-gradient-to-r from-emerald-500 to-cyan-400" : "bg-gradient-to-r from-amber-600 to-amber-400"}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <div className="mt-2 flex gap-3 text-[11px] font-mono-stat">
+                      <span className="text-cyan-300 flex items-center gap-1"><Sparkles className="w-3 h-3" />+{q.xp} XP</span>
+                      <span className="text-yellow-400 flex items-center gap-1"><Coins className="w-3 h-3" />+{q.aether}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="mb-2 flex justify-between font-mono-stat text-xs">
-                <span className="text-zinc-400 uppercase tracking-widest">Progression</span>
-                <span className="text-cyan-300">{q.progress}/{q.target}</span>
-              </div>
-              <div className="h-2 bg-black/40 rounded-full overflow-hidden border border-white/5">
-                <div className={`h-full ${q.completed ? "bg-gradient-to-r from-green-500 to-cyan-400" : "bg-gradient-to-r from-yellow-600 to-yellow-400"}`} style={{ width: `${pct}%` }} />
-              </div>
-              <div className="mt-3 flex gap-4 text-xs font-mono-stat items-center">
-                <span className="text-cyan-300 flex items-center gap-1"><Sparkles className="w-3 h-3" />+{q.xp} XP</span>
-                <span className="text-yellow-400 flex items-center gap-1"><Coins className="w-3 h-3" />+{q.aether}</span>
-              </div>
+              </PremiumCard>
             </motion.div>
           );
         })}
       </div>
 
-      {/* Oracle Quest — special parchment */}
-      <div className="rune-border rounded-2xl p-6 relative mist overflow-hidden">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <RuneSeal icon={Sparkles} color="#9D4CDD" size={40} />
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-violet-300 font-bold">Édit du Sanctuaire</div>
-              <div className="font-display font-bold text-lg ancient-text">Missive scellée</div>
+      <div className="rounded-xl border border-violet-500/20 bg-violet-950/20 p-4">
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+          <div>
+            <div className="text-[9px] uppercase tracking-[0.25em] text-violet-400 font-bold flex items-center gap-1.5">
+              <Scroll className="w-3.5 h-3.5" /> {t("quests.oracle.title")}
             </div>
+            <p className="text-xs text-zinc-500 mt-1">{t("quests.oracle.subtitle")}</p>
           </div>
-          <button onClick={generateOracleQuest} disabled={loadingOracle}
-            className="px-4 py-2 rounded-md border border-violet-500/40 text-violet-200 hover:shadow-[0_0_20px_rgba(157,76,221,0.4)] text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2 font-display"
-            data-testid="generate-oracle-quest-btn">
-            <Sparkles className="w-3 h-3" />
-            {loadingOracle ? "Le parchemin s'écrit..." : "Briser le sceau"}
-          </button>
+          <PremiumButton
+            variant="violet"
+            size="sm"
+            icon={Sparkles}
+            onClick={generateOracleQuest}
+            disabled={loadingOracle}
+            testid="generate-oracle-quest-btn"
+          >
+            {loadingOracle ? t("quests.oracle.writing") : t("quests.oracle.generate_btn")}
+          </PremiumButton>
         </div>
         {oracleQuest && (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="unfurl mt-2 p-5 rounded-xl bg-violet-500/5 border border-violet-500/20 relative" data-testid="oracle-quest-result">
-            <div className="font-display font-bold text-xl ancient-text">{oracleQuest.name}</div>
-            <div className="text-sm text-violet-100/90 mt-2 italic scroll-paragraph">{oracleQuest.description}</div>
-            <div className="mt-3 flex gap-4 text-xs font-mono-stat">
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-4 rounded-lg border border-violet-500/25 bg-black/30"
+            data-testid="oracle-quest-result"
+          >
+            <div className="font-display font-bold text-lg text-violet-100">{oracleQuest.name}</div>
+            <div className="text-sm text-violet-100/75 mt-1">{oracleQuest.description}</div>
+            <div className="mt-2 flex gap-4 text-xs font-mono-stat">
               <span className="text-cyan-300">+{oracleQuest.xp} XP</span>
               <span className="text-yellow-400">+{oracleQuest.aether} ✦</span>
             </div>
           </motion.div>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }
