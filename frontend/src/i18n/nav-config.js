@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Castle, Trophy, UserCheck, Calendar,
   Sword, Gem, ShoppingBag, Eye, Sparkles,
-  ScrollText, UserPlus, Settings, Headphones, BookOpen,
+  ScrollText, UserPlus, Settings, Headphones, BookOpen, Gift,
 } from "lucide-react";
 
 /** Player sidebar — labels resolved via i18n labelKey */
@@ -24,6 +24,7 @@ export function buildPlayerNav() {
         { to: "/forum", labelKey: "nav.forum", icon: ScrollText, testid: "nav-forum" },
         { to: "/tickets", labelKey: "nav.tickets", icon: Headphones, testid: "nav-tickets" },
         { to: "/friends", labelKey: "nav.friends", icon: UserPlus, testid: "nav-friends", dynamicBadge: "friends" },
+        { to: "/parrainage", labelKey: "nav.referral", icon: Gift, testid: "nav-referral" },
         { openLegend: true, labelKey: "sidebar.guide", icon: BookOpen, testid: "sidebar-guide-btn" },
       ],
     },

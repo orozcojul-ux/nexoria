@@ -21,12 +21,13 @@ const TR = {
   "nav.oracle": { fr: "Sanctuaire", en: "Sanctuary", es: "Santuario", de: "Heiligtum", it: "Santuario", pt: "Santuário", nl: "Heiligdom", ja: "聖域" },
   "nav.leaderboards": { fr: "Hall des Légendes", en: "Hall of Legends", es: "Salón de Leyendas", de: "Halle der Legenden", it: "Hall of Legends", pt: "Salão das Lendas", nl: "Hal der Legendes", ja: "伝説の間" },
   "nav.legends": { fr: "Panthéon", en: "Pantheon", es: "Panteón", de: "Pantheon", it: "Pantheon", pt: "Panteão", nl: "Pantheon", ja: "パンテオン" },
-  "nav.shop": { fr: "Boutique d'Aether", en: "Aether Shop", es: "Tienda de Éter", de: "Aether-Shop", it: "Bottega d'Etere", pt: "Loja de Éter", nl: "Aether Winkel", ja: "エーテルショップ" },
+  "nav.shop": { fr: "Boutique d'Écus", en: "Écus Shop", es: "Tienda de Écus", de: "Écus-Shop", it: "Bottega di Écus", pt: "Loja de Écus", nl: "Écus Winkel", ja: "Écusショップ" },
   "nav.world": { fr: "Carte du Monde", en: "World Map", es: "Mapa del Mundo", de: "Weltkarte", it: "Mappa del Mondo", pt: "Mapa do Mundo", nl: "Wereldkaart", ja: "世界地図" },
   "nav.nexus": { fr: "Nexus Online", en: "Nexus Online", es: "Nexus Online", de: "Nexus Online", it: "Nexus Online", pt: "Nexus Online", nl: "Nexus Online", ja: "ネクサスオンライン" },
   "nav.guilds": { fr: "Ordres", en: "Guilds", es: "Órdenes", de: "Orden", it: "Ordini", pt: "Ordens", nl: "Gilden", ja: "ギルド" },
   "nav.forum": { fr: "Tribune", en: "Forum", es: "Foro", de: "Forum", it: "Forum", pt: "Fórum", nl: "Forum", ja: "フォーラム" },
   "nav.friends": { fr: "Compagnons", en: "Friends", es: "Compañeros", de: "Gefährten", it: "Compagni", pt: "Companheiros", nl: "Metgezellen", ja: "仲間" },
+  "nav.referral": { fr: "Parrainage", en: "Referral", es: "Padrinazgo", de: "Empfehlung", it: "Referral", pt: "Indicação", nl: "Verwijzing", ja: "紹介" },
   "nav.tickets": { fr: "Missives", en: "Tickets", es: "Misivas", de: "Anliegen", it: "Missive", pt: "Missivas", nl: "Berichten", ja: "チケット" },
   "nav.settings": { fr: "Paramètres", en: "Settings", es: "Ajustes", de: "Einstellungen", it: "Impostazioni", pt: "Configurações", nl: "Instellingen", ja: "設定" },
   "nav.admin": { fr: "Conseil", en: "Council", es: "Consejo", de: "Rat", it: "Consiglio", pt: "Conselho", nl: "Raad", ja: "評議会" },
@@ -39,7 +40,7 @@ const TR = {
   "common.edit": { fr: "Modifier", en: "Edit", es: "Editar", de: "Bearbeiten", it: "Modifica", pt: "Editar", nl: "Bewerken", ja: "編集" },
   "common.close": { fr: "Fermer", en: "Close", es: "Cerrar", de: "Schließen", it: "Chiudi", pt: "Fechar", nl: "Sluiten", ja: "閉じる" },
   "common.loading": { fr: "Chargement...", en: "Loading...", es: "Cargando...", de: "Lädt...", it: "Caricamento...", pt: "Carregando...", nl: "Laden...", ja: "読み込み中..." },
-  "common.aether": { fr: "Aether", en: "Aether", es: "Éter", de: "Aether", it: "Etere", pt: "Éter", nl: "Aether", ja: "エーテル" },
+  "common.aether": { fr: "Écus", en: "Écus", es: "Écus", de: "Écus", it: "Écus", pt: "Écus", nl: "Écus", ja: "Écus" },
   "common.level": { fr: "Niveau", en: "Level", es: "Nivel", de: "Stufe", it: "Livello", pt: "Nível", nl: "Niveau", ja: "レベル" },
   "common.xp": { fr: "XP", en: "XP", es: "EXP", de: "EP", it: "EXP", pt: "XP", nl: "XP", ja: "XP" },
 
@@ -188,9 +189,9 @@ const TR = {
     ja: "クエストやイベントでXPを獲得します。",
   },
 
-  "legend.aether.title": { fr: "Aether ✦", en: "Aether ✦", es: "Éter ✦", de: "Aether ✦", it: "Etere ✦", pt: "Éter ✦", nl: "Aether ✦", ja: "エーテル ✦" },
+  "legend.aether.title": { fr: "Écus ✦", en: "Écus ✦", es: "Écus ✦", de: "Écus ✦", it: "Écus ✦", pt: "Écus ✦", nl: "Écus ✦", ja: "Écus ✦" },
   "legend.aether.body": {
-    fr: "L'Aether est la monnaie royale. Gagnez-en via les quêtes, les événements et les récompenses de saison.\nDépensez-le à la Boutique (cosmétiques, boosts, titres…) ou pour améliorer votre Royaume.\nVotre solde se met à jour en temps réel sur le site — pas besoin de recharger la page.",
+    fr: "Les Écus sont la monnaie royale. Gagnez-en via les quêtes, les événements et les récompenses de saison.\nDépensez-les à la Boutique (cosmétiques, boosts, titres…) ou pour améliorer votre Royaume.\nVotre solde se met à jour en temps réel sur le site — pas besoin de recharger la page.",
     en: "Aether is the royal currency. Earn it from quests, events and season rewards.\nSpend it in the Shop (cosmetics, boosts, titles…) or to upgrade your Kingdom.\nYour balance updates in real time — no page reload needed.",
     es: "El Éter es la moneda real. Gánalo con misiones, eventos y recompensas de temporada.\nGástalo en la tienda o en tu reino.\nTu saldo se actualiza en tiempo real.",
     de: "Aether ist die königliche Währung. Verdiene es durch Quests, Events und Saisonbelohnungen.\nGib es in der Boutique oder im Königreich aus.\nDein Guthaben aktualisiert sich in Echtzeit.",
@@ -202,7 +203,7 @@ const TR = {
 
   "legend.season.title": { fr: "Les Saisons — le cœur compétitif", en: "Seasons — competitive core", es: "Temporadas — núcleo competitivo", de: "Saisons — Wettbewerbskern", it: "Stagioni — cuore competitivo", pt: "Temporadas — núcleo competitivo", nl: "Seizoenen — competitief hart", ja: "シーズン — 競争の中心" },
   "legend.season.body": {
-    fr: "Une saison est une période limitée (souvent plusieurs semaines) pendant laquelle tous les héros recomptent leurs exploits.\n\n• Saison XP : l'XP gagnée pendant la saison alimente le classement saisonnier (distinct de votre niveau permanent).\n• Lancement : quand une saison s'ouvre, une proclamation royale retentit sur tout le site — connectez-vous pour participer dès le début.\n• Récompenses : à la fin, les meilleurs du classement reçoivent Aether, titres et distinctions.\n• Pass Saisonnier : certains objets de la boutique débloquent des avantages pour la saison en cours.\n\nVotre niveau et votre inventaire restent — seul le classement saisonnier repart à zéro.",
+    fr: "Une saison est une période limitée (souvent plusieurs semaines) pendant laquelle tous les héros recomptent leurs exploits.\n\n• Saison XP : l'XP gagnée pendant la saison alimente le classement saisonnier (distinct de votre niveau permanent).\n• Lancement : quand une saison s'ouvre, une proclamation royale retentit sur tout le site — connectez-vous pour participer dès le début.\n• Récompenses : à la fin, les meilleurs du classement reçoivent Écus, titres et distinctions.\n• Pass Saisonnier : certains objets de la boutique débloquent des avantages pour la saison en cours.\n\nVotre niveau et votre inventaire restent — seul le classement saisonnier repart à zéro.",
     en: "A season is a limited period (often several weeks) when all heroes compete on a fresh leaderboard.\n\n• Season XP: XP earned during the season feeds the seasonal ranking (separate from your permanent level).\n• Launch: when a season opens, a royal proclamation sounds site-wide — log in early to compete.\n• Rewards: top players earn Aether, titles and honors at the end.\n• Season Pass: some shop items unlock perks for the current season.\n\nYour level and inventory persist — only the seasonal ranking resets.",
     es: "Una temporada es un periodo limitado en el que todos los héroes compiten en un ranking nuevo.\n\n• XP de temporada: distinto de tu nivel permanente.\n• Al abrir, suena una proclamación en todo el sitio.\n• Recompensas para los mejores al final.\n• Pase de temporada en la tienda.\n\nTu nivel e inventario permanecen — solo el ranking se reinicia.",
     de: "Eine Saison ist ein begrenzter Zeitraum, in dem alle Helden um ein frisches Ranking kämpfen.\n\n• Saison-XP: getrennt vom permanenten Level.\n• Beim Start ertönt eine königliche Proklamation.\n• Belohnungen für die Besten am Ende.\n• Saison-Pass in der Boutique.\n\nLevel und Inventar bleiben — nur das Saison-Ranking wird zurückgesetzt.",
@@ -214,7 +215,7 @@ const TR = {
 
   "legend.quests.title": { fr: "Quêtes & Failles", en: "Quests & Rifts", es: "Misiones y fallas", de: "Quests & Risse", it: "Missioni e fenditure", pt: "Missões e fendas", nl: "Quests & rifts", ja: "クエストと裂け目" },
   "legend.quests.body": {
-    fr: "Consultez l'Oracle des Quêtes pour des objectifs quotidiens et des récompenses XP/Aether.\nLes failles temporelles apparaissent aléatoirement sur le fil : double XP, coffres, événements surprise.",
+    fr: "Consultez l'Oracle des Quêtes pour des objectifs quotidiens et des récompenses XP/Écus.\nLes failles temporelles apparaissent aléatoirement sur le fil : double XP, coffres, événements surprise.",
     en: "Check the Quest Oracle for daily objectives and XP/Aether rewards.\nTemporal rifts appear randomly on the feed: double XP, chests, surprise events.",
     es: "Consulta el Oráculo de Misiones para objetivos diarios y recompensas.\nLas fallas temporales aparecen aleatoriamente en el feed.",
     de: "Besuche das Quest-Orakel für tägliche Ziele und Belohnungen.\nZeitrisse erscheinen zufällig im Feed.",
@@ -224,7 +225,7 @@ const TR = {
     ja: "クエストオラクルで日々の目標と報酬を確認します。",
   },
 
-  "legend.shop.title": { fr: "Boutique d'Aether", en: "Aether Shop", es: "Tienda de Éter", de: "Aether-Boutique", it: "Negozio dell'Etere", pt: "Loja de Éter", nl: "Aether-winkel", ja: "エーテルショップ" },
+  "legend.shop.title": { fr: "Boutique d'Écus", en: "Écus Shop", es: "Tienda de Écus", de: "Écus-Boutique", it: "Negozio di Écus", pt: "Loja de Écus", nl: "Écus-winkel", ja: "Écusショップ" },
   "legend.shop.body": {
     fr: "La boutique propose cosmétiques (cadres, bannières, auras), boosts temporaires, montures, titres et pass saisonniers.\nCertains articles nécessitent un niveau minimum. Les achats uniques sont définitifs.",
     en: "The shop offers cosmetics (frames, banners, auras), temporary boosts, mounts, titles and season passes.\nSome items require a minimum level. Unique purchases are permanent.",

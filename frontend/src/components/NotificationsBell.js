@@ -3,10 +3,21 @@ import * as Lucide from "lucide-react";
 import { Bell, Check, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
 import { useI18n } from "@/contexts/I18nContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
+
+// Kinds qui méritent un toast bien visible même quand la cloche est fermée.
+const TOAST_KINDS = new Set([
+  "friend_request",
+  "friend_accepted",
+  "friend_message",
+  "guild_invite",
+  "guild_reward",
+  "referral",
+]);
 
 export default function NotificationsBell() {
   const { t } = useI18n();
@@ -25,8 +36,20 @@ export default function NotificationsBell() {
     } catch {}
   };
 
-  // Initial load only (no polling).
-  useEffect(() => { load(); }, []);
+  // Chargement initial + rafraîchissement régulier (le socket n'est pas
+  // toujours connecté : on garantit ainsi que le compteur reste à jour).
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Rafraîchit aussi à chaque retour sur l'onglet.
+  useEffect(() => {
+    const onVisible = () => { if (!document.hidden) load(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   // React to socket push notifications
   useEffect(() => {
@@ -35,8 +58,16 @@ export default function NotificationsBell() {
     setNotifs((prev) => [doc, ...prev].slice(0, 50));
     setUnread((u) => u + 1);
     try { sfx.click(); } catch {}
+    // Toast visible (en plus du badge) pour les notifications importantes.
+    if (doc && TOAST_KINDS.has(doc.kind)) {
+      const opts = { duration: 7000 };
+      if (doc.link) {
+        opts.action = { label: "Voir", onClick: () => navigate(doc.link) };
+      }
+      toast(doc.title || "Nouvelle notification", { description: doc.message, ...opts });
+    }
     ns.consumePushNotif();
-  }, [ns?.pushNotif, ns]);
+  }, [ns?.pushNotif, ns, navigate]);
 
   useEffect(() => {
     const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -62,11 +93,17 @@ export default function NotificationsBell() {
         data-testid="notif-bell-btn"
         className="relative w-9 h-9 rounded-md border border-white/10 hover:border-cyan-500/40 flex items-center justify-center transition-all"
       >
-        <Bell className="w-4 h-4 text-zinc-300" />
+        <Bell className={`w-4 h-4 ${unread > 0 ? "text-amber-300" : "text-zinc-300"}`} />
         {unread > 0 && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-gradient-to-br from-red-500 to-orange-500 text-[9px] font-bold flex items-center justify-center shadow-[0_0_8px_rgba(239,68,68,0.5)]" data-testid="notif-unread-count">
-            {unread > 9 ? "9+" : unread}
-          </span>
+          <>
+            <span className="absolute -top-1.5 -right-1.5 w-[18px] h-[18px] rounded-full bg-red-500/60 animate-ping" aria-hidden />
+            <span
+              className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-br from-red-500 to-orange-500 text-[10px] font-bold flex items-center justify-center shadow-[0_0_10px_rgba(239,68,68,0.7)] ring-2 ring-[#0b0712]"
+              data-testid="notif-unread-count"
+            >
+              {unread > 9 ? "9+" : unread}
+            </span>
+          </>
         )}
       </button>
 

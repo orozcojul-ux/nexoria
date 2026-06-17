@@ -20,7 +20,7 @@ const BASE_SECTIONS = [
   { id: "account",     icon: Mail,    key: "settings.account" },
   { id: "security",    icon: Lock,    key: "settings.security" },
   { id: "preferences", icon: Globe,   key: "settings.preferences" },
-  { id: "server",      icon: Server,  key: "settings.server", staffOnly: true },
+  { id: "server",      icon: Server,  key: "settings.server" },
   { id: "danger",      icon: AlertTriangle, key: "settings.danger" },
 ];
 
@@ -57,7 +57,7 @@ export default function Settings() {
           {section === "account" && <AccountSection user={user} refresh={refresh} t={t} />}
           {section === "security" && <SecuritySection t={t} />}
           {section === "preferences" && <PreferencesSection t={t} />}
-          {section === "server" && isStaff && <ServerSection user={user} refresh={refresh} t={t} />}
+          {section === "server" && <ServerSection user={user} refresh={refresh} t={t} isStaff={isStaff} />}
           {section === "danger" && <DangerSection logout={logout} navigate={navigate} t={t} />}
           </PremiumCard>
         </main>
@@ -94,6 +94,16 @@ function AccountSection({ user, refresh, t }) {
     <div className="space-y-8">
       <div>
         <h2 className="font-display font-bold text-xl mb-3">Email</h2>
+        {(user.email || "").endsWith("@nexoria.local") && (
+          <div
+            className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200 leading-relaxed"
+            data-testid="email-provisional-warning"
+          >
+            ⚠️ Votre adresse e-mail est <strong>provisoire</strong> (générée via Discord). Vous devez
+            obligatoirement la remplacer par une adresse e-mail valide ci-dessous pour sécuriser et
+            pouvoir récupérer votre compte.
+          </div>
+        )}
         <div className="text-xs text-zinc-500 mb-3 font-mono-stat">Actuel : {user.email}</div>
         <form onSubmit={changeEmail} className="space-y-3">
           <Field label={t("settings.current_password")} type="password" value={emailForm.current_password} onChange={(v) => setEmailForm({ ...emailForm, current_password: v })} testid="email-current-pwd" />
@@ -270,9 +280,33 @@ function PreferencesSection({ t }) {
   );
 }
 
-function ServerSection({ user, refresh, t }) {
+function ToggleSwitch({ checked, onClick, disabled, testid }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={onClick}
+      data-testid={testid}
+      className={`relative shrink-0 w-11 h-6 rounded-full border transition-colors disabled:opacity-50 ${
+        checked ? "bg-emerald-500/30 border-emerald-400/50" : "bg-black/40 border-white/15"
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+          checked ? "translate-x-5" : "translate-x-0"
+        }`}
+      />
+    </button>
+  );
+}
+
+function ServerSection({ user, refresh, t, isStaff }) {
   const [saving, setSaving] = useState(false);
+  const [savingPresence, setSavingPresence] = useState(false);
   const enabled = user?.staff_nexus_auto_connect !== false;
+  const appearOnline = user?.appear_offline !== true;
 
   const toggle = async () => {
     const next = !enabled;
@@ -289,36 +323,61 @@ function ServerSection({ user, refresh, t }) {
     }
   };
 
+  const togglePresence = async () => {
+    const nextHidden = appearOnline; // currently visible → hide
+    setSavingPresence(true);
+    try {
+      await api.put("/profile", { appear_offline: nextHidden });
+      sfx.success();
+      toast.success(nextHidden ? "Votre présence est désormais masquée" : "Vous apparaissez en ligne");
+      await refresh();
+    } catch (err) {
+      toast.error(formatApiError(err) || "Erreur");
+    } finally {
+      setSavingPresence(false);
+    }
+  };
+
   return (
     <div className="space-y-6" data-testid="settings-server-section">
       <h2 className="font-display font-bold text-xl mb-2">{t("settings.server")}</h2>
-      <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+
+      <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-sm font-bold text-white mb-1">{t("settings.server.nexus_auto")}</div>
-            <p className="text-xs text-zinc-400 leading-relaxed">{t("settings.server.nexus_auto_hint")}</p>
+            <div className="text-sm font-bold text-white mb-1">
+              {appearOnline ? "Apparaître en ligne" : "Présence masquée"}
+            </div>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Lorsque votre présence est masquée, vous n'apparaissez plus dans le compteur de
+              joueurs en ligne ni sur la carte du Nexus pour les autres héros.
+            </p>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={enabled}
-            disabled={saving}
-            onClick={toggle}
-            data-testid="settings-staff-nexus-auto-toggle"
-            className={`relative shrink-0 w-11 h-6 rounded-full border transition-colors disabled:opacity-50 ${
-              enabled
-                ? "bg-emerald-500/30 border-emerald-400/50"
-                : "bg-black/40 border-white/15"
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                enabled ? "translate-x-5" : "translate-x-0"
-              }`}
-            />
-          </button>
+          <ToggleSwitch
+            checked={appearOnline}
+            disabled={savingPresence}
+            onClick={togglePresence}
+            testid="settings-presence-toggle"
+          />
         </div>
       </div>
+
+      {isStaff && (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-white mb-1">{t("settings.server.nexus_auto")}</div>
+              <p className="text-xs text-zinc-400 leading-relaxed">{t("settings.server.nexus_auto_hint")}</p>
+            </div>
+            <ToggleSwitch
+              checked={enabled}
+              disabled={saving}
+              onClick={toggle}
+              testid="settings-staff-nexus-auto-toggle"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

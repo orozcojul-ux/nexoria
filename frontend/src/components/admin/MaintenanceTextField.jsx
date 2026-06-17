@@ -10,10 +10,10 @@ export default function MaintenanceTextField({
 }) {
   return (
     <div className="space-y-1.5" data-testid={testid}>
-      <label className="block text-[10px] uppercase tracking-[0.3em] text-zinc-400 font-bold">
+      <label className="block text-[10px] uppercase tracking-[0.3em] text-zinc-200 font-bold">
         {label}
       </label>
-      {hint && <p className="text-xs text-zinc-500 italic">{hint}</p>}
+      {hint && <p className="text-xs text-zinc-400 italic">{hint}</p>}
       <textarea
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}

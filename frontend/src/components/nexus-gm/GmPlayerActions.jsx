@@ -65,7 +65,7 @@ export default function GmPlayerActions({
 
           <div className="pt-3 border-t border-white/6 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="nexus-gm-label">Donner / Retirer Aether</label>
+              <label className="nexus-gm-label">Donner / Retirer Écus</label>
               <div className="flex gap-1">
                 <input type="number" placeholder="±montant" data-testid="gm-aether-amount"
                   className="nexus-gm-input flex-1 font-mono"

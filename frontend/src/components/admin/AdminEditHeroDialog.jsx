@@ -17,7 +17,7 @@ const FIELD_LABELS = {
   level: "Niveau",
   xp: "XP",
   skill_points: "Points de compétence",
-  aether: "Aether",
+  aether: "Écus",
   reputation: "Réputation",
   role: "Rôle",
   bio: "Bio",

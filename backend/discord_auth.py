@@ -59,11 +59,17 @@ def build_authorize_url() -> str:
     )
 
 
+PROVISIONAL_EMAIL_DOMAIN = "@nexoria.local"
+
+
 def _parse_discord_user(user: dict) -> dict:
     discord_username = user.get("username") or ""
     discord_global_name = user.get("global_name") or None
     display = discord_global_name or discord_username or f"Discord{user['id'][:6]}"
-    email = user.get("email") or f"discord_{user['id']}@nexoria.local"
+    real_email = user.get("email")
+    # Discord ne fournit pas toujours un email vérifié (scope refusé / non vérifié).
+    # On génère alors une adresse provisoire que le joueur DOIT remplacer.
+    email = real_email or f"discord_{user['id']}@nexoria.local"
     avatar_url = build_avatar_url(user)
 
     return {
@@ -71,6 +77,7 @@ def _parse_discord_user(user: dict) -> dict:
         "discord_username": discord_username,
         "discord_global_name": discord_global_name,
         "email": email.lower(),
+        "email_provisional": not bool(real_email) or not bool(user.get("verified", True)),
         "username": display.replace(" ", "") or f"Heros{user['id'][:6]}",
         "avatar_url": avatar_url,
         "discord_avatar_url": avatar_url,

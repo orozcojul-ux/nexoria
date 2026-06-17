@@ -45,7 +45,7 @@ def _format_message(event: str, user: dict) -> str:
     if event == "register":
         return f"✨ **{username}** vient de rejoindre NEXORIA — bienvenue sur le Discord !"
     if event == "login":
-        return f"✨ **{username}** s'est connecté à NEXORIA — bienvenue sur le Discord !"
+        return f"✨ **{username}** s'est connecté, bienvenue sur Nexoria !"
     if event == "logout":
         return f"🔴 **{username}** s'est déconnecté de NEXORIA — à bientôt sur le Discord !"
     if event == "rename":

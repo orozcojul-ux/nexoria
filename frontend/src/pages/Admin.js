@@ -23,6 +23,9 @@ import { ONLINE_GATE_HTML_FIELDS, DEFAULT_ONLINE_GATE_HTML, normalizeOnlineGateH
 import "@/pages/Maintenance.css";
 
 const SURFACE = "relative rounded-xl border border-white/10 bg-gradient-to-br from-[#0F0820]/80 via-[#0A0613]/80 to-[#1A0B3D]/80 backdrop-blur";
+// Higher-contrast, near-opaque surface for dense configuration panels
+// (maintenance / online gate) so all text stays clearly readable.
+const SURFACE_SOLID = "relative rounded-xl border border-violet-500/20 bg-[#0b0713]/95 shadow-[0_8px_40px_rgba(0,0,0,0.55)]";
 
 /** Convertit un ISO (UTC) en valeur locale pour <input type="datetime-local">. */
 function isoToLocalInput(iso) {
@@ -283,7 +286,7 @@ export default function Admin() {
                   <th className="p-3">Pseudo</th>
                   <th className="p-3 hidden sm:table-cell">Classe</th>
                   <th className="p-3">Niveau</th>
-                  <th className="p-3 hidden sm:table-cell">Aether</th>
+                  <th className="p-3 hidden sm:table-cell">Écus</th>
                   <th className="p-3 hidden md:table-cell">Statut</th>
                   <th className="p-3 text-right">Actions</th>
                 </tr>
@@ -385,7 +388,7 @@ export default function Admin() {
 
       {tab === "system" && (
         <div className="space-y-6 max-w-5xl">
-          <div className={`${SURFACE} rounded-2xl p-6 space-y-6`}>
+          <div className={`${SURFACE_SOLID} rounded-2xl p-6 space-y-6`}>
             <h2 className="font-display font-bold text-xl flex items-center gap-2">
               <Activity className="w-5 h-5 text-cyan-400" /> Serveur Online (événements)
             </h2>
@@ -434,7 +437,7 @@ export default function Admin() {
             </div>
           </div>
 
-        <div className={`${SURFACE} rounded-2xl p-6 space-y-6`}>
+        <div className={`${SURFACE_SOLID} rounded-2xl p-6 space-y-6`}>
           <h2 className="font-display font-bold text-xl flex items-center gap-2">
             <Hammer className="w-5 h-5 text-yellow-400" /> {t("admin.maintenance_mode")}
           </h2>
@@ -605,7 +608,7 @@ function RolesGuide() {
     {
       id: "user", name: "Voyageur", icon: Users, color: "#9CA3AF",
       desc: "L'utilisateur standard de NEXORIA.",
-      perms: ["Poster, commenter, réagir", "Compléter quêtes et gagner XP", "Acheter à la Boutique d'Aether", "Consulter le Sanctuaire", "Construire son royaume"],
+      perms: ["Poster, commenter, réagir", "Compléter quêtes et gagner XP", "Acheter à la Boutique d'Écus", "Consulter le Sanctuaire", "Construire son royaume"],
     },
     {
       id: "moderator", name: "Modérateur", icon: ShieldCheck, color: "#F97316",
@@ -627,7 +630,7 @@ function RolesGuide() {
       perms: [
         "Tous les droits du Modérateur",
         "Bannir / lever ban (1h → 10 ans)",
-        "Modifier tout héros (pseudo, email, classe, niveau, XP, Aether, titre, bio, rôle…)",
+        "Modifier tout héros (pseudo, email, classe, niveau, XP, Écus, titre, bio, rôle…)",
         "Supprimer des héros",
         "Activer / désactiver le mode Maintenance",
         "Lancer des Proclamations Royales (alertes broadcast)",
@@ -914,7 +917,7 @@ function ShopItemDialog({ item, onClose, onDone }) {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Prix (Aether)">
+          <Field label="Prix (Écus)">
             <input type="number" min="1" value={form.price} required onChange={(e) => setForm({ ...form, price: e.target.value })}
               className="w-full bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm font-mono-stat" data-testid="shop-price" />
           </Field>
@@ -935,7 +938,7 @@ function ShopItemDialog({ item, onClose, onDone }) {
               <select value={form.boost_type} onChange={(e) => setForm({ ...form, boost_type: e.target.value })}
                 className="w-full bg-[#0A0A0E] border border-white/10 rounded px-2 py-1.5 text-xs" data-testid="shop-boost-type">
                 <option value="xp_multiplier">XP x</option>
-                <option value="aether_multiplier">Aether x</option>
+                <option value="aether_multiplier">Écus x</option>
                 <option value="luck">Chance</option>
               </select>
             </Field>
@@ -1248,7 +1251,7 @@ function AetherGrantAdmin() {
       const { data } = await api.post("/admin/grant-aether", {
         target_user_id: target.user_id, amount: parsedAmount, reason: reason.trim(),
       });
-      toast.success(`Aether distribué à ${target.username} — nouveau solde : ${data.new_aether} ✦`);
+      toast.success(`Écus distribués à ${target.username} — nouveau solde : ${data.new_aether} ✦`);
       setReason("");
       setAmount(100);
       setTarget(null);
@@ -1261,8 +1264,8 @@ function AetherGrantAdmin() {
   return (
     <div className="space-y-4" data-testid="aether-grant-admin">
       <div>
-        <h2 className="font-display font-bold text-xl">💎 Distribution d'Aether</h2>
-        <p className="text-xs text-zinc-500 italic mt-1">Accordez (positif) ou retirez (négatif) de l'Aether à un héros. Une notification + une chronique sont créées automatiquement.</p>
+        <h2 className="font-display font-bold text-xl">💎 Distribution d'Écus</h2>
+        <p className="text-xs text-zinc-500 italic mt-1">Accordez (positif) ou retirez (négatif) des Écus à un héros. Une notification + une chronique sont créées automatiquement.</p>
       </div>
       <form onSubmit={submit} className={`${SURFACE} rounded-xl p-5 space-y-3`}>
         <div>
@@ -1339,9 +1342,9 @@ function AdminLegend() {
     { id: "chat", title: "Chat Staff", body: "Salon privé entre admins et modérateurs. Polling 5s. Persiste 7 jours." },
     { id: "shop", title: "Boutique", body: "[Admin] CRUD des items custom de la boutique. Les items statiques (déclarés en dur dans shop_data.py) sont verrouillés et ne peuvent être ni modifiés ni supprimés." },
     { id: "news", title: "Actualités", body: "[Admin] Publie des articles à la une sur la page d'accueil. Les articles mis en avant déclenchent une alerte sur le site pour tous les joueurs." },
-    { id: "seasons", title: "Saisons", body: "[Admin] Cycles de jeu compétitifs. Une saison active à la fois. À la clôture, les Top 1/10/50 reçoivent Aether + badges. L'XP gagné pendant une saison est mirroré dans season_scores." },
+    { id: "seasons", title: "Saisons", body: "[Admin] Cycles de jeu compétitifs. Une saison active à la fois. À la clôture, les Top 1/10/50 reçoivent Écus + badges. L'XP gagné pendant une saison est mirroré dans season_scores." },
     { id: "tickets", title: "Doléances (Missives)", body: "Tickets d'aide soumis par les héros. Les staff peuvent répondre, changer le statut (Ouvert → En cours → Résolu → Clos). Les héros reçoivent une notification à chaque mise à jour." },
-    { id: "grant", title: "Don d'Aether", body: "[Admin] Distribution manuelle d'Aether (positif = don, négatif = ponction). Une chronique est créée et le héros est notifié." },
+    { id: "grant", title: "Don d'Écus", body: "[Admin] Distribution manuelle d'Écus (positif = don, négatif = ponction). Une chronique est créée et le héros est notifié." },
     { id: "roles", title: "Rôles", body: "[Admin] Promotion / rétrogradation entre user, moderator, admin. Un admin ne peut pas se rétrograder lui-même." },
     { id: "system", title: "Système", body: "[Admin] Ouvre/ferme le serveur Nexus (hub multijoueur événementiel, sans bloquer le site) et bascule la maintenance globale. Accès staff maintenance : rune discrète ou Ctrl+Shift+S sur /maintenance." },
     { id: "legend", title: "Légende", body: "Ce panneau d'aide. À consulter sans modération." },

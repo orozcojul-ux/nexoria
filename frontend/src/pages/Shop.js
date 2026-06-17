@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import * as Lucide from "lucide-react";
 import {
   ShoppingBag, Coins, Check, Sparkles, Crown, Shield, Sword, Gift, Flame,
-  Star, X, Plus, Minus, Wifi, Trophy, Zap, ChevronRight, Ticket,
+  Star, X, Plus, Minus, Wifi, Trophy, Zap, ChevronRight, Ticket, Gem,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -12,6 +12,7 @@ import { sfx } from "@/lib/sfx";
 import { useProfileSync } from "@/hooks/useProfileSync";
 import { RARITY } from "@/lib/design-tokens";
 import { PremiumButton, PremiumCard, PageShell } from "@/components/ui-premium";
+import VipPassSection from "@/components/shop/VipPassSection";
 import { drawPixelBanner } from "@/lib/pixelArtUi";
 import { usePageBanner } from "@/lib/page-banners";
 import { useI18n } from "@/contexts/I18nContext";
@@ -49,6 +50,7 @@ export default function Shop() {
   const [cart, setCart] = useState([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [featuredIdx, setFeaturedIdx] = useState(0);
+  const [chestReveal, setChestReveal] = useState(null); // { name, items: [...] }
 
   const load = useCallback(async () => {
     const [a, b] = await Promise.all([api.get("/shop/items"), api.get("/shop/inventory")]);
@@ -99,7 +101,13 @@ export default function Shop() {
     setBuying(sku);
     try {
       const { data } = await api.post(`/shop/purchase/${sku}`);
-      toast.success(`« ${data.purchase.name} » acquis !`);
+      const chestItems = data.applied?.chest_items;
+      if (Array.isArray(chestItems) && chestItems.length > 0) {
+        sfx.chest?.();
+        setChestReveal({ name: data.purchase.name, items: chestItems });
+      } else {
+        toast.success(`« ${data.purchase.name} » acquis !`);
+      }
       // WebSocket event will trigger refresh; but optimistic immediately
       await load();
       await refresh();
@@ -152,7 +160,7 @@ export default function Shop() {
           <div className="flex items-center gap-3">
             <ShoppingBag className="w-6 h-6 text-cyan-300" />
             <div>
-              <h1 className="font-display font-black text-2xl text-cyan-200">Boutique <span className="text-gradient">d'Aether</span></h1>
+              <h1 className="font-display font-black text-2xl text-cyan-200">Boutique <span className="text-gradient">d'Écus</span></h1>
               <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500">Bazar cosmique de NEXORIA</div>
             </div>
           </div>
@@ -163,7 +171,7 @@ export default function Shop() {
               <span className="font-mono-stat text-yellow-200 font-bold" data-testid="shop-balance">
                 {user?.aether ?? 0}
               </span>
-              <span className="text-[10px] text-yellow-300/70">⟡ AETHER</span>
+              <span className="text-[10px] text-yellow-300/70">⟡ ÉCUS</span>
             </div>
             {/* Cart trigger */}
             <button onClick={() => setCartOpen(true)} data-testid="cart-toggle"
@@ -187,12 +195,34 @@ export default function Shop() {
             const Ico = c.icon;
             const count = c.id === "all" ? items.length : items.filter((i) => i.category === c.id).length;
             return (
-              <button key={c.id} onClick={() => setCat(c.id)} data-testid={`shop-cat-${c.id}`}
-                className={`w-full text-left px-3 py-2 rounded-lg border flex items-center gap-2 transition-all ${cat === c.id ? "border-cyan-500/60 bg-cyan-500/10 text-cyan-300" : "border-white/10 text-zinc-400 hover:border-white/30 hover:bg-white/5"}`}>
-                <Ico className="w-4 h-4" />
-                <span className="flex-1 font-display font-bold text-sm">{c.label}</span>
-                <span className="text-[10px] text-zinc-500 font-mono">{count}</span>
-              </button>
+              <React.Fragment key={c.id}>
+                <button onClick={() => setCat(c.id)} data-testid={`shop-cat-${c.id}`}
+                  className={`w-full text-left px-3 py-2 rounded-lg border flex items-center gap-2 transition-all ${cat === c.id ? "border-cyan-500/60 bg-cyan-500/10 text-cyan-300" : "border-white/10 text-zinc-400 hover:border-white/30 hover:bg-white/5"}`}>
+                  <Ico className="w-4 h-4" />
+                  <span className="flex-1 font-display font-bold text-sm">{c.label}</span>
+                  <span className="text-[10px] text-zinc-500 font-mono">{count}</span>
+                </button>
+                {c.id === "all" && (
+                  <button onClick={() => setCat("vip")} data-testid="shop-cat-vip"
+                    className="w-full text-left px-3 py-2.5 rounded-lg border flex items-center gap-2 transition-all relative overflow-hidden group/vip"
+                    style={{
+                      borderColor: cat === "vip" ? "rgba(251,191,36,0.9)" : "rgba(251,191,36,0.55)",
+                      background: "linear-gradient(110deg, rgba(251,191,36,0.18), rgba(168,85,247,0.18))",
+                      boxShadow: cat === "vip"
+                        ? "0 0 22px rgba(251,191,36,0.55), inset 0 0 12px rgba(168,85,247,0.25)"
+                        : "0 0 14px rgba(251,191,36,0.3)",
+                    }}>
+                    <span className="absolute inset-0 opacity-60 animate-pulse pointer-events-none"
+                      style={{ background: "radial-gradient(60% 120% at 0% 50%, rgba(251,191,36,0.35), transparent 70%)" }} aria-hidden />
+                    <Gem className="w-4 h-4 shrink-0 text-amber-300 relative z-10" style={{ filter: "drop-shadow(0 0 5px rgba(251,191,36,0.9))" }} />
+                    <span className="flex-1 font-display font-black text-sm relative z-10"
+                      style={{ background: "linear-gradient(92deg,#fde68a,#fbbf24 45%,#c084fc)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
+                      Pass Ascendant
+                    </span>
+                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-400/25 text-amber-100 border border-amber-300/50 relative z-10">VIP</span>
+                  </button>
+                )}
+              </React.Fragment>
             );
           })}
           <div className="pt-3 mt-3 border-t border-white/10">
@@ -212,6 +242,10 @@ export default function Shop() {
 
         {/* ===== Main ===== */}
         <main className="space-y-5">
+          {cat === "vip" ? (
+            <VipPassSection />
+          ) : (
+          <>
           {/* Hero featured carousel */}
           <div className="relative h-56 rounded-2xl overflow-hidden border border-purple-500/40 group" data-testid="shop-hero">
             <AnimatePresence mode="wait">
@@ -283,8 +317,13 @@ export default function Shop() {
               </div>
             )}
           </Section>
+          </>
+          )}
         </main>
       </div>
+
+      {/* ===== CHEST REVEAL ===== */}
+      <ChestRevealModal reveal={chestReveal} onClose={() => setChestReveal(null)} />
 
       {/* ===== CART DRAWER ===== */}
       <AnimatePresence>
@@ -340,6 +379,70 @@ export default function Shop() {
 }
 
 /* ============== Subcomponents ============== */
+function ChestRevealModal({ reveal, onClose }) {
+  return (
+    <AnimatePresence>
+      {reveal && (
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          onClick={onClose}
+          data-testid="chest-reveal-modal"
+        >
+          <motion.div
+            initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+            transition={{ type: "spring", stiffness: 240, damping: 22 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-lg rounded-2xl border border-yellow-500/40 bg-gradient-to-br from-[#15100a] via-[#0A0613] to-[#120a18] p-6 shadow-[0_0_60px_rgba(251,191,36,0.25)]"
+          >
+            <button onClick={onClose} className="absolute top-3 right-3 text-zinc-400 hover:text-white" aria-label="Fermer">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="text-center mb-5">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl border-2 border-yellow-500/50 bg-yellow-500/10 mb-3">
+                <Gift className="w-8 h-8 text-yellow-300" />
+              </div>
+              <h3 className="font-display font-black text-2xl text-yellow-200">Coffre ouvert !</h3>
+              <p className="text-xs text-zinc-400 mt-1">
+                {reveal.items.length} relique{reveal.items.length > 1 ? "s" : ""} ajoutée{reveal.items.length > 1 ? "s" : ""} à votre inventaire
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {reveal.items.map((it, i) => {
+                const r = RARITY[it.rarity] || RARITY.common;
+                return (
+                  <motion.div
+                    key={it.item_id || i}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.1 + i * 0.08 }}
+                    className="flex items-center gap-3 p-3 rounded-xl border bg-black/40"
+                    style={{ borderColor: `${r.color}66`, boxShadow: `0 0 16px ${r.glow}` }}
+                    data-testid={`chest-item-${i}`}
+                  >
+                    <div className="text-3xl shrink-0">{it.icon || "✨"}</div>
+                    <div className="min-w-0">
+                      <div className="font-display font-bold text-sm truncate" style={{ color: r.color }}>{it.name}</div>
+                      <div className="text-[10px] uppercase tracking-widest text-zinc-500">{r.fr}</div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+            <button
+              onClick={onClose}
+              className="mt-5 w-full px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-400 text-black font-display font-black uppercase tracking-widest text-sm hover:scale-[1.02] transition-transform"
+              data-testid="chest-reveal-close"
+            >
+              Récupérer le butin
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 function Section({ title, icon: Icon, accent = "text-cyan-300", children }) {
   return (
     <div>

@@ -28,6 +28,22 @@ from nexus_rooms import ROOMS, can_access, get_portal_links  # noqa: F401
 
 logger = logging.getLogger("nexoria.nexus")
 
+
+def _vip_active(user: dict) -> bool:
+    """VIP based on vip_until (never on is_vip alone)."""
+    if not user:
+        return False
+    vu = user.get("vip_until")
+    if not vu:
+        return False
+    try:
+        dt = datetime.fromisoformat(vu) if isinstance(vu, str) else vu
+    except (ValueError, TypeError):
+        return False
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt > datetime.now(timezone.utc)
+
 DEFAULT_ROOM = "place_centrale"
 NEXUS_PRESENCE_TTL_SEC = 4 * 3600  # restore last room/position within 4h
 
@@ -120,10 +136,15 @@ def _presence_payload():
     _rooms_state entries by cross-checking with _user_sids.
     """
     by_room = {}
+    visible_uids = set()
     for r, state in _rooms_state.items():
-        uids = {p["user_id"] for p in state.values() if p["user_id"] in _user_sids}
+        uids = {
+            p["user_id"] for p in state.values()
+            if p["user_id"] in _user_sids and not p.get("invisible")
+        }
         by_room[r] = len(uids)
-    total = len(_user_sids)
+        visible_uids |= uids
+    total = len(visible_uids)
     active = sum(1 for n in by_room.values() if n > 0)
     return {
         "total": total,
@@ -164,6 +185,7 @@ def _lite(p: dict, viewer_role: str = "user") -> dict:
         "active_banner": p.get("active_banner"),
         "active_aura_sku": p.get("active_aura_sku"),
         "active_mount": p.get("active_mount"),
+        "is_vip": bool(p.get("is_vip")),
         "tx": p["tx"], "ty": p["ty"], "room": p["room"],
         "muted": bool(p.get("muted")),
         "frozen": bool(p.get("frozen")),
@@ -264,6 +286,33 @@ async def _remove_player_sid(sid, sio=None):
         await sio.emit("player_leave", {"sid": sid, "user_id": p["user_id"]}, to=room)
         await _broadcast_presence(sio)
     return p
+
+
+async def set_presence_hidden(user_id: str, hidden: bool):
+    """Toggle a connected user's online visibility live (Settings → Serveur).
+    Hidden players vanish from peers' world view and the online counter."""
+    if _sio_ref is None or not user_id:
+        return
+    hidden = bool(hidden)
+    changed = False
+    for sid in list(_user_sids.get(user_id, set())):
+        p = _players.get(sid)
+        if not p or bool(p.get("invisible")) == hidden:
+            continue
+        p["invisible"] = hidden
+        room = p["room"]
+        if sid in _rooms_state.get(room, {}):
+            _rooms_state[room][sid]["invisible"] = hidden
+        changed = True
+        try:
+            if hidden:
+                await _sio_ref.emit("player_leave", {"sid": sid, "user_id": user_id}, to=room, skip_sid=sid)
+            else:
+                await _sio_ref.emit("player_join", _lite(p), to=room, skip_sid=sid)
+        except Exception as e:
+            logger.warning(f"[nexus] set_presence_hidden emit failed: {e}")
+    if changed:
+        await _broadcast_presence(_sio_ref)
 
 
 async def disconnect_user(user_id: str):
@@ -374,11 +423,13 @@ def build_socketio_app(db, hooks=None):
             "active_banner": user.get("active_banner"),
             "active_aura_sku": user.get("active_aura_sku"),
             "active_mount": user.get("active_mount"),
+            "is_vip": _vip_active(user),
             "guild_id": guild_id,
             "tx": tx, "ty": ty,
             "room": room,
             "facing": facing,
-            "muted": False, "frozen": False, "invisible": False,
+            "muted": False, "frozen": False,
+            "invisible": bool(user.get("appear_offline")),
             "joined_at": time.time(),
         }
         _players[sid] = player

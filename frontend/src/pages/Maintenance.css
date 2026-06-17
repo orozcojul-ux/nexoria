@@ -478,6 +478,99 @@
   transform: translateY(-1px);
 }
 
+/* ── Discord — encart latéral thématisé Nexoria ── */
+.maint-discord-aside {
+  position: fixed;
+  right: 2.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 19rem;
+  z-index: 6;
+  padding: 1.75rem 1.5rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(88, 101, 242, 0.45);
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(88, 101, 242, 0.22), transparent 60%),
+    linear-gradient(165deg, rgba(15, 12, 30, 0.96), rgba(8, 6, 16, 0.98));
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(88, 101, 242, 0.18);
+  overflow: hidden;
+  text-align: center;
+}
+
+.maint-discord-aside-glow {
+  position: absolute;
+  inset: -40% -30% auto -30%;
+  height: 160px;
+  background: radial-gradient(60% 100% at 50% 0%, rgba(0, 229, 255, 0.25), transparent 70%);
+  pointer-events: none;
+}
+
+.maint-discord-aside-icon {
+  width: 40px;
+  height: 40px;
+  color: #c7d2fe;
+  filter: drop-shadow(0 0 12px rgba(88, 101, 242, 0.7));
+  margin-bottom: 0.75rem;
+  position: relative;
+  z-index: 1;
+}
+
+.maint-discord-aside-kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  color: #67e8f9;
+}
+
+.maint-discord-aside-title {
+  margin: 0 0 0.6rem;
+  font-family: 'Cinzel', serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  background: linear-gradient(92deg, #a5b4fc, #67e8f9);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.maint-discord-aside-body {
+  margin: 0 0 1.1rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #b6bdd2;
+}
+
+.maint-discord-aside-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: #fff;
+  background: linear-gradient(135deg, #5865F2 0%, #404EED 100%);
+  box-shadow: 0 8px 22px rgba(88, 101, 242, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.maint-discord-aside-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(88, 101, 242, 0.5);
+}
+
+/* Sous les grands écrans, l'encart passe sous le contenu (pas de chevauchement) */
+@media (max-width: 1180px) {
+  .maint-discord-aside {
+    position: static;
+    transform: none;
+    width: auto;
+    max-width: 26rem;
+    margin: 1.5rem auto 0;
+  }
+}
+
 /* ── Footer ── */
 .maint-spacer {
   flex: 1;

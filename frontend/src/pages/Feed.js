@@ -221,7 +221,7 @@ export default function Feed() {
                 <span>Niv. <strong>{user?.level}</strong></span>
                 <span>{user?.rank}</span>
                 <span className="flex items-center gap-1 text-amber-300/90">
-                  <Coins className="w-3 h-3" /> {user?.aether?.toLocaleString()} Aether
+                  <Coins className="w-3 h-3" /> {user?.aether?.toLocaleString()} Écus
                 </span>
               </div>
               <div className="feed-hero-xp">

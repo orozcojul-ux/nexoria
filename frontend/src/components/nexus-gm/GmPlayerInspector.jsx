@@ -77,7 +77,7 @@ export default function GmPlayerInspector({ data, onClose, tab, setTab }) {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <Stat label="Niveau" v={u.level} />
               <Stat label="XP" v={u.xp} />
-              <Stat label="Aether" v={u.aether} />
+              <Stat label="Écus" v={u.aether} />
               <Stat label="Réputation" v={u.reputation} />
               <Stat label="Rang" v={u.rank} />
               <Stat label="Rôle" v={u.role} />

@@ -66,7 +66,13 @@ export default function DiscordCallback() {
 
       try {
 
-        const { data } = await api.post("/auth/discord/exchange", { code });
+        let referralCode = null;
+
+        try { referralCode = localStorage.getItem("nexoria_ref"); } catch {}
+
+        const { data } = await api.post("/auth/discord/exchange", { code, referral_code: referralCode || undefined });
+
+        try { localStorage.removeItem("nexoria_ref"); } catch {}
 
         setUser(data);
 
@@ -97,6 +103,24 @@ export default function DiscordCallback() {
         } else {
 
           toast.success(t("discord.callback.welcome_back", { name: data.username }));
+
+        }
+
+
+
+        if (meta.email_provisional) {
+
+          toast.warning(
+
+            "Aucune adresse e-mail valide n'a été récupérée via Discord. Vous DEVEZ la remplacer par une adresse e-mail valide dans Réglages › Email (indispensable pour sécuriser et récupérer votre compte).",
+
+            { duration: 14000 },
+
+          );
+
+          navigate("/settings");
+
+          return;
 
         }
 

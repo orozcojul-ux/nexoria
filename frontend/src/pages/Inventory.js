@@ -72,13 +72,13 @@ export default function Inventory() {
   };
 
   const openChest = async () => {
-    if ((user?.aether || 0) < 50) { toast.error("50 Aether requis pour briser le sceau"); return; }
+    if ((user?.aether || 0) < 50) { toast.error("50 Écus requis pour briser le sceau"); return; }
     setOpening(true);
     try {
       const { data } = await api.post("/inventory/open-chest");
       sfx.chest();
       if (!data.items || data.items.length === 0) {
-        toast.info(`Vous possédez déjà toutes ces reliques — ${data.refunded || 50} Aether restitué.`);
+        toast.info(`Vous possédez déjà toutes ces reliques — ${data.refunded || 50} Écus restitué.`);
       } else {
         setNewItems(data.items);
       }

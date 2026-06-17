@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
@@ -29,10 +29,19 @@ export default function Register() {
   const { setUser } = useAuth();
   const { t } = useI18n();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
 
   useEffect(() => {
     api.get("/game/classes").then((r) => setClasses(r.data)).catch(() => {});
   }, []);
+
+  // Capture le code de parrainage (?ref=) pour l'inscription (email ou Discord).
+  useEffect(() => {
+    const ref = params.get("ref");
+    if (ref) {
+      try { localStorage.setItem("nexoria_ref", ref.trim().toUpperCase()); } catch {}
+    }
+  }, [params]);
 
   const discordLogin = async () => {
     try {
@@ -79,11 +88,15 @@ export default function Register() {
     if (!form.class_id) { toast.error(t("register.err_class")); return; }
     setLoading(true);
     try {
+      let referralCode = null;
+      try { referralCode = localStorage.getItem("nexoria_ref"); } catch {}
       const { data } = await api.post("/auth/register", {
         ...form,
         email: form.email.trim(),
         username: form.username.trim(),
+        referral_code: referralCode || undefined,
       });
+      try { localStorage.removeItem("nexoria_ref"); } catch {}
       setUser(data);
       sfx.levelUp();
       toast.success(t("register.welcome", { name: data.username, class: data.class_name }));

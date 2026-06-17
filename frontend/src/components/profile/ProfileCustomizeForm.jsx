@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Save, Eye, Palette, Link2, User, BookOpen, Settings2 } from "lucide-react";
+import { Save, Eye, Palette, Link2, User, BookOpen, Settings2, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
@@ -45,6 +45,37 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
   const [titles, setTitles] = useState([]);
   const [activeTitle, setActiveTitle] = useState(user.active_title || "novice");
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarFileRef = useRef(null);
+
+  const handleAvatarFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(file.type)) {
+      toast.error("Format non supporté (JPG, PNG, GIF, WebP)");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image trop lourde (max 5 Mo)");
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const { data } = await api.post("/profile/avatar/upload", fd);
+      const url = data.avatar_url || data.url;
+      set("avatar_url", url);
+      sfx.success?.();
+      toast.success("Photo de profil importée");
+      await refresh();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Échec de l'import");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -177,8 +208,43 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
       </Section>
 
       <Section title="Médias" icon={Palette}>
+        <div className="mb-4">
+          <label className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 font-bold mb-2 block">Photo de profil</label>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-xl border-2 overflow-hidden shrink-0 bg-zinc-900" style={{ borderColor: form.profile_accent }}>
+              {form.avatar_url ? (
+                <img src={form.avatar_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center font-bold text-xl text-zinc-500">
+                  {user.username?.[0]}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <input
+                ref={avatarFileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="hidden"
+                onChange={handleAvatarFile}
+                data-testid="avatar-file-input"
+              />
+              <button
+                type="button"
+                onClick={() => avatarFileRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-violet-500/40 text-violet-200 text-sm font-bold hover:bg-violet-500/10 disabled:opacity-50 transition-all"
+                data-testid="avatar-upload-btn"
+              >
+                {uploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {uploadingAvatar ? "Import en cours…" : "Importer depuis mon ordinateur"}
+              </button>
+              <span className="text-xs text-zinc-500">JPG, PNG, GIF ou WebP — max 5 Mo.</span>
+            </div>
+          </div>
+        </div>
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="URL Avatar" value={form.avatar_url} onChange={(v) => set("avatar_url", v)} testid="avatar-input" placeholder="https://..." />
+          <Field label="URL Avatar (ou collez un lien)" value={form.avatar_url} onChange={(v) => set("avatar_url", v)} testid="avatar-input" placeholder="https://..." />
           <Field label="URL Bannière profil" value={form.banner_url} onChange={(v) => set("banner_url", v)} testid="banner-input" placeholder="https://..." hint="Bannière de votre page profil" />
         </div>
         <div className="mt-4">

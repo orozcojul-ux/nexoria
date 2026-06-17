@@ -59,9 +59,17 @@ TITLES = [
     {"id": "elu_cosmique", "name": "Élu Cosmique", "unlock_level": 999},
     {"id": "starforged", "name": "Forgé des Étoiles", "unlock_level": 1},
     {"id": "void_walker", "name": "Marcheur du Vide", "unlock_level": 1},
+    {"id": "ambassadeur_nexus", "name": "Ambassadeur du Nexus", "unlock_level": 1},
+    {"id": "ascendant_nexus", "name": "Ascendant du Nexus", "unlock_level": 1},
 ]
 
 SHOP_ONLY_TITLES = frozenset({"starforged", "void_walker"})
+
+# Titres débloqués par le parrainage (ne s'obtiennent pas par le niveau).
+REFERRAL_TITLES = frozenset({"ambassadeur_nexus"})
+
+# Titres réservés aux membres VIP « Pass Ascendant » (octroi explicite).
+VIP_TITLES = frozenset({"ascendant_nexus"})
 
 # 30 Badges (categories: participation, social, creation, collection, secrets)
 BADGES = [
@@ -75,6 +83,9 @@ BADGES = [
     # Social
     {"id": "discord_herald", "name": "Héraut Discord", "category": "social", "icon": "MessageSquare", "rarity": "rare", "description": "Inscription ou liaison via Discord", "color": "#5865F2"},
     {"id": "loyal_friend", "name": "Ami Fidèle", "category": "social", "icon": "Users", "rarity": "rare", "description": "10 abonnements", "color": "#3B82F6"},
+    {"id": "recruteur", "name": "Recruteur", "category": "social", "icon": "UserPlus", "rarity": "epic", "description": "A parrainé 3 nouveaux héros", "color": "#A855F7"},
+    {"id": "vip_nexus", "name": "VIP Nexus", "category": "social", "icon": "Gem", "rarity": "legendary", "description": "Détenteur du Pass Ascendant", "color": "#FBBF24"},
+    {"id": "pionnier_nexus", "name": "Pionnier du Nexus", "category": "social", "icon": "Flag", "rarity": "mythic", "description": "Parmi les 100 premiers héros à rejoindre NEXORIA", "color": "#22D3EE"},
     {"id": "mentor", "name": "Mentor", "category": "social", "icon": "GraduationCap", "rarity": "epic", "description": "100 abonnés", "color": "#A855F7"},
     {"id": "influencer", "name": "Influenceur", "category": "social", "icon": "TrendingUp", "rarity": "legendary", "description": "1000 abonnés", "color": "#EAB308"},
     {"id": "social_butterfly", "name": "Papillon Social", "category": "social", "icon": "Sparkle", "rarity": "rare", "description": "50 réactions données", "color": "#3B82F6"},

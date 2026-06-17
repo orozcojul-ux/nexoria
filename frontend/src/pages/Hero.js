@@ -12,6 +12,7 @@ import { PremiumBadge, PremiumButton, PremiumCard, PremiumSection, PageShell } f
 import HeroName from "@/components/HeroName";
 import RankBadge from "@/components/RankBadge";
 import ClassImage from "@/components/ClassImage";
+import ClassChangeModal from "@/components/ClassChangeModal";
 import { getRankStyle } from "@/lib/rank-styles";
 import { useInventorySync } from "@/hooks/useInventorySync";
 
@@ -25,6 +26,7 @@ export default function Hero() {
   const [chronicle, setChronicle] = useState([]);
   const [titles, setTitles] = useState([]);
   const [rift, setRift] = useState(null);
+  const [classModal, setClassModal] = useState(false);
 
   const loadHeroData = useCallback(() => {
     if (!user) return;
@@ -101,6 +103,8 @@ export default function Hero() {
       testid="hero-page"
       banner={banner}
     >
+      <ClassChangeModal open={classModal} onClose={() => setClassModal(false)} user={user} onChanged={refresh} />
+
       {rift && (
         <PremiumCard tone="violet" className="p-4 flex items-center gap-4 relative overflow-hidden" testid="rift-notification">
           <Sparkles className="w-8 h-8 text-violet-400 animate-pulse drop-shadow-[0_0_12px_rgba(157,76,221,0.8)]" />
@@ -144,6 +148,14 @@ export default function Hero() {
                 <div className="flex items-center gap-2 mt-1" data-testid="hero-class">
                   <ClassImage classId={user.class_id || user.class_name} color="#22d3ee" size={28} alt={user.class_name || ""} />
                   <span className="text-sm text-cyan-400 font-display tracking-wide">{user.class_name}</span>
+                  <button
+                    onClick={() => setClassModal(true)}
+                    data-testid="hero-change-class-btn"
+                    className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-violet-500/40 text-violet-300 text-[10px] font-bold uppercase tracking-wider hover:bg-violet-500/10 transition-colors"
+                    title="Changer de classe"
+                  >
+                    <Lucide.Repeat className="w-3 h-3" /> Changer
+                  </button>
                 </div>
               </div>
             </div>
@@ -170,7 +182,7 @@ export default function Hero() {
                   <div className="text-violet-300 font-bold text-base" data-testid="hero-reputation">{user.reputation}</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-[9px] uppercase tracking-[0.25em] text-zinc-500 font-bold">Aether</div>
+                  <div className="text-[9px] uppercase tracking-[0.25em] text-zinc-500 font-bold">Écus</div>
                   <div className="text-yellow-400 font-bold text-base flex items-center justify-center gap-1" data-testid="hero-aether"><Coins className="w-3 h-3" />{user.aether}</div>
                 </div>
               </div>

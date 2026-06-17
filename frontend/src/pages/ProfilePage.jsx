@@ -294,7 +294,7 @@ export default function ProfilePage({
                 <span className={`${styles.statValue} ${styles.statNeutral}`}>{reputation.toLocaleString("fr-FR")}</span>
               </div>
               <div className={styles.statCol}>
-                <span className={styles.statLabel}>Aether</span>
+                <span className={styles.statLabel}>Écus</span>
                 <span className={`${styles.statValue} ${styles.statNeutral}`}>{aether.toLocaleString("fr-FR")}</span>
               </div>
               <div className={styles.statCol}>

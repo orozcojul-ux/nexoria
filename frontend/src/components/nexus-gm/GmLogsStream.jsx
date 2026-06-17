@@ -6,7 +6,7 @@ const ACTION_LABEL = {
   announce: "Annonce", teleport: "TP", kick: "Kick", mute: "Mute", freeze: "Freeze",
   invisible: "Invisible", weather: "Météo", spawn_item: "Relique", ban: "Ban",
   world_boss: "Boss", rift: "Faille", observe: "Observe", invasion: "Invasion",
-  reset_room: "Reset zone", godmode: "Mode dieu", give_aether: "Aether", give_item: "Objet",
+  reset_room: "Reset zone", godmode: "Mode dieu", give_aether: "Écus", give_item: "Objet",
   prison: "Prison",
 };
 

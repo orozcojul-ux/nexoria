@@ -229,6 +229,22 @@ export class NexusIsoScene extends Phaser.Scene {
     return ring;
   }
 
+  addVipAura(container) {
+    if (container.vipAura) return container.vipAura;
+    // Golden inner ring + violet outer halo, gentle pulse (VIP « Pass Ascendant »).
+    const halo = this.add.ellipse(0, 4, 40, 18, 0xA855F7, 0.16);
+    const ring = this.add.ellipse(0, 4, 32, 14, 0xFBBF24, 0.12);
+    ring.setStrokeStyle(2, 0xFBBF24, 0.9);
+    container.add(halo);
+    container.add(ring);
+    container.sendToBack(ring);
+    container.sendToBack(halo);
+    this.tweens.add({ targets: ring, scaleX: 1.14, scaleY: 1.14, alpha: 0.06, yoyo: true, repeat: -1, duration: 1100 });
+    this.tweens.add({ targets: halo, scaleX: 1.2, scaleY: 1.2, alpha: 0.05, yoyo: true, repeat: -1, duration: 1600 });
+    container.vipAura = [halo, ring];
+    return container.vipAura;
+  }
+
   resolveAura(profile) {
     if (profile?.active_aura_sku && SHOP_AURA[profile.active_aura_sku]) {
       return SHOP_AURA[profile.active_aura_sku];
@@ -942,6 +958,7 @@ export class NexusIsoScene extends Phaser.Scene {
     if (p.active_frame) this.addCosmeticFrame(container, p.active_frame);
     const auraCfg = this.resolveAura(p);
     if (auraCfg) this.addRankAura(container, auraCfg);
+    if (p.is_vip) this.addVipAura(container);
 
     sprite.setInteractive({ useHandCursor: true });
     sprite.on("pointerdown", (pointer, lx, ly, event) => {
@@ -964,9 +981,18 @@ export class NexusIsoScene extends Phaser.Scene {
     const p = container.profile;
     if (!p) return;
     const crown = p.role === "admin" ? "👑 " : p.role === "moderator" ? "🛡️ " : "";
+    const vip = p.is_vip ? "💎 " : "";
     const mute = p.muted ? " 🔇" : "";
     const freeze = p.frozen ? " ❄" : "";
-    container.nameText.setText(`${crown}${p.username}${mute}${freeze}`);
+    container.nameText.setText(`${vip}${crown}${p.username}${mute}${freeze}`);
+    // VIP gilds the name (unless overridden by staff colors) and adds a golden aura.
+    if (p.is_vip) {
+      if (p.role !== "admin" && p.role !== "moderator") {
+        container.nameText.setColor("#FBBF24");
+      }
+      if (container.nameText.setStroke) container.nameText.setStroke("#3B1D6E", 3);
+      if (!container.vipAura) this.addVipAura(container);
+    }
     const rank = p.rank ? ` · ${p.rank}` : "";
     container.subText.setText(`${p.class_name} · niv ${p.level}${rank}`);
   }

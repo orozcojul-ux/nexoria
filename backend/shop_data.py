@@ -27,6 +27,7 @@ SHOP_ITEMS = [
 
     # ---------- Consumables ----------
     {"sku": "scroll_rename", "name": "Parchemin de Renommée", "category": "consumable", "price": 1000, "icon": "Scroll", "rarity": "rare", "description": "Permet de changer votre pseudo une fois", "unlock_level": 1},
+    {"sku": "scroll_class_change", "name": "Parchemin de Mutation", "category": "consumable", "price": 1200, "icon": "Repeat", "rarity": "epic", "description": "Permet de changer de classe 3 fois (le premier changement est gratuit pour tous)", "unlock_level": 1},
     {"sku": "key_chest_cosmic", "name": "Clé Cosmique", "category": "consumable", "price": 800, "icon": "Key", "rarity": "epic", "description": "Coffre garantissant un objet Épique ou supérieur", "unlock_level": 12},
     {"sku": "summon_rift", "name": "Catalyseur de Faille", "category": "consumable", "price": 600, "icon": "Sparkles", "rarity": "rare", "description": "Force l'apparition d'une faille dimensionnelle", "unlock_level": 8},
 

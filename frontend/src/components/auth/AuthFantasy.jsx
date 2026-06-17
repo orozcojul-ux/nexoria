@@ -1,5 +1,5 @@
-import React from "react";
-import { Loader2 } from "lucide-react";
+import React, { useState } from "react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ClassBadge from "@/components/ClassBadge";
 import { GoogleIcon, DiscordIcon } from "@/components/auth/AuthMedievalCard";
@@ -172,13 +172,17 @@ export function AuthFantasyField({
   autoComplete,
   extra,
 }) {
+  const [reveal, setReveal] = useState(false);
+  const isPassword = type === "password";
+  const inputType = isPassword && reveal ? "text" : type;
+
   return (
-    <div className="af-field">
+    <div className={`af-field ${isPassword ? "af-field--password" : ""}`}>
       <span className="af-field__gem af-field__gem--l" aria-hidden />
-      <span className="af-field__gem af-field__gem--r" aria-hidden />
+      {!isPassword && <span className="af-field__gem af-field__gem--r" aria-hidden />}
       <input
         id={id}
-        type={type}
+        type={inputType}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
@@ -189,6 +193,19 @@ export function AuthFantasyField({
         maxLength={maxLength}
         autoComplete={autoComplete}
       />
+      {isPassword && (
+        <button
+          type="button"
+          className="af-field__toggle"
+          onClick={() => setReveal((v) => !v)}
+          aria-label={reveal ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+          aria-pressed={reveal}
+          tabIndex={-1}
+          data-testid={testid ? `${testid}-toggle` : undefined}
+        >
+          {reveal ? <EyeOff className="af-field__toggle-icon" /> : <Eye className="af-field__toggle-icon" />}
+        </button>
+      )}
       {extra && <div className="af-field__extra">{extra}</div>}
     </div>
   );

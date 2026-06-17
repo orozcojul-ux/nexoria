@@ -10,6 +10,8 @@ MAINTENANCE_UPLOAD_DIR = ROOT_DIR / "uploads" / "maintenance"
 MAINTENANCE_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 CONTENT_UPLOAD_DIR = ROOT_DIR / "uploads" / "content"
 CONTENT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+AVATAR_UPLOAD_DIR = ROOT_DIR / "uploads" / "avatars"
+AVATAR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 import os
 import re
@@ -25,6 +27,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import ReturnDocument
 from pydantic import BaseModel, Field, EmailStr
 
 from auth import (
@@ -33,6 +36,7 @@ from auth import (
 )
 from game_data import (
     CLASSES, SKILLS, KINGDOM_BUILDINGS, RARITIES, TITLES, BADGES, SHOP_ONLY_TITLES,
+    REFERRAL_TITLES, VIP_TITLES,
     QUEST_TEMPLATES, ITEM_TEMPLATES, xp_for_level, level_from_xp, rank_from_level,
     COMMUNITY_CHALLENGES,
 )
@@ -95,6 +99,49 @@ def iso(dt):
     return dt.isoformat() if isinstance(dt, datetime) else dt
 
 
+# ===================== VIP « Pass Ascendant » =====================
+# Plans définis CÔTÉ SERVEUR uniquement — le prix envoyé par le client est ignoré.
+VIP_PLANS = {
+    "VIP_NEXUS_7":  {"id": "VIP_NEXUS_7",  "name": "VIP Nexus 7 jours",  "days": 7,  "price": 500,  "label": "7 jours"},
+    "VIP_NEXUS_30": {"id": "VIP_NEXUS_30", "name": "VIP Nexus 30 jours", "days": 30, "price": 1500, "label": "30 jours"},
+    "VIP_NEXUS_90": {"id": "VIP_NEXUS_90", "name": "VIP Nexus 90 jours", "days": 90, "price": 4000, "label": "90 jours"},
+}
+VIP_BADGE_ID = "vip_nexus"
+VIP_TITLE_ID = "ascendant_nexus"
+VIP_BONUS_MULTIPLIER = 1.10  # +10% XP & écus
+VIP_DAILY_BONUS_AETHER = 100  # « coffre quotidien » VIP
+# ID du rôle Discord VIP (optionnel — défini via l'environnement, jamais en dur).
+DISCORD_VIP_ROLE_ID = os.environ.get("DISCORD_VIP_ROLE_ID", "").strip()
+
+
+def _parse_dt(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        try:
+            dt = datetime.fromisoformat(value)
+        except (ValueError, TypeError):
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def vip_until_dt(user: dict):
+    """Return the user's VIP expiry as an aware datetime, or None."""
+    if not user:
+        return None
+    return _parse_dt(user.get("vip_until"))
+
+
+def is_vip_active(user: dict) -> bool:
+    """SOURCE OF TRUTH for VIP: based on vip_until, never on is_vip alone."""
+    dt = vip_until_dt(user)
+    return bool(dt and dt > now_utc())
+
+
 def public_user(user: dict) -> dict:
     """Strip sensitive fields, enrich with derived RPG values, and serialize cleanly.
 
@@ -129,6 +176,13 @@ def public_user(user: dict) -> dict:
     title_id = user.get("active_title") or "novice"
     title_doc = next((t for t in TITLES if t["id"] == title_id), None)
     user["active_title_name"] = title_doc["name"] if title_doc else title_id.replace("_", " ").title()
+
+    # VIP « Pass Ascendant » — recomputed from vip_until (never trust is_vip alone).
+    vip_active = is_vip_active(user)
+    user["is_vip"] = vip_active
+    user["vip_until"] = iso(user.get("vip_until")) if user.get("vip_until") else None
+    user["vip_plan"] = user.get("vip_plan")
+    user["vip_total_days_purchased"] = int(user.get("vip_total_days_purchased", 0) or 0)
 
     return user
 
@@ -394,16 +448,22 @@ async def count_site_online() -> int:
 
 
 async def get_active_boost_multiplier(user_id: str, boost_type: str) -> float:
-    """Return active boost multiplier (1.0 = none). Uses max if several overlap."""
+    """Return active boost multiplier (1.0 = none). Uses max if several overlap.
+    VIP « Pass Ascendant » stacks a +10% bonus on top for XP & écus gains."""
     now_iso = now_utc().isoformat()
     boosts = await db.user_boosts.find({
         "user_id": user_id,
         "boost_type": boost_type,
         "expires_at": {"$gt": now_iso},
     }, {"boost_value": 1}).to_list(10)
-    if not boosts:
-        return 1.0
-    return max(float(b.get("boost_value", 1)) for b in boosts)
+    base = max((float(b.get("boost_value", 1)) for b in boosts), default=1.0)
+
+    # VIP bonus on XP and écus (aether) gains only.
+    if boost_type in ("xp_multiplier", "aether_multiplier"):
+        vip_user = await db.users.find_one({"user_id": user_id}, {"vip_until": 1, "_id": 0})
+        if is_vip_active(vip_user or {}):
+            base *= VIP_BONUS_MULTIPLIER
+    return base
 
 
 async def maybe_process_daily_login(user_id: str):
@@ -434,6 +494,17 @@ async def maybe_process_daily_login(user_id: str):
                 {"user_id": user_id},
                 {"$set": {"last_passive_aether_date": today}},
             )
+
+    # Coffre quotidien VIP — bonus d'écus une fois par jour pour les membres VIP.
+    vu = await db.users.find_one({"user_id": user_id}, {"vip_until": 1, "last_vip_chest_date": 1})
+    if vu and is_vip_active(vu) and vu.get("last_vip_chest_date") != today:
+        await db.users.update_one({"user_id": user_id}, {"$set": {"last_vip_chest_date": today}})
+        await grant_aether(user_id, VIP_DAILY_BONUS_AETHER, "Coffre quotidien VIP")
+        await push_notification(
+            db, user_id, "vip",
+            "Coffre quotidien VIP", f"+{VIP_DAILY_BONUS_AETHER} écus du Nexus offerts par ton Pass Ascendant.",
+            "coin", "Gem", link="/shop",
+        )
 
 
 async def reconcile_user_progress(user_id: str):
@@ -477,6 +548,7 @@ async def grant_xp(user_id: str, amount: int, reason: str = ""):
         tier_changed = new_tier if new_tier != old_tier else None
         level_up_info = {"old": old_level, "new": new_level, "rank": new_rank, "tier": tier_changed}
         await add_chronicle(user_id, f"A atteint le niveau {new_level} — Rang {new_rank}", "level_up")
+        discord_rewards.schedule_levelup(db, user_id, new_level, new_rank)
         if tier_changed:
             discord_sync.schedule_sync(db, user_id)
     await db.users.update_one({"user_id": user_id}, {"$set": update})
@@ -662,6 +734,7 @@ class RegisterReq(BaseModel):
     username: str = Field(..., min_length=3, max_length=20, pattern=r"^[a-zA-Z0-9_]+$")
     password: str = Field(..., min_length=6)
     class_id: str
+    referral_code: Optional[str] = None
 
 
 class LoginReq(BaseModel):
@@ -680,10 +753,161 @@ class ResetPasswordReq(BaseModel):
 
 class DiscordExchangeReq(BaseModel):
     code: str = Field(..., min_length=1)
+    referral_code: Optional[str] = None
 
 
 DISCORD_SIGNUP_XP_BONUS = int(os.environ.get("DISCORD_SIGNUP_XP_BONUS", "75"))
 DISCORD_SIGNUP_BADGE_ID = "discord_herald"
+# Discord role granted to heroes who reach the 25-referral milestone (optional).
+DISCORD_AMBASSADOR_ROLE_ID = os.environ.get("DISCORD_AMBASSADOR_ROLE_ID", "").strip()
+
+# ----- Parrainage (referral) configuration -----
+# Milestones are cumulative and each is granted exactly once.
+REFERRAL_AETHER_REWARD = 50  # « Écus du Nexus » accordés au 1er filleul
+REFERRAL_MILESTONES = [
+    {"threshold": 1, "type": "aether", "amount": REFERRAL_AETHER_REWARD,
+     "label": f"+{REFERRAL_AETHER_REWARD} Écus du Nexus"},
+    {"threshold": 3, "type": "badge", "badge_id": "recruteur", "label": "Badge Recruteur"},
+    {"threshold": 10, "type": "title", "title_id": "ambassadeur_nexus", "label": "Titre Ambassadeur du Nexus"},
+    {"threshold": 25, "type": "discord_role", "label": "Rôle Discord spécial"},
+]
+
+
+def _gen_referral_code() -> str:
+    return "NX" + uuid.uuid4().hex[:6].upper()
+
+
+async def get_or_create_referral_code(user_id: str) -> str:
+    user = await db.users.find_one({"user_id": user_id}, {"referral_code": 1, "_id": 0})
+    if user and user.get("referral_code"):
+        return user["referral_code"]
+    # Generate a unique code
+    for _ in range(8):
+        code = _gen_referral_code()
+        if not await db.users.find_one({"referral_code": code}):
+            await db.users.update_one({"user_id": user_id}, {"$set": {"referral_code": code}})
+            return code
+    # Fallback (extremely unlikely): derive from user_id
+    code = ("NX" + user_id.replace("-", "")[:6]).upper()
+    await db.users.update_one({"user_id": user_id}, {"$set": {"referral_code": code}})
+    return code
+
+
+async def process_referral_rewards(referrer_id: str):
+    """Grant any milestone rewards the referrer has newly earned. Idempotent."""
+    referrer = await db.users.find_one({"user_id": referrer_id})
+    if not referrer:
+        return
+    count = int(referrer.get("referral_count", 0) or 0)
+    claimed = set(referrer.get("referral_rewards_claimed", []) or [])
+    for ms in REFERRAL_MILESTONES:
+        th = ms["threshold"]
+        if count < th or th in claimed:
+            continue
+        if ms["type"] == "aether":
+            await grant_aether(referrer_id, ms["amount"], "Parrainage — premier filleul")
+            await push_notification(
+                db, referrer_id, "referral",
+                "Récompense de parrainage", ms["label"], "coin", "Coins", link="/parrainage",
+            )
+        elif ms["type"] == "badge":
+            await grant_badge(referrer_id, ms["badge_id"])
+        elif ms["type"] == "title":
+            await db.user_titles.update_one(
+                {"user_id": referrer_id, "title_id": ms["title_id"]},
+                {"$set": {"user_id": referrer_id, "title_id": ms["title_id"],
+                          "obtained_at": now_utc().isoformat(), "source": "referral"}},
+                upsert=True,
+            )
+            await push_notification(
+                db, referrer_id, "referral",
+                "Titre débloqué", ms["label"], "fanfare", "Crown", link="/parrainage",
+            )
+        elif ms["type"] == "discord_role":
+            if DISCORD_AMBASSADOR_ROLE_ID:
+                discord_sync.schedule_extra_role(
+                    db, referrer_id, DISCORD_AMBASSADOR_ROLE_ID, "NEXORIA — Ambassadeur (25 parrainages)")
+            await push_notification(
+                db, referrer_id, "referral",
+                "Rôle Discord spécial", "Ton statut d'Ambassadeur t'a octroyé un rôle Discord exclusif.",
+                "fanfare", "MessageSquare", link="/parrainage",
+            )
+        claimed.add(th)
+    await db.users.update_one(
+        {"user_id": referrer_id},
+        {"$set": {"referral_rewards_claimed": sorted(claimed)}},
+    )
+
+
+async def apply_referral(referral_code: str, referred_user_id: str):
+    """Link a freshly-created account to its referrer and process rewards.
+    Safe to call with an invalid/empty code (no-op)."""
+    code = (referral_code or "").strip().upper()
+    if not code:
+        return
+    referrer = await db.users.find_one({"referral_code": code}, {"user_id": 1, "_id": 0})
+    if not referrer:
+        return
+    referrer_id = referrer["user_id"]
+    if referrer_id == referred_user_id:
+        return
+    # Prevent double-counting if the referred user was already attributed.
+    existing = await db.referrals.find_one({"referred_id": referred_user_id})
+    if existing:
+        return
+    await db.referrals.insert_one({
+        "referrer_id": referrer_id,
+        "referred_id": referred_user_id,
+        "code": code,
+        "created_at": now_utc().isoformat(),
+    })
+    await db.users.update_one({"user_id": referrer_id}, {"$inc": {"referral_count": 1}})
+    await db.users.update_one({"user_id": referred_user_id}, {"$set": {"referred_by": referrer_id}})
+    await process_referral_rewards(referrer_id)
+
+
+# Pionniers : récompense réservée aux 100 premiers inscrits à partir de maintenant.
+FOUNDER_MAX = 100
+FOUNDER_BADGE_ID = "pionnier_nexus"
+FOUNDER_XP_REWARD = 1000
+
+
+async def claim_founder_reward(user_id: str):
+    """Grant the exclusive Pioneer badge + XP to the first FOUNDER_MAX new accounts.
+    Uses an atomic counter so concurrent signups can't exceed the cap."""
+    try:
+        counter = await db.counters.find_one_and_update(
+            {"_id": "founder_members"},
+            {"$inc": {"seq": 1}},
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        seq = int((counter or {}).get("seq", 0))
+        if seq <= 0 or seq > FOUNDER_MAX:
+            return
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"founder_number": seq, "is_founder": True}},
+        )
+        await grant_badge(user_id, FOUNDER_BADGE_ID)
+        await grant_xp(user_id, FOUNDER_XP_REWARD, "Pionnier du Nexus")
+        await add_chronicle(
+            user_id,
+            f"Pionnier du Nexus n°{seq} — parmi les {FOUNDER_MAX} premiers héros !",
+            "creation",
+        )
+        try:
+            await push_notification(
+                db, user_id, "founder",
+                "Pionnier du Nexus",
+                f"Tu fais partie des {FOUNDER_MAX} premiers héros (n°{seq}) : badge exclusif + {FOUNDER_XP_REWARD} XP offerts !",
+                "fanfare", "Flag", link="/hero",
+            )
+        except Exception:
+            pass
+        logger.info("Founder reward granted: user=%s number=%s", user_id, seq)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("claim_founder_reward failed for %s: %s", user_id, e)
 
 
 class PostReq(BaseModel):
@@ -761,7 +985,8 @@ async def get_titles(user: dict = Depends(get_user_dep)):
     out = []
     for t in TITLES:
         shop_only = t["id"] in SHOP_ONLY_TITLES
-        if shop_only:
+        requires_ownership = shop_only or t["id"] in REFERRAL_TITLES or t["id"] in VIP_TITLES
+        if requires_ownership:
             unlocked = t["id"] in owned_ids
         else:
             unlocked = user.get("level", 1) >= t["unlock_level"]
@@ -904,9 +1129,47 @@ async def register(req: RegisterReq, response: Response):
     await add_chronicle(user_id, f"Le héros {username} ({cls['name']}) a rejoint NEXORIA", "creation")
     discord_auth_forum.schedule_auth_event("register", user_doc)
 
+    if req.referral_code:
+        try:
+            await apply_referral(req.referral_code, user_id)
+        except Exception as e:
+            logger.warning(f"referral attribution failed: {e}")
+
+    await claim_founder_reward(user_id)
+
     result = public_user(user_doc)
     result["session_token"] = token
     return result
+
+
+@api.get("/referral/me")
+async def referral_me(request: Request, user: dict = Depends(get_user_dep)):
+    """Return the current hero's referral code, link, count and milestone ladder."""
+    code = await get_or_create_referral_code(user["user_id"])
+    fresh = await db.users.find_one(
+        {"user_id": user["user_id"]},
+        {"referral_count": 1, "referral_rewards_claimed": 1, "_id": 0},
+    ) or {}
+    count = int(fresh.get("referral_count", 0) or 0)
+    claimed = set(fresh.get("referral_rewards_claimed", []) or [])
+    # Build a public-facing register link with the ref code.
+    origin = request.headers.get("origin") or os.environ.get("PUBLIC_SITE_URL", "")
+    link = f"{origin.rstrip('/')}/register?ref={code}" if origin else f"/register?ref={code}"
+    milestones = [
+        {
+            "threshold": ms["threshold"],
+            "label": ms["label"],
+            "claimed": ms["threshold"] in claimed,
+            "reached": count >= ms["threshold"],
+        }
+        for ms in REFERRAL_MILESTONES
+    ]
+    return {
+        "code": code,
+        "link": link,
+        "count": count,
+        "milestones": milestones,
+    }
 
 
 @api.post("/auth/login")
@@ -1117,6 +1380,7 @@ async def google_session(req: SessionExchangeReq, response: Response):
     await maybe_process_daily_login(user["user_id"])
     if is_new_google_account:
         discord_auth_forum.schedule_auth_event("register", user)
+        await claim_founder_reward(user["user_id"])
     else:
         discord_auth_forum.schedule_auth_event("login", user)
     result = public_user(user)
@@ -1187,8 +1451,9 @@ class ProfileUpdateReq(BaseModel):
     active_aura_sku: Optional[str] = None # SKU of equipped shop aura
     active_mount: Optional[str] = None    # SKU of equipped mount
     language: Optional[str] = None        # User-selected language code
-    theme: Optional[str] = None           # UI theme: dark/midnight/amethyst/ember/aurora
+    theme: Optional[str] = None           # UI theme: dark/midnight/amethyst
     staff_nexus_auto_connect: Optional[bool] = None  # Staff: auto-join Nexus socket on login
+    appear_offline: Optional[bool] = None  # Hide online presence in the Nexus (all users)
 
 
 @api.get("/users/search")
@@ -1231,10 +1496,25 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
     if "social_links" in update and update["social_links"] is not None:
         allowed = {"twitter", "twitch", "youtube", "discord_tag"}
         update["social_links"] = {k: str(v)[:128] for k, v in update["social_links"].items() if k in allowed and v}
+    class_change_inc = {}
     if "class_id" in update:
         if update["class_id"] not in CLASSES:
             raise HTTPException(400, "Classe invalide")
         update["class_name"] = CLASSES[update["class_id"]]["name"]
+        # Gate real class changes: 1 free change for everyone, then requires
+        # « Parchemin de Mutation » credits (3 per purchase). The initial class
+        # selection (needs_class_selection) and no-op re-selection are free.
+        current_class = user.get("class_id")
+        is_initial = bool(user.get("needs_class_selection"))
+        is_real_change = (not is_initial) and update["class_id"] != current_class
+        if is_real_change:
+            free_used = int(user.get("class_changes_used", 0) or 0)
+            credits = int(user.get("class_change_credits", 0) or 0)
+            if free_used >= 1 and credits <= 0:
+                raise HTTPException(403, "Vous avez déjà utilisé votre changement de classe gratuit. Achetez un « Parchemin de Mutation » à la boutique (3 changements).")
+            class_change_inc["class_changes_used"] = 1
+            if free_used >= 1:
+                class_change_inc["class_change_credits"] = -1
         update["needs_class_selection"] = False
     if "secondary_class_id" in update and update["secondary_class_id"] not in CLASSES:
         raise HTTPException(400, "Classe secondaire invalide")
@@ -1255,7 +1535,7 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         owned = await db.user_mounts.find_one({"user_id": user["user_id"], "sku": update["active_mount"]})
         if not owned:
             raise HTTPException(400, "Cette monture n'a pas été acquise")
-    VALID_THEMES = {"dark", "midnight", "amethyst", "ember", "aurora"}
+    VALID_THEMES = {"dark", "midnight", "amethyst"}
     if "theme" in update and update["theme"] not in VALID_THEMES:
         raise HTTPException(400, "Thème invalide")
     VALID_LANGUAGES = {"fr", "en", "es", "de", "it", "pt", "nl", "ja"}
@@ -1281,6 +1561,8 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         ops["$set"] = update
     if unset_fields:
         ops["$unset"] = {f: "" for f in unset_fields}
+    if class_change_inc:
+        ops["$inc"] = class_change_inc
     if ops:
         await db.users.update_one({"user_id": user["user_id"]}, ops)
 
@@ -1293,6 +1575,13 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
     if cosmetic_fields:
         try:
             await nexus_world.push_profile_updated(user["user_id"], cosmetic_fields)
+        except Exception:
+            pass
+
+    # Online presence toggle — apply live to any connected Nexus session.
+    if "appear_offline" in update:
+        try:
+            await nexus_world.set_presence_hidden(user["user_id"], update["appear_offline"])
         except Exception:
             pass
 
@@ -1369,10 +1658,15 @@ async def set_title(req: TitleReq, user: dict = Depends(get_user_dep)):
         "user_id": user["user_id"],
         "$or": [{"title_id": req.title_id}, {"sku": f"title_{req.title_id}"}],
     })
-    shop_only = req.title_id in SHOP_ONLY_TITLES
-    if shop_only and not shop_owned:
-        raise HTTPException(400, "Titre boutique non acquis")
-    if not shop_only and user["level"] < title["unlock_level"]:
+    # Special titles (shop, referral or VIP rewards) require an explicit ownership grant.
+    requires_ownership = (
+        req.title_id in SHOP_ONLY_TITLES
+        or req.title_id in REFERRAL_TITLES
+        or req.title_id in VIP_TITLES
+    )
+    if requires_ownership and not shop_owned:
+        raise HTTPException(400, "Titre non acquis")
+    if not requires_ownership and user["level"] < title["unlock_level"]:
         raise HTTPException(400, "Titre non débloqué")
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_title": req.title_id}})
     try:
@@ -2327,6 +2621,29 @@ async def content_upload_image(request: Request, file: UploadFile = File(...), u
     return {"url": f"{base}/uploads/content/{filename}"}
 
 
+@api.post("/profile/avatar/upload")
+async def upload_avatar(request: Request, file: UploadFile = File(...), user: dict = Depends(get_user_dep)):
+    """Upload a profile picture from the user's device and set it as their avatar."""
+    content_type = (file.content_type or "").lower()
+    if content_type not in MAINTENANCE_IMAGE_TYPES:
+        raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Image trop lourde (max 5 Mo)")
+    filename = f"{user['user_id']}_{uuid.uuid4().hex[:8]}{MAINTENANCE_IMAGE_TYPES[content_type]}"
+    dest = AVATAR_UPLOAD_DIR / filename
+    dest.write_bytes(data)
+    base = str(request.base_url).rstrip("/")
+    url = f"{base}/uploads/avatars/{filename}"
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"avatar_url": url}})
+    await grant_badge(user["user_id"], "shapeshifter")
+    try:
+        await nexus_world.push_profile_updated(user["user_id"], {"avatar_url": url})
+    except Exception:
+        pass
+    return {"url": url, "avatar_url": url}
+
+
 @api.post("/admin/maintenance/upload")
 async def maintenance_upload_image(request: Request, file: UploadFile = File(...), user: dict = Depends(get_admin_dep)):
     """Upload image pour les éditeurs HTML de la page maintenance."""
@@ -2565,6 +2882,128 @@ async def delete_account(user: dict = Depends(get_user_dep)):
 
 
 # ---------- Shop ----------
+# ===================== VIP « Pass Ascendant » endpoints =====================
+class VipPurchaseReq(BaseModel):
+    plan: str
+
+
+def _vip_plans_list():
+    return [VIP_PLANS[k] for k in ("VIP_NEXUS_7", "VIP_NEXUS_30", "VIP_NEXUS_90")]
+
+
+@api.get("/shop/vip-plans")
+async def vip_plans_endpoint():
+    """Public catalog of VIP plans (prices defined server-side)."""
+    return {"plans": _vip_plans_list()}
+
+
+@api.get("/vip/status")
+async def vip_status(user: dict = Depends(get_user_dep)):
+    full = await db.users.find_one({"user_id": user["user_id"]})
+    dt = vip_until_dt(full)
+    return {
+        "is_vip": is_vip_active(full),
+        "vip_until": dt.isoformat() if dt else None,
+        "vip_plan": full.get("vip_plan"),
+        "vip_total_days_purchased": int(full.get("vip_total_days_purchased", 0) or 0),
+        "remaining_eclats": full.get("aether", 0),
+        "plans": _vip_plans_list(),
+    }
+
+
+@api.post("/vip/purchase")
+async def vip_purchase(req: VipPurchaseReq, user: dict = Depends(get_user_dep)):
+    plan = VIP_PLANS.get((req.plan or "").strip().upper())
+    if not plan:
+        raise HTTPException(400, "Plan VIP invalide")
+    uid = user["user_id"]
+    price = plan["price"]
+    now = now_utc()
+
+    # Anti double-clic : refuse un nouvel achat dans les 3s suivant le précédent.
+    guard = await db.users.find_one(
+        {"user_id": uid},
+        {"vip_last_purchase_at": 1, "vip_until": 1, "vip_total_days_purchased": 1, "username": 1},
+    )
+    last = _parse_dt((guard or {}).get("vip_last_purchase_at"))
+    if last and (now - last).total_seconds() < 3:
+        raise HTTPException(429, "Achat déjà en cours — patientez quelques secondes.")
+
+    # Débit ATOMIQUE conditionnel : empêche tout solde négatif / double dépense.
+    debit = await db.users.update_one(
+        {"user_id": uid, "aether": {"$gte": price}},
+        {"$inc": {"aether": -price}, "$set": {"vip_last_purchase_at": now.isoformat()}},
+    )
+    if debit.modified_count == 0:
+        raise HTTPException(400, f"Écus insuffisants ({price} requis).")
+
+    # Prolonge depuis la date d'expiration restante si déjà VIP, sinon depuis maintenant.
+    current = vip_until_dt(guard) or now
+    base = current if current > now else now
+    new_until = base + timedelta(days=plan["days"])
+    total_days = int((guard or {}).get("vip_total_days_purchased", 0) or 0) + plan["days"]
+
+    await db.users.update_one({"user_id": uid}, {"$set": {
+        "is_vip": True,
+        "vip_until": new_until.isoformat(),
+        "vip_plan": plan["id"],
+        "vip_total_days_purchased": total_days,
+    }})
+
+    # Transaction persistée
+    await db.vip_transactions.insert_one({
+        "transaction_id": f"vip_{uuid.uuid4().hex[:12]}",
+        "user_id": uid,
+        "plan": plan["id"],
+        "days": plan["days"],
+        "price": price,
+        "vip_until": new_until.isoformat(),
+        "created_at": now.isoformat(),
+    })
+
+    # Avantages : badge + titre VIP (octroi permanent du titre)
+    await grant_badge(uid, VIP_BADGE_ID)
+    await db.user_titles.update_one(
+        {"user_id": uid, "title_id": VIP_TITLE_ID},
+        {"$set": {"user_id": uid, "title_id": VIP_TITLE_ID,
+                  "obtained_at": now.isoformat(), "source": "vip"}},
+        upsert=True,
+    )
+
+    # Rôle Discord VIP (si lié + configuré) + annonce salon récompenses
+    username = (guard or {}).get("username") or user.get("username") or "Un héros"
+    if DISCORD_VIP_ROLE_ID:
+        discord_sync.schedule_extra_role(db, uid, DISCORD_VIP_ROLE_ID, "NEXORIA — Pass Ascendant (VIP)")
+    discord_rewards.schedule_custom(
+        f"✨ **{username}** vient d'activer le Pass ascendant jusqu'au {new_until.strftime('%d/%m/%Y')}."
+    )
+    logger.info("VIP purchase: user=%s plan=%s price=%s until=%s", uid, plan["id"], price, new_until.isoformat())
+
+    await push_notification(
+        db, uid, "vip",
+        "Pass Ascendant activé",
+        f"Ton statut VIP est actif jusqu'au {new_until.strftime('%d/%m/%Y')}.",
+        "fanfare", "Gem", link="/shop",
+    )
+    await push_wallet_updated(uid)
+    try:
+        await nexus_world.push_profile_updated(uid, {
+            "user_id": uid, "is_vip": True, "vip_until": new_until.isoformat(),
+        })
+    except Exception:
+        pass
+
+    fresh = await db.users.find_one({"user_id": uid}, {"aether": 1, "_id": 0})
+    return {
+        "success": True,
+        "message": f"Pass ascendant activé pendant {plan['days']} jours.",
+        "vip_until": new_until.isoformat(),
+        "vip_plan": plan["id"],
+        "is_vip": True,
+        "remaining_eclats": (fresh or {}).get("aether", 0),
+    }
+
+
 @api.get("/shop/items")
 async def list_shop_items():
     """Static catalog + admin-created items."""
@@ -2671,7 +3110,13 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
         else:
             if sku == "key_chest_cosmic":
                 items_won = await open_chest(user["user_id"])
-                applied["chest_items"] = [i.get("name") for i in items_won]
+                applied["chest_items"] = items_won
+            elif sku == "scroll_class_change":
+                await db.users.update_one(
+                    {"user_id": user["user_id"]},
+                    {"$inc": {"class_change_credits": 3}},
+                )
+                applied["class_change_credits_added"] = 3
             else:
                 await db.user_consumables.update_one(
                 {"user_id": user["user_id"], "sku": sku, "used": False},
@@ -2695,8 +3140,17 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
         if item.get("perk") in ("treasury",) or item.get("sku") == "kingdom_aether_mine":
             applied["passive_aether"] = True
     elif item["category"] == "chest":
-        items_won = await open_chest(user["user_id"])
-        applied["chest_items"] = [i.get("name") for i in items_won]
+        try:
+            items_won = await open_chest(user["user_id"])
+        except HTTPException:
+            await grant_aether(user["user_id"], item["price"], f"Remboursement boutique : {item['name']}")
+            await db.shop_purchases.delete_one({"purchase_id": purchase_doc["purchase_id"]})
+            raise
+        if not items_won:
+            await grant_aether(user["user_id"], item["price"], f"Remboursement boutique : {item['name']}")
+            await db.shop_purchases.delete_one({"purchase_id": purchase_doc["purchase_id"]})
+            raise HTTPException(400, "Coffre vide : vous possédez déjà tous les objets disponibles.")
+        applied["chest_items"] = items_won
     elif item["category"] == "mount":
         await db.user_mounts.insert_one({"user_id": user["user_id"], "sku": sku, "obtained_at": now_utc().isoformat()})
         await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_mount": sku}})
@@ -3199,6 +3653,12 @@ async def discord_exchange(req: DiscordExchangeReq, response: Response):
     discord_sync.schedule_sync(db, user["user_id"])
     if is_new_account:
         discord_auth_forum.schedule_auth_event("register", user)
+        if req.referral_code:
+            try:
+                await apply_referral(req.referral_code, user["user_id"])
+            except Exception as e:
+                logger.warning(f"referral attribution (discord) failed: {e}")
+        await claim_founder_reward(user["user_id"])
     else:
         discord_auth_forum.schedule_auth_event("login", user)
     fresh = await db.users.find_one({"user_id": user["user_id"]})
@@ -3210,6 +3670,7 @@ async def discord_exchange(req: DiscordExchangeReq, response: Response):
         "xp_bonus": xp_bonus,
         "badge_granted": badge_granted,
         "badge_id": DISCORD_SIGNUP_BADGE_ID if badge_granted else None,
+        "email_provisional": (user.get("email") or "").endswith("@nexoria.local"),
     }
     return result
 
@@ -3346,6 +3807,52 @@ class NewsUpdateReq(BaseModel):
 
 
 NEWS_CATEGORIES = {"event", "update", "community", "announce"}
+
+
+@api.get("/community/overview")
+async def community_overview(user: dict = Depends(get_user_dep)):
+    """Aggregated data for the Community page: team, recruiting guilds, news, stats."""
+    # ----- Team (staff) -----
+    staff_rows = await db.users.find(
+        {"role": {"$in": ["admin", "moderator"]}},
+        {"_id": 0, "user_id": 1, "username": 1, "display_name": 1, "role": 1,
+         "avatar_url": 1, "discord_avatar_url": 1, "level": 1, "rank": 1,
+         "active_title": 1, "class_name": 1, "quote": 1, "bio": 1},
+    ).sort("level", -1).to_list(50)
+    role_order = {"admin": 0, "moderator": 1}
+    staff_rows.sort(key=lambda u: (role_order.get(u.get("role"), 9), -(u.get("level") or 0)))
+    for s in staff_rows:
+        title_id = s.get("active_title") or "novice"
+        title_doc = next((t for t in TITLES if t["id"] == title_id), None)
+        s["active_title_name"] = title_doc["name"] if title_doc else title_id.replace("_", " ").title()
+
+    # ----- Recruiting guilds (top by level) -----
+    guilds = await db.guilds.find({}, {"_id": 0}).sort("level", -1).limit(6).to_list(6)
+    for g in guilds:
+        g["member_count"] = await db.guild_members.count_documents({"guild_id": g.get("guild_id")})
+
+    # ----- Latest news -----
+    news = await db.news.find({"published": True}, {"_id": 0}).sort("created_at", -1).limit(4).to_list(4)
+
+    # ----- Stats -----
+    total_heroes = await db.users.count_documents({})
+    total_guilds = await db.guilds.count_documents({})
+    try:
+        online_now = nexus_world._presence_payload().get("total", 0)
+    except Exception:
+        online_now = 0
+
+    return {
+        "team": staff_rows,
+        "guilds": guilds,
+        "news": news,
+        "stats": {
+            "heroes": total_heroes,
+            "guilds": total_guilds,
+            "staff": len(staff_rows),
+            "online": online_now,
+        },
+    }
 
 
 @api.get("/news")
@@ -5357,6 +5864,10 @@ async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
         "rank": u.get("rank", "Novice"),
     }
     u["active_title_name"] = active_aura["title_name"]
+    # VIP status recomputed from vip_until (never trust stored is_vip alone).
+    u["is_vip"] = is_vip_active(u)
+    u["vip_until"] = iso(u.get("vip_until")) if u.get("vip_until") else None
+    u["vip_plan"] = u.get("vip_plan")
     titles_progress = [
         {
             "id": t["id"], "name": t["name"], "unlock_level": t["unlock_level"],
@@ -5429,6 +5940,67 @@ app.mount("/api/nexus", _nexus_asgi)
 
 
 
+_vip_expiry_task = None
+
+
+async def revoke_vip_perks(uid: str, active_title: str | None = None):
+    """Strip every VIP advantage when the Pass Ascendant ends.
+
+    Removes: is_vip flag, VIP badge, VIP title ownership (and resets the active
+    title if it was the VIP one), the Discord VIP role, and pushes a live profile
+    update so Nexus visuals (aura, golden name) disappear immediately.
+    The +10% XP/Écus boosts and daily bonus chest stop on their own since they are
+    recomputed from is_vip_active().
+    """
+    set_fields = {"is_vip": False}
+    if active_title == VIP_TITLE_ID:
+        set_fields["active_title"] = "novice"
+    await db.users.update_one({"user_id": uid}, {"$set": set_fields})
+    try:
+        await db.user_badges.delete_one({"user_id": uid, "badge_id": VIP_BADGE_ID})
+        await db.user_titles.delete_one({"user_id": uid, "title_id": VIP_TITLE_ID})
+    except Exception as e:  # noqa: BLE001
+        logger.warning("revoke_vip_perks cleanup failed for %s: %s", uid, e)
+    if DISCORD_VIP_ROLE_ID:
+        discord_sync.schedule_remove_role(db, uid, DISCORD_VIP_ROLE_ID, "NEXORIA — Pass Ascendant expiré")
+    try:
+        patch = {"user_id": uid, "is_vip": False}
+        if active_title == VIP_TITLE_ID:
+            patch["active_title"] = "novice"
+        await nexus_world.push_profile_updated(uid, patch)
+    except Exception:
+        pass
+    try:
+        await push_notification(
+            db, uid, "vip",
+            "Pass Ascendant expiré",
+            "Ton statut VIP a pris fin. Renouvelle-le dans la boutique pour conserver tes avantages.",
+            "ding", "Gem", link="/shop",
+        )
+    except Exception:
+        pass
+    logger.info("VIP perks revoked for user=%s", uid)
+
+
+async def _vip_expiry_loop(interval: int = 300):
+    """Periodically downgrade expired VIPs: clear is_vip, remove Discord role, notify."""
+    logger.info("VIP expiry watcher running (every %ss)", interval)
+    while True:
+        try:
+            now_iso = now_utc().isoformat()
+            expired = await db.users.find(
+                {"is_vip": True, "vip_until": {"$lt": now_iso}},
+                {"user_id": 1, "active_title": 1, "_id": 0},
+            ).to_list(500)
+            for u in expired:
+                await revoke_vip_perks(u["user_id"], u.get("active_title"))
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            logger.warning("VIP expiry loop error: %s", e)
+        await asyncio.sleep(interval)
+
+
 @app.on_event("startup")
 async def startup():
     await db.users.create_index("email", unique=True)
@@ -5445,6 +6017,9 @@ async def startup():
     await db.friend_requests.create_index([("to_user", 1), ("status", 1)])
     await db.friend_messages.create_index([("pair_key", 1), ("created_at", -1)])
     await db.friend_messages.create_index([("to_user", 1), ("read", 1)])
+    await db.users.create_index("referral_code", sparse=True)
+    await db.referrals.create_index("referred_id", unique=True, sparse=True)
+    await db.referrals.create_index([("referrer_id", 1), ("created_at", -1)])
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@nexoria.com").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
@@ -5549,9 +6124,31 @@ async def startup():
     except Exception as e:
         logger.warning(f"NEXORIA: consumable dedupe migration skipped — {e}")
 
+    # Auto-sync Discord roles/ranks on a rotating 30s schedule.
+    try:
+        discord_sync.start_periodic_sync(db, interval=30)
+    except Exception as e:
+        logger.warning(f"NEXORIA: could not start Discord periodic sync — {e}")
+
+    # VIP « Pass Ascendant » expiry watcher.
+    global _vip_expiry_task
+    try:
+        _vip_expiry_task = asyncio.create_task(_vip_expiry_loop(300))
+    except Exception as e:
+        logger.warning(f"NEXORIA: could not start VIP expiry watcher — {e}")
+
     logger.info("NEXORIA backend started")
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    try:
+        discord_sync.stop_periodic_sync()
+    except Exception:
+        pass
+    try:
+        if _vip_expiry_task:
+            _vip_expiry_task.cancel()
+    except Exception:
+        pass
     client.close()

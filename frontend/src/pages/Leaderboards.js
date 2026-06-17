@@ -15,7 +15,7 @@ const CATEGORIES = [
   { id: "xp", label: "Expérience", icon: Zap, color: "#00E5FF", suffix: "XP" },
   { id: "level", label: "Rang", icon: Crown, color: "#9D4CDD", suffix: "Niv." },
   { id: "reputation", label: "Réputation", icon: Shield, color: "#FCD34D", suffix: "Rep." },
-  { id: "aether", label: "Aether", icon: Coins, color: "#FBBF24", suffix: "✦" },
+  { id: "aether", label: "Écus", icon: Coins, color: "#FBBF24", suffix: "✦" },
 ];
 
 const PODIUM_TONE = ["#FCD34D", "#E5E7EB", "#F97316"];

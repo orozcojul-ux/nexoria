@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Crown, Shield, Package, Award, History, Users, BarChart3,
-  MessageCircle, UserPlus, Sword, Trophy, Compass, Flame, Star, Frame, Flag,
+  MessageCircle, UserPlus, Sword, Trophy, Compass, Flame, Star, Frame, Flag, Gem,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -323,8 +323,39 @@ export default function HeroCard({ userId, open, onClose, onWhisper }) {
                     </div>
                   </div>
 
-                  <h2 className={styles.heroName}>{u.username}</h2>
+                  <h2
+                    className={styles.heroName}
+                    style={u.is_vip ? {
+                      background: "linear-gradient(92deg,#fde68a,#fbbf24 40%,#a855f7)",
+                      WebkitBackgroundClip: "text",
+                      backgroundClip: "text",
+                      color: "transparent",
+                      textShadow: "0 0 18px rgba(251,191,36,0.35)",
+                    } : undefined}
+                  >
+                    {u.username}
+                  </h2>
                   <p className={styles.heroSubtitle}>{getTitleLabel(u)}</p>
+                  {u.is_vip && (
+                    <div
+                      data-testid="hero-vip-banner"
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        margin: "6px auto 0", padding: "4px 12px", borderRadius: 999,
+                        border: "1px solid rgba(251,191,36,0.5)",
+                        background: "linear-gradient(92deg,rgba(251,191,36,0.14),rgba(168,85,247,0.14))",
+                        color: "#fde68a", fontSize: 11, fontWeight: 800,
+                        letterSpacing: "0.08em", textTransform: "uppercase",
+                      }}
+                    >
+                      <Gem className="w-3.5 h-3.5" /> VIP Nexus
+                    </div>
+                  )}
+                  {u.is_vip && u.vip_until && (
+                    <p style={{ fontSize: 11, color: "#c4b5fd", marginTop: 4 }}>
+                      Pass ascendant actif jusqu'au {new Date(u.vip_until).toLocaleDateString("fr-FR")}
+                    </p>
+                  )}
                   {(u.class_id || u.class_name) && (
                     <div
                       style={{
@@ -658,7 +689,7 @@ function InfoTab({ u, guild, location }) {
         <InfoBlock label="Guilde" value={guild?.name ? `${guild.name}${guild.tag ? ` [${guild.tag}]` : ""}` : "Sans guilde"} />
         <InfoBlock label="Niveau" value={u.level} />
         <InfoBlock label="XP totale" value={u.xp || 0} />
-        <InfoBlock label="Aether" value={`${u.aether || 0} ⟡`} />
+        <InfoBlock label="Écus" value={`${u.aether || 0} ⟡`} />
         <InfoBlock label="Réputation" value={u.reputation || 0} />
         <InfoBlock label="Inscription" value={u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"} />
         <InfoBlock label="Localisation" value={location ? prettyRoom(location.room) : "Hors-ligne"} />

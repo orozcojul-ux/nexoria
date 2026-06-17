@@ -29,7 +29,7 @@ export default function Kingdom() {
     try {
       const { data } = await api.post(`/kingdom/upgrade/${id}`);
       sfx.success();
-      toast.success(`Édifice ennobli au rang ${data.kingdom[id].level} (-${data.cost} Aether)`);
+      toast.success(`Édifice ennobli au rang ${data.kingdom[id].level} (-${data.cost} Écus)`);
       await refresh();
     } catch (e) { toast.error(e.response?.data?.detail || "Les fondations résistent..."); }
   };
@@ -77,7 +77,7 @@ export default function Kingdom() {
                     </div>
                   ) : (
                     <PremiumButton variant="cyan" size="sm" icon={Coins} className="w-full" onClick={() => upgrade(b.id)} testid={`upgrade-${b.id}`}>
-                      Ennoblir ({cost} Aether)
+                      Ennoblir ({cost} Écus)
                     </PremiumButton>
                   )}
                 </PremiumCard>

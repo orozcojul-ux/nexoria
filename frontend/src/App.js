@@ -43,6 +43,8 @@ import Nexus from "@/pages/Nexus";
 import Classes from "@/pages/Classes";
 import Events from "@/pages/Events";
 import UnderConstruction from "@/pages/UnderConstruction";
+import Referral from "@/pages/Referral";
+import Community from "@/pages/Community";
 import BroadcastOverlay from "@/components/BroadcastOverlay";
 import StaffAlertOverlay from "@/components/StaffAlertOverlay";
 import NexusOverlay from "@/components/NexusOverlay";
@@ -120,12 +122,13 @@ function AppRouter() {
         <Route path="/guilds" element={<ProtectedRoute><Layout><Guilds /></Layout></ProtectedRoute>} />
         <Route path="/forum" element={<ProtectedRoute><Layout><Forum /></Layout></ProtectedRoute>} />
         <Route path="/friends" element={<ProtectedRoute><Layout><Friends /></Layout></ProtectedRoute>} />
+        <Route path="/parrainage" element={<ProtectedRoute><Layout><Referral /></Layout></ProtectedRoute>} />
         <Route path="/tickets" element={<ProtectedRoute><Layout><Tickets /></Layout></ProtectedRoute>} />
         <Route path="/nexus" element={<ProtectedRoute><Layout><Nexus /></Layout></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><Layout><Admin /></Layout></ProtectedRoute>} />
         <Route path="/profile/:username" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
-        <Route path="/communaute" element={<ProtectedRoute><Layout><UnderConstruction title="Communauté" /></Layout></ProtectedRoute>} />
+        <Route path="/communaute" element={<ProtectedRoute><Layout><Community /></Layout></ProtectedRoute>} />
         <Route path="/conditions" element={<ProtectedRoute><Layout><UnderConstruction title="Conditions d'utilisation" /></Layout></ProtectedRoute>} />
         <Route path="/confidentialite" element={<ProtectedRoute><Layout><UnderConstruction title="Politique de confidentialité" /></Layout></ProtectedRoute>} />
         <Route path="*" element={<ProtectedRoute><Layout><UnderConstruction /></Layout></ProtectedRoute>} />

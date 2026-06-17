@@ -339,6 +339,83 @@ async def sync_discord_user(db, user_id: str) -> dict:
     return await sync_discord_roles(db, user_id)
 
 
+async def grant_extra_role(db, user_id: str, role_id: str, reason: str = "NEXORIA reward") -> bool:
+    """Add a single Discord role to a linked member (additive, non-destructive).
+    Used for reward roles like the referral 'Ambassadeur'. No-op if not configured."""
+    cfg = _config()
+    role_id = (role_id or "").strip()
+    if not is_configured() or not role_id:
+        return False
+    user = await db.users.find_one({"user_id": user_id}, {"discord_id": 1, "_id": 0})
+    discord_id = (user or {}).get("discord_id")
+    if not discord_id:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.put(
+                f"{DISCORD_API}/guilds/{cfg['guild_id']}/members/{discord_id}/roles/{role_id}",
+                headers={**_headers(cfg["token"]), "X-Audit-Log-Reason": _audit_reason(reason)},
+            )
+            if r.status_code in (200, 204):
+                return True
+            logger.warning("grant_extra_role failed: %s %s", r.status_code, r.text[:200])
+            return False
+    except Exception as e:  # noqa: BLE001
+        logger.warning("grant_extra_role error: %s", e)
+        return False
+
+
+def schedule_extra_role(db, user_id: str, role_id: str, reason: str = "NEXORIA reward"):
+    """Fire-and-forget additive role grant."""
+    if not is_configured() or not (role_id or "").strip():
+        return
+    try:
+        loop = asyncio.get_event_loop()
+        task = loop.create_task(grant_extra_role(db, user_id, role_id, reason))
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
+    except RuntimeError:
+        pass
+
+
+async def remove_extra_role(db, user_id: str, role_id: str, reason: str = "NEXORIA reward expired") -> bool:
+    """Remove a single Discord role from a linked member. No-op if not configured."""
+    cfg = _config()
+    role_id = (role_id or "").strip()
+    if not is_configured() or not role_id:
+        return False
+    user = await db.users.find_one({"user_id": user_id}, {"discord_id": 1, "_id": 0})
+    discord_id = (user or {}).get("discord_id")
+    if not discord_id:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.delete(
+                f"{DISCORD_API}/guilds/{cfg['guild_id']}/members/{discord_id}/roles/{role_id}",
+                headers={**_headers(cfg["token"]), "X-Audit-Log-Reason": _audit_reason(reason)},
+            )
+            if r.status_code in (200, 204):
+                return True
+            logger.warning("remove_extra_role failed: %s %s", r.status_code, r.text[:200])
+            return False
+    except Exception as e:  # noqa: BLE001
+        logger.warning("remove_extra_role error: %s", e)
+        return False
+
+
+def schedule_remove_role(db, user_id: str, role_id: str, reason: str = "NEXORIA reward expired"):
+    """Fire-and-forget additive role removal."""
+    if not is_configured() or not (role_id or "").strip():
+        return
+    try:
+        loop = asyncio.get_event_loop()
+        task = loop.create_task(remove_extra_role(db, user_id, role_id, reason))
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
+    except RuntimeError:
+        pass
+
+
 async def _log_sync(db, user_id: str, success: bool, message: str):
     """Persist a discord_sync_log row + mark user."""
     from datetime import datetime, timezone
@@ -354,6 +431,10 @@ async def _log_sync(db, user_id: str, success: bool, message: str):
         logger.warning(f"discord sync log write failed: {e}")
 
 
+# Strong refs so fire-and-forget tasks aren't garbage-collected mid-flight.
+_background_tasks: set = set()
+
+
 def schedule_sync(db, user_id: str):
     """Fire-and-forget background sync. Use this from hot paths so the user
     request isn't slowed down. Errors are swallowed (logged to DB)."""
@@ -361,7 +442,74 @@ def schedule_sync(db, user_id: str):
         return
     try:
         loop = asyncio.get_event_loop()
-        loop.create_task(sync_discord_user(db, user_id))
+        task = loop.create_task(sync_discord_user(db, user_id))
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
     except RuntimeError:
         # No running loop (e.g., from a sync context) — fall through
         pass
+
+
+# ---------------------------------------------------------------------------
+# Periodic auto-sync — reconciles linked members on a rotating schedule so
+# ranks/classes stay in sync even without an explicit trigger.
+# ---------------------------------------------------------------------------
+_periodic_task: "asyncio.Task | None" = None
+
+
+async def _periodic_loop(db, interval: int, batch: int):
+    logger.info("Discord periodic sync loop running (every %ss, batch %s)", interval, batch)
+    while True:
+        try:
+            if is_configured():
+                from datetime import datetime, timezone
+                # Least-recently-attempted linked members first (missing field sorts
+                # first), so every member is reconciled in turn — including those that
+                # fail (e.g. left the guild) without blocking the rotation.
+                users = await db.users.find(
+                    {"discord_id": {"$exists": True, "$nin": [None, ""]}},
+                    {"user_id": 1, "_id": 0},
+                ).sort("discord_sync_attempted_at", 1).limit(batch).to_list(batch)
+                for u in users:
+                    # Mark the attempt up-front so failures still rotate out.
+                    await db.users.update_one(
+                        {"user_id": u["user_id"]},
+                        {"$set": {"discord_sync_attempted_at": datetime.now(timezone.utc).isoformat()}},
+                    )
+                    try:
+                        await sync_discord_roles(db, u["user_id"])
+                    except Exception as e:  # noqa: BLE001
+                        logger.warning("periodic sync for %s failed: %s", u.get("user_id"), e)
+                    # Gentle pacing between members to respect Discord rate limits.
+                    await asyncio.sleep(0.4)
+        except asyncio.CancelledError:
+            logger.info("Discord periodic sync loop cancelled")
+            raise
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Discord periodic sync cycle error: %s", e)
+        await asyncio.sleep(interval)
+
+
+def start_periodic_sync(db, interval: int = 30, batch: int = 8):
+    """Start the background reconciliation loop. Idempotent / graceful no-op
+    when Discord isn't configured."""
+    global _periodic_task
+    if _periodic_task and not _periodic_task.done():
+        return _periodic_task
+    if not is_configured():
+        logger.info("Discord periodic sync disabled (DISCORD_BOT_TOKEN/GUILD_ID missing)")
+        return None
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        return None
+    _periodic_task = loop.create_task(_periodic_loop(db, interval, batch))
+    logger.info("Discord periodic sync scheduled (every %ss)", interval)
+    return _periodic_task
+
+
+def stop_periodic_sync():
+    global _periodic_task
+    if _periodic_task and not _periodic_task.done():
+        _periodic_task.cancel()
+    _periodic_task = None

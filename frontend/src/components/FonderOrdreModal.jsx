@@ -229,20 +229,20 @@ export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { l
         <div className={styles.costBox}>
           <div className={styles.costLine}>
             <span className={styles.costMuted}>Coût : </span>
-            <span className={styles.costGold}>1000 Aether</span>
+            <span className={styles.costGold}>1000 Écus</span>
             <span className={styles.costMuted}> · Requiert le niveau 10 minimum.</span>
           </div>
           <div className={styles.costLine}>
             <span className={styles.costMuted}>Niveau actuel : </span>
             <span className={styles.costCyan}>{level}</span>
-            <span className={styles.costMuted}> · Aether : </span>
+            <span className={styles.costMuted}> · Écus : </span>
             <span className={styles.costGold}>{aether}</span>
           </div>
           {insufficient && (
             <div className={styles.errBanner}>
               {level < 10
                 ? "Tu dois atteindre le niveau 10 pour fonder un ordre."
-                : "Tu n'as pas assez d'Aether (1000 requis)."}
+                : "Tu n'as pas assez d'Écus (1000 requis)."}
             </div>
           )}
           {error && <div className={styles.errBanner}>{error}</div>}
@@ -359,7 +359,7 @@ export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { l
                 <span className={styles.submitLine1}>
                   {loading ? "Fondation en cours…" : "Fonder l'Ordre"}
                 </span>
-                {!loading && <span className={styles.submitLine2}>(-1000 Aether)</span>}
+                {!loading && <span className={styles.submitLine2}>(-1000 Écus)</span>}
               </span>
             </button>
           </div>

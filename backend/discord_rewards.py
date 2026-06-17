@@ -10,6 +10,8 @@ import discord_sync
 logger = logging.getLogger("nexoria.discord_rewards")
 
 DEFAULT_REWARDS_CHANNEL_ID = "1514271132667347055"
+# Salon dédié aux annonces de montée de niveau (peut être surchargé via l'env).
+DEFAULT_LEVELUP_CHANNEL_ID = "1514271122412146739"
 
 ACTION_LABELS = {
     "post": "Publication sur le fil",
@@ -49,6 +51,10 @@ ACTION_LABELS = {
 
 def rewards_channel_id() -> str:
     return os.environ.get("DISCORD_REWARDS_CHANNEL_ID", DEFAULT_REWARDS_CHANNEL_ID).strip()
+
+
+def levelup_channel_id() -> str:
+    return os.environ.get("DISCORD_LEVELUP_CHANNEL_ID", DEFAULT_LEVELUP_CHANNEL_ID).strip()
 
 
 def action_label(action: str) -> str:
@@ -169,5 +175,59 @@ def schedule_reward_notify(db, user_id: str, action: str, **kwargs) -> None:
     try:
         loop = asyncio.get_running_loop()
         loop.create_task(notify_reward(db, user_id, action, **kwargs))
+    except RuntimeError:
+        logger.warning("discord rewards: pas de boucle asyncio active")
+
+
+_custom_tasks: set = set()
+_levelup_tasks: set = set()
+
+
+async def notify_levelup(db, user_id: str, new_level: int, rank: str | None = None) -> None:
+    """Announce a hero's level-up in the dedicated level-up channel."""
+    channel = levelup_channel_id()
+    if not channel or not os.environ.get("DISCORD_BOT_TOKEN", "").strip():
+        return
+    user = await db.users.find_one({"user_id": user_id}, {"username": 1})
+    username = (user or {}).get("username") or "Un héros"
+    rank_part = f" — Rang {rank}" if rank else ""
+    message = f"⬆️ **{username}** vient de passer **niveau {new_level}**{rank_part} ! 🎉"
+    ok = await discord_sync.post_notification(message, channel_id=channel)
+    if ok:
+        logger.info("discord level-up message sent for %s (lvl %s)", username, new_level)
+    else:
+        logger.warning("discord level-up message failed for %s", username)
+
+
+def schedule_levelup(db, user_id: str, new_level: int, rank: str | None = None) -> None:
+    """Fire-and-forget level-up announcement."""
+    try:
+        loop = asyncio.get_running_loop()
+        task = loop.create_task(notify_levelup(db, user_id, new_level, rank))
+        _levelup_tasks.add(task)
+        task.add_done_callback(_levelup_tasks.discard)
+    except RuntimeError:
+        logger.warning("discord rewards: pas de boucle asyncio active")
+
+
+async def notify_custom(message: str) -> None:
+    """Post a raw message to the rewards channel (e.g. VIP activation)."""
+    channel = rewards_channel_id()
+    if not channel or not os.environ.get("DISCORD_BOT_TOKEN", "").strip():
+        return
+    ok = await discord_sync.post_notification(message, channel_id=channel)
+    if ok:
+        logger.info("discord rewards custom message sent")
+    else:
+        logger.warning("discord rewards custom message failed")
+
+
+def schedule_custom(message: str) -> None:
+    """Fire-and-forget raw rewards-channel announcement."""
+    try:
+        loop = asyncio.get_running_loop()
+        task = loop.create_task(notify_custom(message))
+        _custom_tasks.add(task)
+        task.add_done_callback(_custom_tasks.discard)
     except RuntimeError:
         logger.warning("discord rewards: pas de boucle asyncio active")

@@ -26,22 +26,6 @@ export const THEMES = {
     class: "theme-amethyst",
     sonner: "dark",
   },
-  ember: {
-    id: "ember",
-    label: "Braise",
-    icon: "🔥",
-    desc: "Ambre chaud et cuivre",
-    class: "theme-ember",
-    sonner: "dark",
-  },
-  aurora: {
-    id: "aurora",
-    label: "Aurore",
-    icon: "✨",
-    desc: "Cyan-vert lumineux",
-    class: "theme-aurora",
-    sonner: "dark",
-  },
 };
 
 const STORAGE_KEY = "nexoria_theme";

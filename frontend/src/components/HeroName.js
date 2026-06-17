@@ -1,7 +1,25 @@
 import React from "react";
-import { Crown, ShieldCheck } from "lucide-react";
+import { Crown, ShieldCheck, Gem } from "lucide-react";
 import { getRankStyle, rankFromLevel } from "@/lib/rank-styles";
 import RankBadge from "@/components/RankBadge";
+
+const VIP_NAME_STYLE = {
+  background: "linear-gradient(92deg,#fde68a,#fbbf24 40%,#a855f7)",
+  WebkitBackgroundClip: "text",
+  backgroundClip: "text",
+  color: "transparent",
+  textShadow: "0 0 12px rgba(251,191,36,0.4)",
+};
+
+function VipMark() {
+  return (
+    <Gem
+      className="w-3 h-3 shrink-0"
+      style={{ color: "#fbbf24", filter: "drop-shadow(0 0 5px rgba(251,191,36,0.7))" }}
+      aria-label="VIP Nexus"
+    />
+  );
+}
 
 const ROLE_CONFIG = {
   admin: {
@@ -30,17 +48,25 @@ export default function HeroName({ user, className = "", showIcon = true, size =
   const rank = user.rank || rankFromLevel(user.level);
   const sizeCls = { xs: "text-xs", sm: "text-sm", base: "text-base", lg: "text-lg", xl: "text-xl" }[size] || "text-sm";
 
+  const isVip = !!user.is_vip;
+
   const roleCfg = ROLE_CONFIG[role];
   if (roleCfg) {
     return (
-      <span className={`font-display font-bold inline-flex items-center gap-1 ${sizeCls} ${className}`}>
+      <span
+        className={`font-display font-bold inline-flex items-center gap-1 ${sizeCls} ${className} ${isVip ? "nexoria-vip-name" : ""}`}
+        title={isVip ? "VIP Nexus" : undefined}
+      >
         {showIcon && (
           <roleCfg.icon
             className="w-3 h-3 shrink-0"
             style={{ color: roleCfg.color, filter: `drop-shadow(0 0 4px ${roleCfg.color}99)` }}
           />
         )}
-        <span className={`${roleCfg.text} ${roleCfg.glow}`}>{username}</span>
+        <span className={isVip ? "" : `${roleCfg.text} ${roleCfg.glow}`} style={isVip ? VIP_NAME_STYLE : undefined}>
+          {username}
+        </span>
+        {isVip && <VipMark />}
       </span>
     );
   }
@@ -48,14 +74,18 @@ export default function HeroName({ user, className = "", showIcon = true, size =
   const rankStyle = getRankStyle(rank);
   return (
     <span
-      className={`font-display font-bold inline-flex items-center gap-1.5 ${sizeCls} ${className}`}
-      title={rank}
+      className={`font-display font-bold inline-flex items-center gap-1.5 ${sizeCls} ${className} ${isVip ? "nexoria-vip-name" : ""}`}
+      title={isVip ? `${rank} · VIP Nexus` : rank}
       data-rank={rank}
     >
       <RankBadge rank={rank} size={size === "xl" ? "md" : size === "lg" ? "sm" : "xs"} />
-      <span className={`${rankStyle.text} ${rankStyle.glow}`} style={{ color: rankStyle.color }}>
+      <span
+        className={isVip ? "" : `${rankStyle.text} ${rankStyle.glow}`}
+        style={isVip ? VIP_NAME_STYLE : { color: rankStyle.color }}
+      >
         {username}
       </span>
+      {isVip && <VipMark />}
     </span>
   );
 }
