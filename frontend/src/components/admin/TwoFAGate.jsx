@@ -15,42 +15,65 @@ import api from "@/lib/api";
 /* ─── Code input: 6 individual boxes ─────────────────────────────────────── */
 function OtpInput({ value, onChange, disabled }) {
   const inputs = useRef([]);
-  const digits = (value + "      ").slice(0, 6).split("");
 
-  const set = (i, ch) => {
-    const arr = digits.map((d) => d.trim());
-    arr[i] = ch.replace(/\D/, "").slice(-1);
-    onChange(arr.join("").trim());
+  // Build a clean 6-element array where each element is "" or a single digit.
+  // NEVER use spaces — a space in `value` causes maxLength to block new input.
+  const digits = Array.from({ length: 6 }, (_, i) => value?.[i] ?? "");
+
+  const handleChange = (i, e) => {
+    // Extract only the last typed digit (handles paste-into-single-box too)
+    const raw = e.target.value.replace(/\D/g, "");
+    const ch = raw.slice(-1); // keep only 1 digit
+    const arr = digits.map((d) => d); // copy
+    arr[i] = ch;
+    onChange(arr.join(""));
     if (ch && i < 5) inputs.current[i + 1]?.focus();
   };
 
-  const onKey = (e, i) => {
-    if (e.key === "Backspace" && !digits[i].trim() && i > 0) {
+  const handleKeyDown = (e, i) => {
+    if (e.key === "Backspace") {
+      if (!digits[i] && i > 0) {
+        // Current box already empty → go back and clear previous
+        const arr = digits.map((d) => d);
+        arr[i - 1] = "";
+        onChange(arr.join(""));
+        inputs.current[i - 1]?.focus();
+      } else {
+        const arr = digits.map((d) => d);
+        arr[i] = "";
+        onChange(arr.join(""));
+      }
+      e.preventDefault();
+    } else if (e.key === "ArrowLeft" && i > 0) {
       inputs.current[i - 1]?.focus();
+    } else if (e.key === "ArrowRight" && i < 5) {
+      inputs.current[i + 1]?.focus();
     }
   };
 
-  const onPaste = (e) => {
+  const handlePaste = (e) => {
+    e.preventDefault();
     const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
     onChange(pasted);
-    inputs.current[Math.min(pasted.length, 5)]?.focus();
-    e.preventDefault();
+    const nextIdx = Math.min(pasted.length, 5);
+    inputs.current[nextIdx]?.focus();
   };
 
   return (
-    <div className="flex gap-2 justify-center" onPaste={onPaste}>
+    <div className="flex gap-2 justify-center" onPaste={handlePaste}>
       {digits.map((d, i) => (
         <input
           key={i}
           ref={(el) => (inputs.current[i] = el)}
           type="text"
           inputMode="numeric"
-          pattern="\d"
+          autoComplete="one-time-code"
           maxLength={1}
           value={d}
           disabled={disabled}
-          onChange={(e) => set(i, e.target.value)}
-          onKeyDown={(e) => onKey(e, i)}
+          onChange={(e) => handleChange(i, e)}
+          onKeyDown={(e) => handleKeyDown(e, i)}
+          onFocus={(e) => e.target.select()}
           className="w-12 h-14 text-center text-2xl font-mono-stat font-black rounded-xl border bg-black/50 focus:outline-none transition-all disabled:opacity-40"
           style={{
             borderColor: d ? "#7c3aed" : "rgba(255,255,255,0.12)",
