@@ -90,6 +90,8 @@ MAINTENANCE_PUBLIC_PATHS = frozenset({
     "/api/auth/discord/callback",
     "/api/staff/maintenance-discord-callback",
     "/api/auth/logout",
+    "/api/auth/tab-close",    # sendBeacon on beforeunload (no auth headers)
+    "/api/auth/tab-reactivate",
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
     "/api/webhooks/stripe",  # Stripe calls this server-to-server (no session)
@@ -1364,6 +1366,63 @@ async def auth_heartbeat(user: dict = Depends(get_user_dep)):
     return {"ok": True}
 
 
+# ---------- Tab-close / reactivate (sendBeacon-based session cleanup) ----------
+# Flow:
+#   1. `beforeunload` always fires (close AND F5 refresh).
+#      → sends beacon to /auth/tab-close (marks session as "maybe closing")
+#   2a. Real close: no reactivation arrives → session stays marked →
+#       5 s later `get_current_user` rejects it → user is logged out.
+#   2b. F5 refresh: page reloads in < 2 s → frontend detects it was a reload
+#       and immediately calls /auth/tab-reactivate → flag removed → session valid.
+#
+# sendBeacon cannot set Authorization headers, so the token is sent in the body.
+
+async def _session_from_body_token(request: Request):
+    """Extract session from token sent in the request body (sendBeacon form)."""
+    try:
+        body = await request.body()
+        import json as _json
+        payload = _json.loads(body.decode("utf-8"))
+        token = payload.get("token", "")
+    except Exception:
+        return None
+    if not token:
+        return None
+    return await db.user_sessions.find_one({"session_token": token})
+
+
+@api.post("/auth/tab-close")
+async def tab_close(request: Request):
+    """Mark the session as 'tab closing'. Called by sendBeacon on beforeunload.
+    The session is NOT deleted immediately — a 5-second grace period lets the
+    frontend call /auth/tab-reactivate if it was just a page refresh (F5).
+    """
+    session = await _session_from_body_token(request)
+    if session:
+        await db.user_sessions.update_one(
+            {"session_token": session["session_token"]},
+            {"$set": {"tab_closed_at": now_utc().isoformat()}},
+        )
+    return {"ok": True}
+
+
+@api.post("/auth/tab-reactivate")
+async def tab_reactivate(user: dict = Depends(get_user_dep)):
+    """Cancel a pending tab-close (called on page reload detection).
+    Removes the `tab_closed_at` flag so the session stays alive.
+    """
+    token = None
+    # user was authenticated via the standard Bearer header in this request
+    # so the session is valid — just clear the flag
+    # We need the raw token to find the session:
+    # re-resolve from get_user_dep is impossible here, but we can query by user_id
+    await db.user_sessions.update_many(
+        {"user_id": user["user_id"], "tab_closed_at": {"$exists": True}},
+        {"$unset": {"tab_closed_at": ""}},
+    )
+    return {"ok": True}
+
+
 # ---------- Emergent Google Auth ----------
 @api.post("/auth/google/session")
 async def google_session(req: SessionExchangeReq, response: Response):
@@ -2384,6 +2443,128 @@ async def get_world_boss():
 
 
 # ---------- Admin ----------
+# ============================================================================
+# TWO-FACTOR AUTHENTICATION (TOTP — RFC 6238)
+# Protects the admin / moderator panel with a time-based one-time password.
+# Compatible with Google Authenticator, Authy, Bitwarden, 1Password, etc.
+# ============================================================================
+try:
+    import pyotp as _pyotp
+    _PYOTP_OK = True
+except ImportError:
+    _pyotp = None
+    _PYOTP_OK = False
+
+
+def _totp_for(secret: str):
+    if not _PYOTP_OK:
+        raise HTTPException(503, "pyotp non installé sur le serveur")
+    return _pyotp.TOTP(secret)
+
+
+@api.get("/admin/2fa/status")
+async def twofa_status(request: Request, user: dict = Depends(get_staff_dep)):
+    """Return whether 2FA is enabled and whether this session is currently verified."""
+    enabled = bool(user.get("totp_enabled"))
+    # Check session verification flag
+    session_token = request.cookies.get("session_token") or request.headers.get("X-Session-Token", "")
+    verified = False
+    if session_token:
+        session = await db.user_sessions.find_one({"session_token": session_token})
+        if session:
+            exp = session.get("twofa_verified_until")
+            if exp and exp > now_utc().isoformat():
+                verified = True
+    return {"enabled": enabled, "verified": verified}
+
+
+@api.post("/admin/2fa/setup")
+async def twofa_setup(user: dict = Depends(get_staff_dep)):
+    """Generate a new TOTP secret and return the provisioning URI (not saved yet — user must confirm)."""
+    if not _PYOTP_OK:
+        raise HTTPException(503, "pyotp non installé sur le serveur")
+    secret = _pyotp.random_base32()
+    # Store as pending (not enabled) until the user confirms with a valid code
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"totp_secret_pending": secret}},
+    )
+    totp = _pyotp.TOTP(secret)
+    provisioning_uri = totp.provisioning_uri(
+        name=user.get("username", user["user_id"]),
+        issuer_name="NEXORIA",
+    )
+    return {"secret": secret, "provisioning_uri": provisioning_uri}
+
+
+class TotpCodeReq(BaseModel):
+    code: str
+
+
+@api.post("/admin/2fa/confirm-setup")
+async def twofa_confirm_setup(req: TotpCodeReq, user: dict = Depends(get_staff_dep)):
+    """Confirm TOTP setup by verifying the first code; activates 2FA on the account."""
+    pending = user.get("totp_secret_pending")
+    if not pending:
+        raise HTTPException(400, "Aucune configuration 2FA en cours — lancez /admin/2fa/setup d'abord")
+    code = (req.code or "").strip().replace(" ", "")
+    if not _totp_for(pending).verify(code, valid_window=1):
+        raise HTTPException(400, "Code invalide — vérifiez l'heure de votre appareil et réessayez")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {
+            "$set": {"totp_secret": pending, "totp_enabled": True},
+            "$unset": {"totp_secret_pending": ""},
+        },
+    )
+    await add_chronicle(user["user_id"], "Double authentification (2FA) activée", "settings")
+    return {"ok": True, "message": "2FA activée avec succès"}
+
+
+@api.post("/admin/2fa/verify")
+async def twofa_verify(req: TotpCodeReq, request: Request, user: dict = Depends(get_staff_dep)):
+    """Verify a TOTP code for this session. Grants 8h of verified access."""
+    if not user.get("totp_enabled"):
+        raise HTTPException(400, "La 2FA n'est pas activée sur ce compte")
+    secret = user.get("totp_secret")
+    if not secret:
+        raise HTTPException(500, "Secret 2FA introuvable — réinitialisez la 2FA")
+    code = (req.code or "").strip().replace(" ", "")
+    if not _totp_for(secret).verify(code, valid_window=1):
+        raise HTTPException(401, "Code invalide ou expiré")
+    # Mark session as 2FA-verified for 8 hours
+    verified_until = (now_utc() + timedelta(hours=8)).isoformat()
+    session_token = request.cookies.get("session_token") or request.headers.get("X-Session-Token", "")
+    if session_token:
+        await db.user_sessions.update_one(
+            {"session_token": session_token},
+            {"$set": {"twofa_verified_until": verified_until}},
+        )
+    return {"ok": True, "verified_until": verified_until}
+
+
+@api.delete("/admin/2fa")
+async def twofa_disable(req: TotpCodeReq, user: dict = Depends(get_staff_dep)):
+    """Disable 2FA — requires a valid TOTP code to prevent accidental/malicious disabling."""
+    if not user.get("totp_enabled"):
+        raise HTTPException(400, "La 2FA n'est pas activée")
+    secret = user.get("totp_secret")
+    code = (req.code or "").strip().replace(" ", "")
+    if not _totp_for(secret).verify(code, valid_window=1):
+        raise HTTPException(401, "Code invalide — confirmez avec votre application authenticator")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$unset": {"totp_secret": "", "totp_enabled": "", "totp_secret_pending": ""}},
+    )
+    # Revoke all 2FA verifications for this user's sessions
+    await db.user_sessions.update_many(
+        {"user_id": user["user_id"]},
+        {"$unset": {"twofa_verified_until": ""}},
+    )
+    await add_chronicle(user["user_id"], "Double authentification (2FA) désactivée", "settings")
+    return {"ok": True}
+
+
 @api.get("/admin/stats")
 async def admin_stats(user: dict = Depends(get_staff_dep)):
     return {
@@ -5716,15 +5897,15 @@ async def list_friend_chat_threads(user: dict = Depends(get_user_dep)):
         {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_id": 1, "class_name": 1,
          "role": 1, "avatar_url": 1, "rank": 1},
     ).to_list(500)
-    fmap = {f["user_id"]: f for f in friends}
-    online = _nexus_online_ids()
+    # Use the same session-based online check as /friends so both panels are consistent.
+    enriched = await _enrich_friends_online_async(friends)
+    fmap = {f["user_id"]: f for f in enriched}
     threads = []
     for fid in friend_ids:
         fdoc = fmap.get(fid)
         if not fdoc:
             continue
         fdoc = dict(fdoc)
-        fdoc["online"] = fid in online
         pair = _friend_pair_key(user["user_id"], fid)
         last = await db.friend_messages.find_one(
             {"pair_key": pair}, {"_id": 0}, sort=[("created_at", -1)]

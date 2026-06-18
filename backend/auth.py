@@ -75,6 +75,25 @@ async def get_current_user(request: Request, db) -> dict:
     if expires_at and expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Session expired")
 
+    # Tab-close detection: reject sessions flagged as closed more than 5 seconds ago.
+    # This is set by `beforeunload` + sendBeacon; the flag is removed if the user
+    # merely refreshed the page (/auth/tab-reactivate called within ~2 s).
+    tab_closed_at = session.get("tab_closed_at")
+    if tab_closed_at:
+        try:
+            closed_dt = datetime.fromisoformat(tab_closed_at) if isinstance(tab_closed_at, str) else tab_closed_at
+            if closed_dt.tzinfo is None:
+                closed_dt = closed_dt.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc) - closed_dt).total_seconds() > 5:
+                # More than 5 seconds since the close event — not a refresh.
+                # Delete the session so the next request starts fresh.
+                await db.user_sessions.delete_one({"session_token": token})
+                raise HTTPException(status_code=401, detail="Session closed (navigateur fermé)")
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # If parsing fails, allow the session through
+
     # Throttled activity ping (max once per 60s) — drives site_online accuracy
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()

@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import api, { setToken, getToken } from "@/lib/api";
+import api, { setToken, getToken, API_URL } from "@/lib/api";
+
+const AUTH_CLOSE_FLAG = "nexoria_tab_closing"; // sessionStorage key
 
 const AuthContext = createContext(null);
 
@@ -18,6 +20,29 @@ export function AuthProvider({ children }) {
       setLoading(false);
       return;
     }
+
+    // ── Reload detection ────────────────────────────────────────────────────
+    // `beforeunload` fires for BOTH close AND refresh.
+    // On refresh, sessionStorage persists, so AUTH_CLOSE_FLAG survives.
+    // On real close, the browser clears sessionStorage → flag is gone on next open.
+    const wasClosing = sessionStorage.getItem(AUTH_CLOSE_FLAG);
+    sessionStorage.removeItem(AUTH_CLOSE_FLAG);
+
+    if (wasClosing) {
+      // The beforeunload fired (close or refresh) and we have a token.
+      // Determine if it was a refresh by checking the navigation type.
+      const navEntry = performance?.getEntriesByType?.("navigation")?.[0];
+      const isReload = navEntry?.type === "reload";
+      if (isReload && getToken()) {
+        // Page was refreshed, not closed — cancel the pending session close.
+        try { await api.post("/auth/tab-reactivate"); } catch { /* silent */ }
+      }
+      // If it was NOT a reload but wasClosing existed in sessionStorage,
+      // that means the browser kept sessionStorage alive (some browsers do).
+      // The server-side 5-second grace period will reject stale closes automatically.
+    }
+    // ── End reload detection ─────────────────────────────────────────────────
+
     if (!getToken()) { setLoading(false); return; }
     try {
       const { data } = await api.get("/auth/me");
@@ -47,6 +72,23 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => { checkAuth(); }, [checkAuth]);
+
+  // ── beforeunload: mark session as closing + send beacon ──────────────────
+  // sendBeacon cannot set Authorization headers, so the token is sent in the body.
+  useEffect(() => {
+    const handleUnload = () => {
+      const token = getToken();
+      if (!token) return;
+      // 1. Mark in sessionStorage: if this was a refresh, the next load detects it
+      sessionStorage.setItem(AUTH_CLOSE_FLAG, "1");
+      // 2. Tell the server the tab is about to close
+      const body = JSON.stringify({ token });
+      const blob = new Blob([body], { type: "application/json" });
+      navigator.sendBeacon?.(`${API_URL}/auth/tab-close`, blob);
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
+  }, []);
 
   // Heartbeat — keeps session activity fresh for "Sur le site" / staff presence accuracy
   useEffect(() => {

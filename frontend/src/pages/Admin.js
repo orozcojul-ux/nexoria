@@ -19,6 +19,7 @@ import NewsAdmin from "@/components/admin/NewsAdmin";
 import AdminEditHeroDialog from "@/components/admin/AdminEditHeroDialog";
 import ReportsAdmin from "@/components/admin/ReportsAdmin";
 import EventsAdmin from "@/components/admin/EventsAdmin";
+import TwoFAGate from "@/components/admin/TwoFAGate";
 import { MAINTENANCE_HTML_FIELDS, DEFAULT_MAINTENANCE_HTML, normalizeMaintenanceHtml, normalizeMaintenanceSystems } from "@/lib/maintenance-content";
 import { ONLINE_GATE_HTML_FIELDS, DEFAULT_ONLINE_GATE_HTML, normalizeOnlineGateHtml } from "@/lib/online-gate-content";
 import "@/pages/Maintenance.css";
@@ -219,6 +220,7 @@ export default function Admin() {
         pixelTheme: "gold",
       }}
     >
+      <TwoFAGate>
       <div className="flex items-center justify-end flex-wrap gap-3 mb-4">
         <div className="flex items-center gap-2 px-3 py-2 rounded-full border border-amber-400/40 bg-amber-500/10">
           <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
@@ -601,6 +603,7 @@ export default function Admin() {
           />
         )}
       </AnimatePresence>
+      </TwoFAGate>
     </PageShell>
   );
 }

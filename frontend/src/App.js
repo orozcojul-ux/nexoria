@@ -56,6 +56,13 @@ function MaintenanceGate({ children }) {
   const location = useLocation();
   const [maint, setMaint] = useState(null);
 
+  // Routes that must NEVER be blocked by maintenance:
+  // – /maintenance itself (would cause infinite redirect)
+  // – /auth/discord/callback (OAuth popup must complete even during maintenance so
+  //   staff can log in via Discord from the maintenance gate)
+  const MAINT_BYPASS = ["/maintenance", "/auth/discord/callback"];
+  const isBypassRoute = MAINT_BYPASS.includes(location.pathname);
+
   useEffect(() => {
     const load = () => {
       api.get("/system/maintenance").then((r) => setMaint(r.data)).catch(() => setMaint({ enabled: false }));
@@ -65,9 +72,14 @@ function MaintenanceGate({ children }) {
     return () => clearInterval(id);
   }, []);
 
+  // Bypass routes always render immediately — don't block on API response.
+  // This is critical for the Discord callback popup: it must mount and run its
+  // useEffect before the window times out or shows a blank screen.
+  if (isBypassRoute) return children;
+
   if (maint === null || authLoading) return null;
   const isStaff = user?.role === "admin" || user?.role === "moderator";
-  if (maint.enabled && !isStaff && !maint.beta_access && location.pathname !== "/maintenance") {
+  if (maint.enabled && !isStaff && !maint.beta_access) {
     window.location.replace("/maintenance");
     return null;
   }

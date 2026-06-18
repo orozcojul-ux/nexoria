@@ -10,6 +10,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { sfx } from "@/lib/sfx";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import TwoFASetup from "@/components/admin/TwoFASetup";
 import { PageShell, PremiumSidebar, PremiumCard } from "@/components/ui-premium";
 import ProfileCustomizeForm from "@/components/profile/ProfileCustomizeForm";
 import { usePageBanner } from "@/lib/page-banners";
@@ -237,7 +238,9 @@ function DiscordLinkSection({ user, refresh }) {
 }
 
 function SecuritySection({ t }) {
+  const { user } = useAuth();
   const [form, setForm] = useState({ current_password: "", new_password: "", confirm: "" });
+  const isStaff = user?.role === "admin" || user?.role === "moderator";
 
   const submit = async (e) => {
     e.preventDefault();
@@ -251,16 +254,33 @@ function SecuritySection({ t }) {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4 max-w-md">
-      <h2 className="font-display font-bold text-xl mb-2">{t("settings.change_password")}</h2>
-      <Field label={t("settings.current_password")} type="password" value={form.current_password} onChange={(v) => setForm({ ...form, current_password: v })} testid="current-pwd" />
-      <Field label={t("settings.new_password")} type="password" value={form.new_password} onChange={(v) => setForm({ ...form, new_password: v })} testid="new-pwd" />
-      <Field label="Confirmer" type="password" value={form.confirm} onChange={(v) => setForm({ ...form, confirm: v })} testid="confirm-pwd" />
-      <button type="submit" data-testid="change-pwd-btn"
-        className="px-5 py-2.5 rounded-md border border-cyan-500/50 text-cyan-300 font-bold font-display tracking-wide hover:shadow-[0_0_18px_rgba(0,229,255,0.3)] flex items-center gap-2">
-        <KeyRound className="w-4 h-4" /> {t("settings.change_password")}
-      </button>
-    </form>
+    <div className="space-y-8">
+      <form onSubmit={submit} className="space-y-4 max-w-md">
+        <h2 className="font-display font-bold text-xl mb-2">{t("settings.change_password")}</h2>
+        <Field label={t("settings.current_password")} type="password" value={form.current_password} onChange={(v) => setForm({ ...form, current_password: v })} testid="current-pwd" />
+        <Field label={t("settings.new_password")} type="password" value={form.new_password} onChange={(v) => setForm({ ...form, new_password: v })} testid="new-pwd" />
+        <Field label="Confirmer" type="password" value={form.confirm} onChange={(v) => setForm({ ...form, confirm: v })} testid="confirm-pwd" />
+        <button type="submit" data-testid="change-pwd-btn"
+          className="px-5 py-2.5 rounded-md border border-cyan-500/50 text-cyan-300 font-bold font-display tracking-wide hover:shadow-[0_0_18px_rgba(0,229,255,0.3)] flex items-center gap-2">
+          <KeyRound className="w-4 h-4" /> {t("settings.change_password")}
+        </button>
+      </form>
+
+      {isStaff && (
+        <div>
+          <div className="border-t border-white/10 pt-6">
+            <h2 className="font-display font-bold text-xl mb-1 flex items-center gap-2">
+              <span className="w-5 h-5 text-violet-400">🔐</span>
+              Double Authentification (2FA)
+            </h2>
+            <p className="text-xs text-zinc-500 mb-4 leading-relaxed">
+              Protège l'accès au panel d'administration avec un code supplémentaire généré par votre application (Google Authenticator, Authy, Bitwarden…).
+            </p>
+            <TwoFASetup />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
