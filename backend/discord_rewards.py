@@ -231,3 +231,28 @@ def schedule_custom(message: str) -> None:
         task.add_done_callback(_custom_tasks.discard)
     except RuntimeError:
         logger.warning("discord rewards: pas de boucle asyncio active")
+
+
+async def notify_to_channel(message: str, channel_id: str) -> None:
+    """Post a raw message to an arbitrary Discord channel."""
+    if not channel_id or not os.environ.get("DISCORD_BOT_TOKEN", "").strip():
+        return
+    try:
+        ok = await discord_sync.post_notification(message, channel_id=channel_id)
+        if ok:
+            logger.info("discord message sent to channel %s", channel_id)
+        else:
+            logger.warning("discord message refused by Discord (channel %s)", channel_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("discord channel message failed (%s): %s", channel_id, exc)
+
+
+def schedule_to_channel(message: str, channel_id: str) -> None:
+    """Fire-and-forget announcement to a specific Discord channel."""
+    try:
+        loop = asyncio.get_running_loop()
+        task = loop.create_task(notify_to_channel(message, channel_id))
+        _custom_tasks.add(task)
+        task.add_done_callback(_custom_tasks.discard)
+    except RuntimeError:
+        logger.warning("discord rewards: pas de boucle asyncio active")

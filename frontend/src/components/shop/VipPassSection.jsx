@@ -13,12 +13,13 @@ const PLAN_META = {
 };
 
 const PERKS = [
-  "Badge VIP Nexus",
-  "Cadre & aura cosmique premium",
-  "Pseudo doré/violet",
-  "+10% XP & +10% écus",
+  "Badge VIP Nexus & titre « Ascendant du Nexus »",
+  "Pseudo doré/violet + cadre & aura premium",
+  "+10% XP & +10% écus en permanence",
   "Coffre quotidien bonus",
-  "Titre « Ascendant du Nexus »",
+  "🛒 Boutique de l'Ascendant : objets inédits réservés (cosmétiques divins, montures, coffres garantis Légendaire+, consommables exclusifs…)",
+  "🎁 Bonus de parrainage VIP : +150 écus & +300 XP à chaque filleul",
+  "📜 Quêtes VIP exclusives aux récompenses renforcées",
   "Rôle Discord VIP",
 ];
 

@@ -26,7 +26,6 @@ SHOP_ITEMS = [
     {"sku": "boost_luck_1h", "name": "Œil de Fortune — 1h", "category": "boost", "price": 400, "icon": "Eye", "rarity": "epic", "description": "Augmente les chances de raretés élevées en coffre", "boost_type": "luck", "boost_value": 1.5, "duration_minutes": 60, "unlock_level": 10},
 
     # ---------- Consumables ----------
-    {"sku": "scroll_rename", "name": "Parchemin de Renommée", "category": "consumable", "price": 1000, "icon": "Scroll", "rarity": "rare", "description": "Permet de changer votre pseudo une fois", "unlock_level": 1},
     {"sku": "scroll_class_change", "name": "Parchemin de Mutation", "category": "consumable", "price": 1200, "icon": "Repeat", "rarity": "epic", "description": "Permet de changer de classe 3 fois (le premier changement est gratuit pour tous)", "unlock_level": 1},
     {"sku": "key_chest_cosmic", "name": "Clé Cosmique", "category": "consumable", "price": 800, "icon": "Key", "rarity": "epic", "description": "Coffre garantissant un objet Épique ou supérieur", "unlock_level": 12},
     {"sku": "summon_rift", "name": "Catalyseur de Faille", "category": "consumable", "price": 600, "icon": "Sparkles", "rarity": "rare", "description": "Force l'apparition d'une faille dimensionnelle", "unlock_level": 8},
@@ -60,6 +59,35 @@ SHOP_ITEMS = [
 
     # ---------- Season Pass ----------
     {"sku": "pass_season_1", "name": "Passe Saison I", "category": "pass", "price": 8000, "icon": "Ticket", "rarity": "mythic", "description": "Accès premium aux récompenses de la saison en cours", "unlock_level": 10, "season_id": "season_1"},
+
+    # ============================================================
+    # BOUTIQUE VIP — objets inédits réservés au Pass Ascendant
+    # (vip_only: True → achat refusé si le héros n'est pas VIP)
+    # ============================================================
+    # --- Cosmétiques exclusifs VIP ---
+    {"sku": "vip_frame_ascendant", "name": "Cadre de l'Ascendant", "category": "cosmetic", "price": 3000, "icon": "Frame", "rarity": "divine", "description": "Cadre divin animé réservé aux Ascendants — exclusivité VIP", "unlock_level": 1, "vip_only": True},
+    {"sku": "vip_banner_celestial", "name": "Bannière Céleste VIP", "category": "cosmetic", "price": 3000, "icon": "Sparkles", "rarity": "divine", "description": "Étendard cosmique scintillant réservé aux VIP", "unlock_level": 1, "vip_only": True},
+    {"sku": "vip_aura_ascendant", "name": "Aura de l'Ascendant", "category": "aura", "price": 4000, "icon": "Flame", "rarity": "divine", "description": "Aura divine pulsante visible dans le Nexus — exclusivité VIP", "unlock_level": 1, "vip_only": True, "aura_kind": "divine"},
+    {"sku": "vip_mount_celestial_drake", "name": "Drake Céleste", "category": "mount", "price": 6000, "icon": "Bird", "rarity": "divine", "description": "Monture draconique céleste réservée aux Ascendants", "unlock_level": 1, "vip_only": True},
+    {"sku": "vip_title_sovereign", "name": "Titre : Souverain du Nexus", "category": "title", "price": 5000, "icon": "Crown", "rarity": "divine", "description": "Titre divin exclusif aux détenteurs du Pass Ascendant", "unlock_level": 1, "vip_only": True, "title_id": "sovereign_nexus"},
+
+    # --- Boosts premium VIP (durée 7 jours, valeurs renforcées) ---
+    {"sku": "vip_boost_xp_3x_7d", "name": "Élixir Ascendant d'XP — 7j", "category": "boost", "price": 3500, "icon": "Zap", "rarity": "mythic", "description": "Triple l'XP pendant 7 jours — exclusivité VIP", "boost_type": "xp_multiplier", "boost_value": 3, "duration_minutes": 10080, "unlock_level": 1, "vip_only": True},
+    {"sku": "vip_boost_aether_3x_7d", "name": "Élixir Ascendant d'Écus — 7j", "category": "boost", "price": 3500, "icon": "Coins", "rarity": "mythic", "description": "Triple les Écus gagnés pendant 7 jours — exclusivité VIP", "boost_type": "aether_multiplier", "boost_value": 3, "duration_minutes": 10080, "unlock_level": 1, "vip_only": True},
+    {"sku": "vip_boost_luck_7d", "name": "Fortune de l'Ascendant — 7j", "category": "boost", "price": 3000, "icon": "Eye", "rarity": "mythic", "description": "Chances de raretés élevées fortement accrues pendant 7 jours — VIP", "boost_type": "luck", "boost_value": 2.5, "duration_minutes": 10080, "unlock_level": 1, "vip_only": True},
+
+    # --- Coffres premium VIP ---
+    {"sku": "vip_chest_ascendant", "name": "Coffre de l'Ascendant", "category": "chest", "price": 1200, "icon": "Gift", "rarity": "divine", "description": "Coffre divin garantissant une relique Légendaire ou supérieure — VIP", "unlock_level": 1, "vip_only": True, "min_rarity": "legendary", "luck_boost": 3.0},
+
+    # --- Consommables exclusifs VIP (nombreux) ---
+    {"sku": "vip_key_divine", "name": "Clé Divine", "category": "consumable", "price": 1500, "icon": "Key", "rarity": "mythic", "description": "Ouvre un coffre garantissant une relique Légendaire+ — VIP", "unlock_level": 1, "vip_only": True, "min_rarity": "legendary"},
+    {"sku": "vip_relic_box", "name": "Boîte à Reliques VIP", "category": "consumable", "price": 1000, "icon": "Package", "rarity": "epic", "description": "Ouvre un coffre garantissant une relique Épique+ — VIP", "unlock_level": 1, "vip_only": True, "min_rarity": "epic"},
+    {"sku": "vip_rift_catalyst", "name": "Catalyseur de Faille Majeur", "category": "consumable", "price": 900, "icon": "Sparkles", "rarity": "epic", "description": "Force l'apparition d'une faille de trésor — VIP", "unlock_level": 1, "vip_only": True, "rift_force": "chest"},
+    {"sku": "vip_scroll_mutation", "name": "Grand Parchemin de Mutation", "category": "consumable", "price": 2000, "icon": "Repeat", "rarity": "legendary", "description": "Crédite 5 changements de classe — exclusivité VIP", "unlock_level": 1, "vip_only": True, "class_changes": 5},
+    {"sku": "vip_tome_knowledge", "name": "Tome de Connaissance", "category": "consumable", "price": 2500, "icon": "BookOpen", "rarity": "legendary", "description": "Octroie instantanément 5000 XP — exclusivité VIP", "unlock_level": 1, "vip_only": True, "grant_xp": 5000},
+    {"sku": "vip_emblem_renown", "name": "Emblème de Renom", "category": "consumable", "price": 1800, "icon": "Award", "rarity": "epic", "description": "Octroie instantanément 800 points de réputation — VIP", "unlock_level": 1, "vip_only": True, "grant_reputation": 800},
+    {"sku": "vip_skill_codex", "name": "Codex des Talents", "category": "consumable", "price": 2200, "icon": "Sprout", "rarity": "legendary", "description": "Octroie 3 points de compétence — exclusivité VIP", "unlock_level": 1, "vip_only": True, "grant_skill_points": 3},
+    {"sku": "vip_scroll_rename", "name": "Parchemin de Renommée Doré", "category": "consumable", "price": 800, "icon": "Scroll", "rarity": "epic", "description": "Permet de changer votre pseudo (variante VIP)", "unlock_level": 1, "vip_only": True, "rename_grant": True},
 ]
 
 

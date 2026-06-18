@@ -125,14 +125,27 @@ export default function Shop() {
     return s;
   }, [owned]);
 
+  // Les objets VIP exclusifs n'apparaissent QUE dans l'onglet VIP.
   const filtered = useMemo(() => {
-    if (cat === "all") return items;
-    return items.filter((i) => i.category === cat);
+    const base = items.filter((i) => !i.vip_only);
+    if (cat === "all") return base;
+    return base.filter((i) => i.category === cat);
   }, [items, cat]);
 
+  const vipItems = useMemo(() => items.filter((i) => i.vip_only), [items]);
+  const [vipCat, setVipCat] = useState("all");
+  const vipCategories = useMemo(
+    () => Array.from(new Set(vipItems.map((i) => i.category))),
+    [vipItems],
+  );
+  const vipFiltered = useMemo(
+    () => (vipCat === "all" ? vipItems : vipItems.filter((i) => i.category === vipCat)),
+    [vipItems, vipCat],
+  );
+
   const bestSellers = useMemo(() => {
-    // Use items with `popularity` or top legendary/cosmic ones as "best sellers"
-    return [...items].sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, 4);
+    // Use items with `popularity` as "best sellers" (VIP exclusives excluded)
+    return [...items].filter((i) => !i.vip_only).sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, 4);
   }, [items]);
 
   const buyOne = async (sku) => {
@@ -236,7 +249,9 @@ export default function Shop() {
         <aside className="space-y-1">
           {CATS.map((c) => {
             const Ico = c.icon;
-            const count = c.id === "all" ? items.length : items.filter((i) => i.category === c.id).length;
+            const count = c.id === "all"
+              ? items.filter((i) => !i.vip_only).length
+              : items.filter((i) => i.category === c.id && !i.vip_only).length;
             return (
               <React.Fragment key={c.id}>
                 <button onClick={() => setCat(c.id)} data-testid={`shop-cat-${c.id}`}
@@ -263,6 +278,18 @@ export default function Shop() {
                       Pass Ascendant
                     </span>
                     <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-400/25 text-amber-100 border border-amber-300/50 relative z-10">VIP</span>
+                  </button>
+                )}
+                {c.id === "all" && (
+                  <button onClick={() => setCat("vip_shop")} data-testid="shop-cat-vip-shop"
+                    className={`w-full text-left px-3 py-2 rounded-lg border flex items-center gap-2 transition-all relative overflow-hidden ${cat === "vip_shop" ? "border-amber-400/80 bg-amber-400/10" : "border-amber-500/30 hover:border-amber-400/60 hover:bg-amber-400/5"}`}
+                    style={{ boxShadow: cat === "vip_shop" ? "0 0 16px rgba(251,191,36,0.35)" : "none" }}>
+                    <Gem className="w-4 h-4 shrink-0 text-amber-300" style={{ filter: "drop-shadow(0 0 4px rgba(251,191,36,0.8))" }} />
+                    <span className="flex-1 font-display font-bold text-sm"
+                      style={{ background: "linear-gradient(92deg,#fde68a,#fbbf24)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
+                      Boutique VIP
+                    </span>
+                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-400/25 text-amber-100 border border-amber-300/50">{vipItems.length}</span>
                   </button>
                 )}
                 {c.id === "all" && (
@@ -297,6 +324,73 @@ export default function Shop() {
             <BuyEcusSection />
           ) : cat === "vip" ? (
             <VipPassSection />
+          ) : cat === "vip_shop" ? (
+            <div className="space-y-4" data-testid="vip-shop-page">
+              {/* VIP highlight banner */}
+              <div className="rounded-2xl border border-amber-400/50 p-5 relative overflow-hidden"
+                style={{ background: "linear-gradient(110deg, rgba(251,191,36,0.16), rgba(168,85,247,0.14))", boxShadow: "0 0 26px rgba(251,191,36,0.22)" }}>
+                <div className="absolute inset-0 opacity-50 animate-pulse pointer-events-none"
+                  style={{ background: "radial-gradient(50% 120% at 0% 50%, rgba(251,191,36,0.3), transparent 70%)" }} aria-hidden />
+                <div className="relative flex items-center gap-3">
+                  <Gem className="w-7 h-7 text-amber-300 shrink-0" style={{ filter: "drop-shadow(0 0 8px rgba(251,191,36,0.9))" }} />
+                  <div>
+                    <h2 className="font-display font-black text-xl"
+                      style={{ background: "linear-gradient(92deg,#fde68a,#fbbf24 45%,#c084fc)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
+                      Boutique de l'Ascendant
+                    </h2>
+                    <p className="text-xs text-amber-100/80 mt-0.5">
+                      {user?.is_vip
+                        ? "Objets inédits réservés aux détenteurs du Pass Ascendant."
+                        : "🔒 Réservée aux VIP — activez le Pass Ascendant pour débloquer ces exclusivités."}
+                    </p>
+                  </div>
+                  {!user?.is_vip && (
+                    <button onClick={() => setCat("vip")} className="ml-auto shrink-0 px-3 py-1.5 rounded-lg border border-amber-400/60 bg-amber-400/15 text-amber-100 text-xs font-bold hover:bg-amber-400/25">
+                      Devenir VIP
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Sub-category filters (classer les objets) */}
+              <div className="flex flex-wrap gap-2" data-testid="vip-shop-filters">
+                <button onClick={() => setVipCat("all")}
+                  className={`px-3 py-1.5 rounded text-xs font-bold font-display tracking-wide border ${vipCat === "all" ? "border-amber-400/70 text-amber-200" : "border-white/10 text-zinc-400 hover:border-white/30"}`}>
+                  Tout
+                </button>
+                {vipCategories.map((vc) => {
+                  const meta = CAT_KEYS.find((c) => c.id === vc);
+                  return (
+                    <button key={vc} onClick={() => setVipCat(vc)}
+                      className={`px-3 py-1.5 rounded text-xs font-bold font-display tracking-wide border ${vipCat === vc ? "border-amber-400/70 text-amber-200" : "border-white/10 text-zinc-400 hover:border-white/30"}`}>
+                      {meta ? t(meta.key) : vc}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {vipFiltered.length === 0 ? (
+                <PremiumCard tone="gold" className="p-12 text-center text-zinc-500">Aucun objet dans cette catégorie.</PremiumCard>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" data-testid="vip-shop-grid">
+                  {vipFiltered.map((it) => (
+                    <ItemCard
+                      key={it.sku}
+                      item={it}
+                      owned={ownedSkus.has(it.sku)}
+                      buying={buying === it.sku}
+                      onBuy={() => buyOne(it.sku)}
+                      onAdd={() => addToCart(it)}
+                      aether={user?.aether ?? 0}
+                      userLevel={user?.level ?? 1}
+                      rank={null}
+                      seasonActive={seasonActive}
+                      vipLocked={!user?.is_vip}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
           <>
           {/* Active boosts countdown */}
@@ -579,7 +673,7 @@ function Section({ title, icon: Icon, accent = "text-cyan-300", children }) {
   );
 }
 
-function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, rank, compact, seasonActive = true }) {
+function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, rank, compact, seasonActive = true, vipLocked = false }) {
   const { t } = useI18n();
   const [showInfo, setShowInfo] = useState(false);
   const r = RARITY[item.rarity] || RARITY.common;
@@ -587,7 +681,7 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, ra
   const levelOk = userLevel >= requiredLevel;
   const canAfford = (aether ?? 0) >= (item.price || 0);
   const seasonBlocked = item.category === "pass" && !seasonActive;
-  const canBuy = canAfford && levelOk && !owned && !seasonBlocked;
+  const canBuy = canAfford && levelOk && !owned && !seasonBlocked && !vipLocked;
   const Ico = item.icon && Lucide[item.icon] ? Lucide[item.icon] : Sparkles;
   const info = itemActivationInfo(item);
   return (
@@ -664,13 +758,15 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, ra
           <>
             <button onClick={onBuy} disabled={!canBuy || buying} data-testid={`shop-buy-${item.sku}`}
               className="flex-1 px-2 py-1.5 rounded border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 text-xs font-bold disabled:opacity-40">
-              {buying ? "..." : seasonBlocked ? "Indisponible" : !levelOk ? t("shop.level_insufficient") : t("shop.buy")}
+              {buying ? "..." : vipLocked ? "🔒 VIP requis" : seasonBlocked ? "Indisponible" : !levelOk ? t("shop.level_insufficient") : t("shop.buy")}
             </button>
-            <button onClick={onAdd} title="Ajouter au panier"
-              data-testid={`shop-cart-${item.sku}`}
-              className="px-2 py-1.5 rounded border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-200">
-              <Plus className="w-3 h-3" />
-            </button>
+            {!vipLocked && (
+              <button onClick={onAdd} title="Ajouter au panier"
+                data-testid={`shop-cart-${item.sku}`}
+                className="px-2 py-1.5 rounded border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-200">
+                <Plus className="w-3 h-3" />
+              </button>
+            )}
           </>
         )}
       </div>

@@ -135,6 +135,9 @@ VIP_BADGE_ID = "vip_nexus"
 VIP_TITLE_ID = "ascendant_nexus"
 VIP_BONUS_MULTIPLIER = 1.10  # +10% XP & écus
 VIP_DAILY_BONUS_AETHER = 100  # « coffre quotidien » VIP
+# Bonus de parrainage réservé aux VIP (par filleul, en plus des paliers).
+REFERRAL_VIP_BONUS_AETHER = 150
+REFERRAL_VIP_BONUS_XP = 300
 # ID du rôle Discord VIP (optionnel — défini via l'environnement, jamais en dur).
 DISCORD_VIP_ROLE_ID = os.environ.get("DISCORD_VIP_ROLE_ID", "").strip()
 
@@ -927,6 +930,19 @@ async def apply_referral(referral_code: str, referred_user_id: str):
     await db.users.update_one({"user_id": referred_user_id}, {"$set": {"referred_by": referrer_id}})
     await process_referral_rewards(referrer_id)
     await progress_quests(referrer_id, "referral", 1)
+
+    # Bonus VIP : un parrain détenteur du Pass Ascendant gagne un bonus d'écus
+    # à CHAQUE filleul (en plus des paliers de parrainage classiques).
+    referrer_full = await db.users.find_one({"user_id": referrer_id})
+    if is_vip_active(referrer_full or {}):
+        await grant_aether(referrer_id, REFERRAL_VIP_BONUS_AETHER, "Bonus VIP — parrainage")
+        await grant_xp(referrer_id, REFERRAL_VIP_BONUS_XP, "Bonus VIP — parrainage")
+        await push_notification(
+            db, referrer_id, "referral",
+            f"💎 Bonus VIP de parrainage : +{REFERRAL_VIP_BONUS_AETHER} Écus, +{REFERRAL_VIP_BONUS_XP} XP",
+            "Votre statut Ascendant récompense chaque filleul.",
+            "coin", "Gem", link="/settings?section=parrainage",
+        )
 
 
 # Pionniers : récompense réservée aux 100 premiers inscrits à partir de maintenant.
@@ -1892,7 +1908,8 @@ async def open_chest_endpoint(user: dict = Depends(get_user_dep)):
     await spend_aether(user["user_id"], cost, "open_chest")
     items = await open_chest(user["user_id"])
     if not items:
-        await grant_aether(user["user_id"], cost, "chest_refund")
+        # Rembourser EXACTEMENT la somme dépensée (sans multiplicateur de gain).
+        await refund_aether(user["user_id"], cost, "Remboursement coffre (relique déjà possédée)")
         return {"items": [], "refunded": cost, "reason": "all_owned"}
     # award badges for rarity collection
     for it in items:
@@ -1924,6 +1941,28 @@ async def open_chest_endpoint(user: dict = Depends(get_user_dep)):
 # ============================================================================
 ECONOMY_MIN_ECUS = 1
 ECONOMY_MAX_ECUS = 1_000_000
+# Délai de réponse à une proposition d'échange — au-delà, l'offre expire et
+# les biens mis en réserve sont restitués automatiquement à l'initiateur.
+TRADE_TTL_HOURS = 24
+# Salons Discord dédiés
+DISCORD_TRADE_CHANNEL_ID = "1514271130557612052"   # échanges d'inventaire
+DISCORD_RIFT_CHANNEL_ID = "1514271140338470932"    # alertes événement « faille »
+# Reliques considérées exclusives / premium : ne peuvent être transférées qu'à
+# un détenteur du Pass Ascendant (VIP). Les deux tiers les plus rares.
+VIP_EXCLUSIVE_RARITIES = {"divine", "cosmic"}
+
+
+def _is_vip_exclusive(snap: dict) -> bool:
+    return bool(snap.get("vip_only")) or snap.get("rarity") in VIP_EXCLUSIVE_RARITIES
+
+
+async def refund_aether(user_id: str, amount: int, reason: str = "Remboursement"):
+    """Refund écus EXACTLY (no gain multiplier applied) + realtime wallet push."""
+    if amount <= 0:
+        return
+    await db.users.update_one({"user_id": user_id}, {"$inc": {"aether": amount}})
+    await push_wallet_updated(user_id)
+    discord_rewards.schedule_reward_notify(db, user_id, reason, aether=amount)
 
 
 def _relic_match(item_id: str) -> dict:
@@ -2062,7 +2101,13 @@ async def economy_gift_item(req: GiftItemReq, user: dict = Depends(get_user_dep)
     if target["user_id"] == user["user_id"]:
         raise HTTPException(400, "Vous ne pouvez pas vous offrir un objet à vous-même")
     qty = max(1, int(req.quantity or 1))
+    target_full = await db.users.find_one({"user_id": target["user_id"]})
+    target_is_vip = is_vip_active(target_full or {})
     snapshot = await _take_relic(user["user_id"], req.item_id, qty)
+    # VIP-exclusive relics cannot be handed to a non-VIP.
+    if _is_vip_exclusive(snapshot) and not target_is_vip:
+        await _give_relic(user["user_id"], snapshot)
+        raise HTTPException(403, "Cet objet est réservé aux détenteurs du Pass Ascendant — le destinataire n'est pas VIP.")
     try:
         await _give_relic(target["user_id"], snapshot)
     except HTTPException:
@@ -2078,6 +2123,14 @@ async def economy_gift_item(req: GiftItemReq, user: dict = Depends(get_user_dep)
     )
     await add_chronicle(user["user_id"], f"A offert {snapshot['name']} à {target['username']}", "economy")
     await add_chronicle(target["user_id"], f"A reçu {snapshot['name']} de {user['username']}", "economy")
+    try:
+        qty_str = f"×{snapshot['quantity']}" if snapshot.get("quantity", 1) > 1 else ""
+        discord_rewards.schedule_to_channel(
+            f"🎁 **{user['username']}** a offert **{snapshot['name']}{qty_str}** à **{target['username']}**",
+            DISCORD_TRADE_CHANNEL_ID,
+        )
+    except Exception:
+        pass
     try:
         await nexus_world.push_inventory_updated(user["user_id"], "gift_sent", {"name": snapshot["name"]})
         await nexus_world.push_inventory_updated(target["user_id"], "gift_received", {"name": snapshot["name"]})
@@ -2122,11 +2175,15 @@ async def create_trade(req: CreateTradeReq, user: dict = Depends(get_user_dep)):
         await push_wallet_updated(user["user_id"])
 
     # Escrow items (remove from sender, snapshot into the trade)
+    target_full = await db.users.find_one({"user_id": target["user_id"]})
+    target_is_vip = is_vip_active(target_full or {})
     escrowed = []
     try:
         for ref in req.give_items:
             snap = await _take_relic(user["user_id"], ref.item_id, max(1, int(ref.quantity or 1)))
             escrowed.append(snap)
+            if _is_vip_exclusive(snap) and not target_is_vip:
+                raise HTTPException(403, f"« {snap['name']} » est réservé aux VIP — {target['username']} n'a pas le Pass Ascendant.")
     except HTTPException:
         # Roll back everything already escrowed
         for snap in escrowed:
@@ -2137,6 +2194,7 @@ async def create_trade(req: CreateTradeReq, user: dict = Depends(get_user_dep)):
         raise
 
     trade_id = f"trade_{uuid.uuid4().hex[:12]}"
+    expires_at = (now_utc() + timedelta(hours=TRADE_TTL_HOURS)).isoformat()
     await db.trades.insert_one({
         "trade_id": trade_id,
         "from_user": user["user_id"],
@@ -2148,11 +2206,12 @@ async def create_trade(req: CreateTradeReq, user: dict = Depends(get_user_dep)):
         "note": (req.note or "").strip()[:200],
         "status": "pending",
         "created_at": now_utc().isoformat(),
+        "expires_at": expires_at,
     })
     await push_notification(
         db, target["user_id"], "trade_offer",
         f"🤝 {user['username']} vous propose un échange",
-        "Consultez la proposition dans votre inventaire (Échanges).",
+        f"Vous avez {TRADE_TTL_HOURS}h pour répondre — voir dans Inventaire › Échanges.",
         "chime", "ArrowLeftRight", link="/inventory?trades=1",
     )
     try:
@@ -2168,6 +2227,7 @@ def _public_trade(t: dict) -> dict:
 
 @api.get("/economy/trades")
 async def list_trades(user: dict = Depends(get_user_dep)):
+    await _expire_stale_trades()
     incoming = await db.trades.find(
         {"to_user": user["user_id"], "status": "pending"}, {"_id": 0},
     ).sort("created_at", -1).to_list(50)
@@ -2186,6 +2246,33 @@ async def _refund_trade_initiator(t: dict):
         await _give_relic(t["from_user"], snap)
 
 
+async def _expire_stale_trades():
+    """Refund and close any pending trade past its response deadline. Idempotent."""
+    now_iso = now_utc().isoformat()
+    stale = await db.trades.find(
+        {"status": "pending", "expires_at": {"$lt": now_iso}},
+    ).to_list(200)
+    for t in stale:
+        # Atomically claim the trade so a concurrent accept/decline can't double-process.
+        res = await db.trades.update_one(
+            {"trade_id": t["trade_id"], "status": "pending"},
+            {"$set": {"status": "expired", "resolved_at": now_iso}},
+        )
+        if res.modified_count == 0:
+            continue
+        try:
+            await _refund_trade_initiator(t)
+            await push_notification(
+                db, t["from_user"], "trade_expired",
+                f"⌛ Votre échange avec {t.get('to_username', '?')} a expiré",
+                "Le délai de réponse est écoulé — vos objets et écus vous ont été restitués.",
+                "ding", "Clock", link="/inventory",
+            )
+            await nexus_world.push_inventory_updated(t["from_user"], "trade_refund", {})
+        except Exception as exc:
+            logger.warning("trade expiry refund failed for %s: %s", t.get("trade_id"), exc)
+
+
 class AcceptTradeReq(BaseModel):
     counter_items: List[TradeItemRef] = []
     counter_ecus: int = 0
@@ -2198,6 +2285,10 @@ async def accept_trade(trade_id: str, req: AcceptTradeReq, user: dict = Depends(
         raise HTTPException(404, "Échange introuvable ou déjà résolu")
     if t["to_user"] != user["user_id"]:
         raise HTTPException(403, "Cet échange ne vous est pas destiné")
+    # Reject if the response deadline has passed (and refund the initiator).
+    if t.get("expires_at") and t["expires_at"] < now_utc().isoformat():
+        await _expire_stale_trades()
+        raise HTTPException(400, "Cette proposition a expiré — le délai de réponse est écoulé.")
 
     counter_ecus = max(0, int(req.counter_ecus or 0))
     # Escrow the recipient's counter écus atomically
@@ -2211,11 +2302,15 @@ async def accept_trade(trade_id: str, req: AcceptTradeReq, user: dict = Depends(
         await push_wallet_updated(user["user_id"])
 
     # Take the recipient's counter items
+    initiator_full = await db.users.find_one({"user_id": t["from_user"]})
+    initiator_is_vip = is_vip_active(initiator_full or {})
     counter_snaps = []
     try:
         for ref in req.counter_items:
             snap = await _take_relic(user["user_id"], ref.item_id, max(1, int(ref.quantity or 1)))
             counter_snaps.append(snap)
+            if _is_vip_exclusive(snap) and not initiator_is_vip:
+                raise HTTPException(403, f"« {snap['name']} » est réservé aux VIP — {t['from_username']} n'a pas le Pass Ascendant.")
     except HTTPException:
         for snap in counter_snaps:
             await _give_relic(user["user_id"], snap)
@@ -2224,7 +2319,22 @@ async def accept_trade(trade_id: str, req: AcceptTradeReq, user: dict = Depends(
             await push_wallet_updated(user["user_id"])
         raise
 
-    # Atomic swap: initiator's escrow → recipient ; recipient's counter → initiator
+    # Claim the trade BEFORE swapping so the expiry watcher can't also refund it.
+    claim = await db.trades.update_one(
+        {"trade_id": trade_id, "status": "pending"},
+        {"$set": {"status": "accepted", "resolved_at": now_utc().isoformat(),
+                  "counter_items": counter_snaps, "counter_ecus": counter_ecus}},
+    )
+    if claim.modified_count == 0:
+        # Resolved/expired concurrently → give the recipient's counter back
+        for snap in counter_snaps:
+            await _give_relic(user["user_id"], snap)
+        if counter_ecus > 0:
+            await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": counter_ecus}})
+            await push_wallet_updated(user["user_id"])
+        raise HTTPException(400, "Cette proposition a expiré ou a déjà été traitée.")
+
+    # Swap: initiator's escrow → recipient ; recipient's counter → initiator
     for snap in t.get("give_items", []):
         await _give_relic(user["user_id"], snap)
     if t.get("give_ecus"):
@@ -2236,11 +2346,6 @@ async def accept_trade(trade_id: str, req: AcceptTradeReq, user: dict = Depends(
         await db.users.update_one({"user_id": t["from_user"]}, {"$inc": {"aether": counter_ecus}})
         await push_wallet_updated(t["from_user"])
 
-    await db.trades.update_one(
-        {"trade_id": trade_id},
-        {"$set": {"status": "accepted", "resolved_at": now_utc().isoformat(),
-                  "counter_items": counter_snaps, "counter_ecus": counter_ecus}},
-    )
     await _log_economy("trade", t["from_user"], t["to_user"], t.get("give_ecus", 0),
                        t.get("give_items", []), {"counter_ecus": counter_ecus, "counter_items": counter_snaps})
     await push_notification(
@@ -2248,9 +2353,28 @@ async def accept_trade(trade_id: str, req: AcceptTradeReq, user: dict = Depends(
         f"✅ {user['username']} a accepté votre échange",
         "Les objets et écus ont été échangés.", "chime", "Check", link="/inventory",
     )
+
+    # Discord — annonce dans le salon des récompenses (le même que l'XP)
+    def _goods_str(items, ecus):
+        parts = [f"{it['name']}{'×' + str(it['quantity']) if it.get('quantity', 1) > 1 else ''}" for it in (items or [])]
+        if ecus:
+            parts.append(f"{ecus} Écus")
+        return ", ".join(parts) or "rien"
+    try:
+        discord_rewards.schedule_to_channel(
+            f"🤝 Échange conclu : **{t['from_username']}** ({_goods_str(t.get('give_items'), t.get('give_ecus'))}) "
+            f"↔ **{user['username']}** ({_goods_str(counter_snaps, counter_ecus)})",
+            DISCORD_TRADE_CHANNEL_ID,
+        )
+    except Exception:
+        pass
+
+    # Realtime inventory + wallet refresh for BOTH parties (no page reload needed)
     try:
         await nexus_world.push_inventory_updated(t["from_user"], "trade_done", {})
         await nexus_world.push_inventory_updated(user["user_id"], "trade_done", {})
+        await push_wallet_updated(t["from_user"])
+        await push_wallet_updated(user["user_id"])
     except Exception:
         pass
     return {"ok": True}
@@ -2491,10 +2615,15 @@ async def get_quests(user: dict = Depends(get_user_dep)):
     week = now_utc().strftime("%Y-W%U")
     month = now_utc().strftime("%Y-%m")
 
+    user_is_vip = is_vip_active(user)
+
     existing = await db.user_quests.find({"user_id": user["user_id"]}).to_list(500)
     existing_ids = {(q["quest_id"], q.get("period")) for q in existing}
 
     for tmpl in QUEST_TEMPLATES:
+        # Les quêtes VIP ne sont créées que pour les détenteurs du Pass Ascendant.
+        if tmpl.get("vip_only") and not user_is_vip:
+            continue
         period = today if tmpl["type"] == "daily" else (week if tmpl["type"] == "weekly" else month)
         if (tmpl["id"], period) in existing_ids:
             continue
@@ -2542,7 +2671,9 @@ async def get_quests(user: dict = Depends(get_user_dep)):
     # dans les modèles (les anciennes quêtes obsolètes sont masquées).
     valid = [
         q for q in quests
-        if q.get("period") in (today, week, month) and q.get("quest_id") in tmpl_by_id
+        if q.get("period") in (today, week, month)
+        and q.get("quest_id") in tmpl_by_id
+        and not (tmpl_by_id[q["quest_id"]].get("vip_only") and not user_is_vip)
     ]
     return valid
 
@@ -2711,6 +2842,14 @@ async def check_rift(user: dict = Depends(get_user_dep)):
     }
     await db.rifts.insert_one(rift_doc)
     rift_doc.pop("_id", None)
+    try:
+        discord_rewards.schedule_to_channel(
+            f"🌀 **Faille dimensionnelle !** Une « {rift['name']} » s'est ouverte pour **{user['username']}** "
+            f"— {rift.get('reward', '')}",
+            DISCORD_RIFT_CHANNEL_ID,
+        )
+    except Exception:
+        pass
     return {"rift": rift_doc}
 
 
@@ -3595,8 +3734,10 @@ async def change_username(req: UsernameChangeReq, user: dict = Depends(get_user_
         raise HTTPException(400, "Pseudo doit faire entre 3 et 20 caractères")
     if await db.users.find_one({"username": new_name, "user_id": {"$ne": user["user_id"]}}):
         raise HTTPException(400, "Pseudo déjà pris")
-    # Consume a rename scroll if present
-    scroll = await db.user_consumables.find_one({"user_id": user["user_id"], "sku": "scroll_rename", "used": False})
+    # Consume a rename scroll if present (standard or VIP variant)
+    scroll = await db.user_consumables.find_one(
+        {"user_id": user["user_id"], "sku": {"$in": ["scroll_rename", "vip_scroll_rename"]}, "used": False}
+    )
     if not scroll:
         raise HTTPException(400, "Un « Parchemin de Renommée » est nécessaire (achetez-en un à la Boutique)")
     await db.user_consumables.update_one({"_id": scroll["_id"]}, {"$set": {"used": True, "used_at": now_utc().isoformat()}})
@@ -3940,6 +4081,9 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
     if not item:
         raise HTTPException(404, "Article introuvable")
     full = await db.users.find_one({"user_id": user["user_id"]})
+    # VIP-exclusive gate
+    if item.get("vip_only") and not is_vip_active(full):
+        raise HTTPException(403, "Article réservé aux détenteurs du Pass Ascendant (VIP).")
     # Level gate
     required_level = item.get("unlock_level", 1)
     if full.get("level", 1) < required_level:
@@ -4011,12 +4155,16 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
         })
         applied["expires_at"] = expires
     elif item["category"] == "consumable":
-        if sku == "summon_rift":
+        if sku in ("summon_rift", "vip_rift_catalyst"):
             # Force a rift to appear next time the user checks
-            rift_types = [
-                {"type": "double_xp", "name": "Faille Invoquée", "description": "Catalysée par votre volonté", "reward": "+200 XP"},
-                {"type": "chest", "name": "Faille de Trésor", "description": "Un coffre apparaît", "reward": "Coffre offert"},
-            ]
+            forced = item.get("rift_force")
+            if forced == "chest":
+                rift_types = [{"type": "chest", "name": "Faille de Trésor Majeure", "description": "Un coffre apparaît", "reward": "Coffre offert"}]
+            else:
+                rift_types = [
+                    {"type": "double_xp", "name": "Faille Invoquée", "description": "Catalysée par votre volonté", "reward": "+200 XP"},
+                    {"type": "chest", "name": "Faille de Trésor", "description": "Un coffre apparaît", "reward": "Coffre offert"},
+                ]
             r = _secure_choice(rift_types)
             await db.rifts.insert_one({
                 "rift_id": f"rift_{uuid.uuid4().hex[:12]}",
@@ -4025,18 +4173,39 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
                 "created_at": now_utc().isoformat(),
             })
             applied["rift_summoned"] = True
-        else:
-            if sku == "key_chest_cosmic":
-                items_won = await open_chest(user["user_id"], min_rarity="epic")
-                applied["chest_items"] = items_won
-            elif sku == "scroll_class_change":
-                await db.users.update_one(
-                    {"user_id": user["user_id"]},
-                    {"$inc": {"class_change_credits": 3}},
+            try:
+                discord_rewards.schedule_to_channel(
+                    f"🌀 **Faille invoquée !** **{user['username']}** a catalysé une « {r['name']} » "
+                    f"— {r.get('reward', '')}",
+                    DISCORD_RIFT_CHANNEL_ID,
                 )
-                applied["class_change_credits_added"] = 3
-            else:
-                await db.user_consumables.update_one(
+            except Exception:
+                pass
+        elif sku in ("key_chest_cosmic", "vip_key_divine", "vip_relic_box"):
+            # Premium key/box: instant chest with a guaranteed minimum rarity.
+            items_won = await open_chest(user["user_id"], min_rarity=item.get("min_rarity", "epic"))
+            applied["chest_items"] = items_won
+        elif sku in ("scroll_class_change", "vip_scroll_mutation"):
+            credits = int(item.get("class_changes", 3))
+            await db.users.update_one(
+                {"user_id": user["user_id"]},
+                {"$inc": {"class_change_credits": credits}},
+            )
+            applied["class_change_credits_added"] = credits
+        elif item.get("grant_xp") or item.get("grant_reputation") or item.get("grant_skill_points"):
+            # Instant-grant consumables (VIP tomes/emblems).
+            if item.get("grant_xp"):
+                await grant_xp(user["user_id"], int(item["grant_xp"]), f"Consommable : {item['name']}")
+                applied["xp_granted"] = int(item["grant_xp"])
+            if item.get("grant_reputation"):
+                await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"reputation": int(item["grant_reputation"])}})
+                applied["reputation_granted"] = int(item["grant_reputation"])
+            if item.get("grant_skill_points"):
+                await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"skill_points": int(item["grant_skill_points"])}})
+                applied["skill_points_granted"] = int(item["grant_skill_points"])
+            await push_wallet_updated(user["user_id"])
+        else:
+            await db.user_consumables.update_one(
                 {"user_id": user["user_id"], "sku": sku, "used": False},
                 {"$inc": {"quantity": 1},
                  "$setOnInsert": {
@@ -4060,9 +4229,13 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
     elif item["category"] == "chest":
         # Premium chests honor their guaranteed-rarity descriptions.
         chest_kwargs = {}
-        if sku == "chest_divine":
+        if item.get("min_rarity"):
+            chest_kwargs["min_rarity"] = item["min_rarity"]
+        if item.get("luck_boost"):
+            chest_kwargs["luck_boost"] = item["luck_boost"]
+        if not chest_kwargs and sku == "chest_divine":
             chest_kwargs = {"min_rarity": "rare", "luck_boost": 2.0}  # reliques rares garanties
-        elif sku == "chest_royal":
+        elif not chest_kwargs and sku == "chest_royal":
             chest_kwargs = {"luck_boost": 1.6}  # meilleures chances d'Épique
         try:
             items_won = await open_chest(user["user_id"], **chest_kwargs)
@@ -7115,6 +7288,22 @@ async def _vip_expiry_loop(interval: int = 300):
         await asyncio.sleep(interval)
 
 
+_trade_expiry_task = None
+
+
+async def _trade_expiry_loop(interval: int = 120):
+    """Periodically expire stale trade offers and refund their initiators."""
+    logger.info("Trade expiry watcher running (every %ss)", interval)
+    while True:
+        try:
+            await _expire_stale_trades()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Trade expiry loop error: %s", e)
+        await asyncio.sleep(interval)
+
+
 @app.on_event("startup")
 async def startup():
     await db.users.create_index("email", unique=True)
@@ -7250,6 +7439,13 @@ async def startup():
         _vip_expiry_task = asyncio.create_task(_vip_expiry_loop(300))
     except Exception as e:
         logger.warning(f"NEXORIA: could not start VIP expiry watcher — {e}")
+
+    # Trade offers expiry watcher (auto-refund past the response deadline).
+    global _trade_expiry_task
+    try:
+        _trade_expiry_task = asyncio.create_task(_trade_expiry_loop(120))
+    except Exception as e:
+        logger.warning(f"NEXORIA: could not start trade expiry watcher — {e}")
 
     logger.info("NEXORIA backend started")
 

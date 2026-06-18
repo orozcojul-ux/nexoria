@@ -245,6 +245,12 @@ QUEST_TEMPLATES = [
     {"id": "monthly_grind", "type": "monthly", "name": "Marathonien", "description": "Gagne 5000 XP ce mois (en publiant, réagissant et participant partout sur le site).", "target": 5000, "action": "xp", "xp": 1500, "aether": 800},
     {"id": "monthly_parrainage", "type": "monthly", "name": "Seigneur des Alliances", "description": "Parraine 3 nouveaux héros ce mois (Settings › Parrainage › partage ton lien).", "target": 3, "action": "referral", "xp": 1000, "aether": 500},
     {"id": "monthly_vip", "type": "monthly", "name": "Ascension Royale", "description": "Active le Pass Ascendant ce mois (Boutique › Pass Ascendant).", "target": 1, "action": "vip_purchase", "xp": 2000, "aether": 1000},
+    # ── Quêtes EXCLUSIVES VIP (vip_only : visibles uniquement par les détenteurs du Pass Ascendant) ──
+    {"id": "vip_daily_oracle", "type": "daily", "name": "Faveur de l'Ascendant", "description": "VIP : consulte l'Oracle aujourd'hui pour une récompense renforcée.", "target": 1, "action": "oracle", "xp": 120, "aether": 80, "vip_only": True},
+    {"id": "vip_daily_chest", "type": "daily", "name": "Trésor de l'Ascendant", "description": "VIP : ouvre 2 coffres aujourd'hui.", "target": 2, "action": "chest_open", "xp": 200, "aether": 120, "vip_only": True},
+    {"id": "vip_weekly_forum", "type": "weekly", "name": "Voix Souveraine", "description": "VIP : poste 20 réponses sur la Tribune cette semaine.", "target": 20, "action": "forum_reply", "xp": 600, "aether": 350, "vip_only": True},
+    {"id": "vip_weekly_referral", "type": "weekly", "name": "Ambassade de l'Ascendant", "description": "VIP : parraine 2 nouveaux héros cette semaine.", "target": 2, "action": "referral", "xp": 800, "aether": 500, "vip_only": True},
+    {"id": "vip_monthly_grind", "type": "monthly", "name": "Légende Ascendante", "description": "VIP : gagne 12000 XP ce mois.", "target": 12000, "action": "xp", "xp": 4000, "aether": 2500, "vip_only": True},
 ]
 
 # Défis communautaires affichés sur l'accueil / événements (objectifs collectifs)

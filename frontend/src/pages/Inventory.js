@@ -520,11 +520,21 @@ function TradesModal({ open, onClose, trades, relics, onDone }) {
         .map(([item_id, quantity]) => ({ item_id, quantity }));
       await api.post(`/economy/trades/${id}/accept`, { counter_items, counter_ecus: parseInt(counterEcus, 10) || 0 });
       sfx.success();
-      toast.success("Échange conclu !");
+      toast.success("Échange conclu ! Inventaire mis à jour.");
       resetCounter();
-      await onDone();
+      await onDone();        // recharge l'inventaire/écus immédiatement
+      onClose();             // referme le panneau pour révéler l'inventaire à jour
     } catch (e) { toast.error(e.response?.data?.detail || "Acceptation impossible"); }
     finally { setBusy(false); }
+  };
+
+  const timeLeft = (iso) => {
+    if (!iso) return null;
+    const diff = new Date(iso).getTime() - Date.now();
+    if (diff <= 0) return "expiré";
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
   };
 
   const renderGoods = (t) => (
@@ -536,6 +546,11 @@ function TradesModal({ open, onClose, trades, relics, onDone }) {
         </div>
       ))}
       {t.note && <div className="text-[11px] text-zinc-500 italic mt-1">« {t.note} »</div>}
+      {t.expires_at && (
+        <div className="text-[10px] text-amber-400/80 font-mono-stat mt-1 flex items-center gap-1">
+          <Lucide.Clock className="w-2.5 h-2.5" /> Expire dans {timeLeft(t.expires_at)}
+        </div>
+      )}
     </div>
   );
 
