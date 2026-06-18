@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSearchParams } from "react-router-dom";
 import * as Lucide from "lucide-react";
-import { Gem, Sparkles, Coins, Package, Wand2, Flag, Zap, Scroll, Castle } from "lucide-react";
+import { Gem, Sparkles, Coins, Package, Wand2, Flag, Zap, Scroll, Castle, Gift, ArrowLeftRight, Send, X, Check } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,6 +24,19 @@ export default function Inventory() {
   const [newItems, setNewItems] = useState(null);
   const [filter, setFilter] = useState("all");
   const [tab, setTab] = useState("relics"); // relics | cosmetics | boosts | consumables | perks
+  // ── Economy ──
+  const [searchParams] = useSearchParams();
+  const [trades, setTrades] = useState({ incoming: [], outgoing: [] });
+  const [sendOpen, setSendOpen] = useState(false);
+  const [tradesOpen, setTradesOpen] = useState(false);
+  const [itemAction, setItemAction] = useState(null); // relic selected for gift/trade
+
+  const loadTrades = useCallback(async () => {
+    try {
+      const { data } = await api.get("/economy/trades");
+      setTrades(data || { incoming: [], outgoing: [] });
+    } catch { /* silent */ }
+  }, []);
 
   const load = useCallback(async () => {
     const [a, b, c, d] = await Promise.all([
@@ -33,15 +47,21 @@ export default function Inventory() {
     ]);
     setItems(a.data); setRarities(b.data); setShopInv(c.data); setShopItems(d.data);
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); loadTrades(); }, [load, loadTrades]);
+
+  // Open the trades panel when arriving via a notification link (?trades=1)
+  useEffect(() => {
+    if (searchParams.get("trades") === "1") setTradesOpen(true);
+  }, [searchParams]);
 
   useInventorySync(useCallback((detail) => {
     load();
+    loadTrades();
     refresh();
     if (detail?.source === "shop" && detail?.name) {
       toast.success(`« ${detail.name} » ajouté à ton inventaire`);
     }
-  }, [load, refresh]));
+  }, [load, loadTrades, refresh]));
 
   useProfileSync(useCallback(() => {
     load();
@@ -111,8 +131,11 @@ export default function Inventory() {
     } catch (e) { toast.error("Compactage impossible"); }
   };
 
+  const afterEconomy = async () => { await load(); await loadTrades(); await refresh(); };
+
   const filtered = filter === "all" ? items : items.filter((i) => i.rarity === filter);
   const banner = usePageBanner("inventory", { count: items.length });
+  const incomingCount = trades.incoming?.length || 0;
 
   return (
     <PageShell
@@ -128,6 +151,23 @@ export default function Inventory() {
         <PremiumButton variant="violet" size="md" icon={Wand2} onClick={dedupe} testid="dedupe-chest-btn">
           Compacter
         </PremiumButton>
+        <div className="flex-1" />
+        <PremiumButton variant="cyan" size="md" icon={Send} onClick={() => setSendOpen(true)} testid="send-ecus-btn">
+          Envoyer des écus
+        </PremiumButton>
+        <button
+          type="button"
+          onClick={() => setTradesOpen(true)}
+          data-testid="trades-btn"
+          className="relative inline-flex items-center gap-2 px-4 py-2 rounded-md border border-amber-500/50 text-amber-200 font-bold font-display tracking-wide text-sm hover:bg-amber-500/10 transition-colors"
+        >
+          <ArrowLeftRight className="w-4 h-4" /> Échanges
+          {incomingCount > 0 && (
+            <span className="absolute -top-2 -right-2 min-w-[1.2rem] h-[1.2rem] px-1 rounded-full bg-amber-500 text-black text-[10px] font-black flex items-center justify-center">
+              {incomingCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Tabs — switch between asset types */}
@@ -185,9 +225,11 @@ export default function Inventory() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: Math.min(i * 0.02, 0.5) }}
               whileHover={{ scale: 1.05, rotate: 1 }}
+              onClick={() => setItemAction(item)}
               className={`aspect-square relative rounded-xl border-2 ${tok.border} bg-gradient-to-br ${tok.bg} p-3 flex flex-col items-center justify-center text-center group cursor-pointer overflow-hidden`}
               style={{ boxShadow: `0 0 12px ${tok.glow}` }}
               data-testid={`item-${item.item_id}`}
+              title="Cliquez pour offrir ou échanger"
             >
               <I className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform" style={{ color: tok.color, filter: `drop-shadow(0 0 8px ${tok.glow})` }} />
               <div className="text-xs font-display font-bold text-white leading-tight">{item.name}</div>
@@ -195,6 +237,9 @@ export default function Inventory() {
               {item.quantity > 1 && (
                 <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-violet-500/30 text-violet-200 text-[9px] font-mono-stat font-bold">x{item.quantity}</div>
               )}
+              <div className="absolute inset-x-0 bottom-0 py-1 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 text-[8px] uppercase tracking-widest font-bold text-amber-200">
+                <Gift className="w-2.5 h-2.5" /> Offrir / Échanger
+              </div>
             </motion.div>
           );
         })}
@@ -240,7 +285,338 @@ export default function Inventory() {
           </PremiumButton>
         </div>
       </PremiumModal>
+
+      {/* ── Economy modals ── */}
+      <SendEcusModal open={sendOpen} onClose={() => setSendOpen(false)} onDone={afterEconomy} />
+      <ItemActionModal item={itemAction} onClose={() => setItemAction(null)} onDone={afterEconomy} />
+      <TradesModal
+        open={tradesOpen}
+        onClose={() => setTradesOpen(false)}
+        trades={trades}
+        relics={items}
+        onDone={afterEconomy}
+      />
     </PageShell>
+  );
+}
+
+/* ─── Modal : envoyer des écus ─────────────────────────────── */
+function SendEcusModal({ open, onClose, onDone }) {
+  const [form, setForm] = useState({ to_username: "", amount: "", message: "" });
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const amount = parseInt(form.amount, 10);
+    if (!form.to_username.trim() || !amount || amount < 1) {
+      toast.error("Pseudo et montant valides requis");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.post("/economy/send-ecus", {
+        to_username: form.to_username.trim(),
+        amount,
+        message: form.message.trim() || undefined,
+      });
+      sfx.success();
+      toast.success(`${amount} Écus envoyés à ${form.to_username.trim()}`);
+      setForm({ to_username: "", amount: "", message: "" });
+      onClose();
+      await onDone();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Envoi impossible");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <PremiumModal open={open} onClose={onClose} title="Envoyer des Écus" icon={Coins} maxWidth="max-w-md" testid="send-ecus-modal">
+      <form onSubmit={submit} className="p-5 space-y-4">
+        <div>
+          <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1 block">Destinataire</label>
+          <input value={form.to_username} onChange={(e) => setForm({ ...form, to_username: e.target.value })}
+            placeholder="Pseudo du héros" required minLength={3}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm" data-testid="send-ecus-username" />
+        </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1 block">Montant (Écus)</label>
+          <input type="number" min={1} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
+            placeholder="100" required
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono-stat" data-testid="send-ecus-amount" />
+        </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1 block">Message (optionnel)</label>
+          <input value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })}
+            maxLength={200} placeholder="Un petit mot…"
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm" data-testid="send-ecus-message" />
+        </div>
+        <PremiumButton type="submit" variant="cyan" size="md" disabled={saving} icon={Send} className="w-full" testid="send-ecus-submit">
+          {saving ? "Envoi…" : "Envoyer les Écus"}
+        </PremiumButton>
+      </form>
+    </PremiumModal>
+  );
+}
+
+/* ─── Modal : offrir / proposer un échange pour une relique ── */
+function ItemActionModal({ item, onClose, onDone }) {
+  const [mode, setMode] = useState("menu"); // menu | gift | trade
+  const [username, setUsername] = useState("");
+  const [qty, setQty] = useState(1);
+  const [tradeEcus, setTradeEcus] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (item) { setMode("menu"); setUsername(""); setQty(1); setTradeEcus(""); setNote(""); }
+  }, [item]);
+
+  if (!item) return null;
+  const tok = RARITY[item.rarity] || RARITY.common;
+  const I = Lucide[item.icon] || Lucide.Package;
+  const maxQty = item.quantity || 1;
+  const relicId = item.item_id || item.inv_id;
+
+  const gift = async (e) => {
+    e.preventDefault();
+    if (!username.trim()) { toast.error("Pseudo requis"); return; }
+    setSaving(true);
+    try {
+      await api.post("/economy/gift-item", { to_username: username.trim(), item_id: relicId, quantity: qty });
+      sfx.success();
+      toast.success(`« ${item.name} » offert à ${username.trim()}`);
+      onClose();
+      await onDone();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Don impossible");
+    } finally { setSaving(false); }
+  };
+
+  const proposeTrade = async (e) => {
+    e.preventDefault();
+    if (!username.trim()) { toast.error("Pseudo requis"); return; }
+    setSaving(true);
+    try {
+      await api.post("/economy/trades", {
+        to_username: username.trim(),
+        give_items: [{ item_id: relicId, quantity: qty }],
+        give_ecus: parseInt(tradeEcus, 10) || 0,
+        note: note.trim() || undefined,
+      });
+      sfx.success();
+      toast.success(`Proposition d'échange envoyée à ${username.trim()}`);
+      onClose();
+      await onDone();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Échange impossible");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <PremiumModal open={!!item} onClose={onClose} title={item.name} icon={Gift} maxWidth="max-w-md" testid="item-action-modal">
+      <div className="p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-14 h-14 rounded-xl border-2 ${tok.border} flex items-center justify-center`} style={{ boxShadow: `0 0 12px ${tok.glow}` }}>
+            <I className="w-7 h-7" style={{ color: tok.color }} />
+          </div>
+          <div>
+            <div className="font-display font-bold text-white">{item.name}</div>
+            <div className={`text-[10px] uppercase tracking-widest font-bold ${tok.text}`}>{tok.fr} · x{maxQty}</div>
+          </div>
+        </div>
+
+        {mode === "menu" && (
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <button type="button" onClick={() => setMode("gift")} data-testid="action-gift"
+              className="p-4 rounded-xl border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 text-center transition-colors">
+              <Gift className="w-6 h-6 mx-auto mb-2 text-emerald-300" />
+              <div className="text-sm font-bold text-emerald-200">Offrir</div>
+              <div className="text-[10px] text-zinc-500 mt-0.5">Don gratuit</div>
+            </button>
+            <button type="button" onClick={() => setMode("trade")} data-testid="action-trade"
+              className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10 text-center transition-colors">
+              <ArrowLeftRight className="w-6 h-6 mx-auto mb-2 text-amber-300" />
+              <div className="text-sm font-bold text-amber-200">Échanger</div>
+              <div className="text-[10px] text-zinc-500 mt-0.5">Contre une contrepartie</div>
+            </button>
+          </div>
+        )}
+
+        {(mode === "gift" || mode === "trade") && (
+          <form onSubmit={mode === "gift" ? gift : proposeTrade} className="space-y-3">
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1 block">Destinataire</label>
+              <input value={username} onChange={(e) => setUsername(e.target.value)} required minLength={3}
+                placeholder="Pseudo du héros"
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm" data-testid="action-username" />
+            </div>
+            {maxQty > 1 && (
+              <div>
+                <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1 block">Quantité</label>
+                <input type="number" min={1} max={maxQty} value={qty}
+                  onChange={(e) => setQty(Math.max(1, Math.min(maxQty, parseInt(e.target.value, 10) || 1)))}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono-stat" />
+              </div>
+            )}
+            {mode === "trade" && (
+              <>
+                <div>
+                  <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1 block">+ Écus à ajouter à votre offre (optionnel)</label>
+                  <input type="number" min={0} value={tradeEcus} onChange={(e) => setTradeEcus(e.target.value)}
+                    placeholder="0"
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono-stat" />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1 block">Note (ce que vous souhaitez en retour)</label>
+                  <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200}
+                    placeholder="Ex : contre une relique légendaire…"
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <p className="text-[10px] text-zinc-500 italic">
+                  Vos objets et écus sont mis en réserve jusqu'à ce que le destinataire accepte ou refuse.
+                </p>
+              </>
+            )}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setMode("menu")} className="px-3 py-2 text-sm text-zinc-400">Retour</button>
+              <PremiumButton type="submit" variant={mode === "gift" ? "cyan" : "gold"} size="md" disabled={saving} className="flex-1"
+                testid={mode === "gift" ? "confirm-gift" : "confirm-trade"}>
+                {saving ? "…" : mode === "gift" ? "Offrir" : "Proposer l'échange"}
+              </PremiumButton>
+            </div>
+          </form>
+        )}
+      </div>
+    </PremiumModal>
+  );
+}
+
+/* ─── Modal : mes échanges (entrants / sortants) ───────────── */
+function TradesModal({ open, onClose, trades, relics, onDone }) {
+  const [accepting, setAccepting] = useState(null); // trade being countered
+  const [counterEcus, setCounterEcus] = useState("");
+  const [counterSel, setCounterSel] = useState({}); // item_id -> qty
+  const [busy, setBusy] = useState(false);
+
+  const resetCounter = () => { setAccepting(null); setCounterEcus(""); setCounterSel({}); };
+
+  const decline = async (id) => {
+    setBusy(true);
+    try { await api.post(`/economy/trades/${id}/decline`); toast.info("Échange refusé — objets restitués à l'expéditeur"); await onDone(); }
+    catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
+    finally { setBusy(false); }
+  };
+  const cancel = async (id) => {
+    setBusy(true);
+    try { await api.post(`/economy/trades/${id}/cancel`); toast.info("Offre annulée — vos biens vous sont rendus"); await onDone(); }
+    catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
+    finally { setBusy(false); }
+  };
+  const accept = async (id) => {
+    setBusy(true);
+    try {
+      const counter_items = Object.entries(counterSel)
+        .filter(([, q]) => q > 0)
+        .map(([item_id, quantity]) => ({ item_id, quantity }));
+      await api.post(`/economy/trades/${id}/accept`, { counter_items, counter_ecus: parseInt(counterEcus, 10) || 0 });
+      sfx.success();
+      toast.success("Échange conclu !");
+      resetCounter();
+      await onDone();
+    } catch (e) { toast.error(e.response?.data?.detail || "Acceptation impossible"); }
+    finally { setBusy(false); }
+  };
+
+  const renderGoods = (t) => (
+    <div className="text-xs text-zinc-300 space-y-0.5">
+      {t.give_ecus > 0 && <div className="text-amber-300 font-mono-stat">+ {t.give_ecus} Écus</div>}
+      {(t.give_items || []).map((it, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <Gem className="w-3 h-3 text-violet-300" /> {it.name} {it.quantity > 1 ? `×${it.quantity}` : ""}
+        </div>
+      ))}
+      {t.note && <div className="text-[11px] text-zinc-500 italic mt-1">« {t.note} »</div>}
+    </div>
+  );
+
+  return (
+    <PremiumModal open={open} onClose={() => { resetCounter(); onClose(); }} title="Échanges" icon={ArrowLeftRight} maxWidth="max-w-2xl" testid="trades-modal">
+      <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
+        {/* Incoming */}
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-amber-300 font-bold mb-2">Propositions reçues ({trades.incoming?.length || 0})</div>
+          {(!trades.incoming || trades.incoming.length === 0) && (
+            <div className="text-sm text-zinc-500 italic py-3">Aucune proposition pour le moment.</div>
+          )}
+          <div className="space-y-3">
+            {(trades.incoming || []).map((t) => (
+              <div key={t.trade_id} className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3" data-testid={`trade-in-${t.trade_id}`}>
+                <div className="text-sm font-bold text-white mb-1">{t.from_username} vous propose :</div>
+                {renderGoods(t)}
+                {accepting === t.trade_id ? (
+                  <div className="mt-3 border-t border-white/10 pt-3 space-y-2">
+                    <div className="text-[10px] uppercase tracking-widest text-cyan-300 font-bold">Votre contrepartie</div>
+                    <input type="number" min={0} value={counterEcus} onChange={(e) => setCounterEcus(e.target.value)}
+                      placeholder="Écus à donner (optionnel)"
+                      className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono-stat" />
+                    <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
+                      {relics.length === 0 && <div className="text-xs text-zinc-500 italic">Aucune relique à proposer.</div>}
+                      {relics.map((r) => {
+                        const rid = r.item_id || r.inv_id;
+                        const sel = counterSel[rid] || 0;
+                        return (
+                          <label key={rid} className="flex items-center gap-2 text-xs text-zinc-300 py-1">
+                            <input type="checkbox" checked={sel > 0}
+                              onChange={(e) => setCounterSel((s) => ({ ...s, [rid]: e.target.checked ? 1 : 0 }))} />
+                            <span className="flex-1 truncate">{r.name} {r.quantity > 1 ? `(x${r.quantity})` : ""}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={resetCounter} className="px-3 py-1.5 text-sm text-zinc-400">Annuler</button>
+                      <PremiumButton variant="gold" size="sm" disabled={busy} onClick={() => accept(t.trade_id)} className="flex-1" testid={`confirm-accept-${t.trade_id}`}>
+                        <Check className="w-3.5 h-3.5 inline mr-1" /> Conclure l'échange
+                      </PremiumButton>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 mt-3">
+                    <PremiumButton variant="cyan" size="sm" onClick={() => { setAccepting(t.trade_id); setCounterEcus(""); setCounterSel({}); }} testid={`accept-${t.trade_id}`}>
+                      Répondre
+                    </PremiumButton>
+                    <button type="button" onClick={() => decline(t.trade_id)} disabled={busy}
+                      className="px-3 py-1.5 rounded-md border border-red-500/40 text-red-300 text-sm font-bold hover:bg-red-500/10" data-testid={`decline-${t.trade_id}`}>
+                      <X className="w-3.5 h-3.5 inline mr-1" /> Refuser
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Outgoing */}
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-violet-300 font-bold mb-2">Mes propositions ({trades.outgoing?.length || 0})</div>
+          {(!trades.outgoing || trades.outgoing.length === 0) && (
+            <div className="text-sm text-zinc-500 italic py-3">Vous n'avez aucune offre en attente.</div>
+          )}
+          <div className="space-y-3">
+            {(trades.outgoing || []).map((t) => (
+              <div key={t.trade_id} className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-3" data-testid={`trade-out-${t.trade_id}`}>
+                <div className="text-sm font-bold text-white mb-1">À {t.to_username} — vous offrez :</div>
+                {renderGoods(t)}
+                <button type="button" onClick={() => cancel(t.trade_id)} disabled={busy}
+                  className="mt-3 px-3 py-1.5 rounded-md border border-red-500/40 text-red-300 text-sm font-bold hover:bg-red-500/10" data-testid={`cancel-${t.trade_id}`}>
+                  Annuler l'offre
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </PremiumModal>
   );
 }
 

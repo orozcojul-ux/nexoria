@@ -1190,7 +1190,7 @@ async def register(req: RegisterReq, response: Response):
 
     await touch_user_last_seen(user_id)
     await add_chronicle(user_id, f"Le héros {username} ({cls['name']}) a rejoint NEXORIA", "creation")
-    discord_auth_forum.schedule_auth_event("register", user_doc)
+    discord_auth_forum.schedule_auth_event("register", user_doc, method="email")
 
     if req.referral_code:
         try:
@@ -1253,7 +1253,7 @@ async def login(req: LoginReq, response: Response):
     })
     set_session_cookie(response, token)
     await touch_user_last_seen(user["user_id"])
-    discord_auth_forum.schedule_auth_event("login", user)
+    discord_auth_forum.schedule_auth_event("login", user, method="email")
     result = public_user(user)
     result["session_token"] = token
     return result
@@ -1360,9 +1360,21 @@ async def me(user: dict = Depends(get_user_dep)):
 
 
 @api.post("/auth/heartbeat")
-async def auth_heartbeat(user: dict = Depends(get_user_dep)):
-    """Lightweight activity ping while the user is on the site."""
+async def auth_heartbeat(request: Request, user: dict = Depends(get_user_dep)):
+    """Activity ping fired by the client ONLY while the user is genuinely active.
+    Stamps `last_heartbeat_at` on the session — this is what drives the idle
+    timeout (so background polls don't keep an idle session alive)."""
     await touch_user_last_seen(user["user_id"], min_interval_seconds=60)
+    token = request.cookies.get("session_token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if token:
+        await db.user_sessions.update_one(
+            {"session_token": token},
+            {"$set": {"last_heartbeat_at": now_utc().isoformat()}},
+        )
     return {"ok": True}
 
 
@@ -1499,10 +1511,10 @@ async def google_session(req: SessionExchangeReq, response: Response):
     await touch_user_last_seen(user["user_id"])
     await maybe_process_daily_login(user["user_id"])
     if is_new_google_account:
-        discord_auth_forum.schedule_auth_event("register", user)
+        discord_auth_forum.schedule_auth_event("register", user, method="google")
         await claim_founder_reward(user["user_id"])
     else:
-        discord_auth_forum.schedule_auth_event("login", user)
+        discord_auth_forum.schedule_auth_event("login", user, method="google")
     result = public_user(user)
     result["session_token"] = emergent_token
     return result
@@ -1905,6 +1917,398 @@ async def open_chest_endpoint(user: dict = Depends(get_user_dep)):
     except Exception:
         pass
     return {"items": items}
+
+
+# ============================================================================
+# ÉCONOMIE JOUEUR-À-JOUEUR — envoi d'écus, dons d'objets, échanges
+# ============================================================================
+ECONOMY_MIN_ECUS = 1
+ECONOMY_MAX_ECUS = 1_000_000
+
+
+def _relic_match(item_id: str) -> dict:
+    """Match a relic row by either of its possible id fields (item_id / inv_id)."""
+    return {"$or": [{"item_id": item_id}, {"inv_id": item_id}]}
+
+
+async def _take_relic(user_id: str, item_id: str, quantity: int) -> dict:
+    """Remove `quantity` of a relic from a user. Returns a normalized snapshot.
+    Raises HTTPException if the user doesn't own enough. Atomic on the row."""
+    row = await db.inventory.find_one({"user_id": user_id, **_relic_match(item_id)})
+    if not row:
+        raise HTTPException(404, "Objet introuvable dans votre inventaire")
+    owned_qty = int(row.get("quantity", 1) or 1)
+    if quantity < 1 or quantity > owned_qty:
+        raise HTTPException(400, f"Quantité invalide (vous en possédez {owned_qty})")
+    snapshot = {
+        "name": row["name"], "rarity": row["rarity"],
+        "icon": row.get("icon", "Package"), "type": row.get("type", "relic"),
+        "quantity": quantity,
+    }
+    if quantity >= owned_qty:
+        await db.inventory.delete_one({"_id": row["_id"]})
+    else:
+        await db.inventory.update_one({"_id": row["_id"]}, {"$inc": {"quantity": -quantity}})
+    return snapshot
+
+
+async def _give_relic(user_id: str, snapshot: dict):
+    """Add a relic snapshot to a user, merging into an existing (name, rarity) row.
+    Respects the recipient's inventory slot limit for NEW distinct relics."""
+    existing = await db.inventory.find_one({
+        "user_id": user_id, "name": snapshot["name"], "rarity": snapshot["rarity"],
+    })
+    qty = int(snapshot.get("quantity", 1) or 1)
+    if existing:
+        await db.inventory.update_one(
+            {"_id": existing["_id"]},
+            {"$inc": {"quantity": qty}, "$set": {"last_obtained_at": now_utc().isoformat()}},
+        )
+        return
+    # New distinct relic — enforce slot limit
+    slot_limit = await inventory_slot_limit(user_id)
+    owned_count = await db.inventory.count_documents({"user_id": user_id})
+    if owned_count >= slot_limit:
+        raise HTTPException(400, "L'inventaire du destinataire est plein.")
+    await db.inventory.insert_one({
+        "item_id": f"item_{uuid.uuid4().hex[:12]}",
+        "user_id": user_id,
+        "name": snapshot["name"], "type": snapshot.get("type", "relic"),
+        "rarity": snapshot["rarity"], "icon": snapshot.get("icon", "Package"),
+        "quantity": qty,
+        "obtained_at": now_utc().isoformat(),
+        "last_obtained_at": now_utc().isoformat(),
+    })
+
+
+async def _transfer_ecus_atomic(from_id: str, to_id: str, amount: int) -> bool:
+    """Atomically move écus between two users WITHOUT applying gain multipliers.
+    Returns False if the sender lacks funds (no change made)."""
+    res = await db.users.update_one(
+        {"user_id": from_id, "aether": {"$gte": amount}},
+        {"$inc": {"aether": -amount}},
+    )
+    if res.modified_count == 0:
+        return False
+    await db.users.update_one({"user_id": to_id}, {"$inc": {"aether": amount}})
+    await push_wallet_updated(from_id)
+    await push_wallet_updated(to_id)
+    return True
+
+
+async def _log_economy(kind: str, from_id: str, to_id: str, ecus: int, items: list, extra: dict = None):
+    await db.economy_log.insert_one({
+        "log_id": f"eco_{uuid.uuid4().hex[:12]}",
+        "kind": kind,
+        "from_user": from_id,
+        "to_user": to_id,
+        "ecus": int(ecus or 0),
+        "items": items or [],
+        "created_at": now_utc().isoformat(),
+        **(extra or {}),
+    })
+
+
+class SendEcusReq(BaseModel):
+    to_username: str
+    amount: int
+    message: Optional[str] = Field(None, max_length=200)
+
+
+@api.post("/economy/send-ecus")
+async def economy_send_ecus(req: SendEcusReq, user: dict = Depends(get_user_dep)):
+    amount = int(req.amount or 0)
+    if amount < ECONOMY_MIN_ECUS or amount > ECONOMY_MAX_ECUS:
+        raise HTTPException(400, f"Montant invalide (entre {ECONOMY_MIN_ECUS} et {ECONOMY_MAX_ECUS} écus)")
+    target = await find_user_by_username(req.to_username, {"user_id": 1, "username": 1})
+    if not target:
+        raise HTTPException(404, "Héros introuvable")
+    if target["user_id"] == user["user_id"]:
+        raise HTTPException(400, "Vous ne pouvez pas vous envoyer des écus à vous-même")
+    ok = await _transfer_ecus_atomic(user["user_id"], target["user_id"], amount)
+    if not ok:
+        raise HTTPException(400, "Écus insuffisants")
+    await _log_economy("send_ecus", user["user_id"], target["user_id"], amount, [],
+                       {"message": (req.message or "").strip()[:200]})
+    note = f" — « {req.message.strip()[:120]} »" if (req.message or "").strip() else ""
+    await push_notification(
+        db, target["user_id"], "ecus_received",
+        f"💰 {user['username']} vous a envoyé {amount} Écus",
+        f"Un présent monétaire vient d'arriver dans votre bourse{note}",
+        "coin", "Coins", link="/inventory",
+    )
+    await add_chronicle(user["user_id"], f"A envoyé {amount} Écus à {target['username']}", "economy")
+    await add_chronicle(target["user_id"], f"A reçu {amount} Écus de {user['username']}", "economy")
+    try:
+        discord_rewards.schedule_custom(
+            f"💸 **{user['username']}** a envoyé **{amount} Écus** à **{target['username']}**"
+        )
+    except Exception:
+        pass
+    return {"ok": True, "amount": amount, "to": target["username"]}
+
+
+class GiftItemReq(BaseModel):
+    to_username: str
+    item_id: str
+    quantity: int = 1
+
+
+@api.post("/economy/gift-item")
+async def economy_gift_item(req: GiftItemReq, user: dict = Depends(get_user_dep)):
+    target = await find_user_by_username(req.to_username, {"user_id": 1, "username": 1})
+    if not target:
+        raise HTTPException(404, "Héros introuvable")
+    if target["user_id"] == user["user_id"]:
+        raise HTTPException(400, "Vous ne pouvez pas vous offrir un objet à vous-même")
+    qty = max(1, int(req.quantity or 1))
+    snapshot = await _take_relic(user["user_id"], req.item_id, qty)
+    try:
+        await _give_relic(target["user_id"], snapshot)
+    except HTTPException:
+        # Recipient inventory full → roll back to sender
+        await _give_relic(user["user_id"], snapshot)
+        raise
+    await _log_economy("gift_item", user["user_id"], target["user_id"], 0, [snapshot])
+    await push_notification(
+        db, target["user_id"], "item_received",
+        f"🎁 {user['username']} vous a offert {snapshot['name']}",
+        f"x{snapshot['quantity']} {snapshot['name']} — déposé dans votre inventaire",
+        "chime", "Gift", link="/inventory",
+    )
+    await add_chronicle(user["user_id"], f"A offert {snapshot['name']} à {target['username']}", "economy")
+    await add_chronicle(target["user_id"], f"A reçu {snapshot['name']} de {user['username']}", "economy")
+    try:
+        await nexus_world.push_inventory_updated(user["user_id"], "gift_sent", {"name": snapshot["name"]})
+        await nexus_world.push_inventory_updated(target["user_id"], "gift_received", {"name": snapshot["name"]})
+    except Exception:
+        pass
+    return {"ok": True, "item": snapshot, "to": target["username"]}
+
+
+class TradeItemRef(BaseModel):
+    item_id: str
+    quantity: int = 1
+
+
+class CreateTradeReq(BaseModel):
+    to_username: str
+    give_items: List[TradeItemRef] = []
+    give_ecus: int = 0
+    note: Optional[str] = Field(None, max_length=200)
+
+
+@api.post("/economy/trades")
+async def create_trade(req: CreateTradeReq, user: dict = Depends(get_user_dep)):
+    target = await find_user_by_username(req.to_username, {"user_id": 1, "username": 1})
+    if not target:
+        raise HTTPException(404, "Héros introuvable")
+    if target["user_id"] == user["user_id"]:
+        raise HTTPException(400, "Vous ne pouvez pas échanger avec vous-même")
+    give_ecus = max(0, int(req.give_ecus or 0))
+    if give_ecus == 0 and not req.give_items:
+        raise HTTPException(400, "Proposez au moins un objet ou des écus")
+    if give_ecus > ECONOMY_MAX_ECUS:
+        raise HTTPException(400, "Montant d'écus trop élevé")
+
+    # Escrow écus first (atomic, no multiplier)
+    if give_ecus > 0:
+        res = await db.users.update_one(
+            {"user_id": user["user_id"], "aether": {"$gte": give_ecus}},
+            {"$inc": {"aether": -give_ecus}},
+        )
+        if res.modified_count == 0:
+            raise HTTPException(400, "Écus insuffisants pour cette offre")
+        await push_wallet_updated(user["user_id"])
+
+    # Escrow items (remove from sender, snapshot into the trade)
+    escrowed = []
+    try:
+        for ref in req.give_items:
+            snap = await _take_relic(user["user_id"], ref.item_id, max(1, int(ref.quantity or 1)))
+            escrowed.append(snap)
+    except HTTPException:
+        # Roll back everything already escrowed
+        for snap in escrowed:
+            await _give_relic(user["user_id"], snap)
+        if give_ecus > 0:
+            await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": give_ecus}})
+            await push_wallet_updated(user["user_id"])
+        raise
+
+    trade_id = f"trade_{uuid.uuid4().hex[:12]}"
+    await db.trades.insert_one({
+        "trade_id": trade_id,
+        "from_user": user["user_id"],
+        "from_username": user["username"],
+        "to_user": target["user_id"],
+        "to_username": target["username"],
+        "give_items": escrowed,
+        "give_ecus": give_ecus,
+        "note": (req.note or "").strip()[:200],
+        "status": "pending",
+        "created_at": now_utc().isoformat(),
+    })
+    await push_notification(
+        db, target["user_id"], "trade_offer",
+        f"🤝 {user['username']} vous propose un échange",
+        "Consultez la proposition dans votre inventaire (Échanges).",
+        "chime", "ArrowLeftRight", link="/inventory?trades=1",
+    )
+    try:
+        await nexus_world.push_inventory_updated(user["user_id"], "trade_created", {})
+    except Exception:
+        pass
+    return {"ok": True, "trade_id": trade_id}
+
+
+def _public_trade(t: dict) -> dict:
+    return {k: v for k, v in t.items() if k != "_id"}
+
+
+@api.get("/economy/trades")
+async def list_trades(user: dict = Depends(get_user_dep)):
+    incoming = await db.trades.find(
+        {"to_user": user["user_id"], "status": "pending"}, {"_id": 0},
+    ).sort("created_at", -1).to_list(50)
+    outgoing = await db.trades.find(
+        {"from_user": user["user_id"], "status": "pending"}, {"_id": 0},
+    ).sort("created_at", -1).to_list(50)
+    return {"incoming": incoming, "outgoing": outgoing}
+
+
+async def _refund_trade_initiator(t: dict):
+    """Return escrowed écus + items to the trade initiator."""
+    if t.get("give_ecus"):
+        await db.users.update_one({"user_id": t["from_user"]}, {"$inc": {"aether": int(t["give_ecus"])}})
+        await push_wallet_updated(t["from_user"])
+    for snap in t.get("give_items", []):
+        await _give_relic(t["from_user"], snap)
+
+
+class AcceptTradeReq(BaseModel):
+    counter_items: List[TradeItemRef] = []
+    counter_ecus: int = 0
+
+
+@api.post("/economy/trades/{trade_id}/accept")
+async def accept_trade(trade_id: str, req: AcceptTradeReq, user: dict = Depends(get_user_dep)):
+    t = await db.trades.find_one({"trade_id": trade_id})
+    if not t or t["status"] != "pending":
+        raise HTTPException(404, "Échange introuvable ou déjà résolu")
+    if t["to_user"] != user["user_id"]:
+        raise HTTPException(403, "Cet échange ne vous est pas destiné")
+
+    counter_ecus = max(0, int(req.counter_ecus or 0))
+    # Escrow the recipient's counter écus atomically
+    if counter_ecus > 0:
+        res = await db.users.update_one(
+            {"user_id": user["user_id"], "aether": {"$gte": counter_ecus}},
+            {"$inc": {"aether": -counter_ecus}},
+        )
+        if res.modified_count == 0:
+            raise HTTPException(400, "Écus insuffisants pour cette contrepartie")
+        await push_wallet_updated(user["user_id"])
+
+    # Take the recipient's counter items
+    counter_snaps = []
+    try:
+        for ref in req.counter_items:
+            snap = await _take_relic(user["user_id"], ref.item_id, max(1, int(ref.quantity or 1)))
+            counter_snaps.append(snap)
+    except HTTPException:
+        for snap in counter_snaps:
+            await _give_relic(user["user_id"], snap)
+        if counter_ecus > 0:
+            await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": counter_ecus}})
+            await push_wallet_updated(user["user_id"])
+        raise
+
+    # Atomic swap: initiator's escrow → recipient ; recipient's counter → initiator
+    for snap in t.get("give_items", []):
+        await _give_relic(user["user_id"], snap)
+    if t.get("give_ecus"):
+        await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"aether": int(t["give_ecus"])}})
+        await push_wallet_updated(user["user_id"])
+    for snap in counter_snaps:
+        await _give_relic(t["from_user"], snap)
+    if counter_ecus > 0:
+        await db.users.update_one({"user_id": t["from_user"]}, {"$inc": {"aether": counter_ecus}})
+        await push_wallet_updated(t["from_user"])
+
+    await db.trades.update_one(
+        {"trade_id": trade_id},
+        {"$set": {"status": "accepted", "resolved_at": now_utc().isoformat(),
+                  "counter_items": counter_snaps, "counter_ecus": counter_ecus}},
+    )
+    await _log_economy("trade", t["from_user"], t["to_user"], t.get("give_ecus", 0),
+                       t.get("give_items", []), {"counter_ecus": counter_ecus, "counter_items": counter_snaps})
+    await push_notification(
+        db, t["from_user"], "trade_accepted",
+        f"✅ {user['username']} a accepté votre échange",
+        "Les objets et écus ont été échangés.", "chime", "Check", link="/inventory",
+    )
+    try:
+        await nexus_world.push_inventory_updated(t["from_user"], "trade_done", {})
+        await nexus_world.push_inventory_updated(user["user_id"], "trade_done", {})
+    except Exception:
+        pass
+    return {"ok": True}
+
+
+@api.post("/economy/trades/{trade_id}/decline")
+async def decline_trade(trade_id: str, user: dict = Depends(get_user_dep)):
+    t = await db.trades.find_one({"trade_id": trade_id})
+    if not t or t["status"] != "pending":
+        raise HTTPException(404, "Échange introuvable ou déjà résolu")
+    if t["to_user"] != user["user_id"]:
+        raise HTTPException(403, "Action interdite")
+    await _refund_trade_initiator(t)
+    await db.trades.update_one({"trade_id": trade_id}, {"$set": {"status": "declined", "resolved_at": now_utc().isoformat()}})
+    await push_notification(
+        db, t["from_user"], "trade_declined",
+        f"❌ {user['username']} a refusé votre échange",
+        "Vos objets et écus vous ont été restitués.", "ding", "X", link="/inventory",
+    )
+    try:
+        await nexus_world.push_inventory_updated(t["from_user"], "trade_refund", {})
+    except Exception:
+        pass
+    return {"ok": True}
+
+
+@api.post("/economy/trades/{trade_id}/cancel")
+async def cancel_trade(trade_id: str, user: dict = Depends(get_user_dep)):
+    t = await db.trades.find_one({"trade_id": trade_id})
+    if not t or t["status"] != "pending":
+        raise HTTPException(404, "Échange introuvable ou déjà résolu")
+    if t["from_user"] != user["user_id"]:
+        raise HTTPException(403, "Action interdite")
+    await _refund_trade_initiator(t)
+    await db.trades.update_one({"trade_id": trade_id}, {"$set": {"status": "cancelled", "resolved_at": now_utc().isoformat()}})
+    try:
+        await nexus_world.push_inventory_updated(user["user_id"], "trade_refund", {})
+    except Exception:
+        pass
+    return {"ok": True}
+
+
+@api.get("/economy/log")
+async def economy_log(limit: int = 20, user: dict = Depends(get_user_dep)):
+    limit = max(1, min(limit, 50))
+    logs = await db.economy_log.find(
+        {"$or": [{"from_user": user["user_id"]}, {"to_user": user["user_id"]}]},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    # Enrich with usernames
+    uids = list({l["from_user"] for l in logs} | {l["to_user"] for l in logs})
+    udocs = await db.users.find({"user_id": {"$in": uids}}, {"_id": 0, "user_id": 1, "username": 1}).to_list(200)
+    umap = {u["user_id"]: u.get("username", "?") for u in udocs}
+    for l in logs:
+        l["from_username"] = umap.get(l["from_user"], "?")
+        l["to_username"] = umap.get(l["to_user"], "?")
+        l["direction"] = "out" if l["from_user"] == user["user_id"] else "in"
+    return logs
 
 
 # ---------- Kingdom ----------
@@ -2892,7 +3296,7 @@ async def staff_maintenance_login(req: LoginReq, response: Response):
     })
     set_session_cookie(response, token)
     await touch_user_last_seen(user["user_id"])
-    discord_auth_forum.schedule_auth_event("login", user)
+    discord_auth_forum.schedule_auth_event("login", user, method="email")
     result = public_user(user)
     result["session_token"] = token
     return result
@@ -2936,7 +3340,7 @@ async def staff_maintenance_discord_callback(req: MaintenanceDiscordCallbackReq,
     })
     set_session_cookie(response, session_token)
     await touch_user_last_seen(user["user_id"])
-    discord_auth_forum.schedule_auth_event("login", user)
+    discord_auth_forum.schedule_auth_event("login", user, method="discord")
     result = public_user(user)
     result["session_token"] = session_token
     return result
@@ -4266,7 +4670,7 @@ async def discord_exchange(req: DiscordExchangeReq, response: Response):
     await maybe_process_daily_login(user["user_id"])
     discord_sync.schedule_sync(db, user["user_id"])
     if is_new_account:
-        discord_auth_forum.schedule_auth_event("register", user)
+        discord_auth_forum.schedule_auth_event("register", user, method="discord")
         if req.referral_code:
             try:
                 await apply_referral(req.referral_code, user["user_id"])
@@ -4274,7 +4678,7 @@ async def discord_exchange(req: DiscordExchangeReq, response: Response):
                 logger.warning(f"referral attribution (discord) failed: {e}")
         await claim_founder_reward(user["user_id"])
     else:
-        discord_auth_forum.schedule_auth_event("login", user)
+        discord_auth_forum.schedule_auth_event("login", user, method="discord")
     fresh = await db.users.find_one({"user_id": user["user_id"]})
     result = public_user(fresh or user)
     result["session_token"] = token

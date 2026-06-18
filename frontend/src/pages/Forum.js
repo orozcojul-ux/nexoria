@@ -112,10 +112,19 @@ export default function Forum() {
   }
 
   if (cat) {
+    const catObj = categories.find((c) => c.id === cat);
+    const catBanner = catObj
+      ? {
+          ...banner,
+          kicker: "Tribune de NEXORIA",
+          title: catObj.name,
+          subtitle: catObj.description || CATEGORY_DESCRIPTIONS[cat] || banner.subtitle,
+        }
+      : banner;
     return (
-      <ForumShell banner={banner} sidebar={sidebar}>
-        <ThreadList category={cat} query={query} forumMute={forumMute} onBack={goCats} onOpen={(id) => goThread(cat, id)} />
-      </ForumShell>
+      <PageShell wide testid="forum-page" banner={catBanner}>
+        <ThreadList category={cat} forumMute={forumMute} onBack={goCats} onOpen={(id) => goThread(cat, id)} />
+      </PageShell>
     );
   }
 
@@ -325,11 +334,30 @@ function ForumSidebar({ categories, recent, totalThreads, query, onQueryChange, 
   );
 }
 
-function ThreadList({ category, query, forumMute, onBack, onOpen }) {
+const CATEGORY_DESCRIPTIONS = {
+  "salle-commune": "La Salle commune est l'espace principal d'échange entre les héros du Nexus. Discutez librement, présentez-vous et partagez vos aventures.",
+  "strategies": "Partagez vos tactiques, compositions, conseils de classes et théories de combat pour préparer les futurs défis du Royaume.",
+  "mythes": "Explorez le lore de NEXORIA, les récits anciens, les prophéties, les théories et les chroniques écrites par la communauté.",
+  "comptoir": "Discutez des objets, badges, reliques, valeurs, échanges et opportunités commerciales du Nexus.",
+  "recrutement": "Présentez votre ordre, recrutez de nouveaux membres ou trouvez une guilde prête à vous accueillir.",
+  "conseil": "Posez vos questions, trouvez de l'aide, consultez les guides et accompagnez les nouveaux héros dans leurs premiers pas.",
+};
+
+const FORUM_RULES = [
+  "Respecter les autres héros",
+  "Rester dans le thème de la catégorie",
+  "Pas de spam",
+  "Pas de contenu offensant",
+  "Utiliser un titre clair",
+];
+
+function ThreadList({ category, forumMute, onBack, onOpen }) {
   const { user } = useAuth();
   const [threads, setThreads] = useState([]);
   const [showNew, setShowNew] = useState(false);
   const [cat, setCat] = useState(null);
+  const [search, setSearch] = useState("");
+  const [mode, setMode] = useState("all"); // all | pinned | recent | unanswered
 
   const load = async () => {
     const [t, c] = await Promise.all([
@@ -339,99 +367,200 @@ function ThreadList({ category, query, forumMute, onBack, onOpen }) {
     setThreads(t.data);
     setCat(c.data.find((x) => x.id === category));
   };
-  useEffect(() => { load(); }, [category]);
+  useEffect(() => { load(); }, [category]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return threads;
-    return threads.filter((t) => t.title?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q));
-  }, [threads, query]);
+    const q = search.trim().toLowerCase();
+    let list = threads;
+    if (q) list = list.filter((t) => t.title?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q));
+    if (mode === "pinned") list = list.filter((t) => t.pinned);
+    else if (mode === "unanswered") list = list.filter((t) => (t.replies_count || 0) === 0);
+    else if (mode === "recent") list = [...list].sort((a, b) => new Date(b.last_activity_at || b.created_at) - new Date(a.last_activity_at || a.created_at));
+    return list;
+  }, [threads, search, mode]);
+
+  const description = cat?.description || CATEGORY_DESCRIPTIONS[category] || "Espace de discussion de la Tribune de NEXORIA.";
+  const pinned = useMemo(() => threads.filter((t) => t.pinned), [threads]);
+  const stats = useMemo(() => {
+    const totalReplies = threads.reduce((s, t) => s + (t.replies_count || 0), 0);
+    const lastActivity = threads.reduce((m, t) => {
+      const d = t.last_activity_at || t.created_at;
+      return !m || (d && d > m) ? d : m;
+    }, null);
+    const heroes = new Set(threads.map((t) => t.user_id).filter(Boolean)).size;
+    return { topics: threads.length, messages: totalReplies + threads.length, lastActivity, heroes };
+  }, [threads]);
+
+  const openCreate = () => {
+    if (!user) { toast.error("Connecte-toi pour créer un sujet dans le Nexus."); return; }
+    if (forumMute) {
+      toast.error(`Vous êtes réduit au silence jusqu'au ${fmtDate(forumMute.until)}. Vous ne pouvez pas créer de sujet.`);
+      return;
+    }
+    setShowNew(true);
+  };
+
+  const FILTERS = [
+    { id: "all", label: "Tous" },
+    { id: "pinned", label: "Épinglés" },
+    { id: "recent", label: "Récents" },
+    { id: "unanswered", label: "Sans réponse" },
+  ];
 
   return (
     <>
-      <nav className="forum-breadcrumb mb-4 text-xs text-zinc-500" aria-label="Fil d'Ariane">
-        <button type="button" onClick={onBack} className="text-cyan-400 hover:text-cyan-300" data-testid="forum-back">
-          Catégories
+      {/* Breadcrumb */}
+      <nav className="forum-crumb" aria-label="Fil d'Ariane">
+        <button type="button" onClick={onBack} className="forum-crumb-back" data-testid="forum-back">
+          ← Portail communautaire
         </button>
-        <span className="mx-2">/</span>
-        <span className="text-zinc-300">{cat?.name || category}</span>
+        <span className="forum-crumb-sep">/</span>
+        <span className="forum-crumb-cur">{cat?.name || category}</span>
       </nav>
 
-      <div className="hub-page-header mb-5">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-[9px] uppercase tracking-[0.25em] text-amber-400/70 font-bold">Catégorie</div>
-            <h2 className="font-display font-black text-xl text-white">{cat?.name || category}</h2>
-            {cat?.description && <p className="text-xs text-zinc-500 mt-1">{cat.description}</p>}
-          </div>
-          <PremiumButton
-            variant="gold"
-            size="sm"
-            icon={Plus}
-            onClick={() => {
-              if (forumMute) {
-                toast.error(`Vous êtes réduit au silence jusqu'au ${fmtDate(forumMute.until)}. Vous ne pouvez pas créer de sujet.`);
-                return;
-              }
-              setShowNew(true);
-            }}
-            testid="open-new-thread"
-          >
-            Nouveau sujet
-          </PremiumButton>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-white/10 overflow-hidden bg-black/20">
-        {filtered.length === 0 && (
-          <div className="text-center text-zinc-500 italic py-14 text-sm">
-            {query ? "Aucun sujet ne correspond à votre recherche" : "Aucun sujet — soyez le premier à prendre la parole"}
-          </div>
-        )}
-        {filtered.map((t) => (
-          <div key={t.thread_id} className="forum-thread-row flex items-center gap-0">
-            <button
-              type="button"
-              onClick={() => onOpen(t.thread_id)}
-              data-testid={`thread-${t.thread_id}`}
-              className="flex flex-1 items-center gap-3 min-w-0 text-left bg-transparent border-0 p-0"
-            >
-              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                {t.pinned ? <Pin className="w-3.5 h-3.5 text-yellow-400" /> : <MessageCircle className="w-3.5 h-3.5 text-zinc-500" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  {t.locked && <Lock className="w-3 h-3 text-red-400 shrink-0" />}
-                  <span className="font-display font-semibold text-sm text-white truncate">{t.title}</span>
-                </div>
-                <div className="text-[11px] text-zinc-500 flex items-center gap-2 flex-wrap">
-                  <HeroName user={t.author} size="sm" />
-                  <span>·</span>
-                  <Clock className="w-3 h-3 inline" />
-                  {fmtDate(t.created_at)}
-                </div>
-              </div>
-              <div className="text-right text-[10px] font-mono-stat font-bold shrink-0 space-y-0.5">
-                <div className="text-cyan-400 flex items-center gap-1 justify-end">
-                  <MessageCircle className="w-3 h-3" /> {t.replies_count}
-                </div>
-                <div className="text-zinc-600 flex items-center gap-1 justify-end">
-                  <Eye className="w-3 h-3" /> {t.views}
-                </div>
-              </div>
+      <div className="forum-cat-grid">
+        {/* ─── LEFT : topics ─── */}
+        <div className="forum-activity" data-testid="forum-topics-panel">
+          <div className="forum-topics-bar">
+            <input
+              className="forum-topics-search"
+              placeholder="Rechercher un sujet…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              data-testid="forum-cat-search"
+            />
+            <button type="button" className="forum-create" onClick={openCreate} data-testid="open-new-thread">
+              <Plus className="w-3.5 h-3.5" /> Créer un sujet
             </button>
-            {user?.user_id && user.user_id !== t.user_id && (
-              <div className="shrink-0 pr-3" onClick={(e) => e.stopPropagation()}>
-                <ReportButton
-                  targetType="forum_thread"
-                  targetId={t.thread_id}
-                  reportedUserId={t.user_id}
-                  contextLabel={t.title}
-                />
+          </div>
+          <div className="forum-filters">
+            {FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setMode(f.id)}
+                className={`forum-filter ${mode === f.id ? "forum-filter--active" : ""}`}
+                data-testid={`forum-filter-${f.id}`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="forum-activity-head">
+            <span className="forum-activity-head-label">
+              <Flame className="w-3.5 h-3.5" /> Sujets récents
+            </span>
+            <span className="forum-panel-count">{filtered.length} sujet{filtered.length > 1 ? "s" : ""}</span>
+          </div>
+
+          <div className="forum-activity-list">
+            {filtered.length === 0 ? (
+              <div className="forum-activity-empty">
+                {search || mode !== "all"
+                  ? "Aucun sujet ne correspond à votre recherche."
+                  : "Aucun sujet n'a encore été ouvert dans cette section du Nexus."}
               </div>
+            ) : (
+              filtered.map((t) => {
+                const isNew = t.created_at && (Date.now() - new Date(t.created_at).getTime()) < 86400000;
+                return (
+                  <div key={t.thread_id} className="forum-topic-line" data-testid={`thread-${t.thread_id}`}>
+                    <button
+                      type="button"
+                      onClick={() => onOpen(t.thread_id)}
+                      className="flex items-center gap-3 flex-1 min-w-0 text-left bg-transparent border-0 p-0"
+                      style={{ cursor: "pointer" }}
+                    >
+                      <span className="forum-topic-line-ico">
+                        {t.pinned
+                          ? <Pin className="w-4 h-4" style={{ color: "#f0ca6a" }} />
+                          : <MessageCircle className="w-4 h-4" style={{ color: "#c89a3c" }} />}
+                      </span>
+                      <span className="forum-topic-line-body">
+                        <span className="forum-topic-line-titlerow">
+                          <span className="forum-topic-line-title">{t.title}</span>
+                          {t.pinned && <span className="forum-badge forum-badge--pin"><Pin className="w-2.5 h-2.5" /> Épinglé</span>}
+                          {t.locked && <span className="forum-badge forum-badge--lock"><Lock className="w-2.5 h-2.5" /> Fermé</span>}
+                          {isNew && !t.pinned && <span className="forum-badge forum-badge--new">Nouveau</span>}
+                        </span>
+                        <span className="forum-topic-line-sub">
+                          <HeroName user={t.author} size="sm" />
+                          <span className="forum-crumb-sep">·</span>
+                          <Clock className="w-3 h-3" /> {fmtDate(t.created_at)}
+                        </span>
+                      </span>
+                      <span className="forum-topic-line-meta">
+                        <span className="forum-topic-count">
+                          <MessageCircle className="w-3 h-3" /> {t.replies_count || 0}
+                        </span>
+                        <span className="forum-topic-date">
+                          <Eye className="w-3 h-3 inline mr-0.5" />{t.views || 0}
+                        </span>
+                      </span>
+                    </button>
+                    {user?.user_id && user.user_id !== t.user_id && (
+                      <div className="shrink-0 pl-2" onClick={(e) => e.stopPropagation()}>
+                        <ReportButton
+                          targetType="forum_thread"
+                          targetId={t.thread_id}
+                          reportedUserId={t.user_id}
+                          contextLabel={t.title}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
-        ))}
+        </div>
+
+        {/* ─── RIGHT : category info ─── */}
+        <aside>
+          {/* About */}
+          <div className="forum-side-panel">
+            <div className="forum-side-head"><BookOpen className="w-3.5 h-3.5" /> À propos</div>
+            <div className="forum-side-body">
+              <p className="forum-side-desc">{description}</p>
+            </div>
+          </div>
+
+          {/* Rules */}
+          <div className="forum-side-panel">
+            <div className="forum-side-head"><Shield className="w-3.5 h-3.5" /> Règles</div>
+            <div className="forum-side-body">
+              {FORUM_RULES.map((r) => (
+                <div key={r} className="forum-rule-item"><Shield />{r}</div>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="forum-side-panel">
+            <div className="forum-side-head"><TrendingUp className="w-3.5 h-3.5" /> Statistiques</div>
+            <div className="forum-side-body">
+              <div className="forum-stat-line"><span className="forum-stat-line-label">Sujets</span><span className="forum-stat-line-val">{stats.topics}</span></div>
+              <div className="forum-stat-line"><span className="forum-stat-line-label">Messages</span><span className="forum-stat-line-val">{stats.messages}</span></div>
+              <div className="forum-stat-line"><span className="forum-stat-line-label">Héros actifs</span><span className="forum-stat-line-val">{stats.heroes}</span></div>
+              <div className="forum-stat-line"><span className="forum-stat-line-label">Dernière activité</span><span className="forum-stat-line-val" style={{ fontSize: "0.62rem" }}>{stats.lastActivity ? fmtDate(stats.lastActivity) : "—"}</span></div>
+            </div>
+          </div>
+
+          {/* Pinned */}
+          {pinned.length > 0 && (
+            <div className="forum-side-panel">
+              <div className="forum-side-head"><Pin className="w-3.5 h-3.5" /> Sujets épinglés</div>
+              <div className="forum-side-body">
+                {pinned.slice(0, 5).map((t) => (
+                  <button key={t.thread_id} type="button" className="forum-pin-mini" onClick={() => onOpen(t.thread_id)}>
+                    <Pin className="w-3 h-3 shrink-0" style={{ color: "#f0ca6a" }} />
+                    <span className="forum-pin-mini-title">{t.title}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </aside>
       </div>
 
       <AnimatePresence>

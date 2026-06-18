@@ -40,12 +40,26 @@ def notify_channel_id() -> str:
     )
 
 
-def _format_message(event: str, user: dict) -> str:
+# Libellé lisible de la méthode d'authentification.
+_METHOD_LABELS = {
+    "discord": "via Discord",
+    "email": "via e-mail",
+    "google": "via Google",
+}
+
+
+def _method_suffix(method: str | None) -> str:
+    label = _METHOD_LABELS.get((method or "").lower())
+    return f" {label}" if label else ""
+
+
+def _format_message(event: str, user: dict, method: str | None = None) -> str:
     username = user.get("username") or "Héros"
+    via = _method_suffix(method)
     if event == "register":
-        return f"✨ **{username}** vient de rejoindre NEXORIA — bienvenue sur le Discord !"
+        return f"✨ **{username}** vient de rejoindre NEXORIA{via} — bienvenue sur le Discord !"
     if event == "login":
-        return f"✨ **{username}** s'est connecté, bienvenue sur Nexoria !"
+        return f"✨ **{username}** s'est connecté{via}, bienvenue sur Nexoria !"
     if event == "logout":
         return f"🔴 **{username}** s'est déconnecté de NEXORIA — à bientôt sur le Discord !"
     if event == "rename":
@@ -54,7 +68,7 @@ def _format_message(event: str, user: dict) -> str:
     return f"👋 **{username}** sur NEXORIA"
 
 
-async def notify_auth_event(event: str, user: dict) -> bool:
+async def notify_auth_event(event: str, user: dict, method: str | None = None) -> bool:
     """Post a simple line in the notifications channel (no thread)."""
     if event not in ("register", "login", "logout", "rename"):
         return False
@@ -65,7 +79,7 @@ async def notify_auth_event(event: str, user: dict) -> bool:
 
     try:
         ok = await discord_sync.post_notification(
-            _format_message(event, user),
+            _format_message(event, user, method),
             channel_id=channel_id,
         )
     except Exception as exc:  # noqa: BLE001 — fire-and-forget, on ne casse rien
@@ -120,8 +134,12 @@ def schedule_beta_redeemed(name: str) -> None:
     logger.info("Discord beta notification scheduled for %s", name)
 
 
-def schedule_auth_event(event: str, user: dict) -> None:
-    """Fire-and-forget Discord auth announcement (ne ralentit pas la requête)."""
+def schedule_auth_event(event: str, user: dict, method: str | None = None) -> None:
+    """Fire-and-forget Discord auth announcement (ne ralentit pas la requête).
+
+    `method` précise comment l'utilisateur s'est authentifié ("discord",
+    "email", "google") et est ajouté au message pour login/register.
+    """
     # Dé-doublonnage des connexions pour éviter le spam.
     if event == "login":
         uid = user.get("user_id")
@@ -142,7 +160,7 @@ def schedule_auth_event(event: str, user: dict) -> None:
         logger.warning("Discord auth notification %s failed: pas de boucle asyncio active", event)
         return
 
-    task = loop.create_task(notify_auth_event(event, user))
+    task = loop.create_task(notify_auth_event(event, user, method))
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
     logger.info("Discord auth notification %s scheduled", event)

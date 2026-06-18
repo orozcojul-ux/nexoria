@@ -1,7 +1,11 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import api, { setToken, getToken, API_URL } from "@/lib/api";
 
 const AUTH_CLOSE_FLAG = "nexoria_tab_closing"; // sessionStorage key
+// Inactivité avant déconnexion automatique (doit rester ≤ au SESSION_IDLE_MINUTES backend).
+const IDLE_MINUTES = 30;
+const IDLE_MS = IDLE_MINUTES * 60 * 1000;
 
 const AuthContext = createContext(null);
 
@@ -9,6 +13,7 @@ export function AuthProvider({ children }) {
   const [user, setUserState] = useState(null);
   const [loading, setLoading] = useState(true);
   const [banInfo, setBanInfo] = useState(null);
+  const lastActivityRef = useRef(Date.now());
 
   const setUser = useCallback((u) => {
     if (u?.session_token) setToken(u.session_token);
@@ -73,37 +78,78 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { checkAuth(); }, [checkAuth]);
 
-  // ── beforeunload: mark session as closing + send beacon ──────────────────
-  // sendBeacon cannot set Authorization headers, so the token is sent in the body.
+  // ── Browser/tab close: mark session as closing + send beacon ─────────────
+  // `beforeunload` works on desktop ; `pagehide` is the reliable signal on
+  // iOS/iPad/Android (where beforeunload often doesn't fire). sendBeacon cannot
+  // set Authorization headers, so the token is sent in the body.
   useEffect(() => {
-    const handleUnload = () => {
+    const signalClose = () => {
       const token = getToken();
       if (!token) return;
-      // 1. Mark in sessionStorage: if this was a refresh, the next load detects it
       sessionStorage.setItem(AUTH_CLOSE_FLAG, "1");
-      // 2. Tell the server the tab is about to close
-      const body = JSON.stringify({ token });
-      const blob = new Blob([body], { type: "application/json" });
+      const blob = new Blob([JSON.stringify({ token })], { type: "application/json" });
       navigator.sendBeacon?.(`${API_URL}/auth/tab-close`, blob);
     };
-    window.addEventListener("beforeunload", handleUnload);
-    return () => window.removeEventListener("beforeunload", handleUnload);
+    const onPageHide = (e) => {
+      // persisted=true → page is going into the bfcache (mobile app-switch), not a close.
+      if (e.persisted) return;
+      signalClose();
+    };
+    const onPageShow = (e) => {
+      // Restored from bfcache (came back to the tab) → cancel any pending close.
+      if (e.persisted && getToken()) {
+        sessionStorage.removeItem(AUTH_CLOSE_FLAG);
+        api.post("/auth/tab-reactivate").catch(() => {});
+      }
+    };
+    window.addEventListener("beforeunload", signalClose);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      window.removeEventListener("beforeunload", signalClose);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
+    };
   }, []);
 
-  // Heartbeat — keeps session activity fresh for "Sur le site" / staff presence accuracy
+  // ── Heartbeat + idle auto-logout ─────────────────────────────────────────
+  // The heartbeat only fires while the page is visible AND the user has
+  // interacted recently. When the user is idle (or the browser is closed),
+  // heartbeats stop → the server-side idle timeout closes the session, and the
+  // client below logs out locally. Works identically on iPad, mobile and PC.
   useEffect(() => {
     if (!user?.user_id) return undefined;
+
+    const markActivity = () => { lastActivityRef.current = Date.now(); };
+    const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"];
+    events.forEach((ev) => window.addEventListener(ev, markActivity, { passive: true }));
+    const onVisible = () => { if (document.visibilityState === "visible") markActivity(); };
+    document.addEventListener("visibilitychange", onVisible);
+
     const ping = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      if (document.visibilityState === "hidden") return;
+      if (Date.now() - lastActivityRef.current > IDLE_MS) return; // idle → let session expire
       api.post("/auth/heartbeat").catch(() => {});
     };
     ping();
-    const id = setInterval(ping, 60000);
-    const onVisible = () => { if (document.visibilityState === "visible") ping(); };
-    document.addEventListener("visibilitychange", onVisible);
+    const pingId = setInterval(ping, 60000);
+
+    const idleId = setInterval(async () => {
+      if (Date.now() - lastActivityRef.current < IDLE_MS) return;
+      clearInterval(pingId);
+      clearInterval(idleId);
+      try { await api.post("/auth/logout"); } catch { /* session may already be gone */ }
+      setToken(null);
+      setUserState(null);
+      toast.info("Session fermée pour cause d'inactivité.");
+      window.location.href = "/login";
+    }, 30000);
+
     return () => {
-      clearInterval(id);
+      events.forEach((ev) => window.removeEventListener(ev, markActivity));
       document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(pingId);
+      clearInterval(idleId);
     };
   }, [user?.user_id]);
 

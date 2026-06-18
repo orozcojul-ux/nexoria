@@ -11,6 +11,11 @@ from fastapi import HTTPException, Request
 
 JWT_ALGORITHM = "HS256"
 
+# Inactivité : une session sans activité depuis SESSION_IDLE_MINUTES est fermée.
+# Couvre à la fois l'inactivité (onglet ouvert mais aucune interaction) et la
+# fermeture du navigateur (les heartbeats cessent) — fiable sur iPad, mobile et PC.
+SESSION_IDLE_MINUTES = int(os.environ.get("SESSION_IDLE_MINUTES", "30"))
+
 
 def hash_password(password: str) -> str:
     salt = bcrypt.gensalt()
@@ -74,6 +79,26 @@ async def get_current_user(request: Request, db) -> dict:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at and expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Session expired")
+
+    # Idle timeout: kill the session if there has been no *interaction* for too long.
+    # We use `last_heartbeat_at` (set ONLY by /auth/heartbeat, which the client fires
+    # solely while the user is genuinely active) — NOT `last_activity_at`, which any
+    # background poll would refresh, defeating the timeout. Falls back to
+    # last_activity_at for legacy sessions that predate the heartbeat field.
+    idle_ref = session.get("last_heartbeat_at") or session.get("last_activity_at")
+    if idle_ref and SESSION_IDLE_MINUTES > 0:
+        try:
+            ref_dt = datetime.fromisoformat(idle_ref) if isinstance(idle_ref, str) else idle_ref
+            if ref_dt.tzinfo is None:
+                ref_dt = ref_dt.replace(tzinfo=timezone.utc)
+            idle_seconds = (datetime.now(timezone.utc) - ref_dt).total_seconds()
+            if idle_seconds > SESSION_IDLE_MINUTES * 60:
+                await db.user_sessions.delete_one({"session_token": token})
+                raise HTTPException(status_code=401, detail="Session expirée (inactivité)")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
 
     # Tab-close detection: reject sessions flagged as closed more than 5 seconds ago.
     # This is set by `beforeunload` + sendBeacon; the flag is removed if the user
