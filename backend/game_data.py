@@ -2,16 +2,106 @@
 
 # 10 RPG Classes
 CLASSES = {
-    "mage": {"id": "mage", "name": "Mage", "icon": "Sparkles", "color": "#9D4CDD", "tagline": "Maître des arcanes et des éléments", "stat_bonus": {"creativity": 3, "expertise": 2}},
-    "warrior": {"id": "warrior", "name": "Guerrier", "icon": "Swords", "color": "#EF4444", "tagline": "Force brute et honneur du combat", "stat_bonus": {"persistence": 3, "leadership": 2}},
-    "assassin": {"id": "assassin", "name": "Assassin", "icon": "Skull", "color": "#71717A", "tagline": "Ombre silencieuse, lame précise", "stat_bonus": {"curiosity": 3, "ambition": 2}},
-    "paladin": {"id": "paladin", "name": "Paladin", "icon": "Shield", "color": "#EAB308", "tagline": "Gardien de la lumière et de la justice", "stat_bonus": {"leadership": 3, "sociability": 2}},
-    "alchemist": {"id": "alchemist", "name": "Alchimiste", "icon": "FlaskConical", "color": "#10B981", "tagline": "Transmuteur des éléments oubliés", "stat_bonus": {"creativity": 2, "expertise": 3}},
-    "explorer": {"id": "explorer", "name": "Explorateur", "icon": "Compass", "color": "#00BFFF", "tagline": "Cartographe des mondes inconnus", "stat_bonus": {"curiosity": 3, "discovery": 2}},
-    "necromancer": {"id": "necromancer", "name": "Nécromancien", "icon": "Ghost", "color": "#7928CA", "tagline": "Maître des âmes et des cycles", "stat_bonus": {"expertise": 2, "ambition": 3}},
-    "architect": {"id": "architect", "name": "Architecte", "icon": "Building2", "color": "#A855F7", "tagline": "Bâtisseur des cités éternelles", "stat_bonus": {"creativity": 3, "persistence": 2}},
-    "chronomancer": {"id": "chronomancer", "name": "Chronomancien", "icon": "Clock", "color": "#00E5FF", "tagline": "Tisseur du temps et des destinées", "stat_bonus": {"expertise": 3, "curiosity": 2}},
-    "inventor": {"id": "inventor", "name": "Inventeur", "icon": "Cog", "color": "#FFD700", "tagline": "Génie des engrenages et des merveilles", "stat_bonus": {"creativity": 3, "ambition": 2}},
+    "mage": {
+        "id": "mage", "name": "Mage", "icon": "Sparkles", "color": "#9D4CDD",
+        "tagline": "Maître des arcanes et des éléments",
+        "stat_bonus": {"creativity": 3, "expertise": 2},
+        "powers": [
+            {"id": "arcane_surge",    "name": "Surtension Arcane",    "icon": "Zap",        "description": "+25% XP gagné depuis l'Oracle des Quêtes"},
+            {"id": "spell_mastery",   "name": "Maîtrise des Sorts",   "icon": "BookOpen",   "description": "Double XP sur toutes les quêtes de type oracle_log"},
+            {"id": "mana_resonance",  "name": "Résonance Mana",       "icon": "Sparkles",   "description": "+10 DNA Créativité bonus à chaque niveau"},
+        ],
+    },
+    "warrior": {
+        "id": "warrior", "name": "Guerrier", "icon": "Swords", "color": "#EF4444",
+        "tagline": "Force brute et honneur du combat",
+        "stat_bonus": {"persistence": 3, "leadership": 2},
+        "powers": [
+            {"id": "iron_will",       "name": "Volonté de Fer",       "icon": "Shield",     "description": "+15% XP gagné depuis les quêtes forum_thread"},
+            {"id": "rally_cry",       "name": "Cri de Ralliement",    "icon": "Megaphone",  "description": "+2 Réputation pour chaque membre invité en guilde"},
+            {"id": "unbreakable",     "name": "Inébranlable",         "icon": "Swords",     "description": "+10 DNA Persévérance bonus à chaque niveau"},
+        ],
+    },
+    "assassin": {
+        "id": "assassin", "name": "Assassin", "icon": "Skull", "color": "#71717A",
+        "tagline": "Ombre silencieuse, lame précise",
+        "stat_bonus": {"curiosity": 3, "ambition": 2},
+        "powers": [
+            {"id": "shadow_step",     "name": "Pas de l'Ombre",       "icon": "EyeOff",     "description": "Détecte les failles dimensionnelles avec 2× plus de chances"},
+            {"id": "precision",       "name": "Précision",            "icon": "Target",     "description": "+20% Écus gagnés lors de l'exploration du Nexus"},
+            {"id": "vanish",          "name": "Disparition",          "icon": "Ghost",      "description": "+10 DNA Curiosité bonus à chaque niveau"},
+        ],
+    },
+    "paladin": {
+        "id": "paladin", "name": "Paladin", "icon": "Shield", "color": "#EAB308",
+        "tagline": "Gardien de la lumière et de la justice",
+        "stat_bonus": {"leadership": 3, "sociability": 2},
+        "powers": [
+            {"id": "divine_aura",     "name": "Aura Divine",          "icon": "Sun",        "description": "+30 XP bonus pour chaque nouveau héros parrainé"},
+            {"id": "holy_shield",     "name": "Bouclier Sacré",       "icon": "ShieldCheck","description": "+2 Réputation reçue sur chaque post du fil"},
+            {"id": "oath",            "name": "Serment",              "icon": "Crown",      "description": "+10 DNA Leadership bonus à chaque niveau"},
+        ],
+    },
+    "alchemist": {
+        "id": "alchemist", "name": "Alchimiste", "icon": "FlaskConical", "color": "#10B981",
+        "tagline": "Transmuteur des éléments oubliés",
+        "stat_bonus": {"creativity": 2, "expertise": 3},
+        "powers": [
+            {"id": "transmutation",   "name": "Transmutation",        "icon": "Repeat",     "description": "Coffres ouverts garantissent au moins 1 objet Rare"},
+            {"id": "elixir_craft",    "name": "Élixir Maître",        "icon": "FlaskConical","description": "+25% durée des boosts achetés en boutique"},
+            {"id": "catalyst",        "name": "Catalyseur",           "icon": "Atom",       "description": "+10 DNA Expertise bonus à chaque niveau"},
+        ],
+    },
+    "explorer": {
+        "id": "explorer", "name": "Explorateur", "icon": "Compass", "color": "#00BFFF",
+        "tagline": "Cartographe des mondes inconnus",
+        "stat_bonus": {"curiosity": 3, "discovery": 2},
+        "powers": [
+            {"id": "pathfinder",      "name": "Éclaireur",            "icon": "Map",        "description": "Révèle les failles 2× plus souvent (cooldown réduit)"},
+            {"id": "treasure_sense",  "name": "Sens du Trésor",       "icon": "Gem",        "description": "+10% chance d'objet Épique dans les coffres"},
+            {"id": "wanderlust",      "name": "Soif d'Aventure",      "icon": "Compass",    "description": "+10 DNA Curiosité bonus à chaque niveau"},
+        ],
+    },
+    "necromancer": {
+        "id": "necromancer", "name": "Nécromancien", "icon": "Ghost", "color": "#7928CA",
+        "tagline": "Maître des âmes et des cycles",
+        "stat_bonus": {"expertise": 2, "ambition": 3},
+        "powers": [
+            {"id": "soul_harvest",    "name": "Moisson des Âmes",     "icon": "Ghost",      "description": "+30 XP bonus pour chaque quête réactivée (relancée)"},
+            {"id": "undying_will",    "name": "Volonté Impérissable", "icon": "Skull",      "description": "Récupère 50% de l'XP perdue sur les quêtes expirées"},
+            {"id": "dark_mastery",    "name": "Maîtrise Obscure",     "icon": "Eye",        "description": "+10 DNA Ambition bonus à chaque niveau"},
+        ],
+    },
+    "architect": {
+        "id": "architect", "name": "Architecte", "icon": "Building2", "color": "#A855F7",
+        "tagline": "Bâtisseur des cités éternelles",
+        "stat_bonus": {"creativity": 3, "persistence": 2},
+        "powers": [
+            {"id": "blueprint",       "name": "Plans du Maître",      "icon": "Ruler",      "description": "-10% coût Écus sur toutes les améliorations du Royaume"},
+            {"id": "grand_design",    "name": "Grand Dessein",        "icon": "Building2",  "description": "+50% revenus passifs des bâtiments du Royaume"},
+            {"id": "legacy",          "name": "Héritage",             "icon": "Layers",     "description": "+10 DNA Créativité bonus à chaque niveau"},
+        ],
+    },
+    "chronomancer": {
+        "id": "chronomancer", "name": "Chronomancien", "icon": "Clock", "color": "#00E5FF",
+        "tagline": "Tisseur du temps et des destinées",
+        "stat_bonus": {"expertise": 3, "curiosity": 2},
+        "powers": [
+            {"id": "time_warp",       "name": "Distorsion Temporelle","icon": "Clock",      "description": "Étend la durée des quêtes journalières de +4h"},
+            {"id": "foresight",       "name": "Prescience",           "icon": "Eye",        "description": "+20% XP pendant les événements saisonniers actifs"},
+            {"id": "temporal_echo",   "name": "Écho Temporel",        "icon": "RefreshCw",  "description": "+10 DNA Expertise bonus à chaque niveau"},
+        ],
+    },
+    "inventor": {
+        "id": "inventor", "name": "Inventeur", "icon": "Cog", "color": "#FFD700",
+        "tagline": "Génie des engrenages et des merveilles",
+        "stat_bonus": {"creativity": 3, "ambition": 2},
+        "powers": [
+            {"id": "overclocked",     "name": "Surchargé",            "icon": "Cog",        "description": "+20% Écus passifs générés par la Mine d'Écus"},
+            {"id": "gadget_forge",    "name": "Forge à Gadgets",      "icon": "Wrench",     "description": "+1 emplacement d'inventaire offert tous les 10 niveaux"},
+            {"id": "eureka",          "name": "Eurêka !",             "icon": "Lightbulb",  "description": "+10 DNA Ambition bonus à chaque niveau"},
+        ],
+    },
 }
 
 # 8 Skills (Path of Exile style)
@@ -146,8 +236,15 @@ QUEST_TEMPLATES = [
     {"id": "weekly_guild_chat", "type": "weekly", "name": "Fraternité d'Ordre", "description": "Envoie 10 messages dans le chat de ton ordre (onglet Guildes › ton ordre › Discussion).", "target": 10, "action": "guild_chat", "xp": 220, "aether": 110},
     {"id": "weekly_oracle", "type": "weekly", "name": "Sagesse de l'Oracle", "description": "Consulte l'Oracle 3 fois (onglet Oracle).", "target": 3, "action": "oracle", "xp": 250, "aether": 120},
     {"id": "weekly_friends", "type": "weekly", "name": "Liens d'Amitié", "description": "Envoie 5 messages privés à un ami (onglet Amis › ouvre une discussion).", "target": 5, "action": "friend_message", "xp": 180, "aether": 90},
-    # ── Mensuelle ──
+    # ── Quotidiennes supplémentaires ──
+    {"id": "daily_chest", "type": "daily", "name": "Briseur de Sceau", "description": "Ouvre 1 coffre (Inventaire › Ouvrir le coffre — coûte 50 Écus, remboursés par la récompense).", "target": 1, "action": "chest_open", "xp": 80, "aether": 50},
+    # ── Hebdomadaires supplémentaires ──
+    {"id": "weekly_parrainage", "type": "weekly", "name": "Messager du Royaume", "description": "Parraine 1 nouvel héros cette semaine (Settings › Parrainage › partage ton lien).", "target": 1, "action": "referral", "xp": 350, "aether": 175},
+    {"id": "weekly_shop", "type": "weekly", "name": "Mécène de la Boutique", "description": "Effectue 1 achat à la Boutique cette semaine (l'article le moins cher coûte 50 Écus — remboursés par la récompense).", "target": 1, "action": "shop_purchase", "xp": 200, "aether": 50},
+    # ── Mensuelle supplémentaire ──
     {"id": "monthly_grind", "type": "monthly", "name": "Marathonien", "description": "Gagne 5000 XP ce mois (en publiant, réagissant et participant partout sur le site).", "target": 5000, "action": "xp", "xp": 1500, "aether": 800},
+    {"id": "monthly_parrainage", "type": "monthly", "name": "Seigneur des Alliances", "description": "Parraine 3 nouveaux héros ce mois (Settings › Parrainage › partage ton lien).", "target": 3, "action": "referral", "xp": 1000, "aether": 500},
+    {"id": "monthly_vip", "type": "monthly", "name": "Ascension Royale", "description": "Active le Pass Ascendant ce mois (Boutique › Pass Ascendant).", "target": 1, "action": "vip_purchase", "xp": 2000, "aether": 1000},
 ]
 
 # Défis communautaires affichés sur l'accueil / événements (objectifs collectifs)
@@ -163,6 +260,9 @@ COMMUNITY_CHALLENGES = [
         "link": "/forum",
         "tone": "violet",
         "icon": "MessageSquare",
+        "reward_xp": 200,
+        "reward_aether": 100,
+        "reward_label": "+200 XP · +100 Écus pour tous les héros",
     },
     {
         "challenge_id": "forum_chronicles",
@@ -175,6 +275,9 @@ COMMUNITY_CHALLENGES = [
         "link": "/forum",
         "tone": "cyan",
         "icon": "ScrollText",
+        "reward_xp": 150,
+        "reward_aether": 75,
+        "reward_label": "+150 XP · +75 Écus pour tous les héros",
     },
     {
         "challenge_id": "oracle_convergence",
@@ -187,6 +290,9 @@ COMMUNITY_CHALLENGES = [
         "link": "/oracle",
         "tone": "amber",
         "icon": "Sparkles",
+        "reward_xp": 250,
+        "reward_aether": 120,
+        "reward_label": "+250 XP · +120 Écus pour tous les héros",
     },
     {
         "challenge_id": "guild_banners",
@@ -199,6 +305,9 @@ COMMUNITY_CHALLENGES = [
         "link": "/guilds",
         "tone": "gold",
         "icon": "Castle",
+        "reward_xp": 300,
+        "reward_aether": 150,
+        "reward_label": "+300 XP · +150 Écus pour tous les héros",
     },
     {
         "challenge_id": "fellowship_bonds",
@@ -211,6 +320,9 @@ COMMUNITY_CHALLENGES = [
         "link": "/friends",
         "tone": "emerald",
         "icon": "Users",
+        "reward_xp": 200,
+        "reward_aether": 100,
+        "reward_label": "+200 XP · +100 Écus pour tous les héros",
     },
 ]
 

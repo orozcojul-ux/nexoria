@@ -18,6 +18,7 @@ import ForumModerationAdmin from "@/components/admin/ForumModerationAdmin";
 import NewsAdmin from "@/components/admin/NewsAdmin";
 import AdminEditHeroDialog from "@/components/admin/AdminEditHeroDialog";
 import ReportsAdmin from "@/components/admin/ReportsAdmin";
+import EventsAdmin from "@/components/admin/EventsAdmin";
 import { MAINTENANCE_HTML_FIELDS, DEFAULT_MAINTENANCE_HTML, normalizeMaintenanceHtml, normalizeMaintenanceSystems } from "@/lib/maintenance-content";
 import { ONLINE_GATE_HTML_FIELDS, DEFAULT_ONLINE_GATE_HTML, normalizeOnlineGateHtml } from "@/lib/online-gate-content";
 import "@/pages/Maintenance.css";
@@ -378,6 +379,7 @@ export default function Admin() {
       {tab === "forum-mod" && <ForumModerationAdmin />}
       {tab === "shop" && <ShopAdmin />}
       {tab === "news" && <NewsAdmin />}
+      {tab === "events" && <EventsAdmin />}
       {tab === "seasons" && <SeasonsAdmin />}
       {tab === "tickets" && <TicketsAdmin />}
       {tab === "reports" && <ReportsAdmin />}

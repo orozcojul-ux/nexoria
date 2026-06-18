@@ -27,6 +27,7 @@ export default function Hero() {
   const [titles, setTitles] = useState([]);
   const [rift, setRift] = useState(null);
   const [classModal, setClassModal] = useState(false);
+  const [classPowers, setClassPowers] = useState([]);
 
   const loadHeroData = useCallback(() => {
     if (!user) return;
@@ -37,9 +38,12 @@ export default function Hero() {
       api.get("/game/titles"),
       api.get("/rifts/check"),
       api.post("/quests/daily-login").catch(() => {}),
-    ]).then(([b, ab, c, t, r]) => {
+      api.get("/game/classes").catch(() => ({ data: [] })),
+    ]).then(([b, ab, c, t, r, , cls]) => {
       setBadges(b.data); setAllBadges(ab.data); setChronicle(c.data); setTitles(t.data);
       if (r.data?.rift) { setRift(r.data.rift); sfx.rift(); }
+      const myClass = (cls.data || []).find((x) => x.id === (user.class_id || user.class_name?.toLowerCase()));
+      setClassPowers(myClass?.powers || []);
     });
   }, [user]);
 
@@ -106,18 +110,49 @@ export default function Hero() {
       <ClassChangeModal open={classModal} onClose={() => setClassModal(false)} user={user} onChanged={refresh} />
 
       {rift && (
-        <PremiumCard tone="violet" className="p-4 flex items-center gap-4 relative overflow-hidden" testid="rift-notification">
-          <Sparkles className="w-8 h-8 text-violet-400 animate-pulse drop-shadow-[0_0_12px_rgba(157,76,221,0.8)]" />
-          <div className="flex-1">
-            <div className="text-[10px] uppercase tracking-[0.4em] text-violet-300 font-bold">Déchirure dans la trame</div>
-            <div className="font-display font-bold text-lg">{rift.name}</div>
-            <div className="text-sm text-zinc-300 italic">{rift.description}</div>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.88, y: -20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.92, y: -10 }}
+          transition={{ type: "spring", stiffness: 260, damping: 20 }}
+          data-testid="rift-notification"
+          className="relative overflow-hidden rounded-2xl border border-violet-500/60 p-5 flex items-center gap-5"
+          style={{
+            background: "linear-gradient(120deg,rgba(109,40,217,0.35) 0%,rgba(10,6,19,0.95) 60%,rgba(0,229,255,0.12) 100%)",
+            boxShadow: "0 0 40px rgba(157,76,221,0.45), inset 0 0 60px rgba(109,40,217,0.15)",
+          }}
+        >
+          {/* Animated glow orb */}
+          <div className="absolute -top-8 -left-8 w-40 h-40 rounded-full blur-3xl animate-pulse pointer-events-none"
+            style={{ background: "rgba(157,76,221,0.4)" }} />
+          <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full blur-3xl animate-pulse pointer-events-none"
+            style={{ background: "rgba(0,229,255,0.2)", animationDelay: "0.5s" }} />
+
+          <div className="relative z-10 w-14 h-14 rounded-xl bg-violet-500/20 border border-violet-400/40 flex items-center justify-center shrink-0">
+            <Sparkles className="w-8 h-8 text-violet-300 animate-pulse" style={{ filter: "drop-shadow(0 0 12px rgba(157,76,221,0.9))" }} />
           </div>
-          <button onClick={claimRift} data-testid="claim-rift-btn"
-            className="px-4 py-2 rounded-md border border-violet-500/50 text-violet-300 hover:shadow-[0_0_24px_rgba(157,76,221,0.5)] transition-all font-display font-bold tracking-wide text-sm">
-            Saisir
+
+          <div className="relative z-10 flex-1 min-w-0">
+            <div className="text-[9px] uppercase tracking-[0.5em] text-violet-300/80 font-bold mb-0.5">⚡ Déchirure dans la trame</div>
+            <div className="font-display font-black text-xl text-white">{rift.name}</div>
+            <div className="text-sm text-zinc-300 italic mt-0.5">{rift.description}</div>
+            <div className="mt-2 text-[11px] text-violet-200/70">
+              Récompense : <span className="font-bold text-violet-200">{rift.reward || "Inconnu"}</span>
+            </div>
+          </div>
+
+          <button
+            onClick={claimRift}
+            data-testid="claim-rift-btn"
+            className="relative z-10 shrink-0 px-5 py-3 rounded-xl font-display font-black tracking-wide text-sm text-white transition-all hover:scale-105 active:scale-95"
+            style={{
+              background: "linear-gradient(135deg,#7c3aed,#4f46e5)",
+              boxShadow: "0 0 24px rgba(124,58,237,0.6)",
+            }}
+          >
+            ⚔ Saisir
           </button>
-        </PremiumCard>
+        </motion.div>
       )}
 
       {/* Hero Card — fully RPG character sheet style */}
@@ -237,6 +272,24 @@ export default function Hero() {
           </PremiumCard>
         </motion.div>
       </div>
+
+      {classPowers.length > 0 && (
+        <PremiumCard tone="violet" className="p-6">
+          <div className="text-[10px] uppercase tracking-[0.4em] text-violet-400 font-bold mb-1">Voie de la classe</div>
+          <div className="font-display font-bold text-xl mb-4">Pouvoirs de {user.class_name || "votre classe"}</div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {classPowers.map((p) => (
+              <div key={p.id} className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-7 h-7 rounded-lg bg-violet-500/20 border border-violet-400/30 flex items-center justify-center text-xs font-bold text-violet-300">⚡</span>
+                  <span className="font-display font-bold text-sm text-white">{p.name}</span>
+                </div>
+                <p className="text-xs text-zinc-400 leading-relaxed">{p.description}</p>
+              </div>
+            ))}
+          </div>
+        </PremiumCard>
+      )}
 
       <PremiumCard tone="violet" className="p-6">
         <div className="flex items-center justify-between mb-4">

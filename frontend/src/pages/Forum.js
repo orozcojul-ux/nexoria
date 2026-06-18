@@ -14,6 +14,7 @@ import HtmlEditor from "@/components/admin/HtmlEditor";
 import ForumRichContent from "@/components/forum/ForumRichContent";
 import { ReportButton } from "@/components/ReportContentModal";
 import ForumBannedView from "@/components/forum/ForumBannedView";
+import ForumModPanel from "@/components/forum/ForumModPanel";
 import HeroName from "@/components/HeroName";
 import { sfx } from "@/lib/sfx";
 import { stripHtml } from "@/lib/stripHtml";
@@ -613,6 +614,11 @@ function ThreadView({ threadId, category, forumMute, onBack, onDeleted }) {
           <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {t.replies_count} réponses</span>
         </div>
         <ForumRichContent html={t.content_html} plain={t.content} />
+        {isStaff && t.user_id !== user?.user_id && (
+          <div className="mt-3 pt-2 border-t border-white/8">
+            <ForumModPanel targetUser={t.author} onDone={load} />
+          </div>
+        )}
       </PremiumCard>
 
       <div className="space-y-3 mb-4" data-testid="replies-list">
@@ -642,6 +648,14 @@ function ThreadView({ threadId, category, forumMute, onBack, onDeleted }) {
               </div>
             </div>
             <ForumRichContent html={r.content_html} plain={r.content} />
+            {isStaff && r.user_id !== user?.user_id && (
+              <div className="mt-3 pt-2 border-t border-white/8">
+                <ForumModPanel
+                  targetUser={r.author}
+                  onDone={load}
+                />
+              </div>
+            )}
           </PremiumCard>
         ))}
         {data.replies.length === 0 && (

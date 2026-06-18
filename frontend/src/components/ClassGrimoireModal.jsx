@@ -62,6 +62,7 @@ export default function ClassGrimoireModal({ cls, onClose }) {
   const stats = Object.entries(cls.stat_bonus || {}).sort((a, b) => b[1] - a[1]);
   const maxVal = stats.length ? stats[0][1] : 1;
   const src = getClassImageSrc(cls.id || cls.name);
+  const powers = cls.powers || [];
 
   return (
     <div
@@ -145,6 +146,40 @@ export default function ClassGrimoireModal({ cls, onClose }) {
                         />
                       </span>
                       <span className={styles.affVal}>+{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {powers.length > 0 && (
+              <>
+                <div className={styles.sectionLabel}>Pouvoirs de la Voie</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+                  {powers.map((p) => (
+                    <div
+                      key={p.id}
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        alignItems: "flex-start",
+                        padding: "8px 10px",
+                        borderRadius: "8px",
+                        background: hexToRgba(accent, 0.08),
+                        border: `1px solid ${hexToRgba(accent, 0.25)}`,
+                      }}
+                    >
+                      <span style={{
+                        width: "28px", height: "28px", flexShrink: 0, borderRadius: "6px",
+                        background: hexToRgba(accent, 0.18),
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: "14px", fontWeight: "900", color: accent,
+                        border: `1px solid ${hexToRgba(accent, 0.35)}`,
+                      }}>⚡</span>
+                      <div>
+                        <div style={{ fontSize: "11px", fontWeight: "800", color: "#fff", marginBottom: "2px" }}>{p.name}</div>
+                        <div style={{ fontSize: "10px", color: "rgba(228,228,231,0.7)", lineHeight: "1.5" }}>{p.description}</div>
+                      </div>
                     </div>
                   ))}
                 </div>

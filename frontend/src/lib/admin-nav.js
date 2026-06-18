@@ -19,6 +19,7 @@ export const ADMIN_TAB_KEYS = {
   "forum-mod": "admin.tab.forum_mod",
   shop: "admin.tab.shop",
   news: "admin.tab.news",
+  events: "admin.tab.events",
   seasons: "admin.tab.seasons",
   grant: "admin.tab.grant",
   discord: "admin.tab.discord",
@@ -78,6 +79,7 @@ export function buildAdminSidebarNav({ isAdmin }) {
         ...(isAdmin ? [
           item("shop", "admin.tab.shop", ShoppingBag, "nav-cms-shop"),
           item("news", "admin.tab.news", Newspaper, "nav-cms-news"),
+          item("events", "admin.tab.events", Calendar, "nav-cms-events"),
           item("seasons", "admin.tab.seasons", Calendar, "nav-cms-seasons"),
           item("grant", "admin.tab.grant", Coins, "nav-cms-grant"),
         ] : []),

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, UserPlus, UserCheck, UserX, Mail, X, Search, MessageCircle, Inbox, Circle } from "lucide-react";
+import { Users, UserPlus, UserCheck, UserX, Mail, X, Search, MessageCircle, Inbox, Circle, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import api from "@/lib/api";
@@ -17,6 +17,7 @@ export default function Friends() {
   const banner = usePageBanner("friends");
   const [friends, setFriends] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [sentRequests, setSentRequests] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
   const [loading, setLoading] = useState(true);
   const [chatUnread, setChatUnread] = useState(0);
@@ -27,12 +28,14 @@ export default function Friends() {
 
   const load = useCallback(async () => {
     try {
-      const [f, r] = await Promise.all([
+      const [f, r, s] = await Promise.all([
         api.get("/friends"),
         api.get("/friends/requests"),
+        api.get("/friends/requests/sent"),
       ]);
       setFriends(f.data || []);
       setRequests(r.data || []);
+      setSentRequests(s.data || []);
       window.dispatchEvent(new CustomEvent("nexoria:friends-updated", {
         detail: { pendingCount: (r.data || []).length },
       }));
@@ -62,6 +65,16 @@ export default function Friends() {
     window.addEventListener("nexoria:friends-updated", onUpdate);
     return () => window.removeEventListener("nexoria:friends-updated", onUpdate);
   }, [load]);
+
+  const cancelRequest = async (id) => {
+    try {
+      await api.delete(`/friends/requests/${id}`);
+      toast.info("Demande annulée");
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Erreur");
+    }
+  };
 
   const accept = async (id) => {
     try {
@@ -111,7 +124,10 @@ export default function Friends() {
           <span className="hub-stat-pill"><Users className="w-3 h-3" /> {friends.length} compagnon{friends.length > 1 ? "s" : ""}</span>
           <span className="hub-stat-pill"><Circle className="w-3 h-3 text-emerald-400 fill-emerald-400" /> {onlineCount} en ligne</span>
           {requests.length > 0 && (
-            <span className="hub-stat-pill"><Inbox className="w-3 h-3 text-amber-400" /> {requests.length} demande{requests.length > 1 ? "s" : ""}</span>
+            <span className="hub-stat-pill"><Inbox className="w-3 h-3 text-amber-400" /> {requests.length} reçue{requests.length > 1 ? "s" : ""}</span>
+          )}
+          {sentRequests.length > 0 && (
+            <span className="hub-stat-pill"><Send className="w-3 h-3 text-violet-400" /> {sentRequests.length} envoyée{sentRequests.length > 1 ? "s" : ""}</span>
           )}
           {chatUnread > 0 && (
             <span className="hub-stat-pill"><MessageCircle className="w-3 h-3 text-cyan-400" /> {chatUnread} non lu{chatUnread > 1 ? "s" : ""}</span>
@@ -122,6 +138,33 @@ export default function Friends() {
           Ajouter
         </PremiumButton>
       </div>
+
+      {sentRequests.length > 0 && (
+        <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-4 mb-3" data-testid="sent-requests-section">
+          <div className="text-[10px] uppercase tracking-[0.25em] text-violet-300 font-bold mb-3 flex items-center gap-2">
+            <Send className="w-3.5 h-3.5" /> Demandes envoyées ({sentRequests.length})
+          </div>
+          <div className="space-y-2">
+            {sentRequests.map((r) => (
+              <div key={r.request_id} className="flex items-center gap-3 rounded-xl border border-white/8 bg-black/20 p-3" data-testid={`sent-req-${r.request_id}`}>
+                <div className="friend-chat-avatar text-sm font-bold" style={{ width: "2rem", height: "2rem" }}>
+                  {r.to?.username?.[0]?.toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-white truncate">{r.to?.username || "?"}</div>
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-widest">{r.to?.class_name} · Niv. {r.to?.level}</div>
+                </div>
+                <span className="text-[10px] text-violet-300 italic shrink-0">En attente</span>
+                <button type="button" onClick={() => cancelRequest(r.request_id)}
+                  className="text-zinc-500 hover:text-red-400 p-1 shrink-0" title="Annuler la demande"
+                  data-testid={`cancel-req-${r.request_id}`}>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {requests.length > 0 && (
         <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 mb-5" data-testid="friend-requests-section">

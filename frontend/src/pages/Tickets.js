@@ -225,9 +225,22 @@ function TicketView({ ticketId, onBack }) {
           <form onSubmit={reply} className="space-y-2" data-testid="ticket-reply-form">
             <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Ajouter un message..." rows={3}
               className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm" data-testid="ticket-reply-input" />
-            <PremiumButton type="submit" variant="cyan" size="sm" icon={Send} testid="ticket-reply-submit">
-              Envoyer
-            </PremiumButton>
+            <div className="flex items-center gap-2 flex-wrap">
+              <PremiumButton type="submit" variant="cyan" size="sm" icon={Send} testid="ticket-reply-submit">
+                Envoyer
+              </PremiumButton>
+              {!isStaff && (t.status === "in_progress" || t.status === "open") && (
+                <PremiumButton
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setStatus("resolved")}
+                  testid="ticket-resolve-btn"
+                >
+                  ✅ Marquer comme résolu
+                </PremiumButton>
+              )}
+            </div>
           </form>
         </PremiumCard>
       )}

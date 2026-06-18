@@ -189,7 +189,7 @@ export default function Events() {
           <Trophy className="w-10 h-10 text-yellow-300 mx-auto mb-2" />
           <h2 className="font-display font-black text-2xl text-white mb-1">Inscris ton nom dans l'histoire</h2>
           <p className="text-zinc-400 text-sm mb-4 max-w-xl mx-auto">
-            Affronte le boss mondial, grimpe au classement saisonnier et collecte les reliques des failles dimensionnelles.
+            Participe aux défis communautaires, accomplis tes quêtes, grimpe au classement saisonnier et saisis les reliques des failles dimensionnelles.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
             <Link to="/leaderboards">
@@ -310,7 +310,13 @@ function CommunityChallengePanel({ challenge }) {
       </div>
       <h3 className="font-display font-black text-xl text-white">{challenge.name}</h3>
       <p className="text-zinc-400 text-sm italic mt-2 leading-relaxed">{challenge.description}</p>
-      <div className="mt-4 space-y-1">
+      {challenge.reward_label && (
+        <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-300 font-bold">
+          <Trophy className="w-3.5 h-3.5 shrink-0" />
+          <span>{challenge.reward_label}</span>
+        </div>
+      )}
+      <div className="mt-3 space-y-1">
         <div className="flex justify-between text-[11px] font-mono-stat">
           <span className="text-zinc-500">Progression</span>
           <span className={tone.split(" ")[1]}>
@@ -355,6 +361,14 @@ function EventCard({ ev }) {
               </span>
             )}
           </div>
+          {(ev.reward_xp > 0 || ev.reward_aether > 0) && (
+            <div className="mt-2 text-[10px] text-amber-300 font-bold flex items-center gap-1">
+              <Trophy className="w-3 h-3" />
+              {ev.reward_xp > 0 && `+${ev.reward_xp} XP`}
+              {ev.reward_xp > 0 && ev.reward_aether > 0 && " · "}
+              {ev.reward_aether > 0 && `+${ev.reward_aether} Écus`}
+            </div>
+          )}
         </div>
       </div>
     </PremiumCard>

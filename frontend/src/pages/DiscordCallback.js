@@ -60,6 +60,18 @@ export default function DiscordCallback() {
 
     }
 
+    // If this callback was opened as a popup by the maintenance staff gate,
+    // send the code back to the parent window and close immediately.
+    if (window.opener && window.name === "discord_oauth") {
+
+      window.opener.postMessage({ type: "discord_oauth_code", code }, window.location.origin);
+
+      window.close();
+
+      return;
+
+    }
+
 
 
     (async () => {

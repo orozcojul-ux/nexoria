@@ -8,6 +8,8 @@ import HeroName from "@/components/HeroName";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
 import "./FriendChat.css";
 
+const POLL_INTERVAL_MS = 2500; // fallback polling when socket is unavailable
+
 function FriendOnlineBadge({ online }) {
   return (
     <span className={`friend-online-badge ${online ? "friend-online-badge--on" : "friend-online-badge--off"}`}>
@@ -35,6 +37,12 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const endRef = useRef(null);
+  const activeIdRef = useRef(activeId);
+  const pollRef = useRef(null);
+  const isFetchingRef = useRef(false);
+
+  // Keep ref in sync with state for use inside intervals/closures
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
   const loadThreads = useCallback(async () => {
     try {
@@ -43,24 +51,92 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
       const totalUnread = (data || []).reduce((s, t) => s + (t.unread || 0), 0);
       onUnreadChange?.(totalUnread);
     } catch {
-      toast.error("Impossible de charger les conversations");
+      // silently ignore – threads panel still shows cached state
     }
   }, [onUnreadChange]);
 
-  const loadMessages = useCallback(async (friendId) => {
+  // Merge an array of server messages into state, ignoring already-known ids.
+  // Returns true if any new messages were added.
+  const mergeMessages = useCallback((incoming) => {
+    if (!incoming?.length) return false;
+    let added = false;
+    setMessages((prev) => {
+      const known = new Set(prev.map((m) => m.message_id));
+      const fresh = incoming.filter((m) => !known.has(m.message_id));
+      if (!fresh.length) return prev;
+      added = true;
+      const next = [...prev.filter((m) => !m._optimistic), ...fresh];
+      // Re-attach any remaining optimistic messages that haven't been confirmed yet
+      const confirmedIds = new Set(next.map((m) => m.message_id));
+      const orphans = prev.filter(
+        (m) => m._optimistic && !confirmedIds.has(m.message_id)
+      );
+      return [...next, ...orphans].sort(
+        (a, b) => new Date(a.created_at) - new Date(b.created_at)
+      );
+    });
+    return added;
+  }, []);
+
+  const loadMessages = useCallback(async (friendId, silent = false) => {
     if (!friendId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const { data } = await api.get(`/friends/chat/${friendId}/messages`);
-      setMessages(data || []);
+      // Full replace on explicit open; use merge for silent polls
+      if (!silent) {
+        setMessages(data || []);
+      } else {
+        mergeMessages(data || []);
+      }
       await loadThreads();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Conversation inaccessible");
-      setMessages([]);
+      if (!silent) {
+        toast.error(err.response?.data?.detail || "Conversation inaccessible");
+        setMessages([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [loadThreads]);
+  }, [loadThreads, mergeMessages]);
+
+  // ------ Polling fallback ------
+  // Fires every POLL_INTERVAL_MS while a conversation is open.
+  // This ensures messages appear even when the Socket.IO connection is absent
+  // (user not in Nexus Online) or unreliable.
+  const startPolling = useCallback((friendId) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      const id = activeIdRef.current;
+      if (!id || isFetchingRef.current) return;
+      isFetchingRef.current = true;
+      try {
+        const { data } = await api.get(`/friends/chat/${id}/messages`);
+        mergeMessages(data || []);
+      } catch {
+        // silent
+      } finally {
+        isFetchingRef.current = false;
+      }
+    }, POLL_INTERVAL_MS);
+  }, [mergeMessages]);
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  // Start/stop polling when activeId changes
+  useEffect(() => {
+    if (activeId) {
+      startPolling(activeId);
+    } else {
+      stopPolling();
+    }
+    return stopPolling;
+  }, [activeId, startPolling, stopPolling]);
 
   useEffect(() => { loadThreads(); }, [loadThreads]);
 
@@ -90,29 +166,43 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // WebSocket real-time handler (instant delivery when socket is connected)
   useEffect(() => {
     if (!ns?.friendMessage) return;
     const msg = ns.friendMessage;
-    const friendId = msg.from_user === me?.user_id ? msg.to_user : msg.from_user;
+    const myId = me?.user_id;
+    // The sender's own message comes back via socket too (multi-tab sync).
+    // friendId is whoever is NOT us in this exchange.
+    const friendId = msg.from_user === myId ? msg.to_user : msg.from_user;
+
+    // Update thread preview + unread count
     setThreads((prev) => prev.map((t) => {
       if (t.friend?.user_id !== friendId) return t;
       return {
         ...t,
         last_message: msg,
-        unread: msg.to_user === me?.user_id && activeId !== friendId ? (t.unread || 0) + 1 : t.unread,
+        unread: msg.to_user === myId && activeIdRef.current !== friendId
+          ? (t.unread || 0) + 1
+          : t.unread,
       };
     }));
-    if (activeId === friendId) {
+
+    // Inject into active conversation instantly (polling will deduplicate)
+    if (activeIdRef.current === friendId) {
       setMessages((prev) => {
         if (prev.some((m) => m.message_id === msg.message_id)) return prev;
-        return [...prev, msg];
+        // Replace any matching optimistic message
+        const withoutOpt = prev.filter(
+          (m) => !(m._optimistic && m.text === msg.text && m.from_user === msg.from_user)
+        );
+        return [...withoutOpt, msg].sort(
+          (a, b) => new Date(a.created_at) - new Date(b.created_at)
+        );
       });
-      if (msg.to_user === me?.user_id) loadThreads();
-    } else {
-      loadThreads();
     }
+    loadThreads();
     ns.consumeFriendMessage?.();
-  }, [ns?.friendMessage, ns, me?.user_id, activeId, loadThreads]);
+  }, [ns?.friendMessage, ns, me?.user_id, loadThreads]);
 
   const send = async (e) => {
     e?.preventDefault();
@@ -132,10 +222,13 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
     setText("");
     try {
       const { data } = await api.post(`/friends/chat/${activeId}/messages`, { text: body });
+      // Replace the optimistic placeholder with the confirmed message
       setMessages((prev) => {
-        const without = prev.filter((m) => m.message_id !== optimisticId);
-        if (without.some((m) => m.message_id === data.message_id)) return without;
-        return [...without, data];
+        const withoutOpt = prev.filter((m) => m.message_id !== optimisticId);
+        if (withoutOpt.some((m) => m.message_id === data.message_id)) return withoutOpt;
+        return [...withoutOpt, data].sort(
+          (a, b) => new Date(a.created_at) - new Date(b.created_at)
+        );
       });
       loadThreads();
     } catch (err) {

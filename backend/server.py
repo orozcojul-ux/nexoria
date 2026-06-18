@@ -85,6 +85,10 @@ MAINTENANCE_PUBLIC_PATHS = frozenset({
     "/api/system/online-gate",
     "/api/online/status",
     "/api/staff/maintenance-login",
+    # Discord OAuth — must be reachable during maintenance so staff can connect via Discord
+    "/api/auth/discord/url",
+    "/api/auth/discord/callback",
+    "/api/staff/maintenance-discord-callback",
     "/api/auth/logout",
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
@@ -456,20 +460,25 @@ def _current_quest_periods() -> set:
 
 
 async def count_site_online() -> int:
-    """Users with a valid session active in the last 5 minutes."""
+    """Users with a valid session active in the last 5 minutes, excluding hidden presence."""
     now = now_utc()
     cutoff = (now - timedelta(minutes=5)).isoformat()
     now_iso = now.isoformat()
     try:
-        return len(await db.user_sessions.distinct("user_id", {
+        # Get IDs of users who have chosen to hide their presence
+        hidden = set(await db.users.distinct("user_id", {"appear_offline": True}))
+        active_ids = set(await db.user_sessions.distinct("user_id", {
             "expires_at": {"$gt": now_iso},
             "$or": [
                 {"last_activity_at": {"$gt": cutoff}},
                 {"last_activity_at": {"$exists": False}, "created_at": {"$gt": cutoff}},
             ],
         }))
+        return len(active_ids - hidden)
     except Exception:
         return 0
+
+
 
 
 async def get_active_boost_multiplier(user_id: str, boost_type: str) -> float:
@@ -915,6 +924,7 @@ async def apply_referral(referral_code: str, referred_user_id: str):
     await db.users.update_one({"user_id": referrer_id}, {"$inc": {"referral_count": 1}})
     await db.users.update_one({"user_id": referred_user_id}, {"$set": {"referred_by": referrer_id}})
     await process_referral_rewards(referrer_id)
+    await progress_quests(referrer_id, "referral", 1)
 
 
 # Pionniers : récompense réservée aux 100 premiers inscrits à partir de maintenant.
@@ -1826,6 +1836,7 @@ async def open_chest_endpoint(user: dict = Depends(get_user_dep)):
         await grant_badge(user["user_id"], "relic_hunter")
     if total_items >= 100:
         await grant_badge(user["user_id"], "ultimate_collector")
+    await progress_quests(user["user_id"], "chest_open", 1)
     try:
         await nexus_world.push_inventory_updated(user["user_id"], "chest", {
             "items_count": len(items),
@@ -2285,6 +2296,16 @@ async def _ensure_community_challenges():
         if not existing:
             doc = {**tmpl, "active": True, "created_at": now_utc().isoformat()}
             await db.community_challenges.insert_one(doc)
+        else:
+            # Keep reward fields in sync with the template (non-destructive update).
+            await db.community_challenges.update_one(
+                {"challenge_id": tmpl["challenge_id"]},
+                {"$set": {
+                    "reward_xp": tmpl.get("reward_xp"),
+                    "reward_aether": tmpl.get("reward_aether"),
+                    "reward_label": tmpl.get("reward_label"),
+                }},
+            )
 
 
 async def _hydrate_community_challenges():
@@ -2295,7 +2316,46 @@ async def _hydrate_community_challenges():
     for c in challenges:
         c["progress"] = await _community_challenge_progress(c["action"])
         c["percent"] = round(min(100.0, (c["progress"] / max(1, c["target"])) * 100), 1)
+        # Auto-complete: distribute rewards to all users on first completion.
+        if c["progress"] >= c["target"] and not c.get("completed"):
+            await _complete_community_challenge(c["challenge_id"], c)
+            c["completed"] = True
     return challenges
+
+
+async def _complete_community_challenge(challenge_id: str, challenge: dict):
+    """Mark a community challenge completed and reward all active users exactly once."""
+    already = await db.community_challenges.find_one(
+        {"challenge_id": challenge_id, "completed": True}
+    )
+    if already:
+        return
+    await db.community_challenges.update_one(
+        {"challenge_id": challenge_id},
+        {"$set": {"completed": True, "completed_at": now_utc().isoformat()}},
+    )
+    reward_xp = int(challenge.get("reward_xp") or 0)
+    reward_aether = int(challenge.get("reward_aether") or 0)
+    reward_label = challenge.get("reward_label", challenge.get("name", "Défi communautaire"))
+    if not (reward_xp or reward_aether):
+        return
+    # Distribute to users who have been active in the last 30 days.
+    cutoff = (now_utc() - timedelta(days=30)).isoformat()
+    user_ids = await db.users.distinct("user_id", {"last_seen": {"$gt": cutoff}})
+    logger.info("[community_challenge] %s completed — distributing to %d users", challenge_id, len(user_ids))
+    for uid in user_ids:
+        try:
+            if reward_xp:
+                await grant_xp(uid, reward_xp, f"Défi communautaire : {challenge.get('name')}")
+            if reward_aether:
+                await grant_aether(uid, reward_aether, f"Défi communautaire : {challenge.get('name')}")
+            await push_notification(
+                db, uid, "community_challenge",
+                f"🏆 Défi accompli : {challenge.get('name')}",
+                reward_label, "fanfare", "Trophy",
+            )
+        except Exception as exc:
+            logger.warning("[community_challenge] reward failed for %s: %s", uid, exc)
 
 
 @api.get("/community-challenges")
@@ -2654,6 +2714,50 @@ async def staff_maintenance_login(req: LoginReq, response: Response):
     discord_auth_forum.schedule_auth_event("login", user)
     result = public_user(user)
     result["session_token"] = token
+    return result
+
+
+class MaintenanceDiscordCallbackReq(BaseModel):
+    code: str
+
+
+@api.post("/staff/maintenance-discord-callback")
+async def staff_maintenance_discord_callback(req: MaintenanceDiscordCallbackReq, response: Response):
+    """Complete Discord OAuth for staff members while maintenance is active.
+    Accepts the OAuth authorization code, resolves the Discord identity, looks up
+    the matching NEXORIA account and grants a session — only for staff roles.
+    """
+    enabled, _ = await is_maintenance_active()
+    if not enabled:
+        raise HTTPException(400, "La maintenance n'est pas active")
+
+    try:
+        discord_profile = await discord_auth.exchange_code(req.code)
+    except discord_auth.DiscordAuthError as e:
+        raise HTTPException(e.status, e.message)
+    discord_id = discord_profile.get("discord_id") or ""
+    if not discord_id:
+        raise HTTPException(400, "Impossible de récupérer le profil Discord")
+    user = await db.users.find_one({"discord_id": discord_id})
+    if not user:
+        raise HTTPException(403, "Aucun compte NEXORIA lié à ce compte Discord")
+    if user.get("role") not in ("admin", "moderator"):
+        raise HTTPException(403, "Accès refusé — réservé aux Sentinelles")
+    enforce_ban_or_raise(user)
+    session_token = create_session_token()
+    await db.user_sessions.insert_one({
+        "session_token": session_token,
+        "user_id": user["user_id"],
+        "expires_at": session_expiry().isoformat(),
+        "created_at": now_utc().isoformat(),
+        "last_activity_at": now_utc().isoformat(),
+        "provider": "discord_maintenance",
+    })
+    set_session_cookie(response, session_token)
+    await touch_user_last_seen(user["user_id"])
+    discord_auth_forum.schedule_auth_event("login", user)
+    result = public_user(user)
+    result["session_token"] = session_token
     return result
 
 
@@ -3103,6 +3207,18 @@ async def _credit_ecu_order(session_id: str, *, user_id: str = None, ecus: int =
             "chime", "Coins")
     except Exception:
         pass
+    # Announce the real-money purchase in the Discord rewards channel.
+    try:
+        buyer = await db.users.find_one({"user_id": res["user_id"]}, {"username": 1})
+        username = (buyer or {}).get("username") or "Un héros"
+        amount_str = f"{res.get('amount_eur') or '?'}€" if res.get("amount_eur") else ""
+        discord_rewards.schedule_custom(
+            f"💳 **{username}** a rechargé **{int(res['ecus'])} Écus**"
+            + (f" ({amount_str})" if amount_str else "")
+            + f" — pack `{res.get('pack_id') or 'custom'}` 🎉"
+        )
+    except Exception:
+        pass
     return res
 
 
@@ -3426,6 +3542,11 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
     await add_chronicle(user["user_id"], f"A acquis « {item['name']} » à la Boutique des Écus", "shop")
     await push_notification(db, user["user_id"], "shop", "Achat confirmé", f"« {item['name']} » est à vous", "ding", "ShoppingBag")
 
+    # Quest progression — shop_purchase for any buy; vip_purchase specifically for VIP plans.
+    await progress_quests(user["user_id"], "shop_purchase", 1)
+    if item["category"] == "vip":
+        await progress_quests(user["user_id"], "vip_purchase", 1)
+
     # WebSocket sync: push inventory refresh without polling.
     try:
         inv_payload = {
@@ -3545,6 +3666,74 @@ async def upcoming_events():
     """Scheduled events visible to all."""
     events = await db.scheduled_events.find({}, {"_id": 0}).sort("starts_at", 1).limit(20).to_list(20)
     return events
+
+
+class EventCreateReq(BaseModel):
+    name: str = Field(..., min_length=2, max_length=120)
+    description: str = Field("", max_length=500)
+    starts_at: str  # ISO datetime
+    ends_at: Optional[str] = None
+    icon: Optional[str] = Field(None, max_length=32)
+    color: Optional[str] = Field(None, max_length=7)
+    reward_xp: Optional[int] = Field(None, ge=0)
+    reward_aether: Optional[int] = Field(None, ge=0)
+
+
+@api.get("/admin/events")
+async def admin_list_events(user: dict = Depends(get_staff_dep)):
+    events = await db.scheduled_events.find({}, {"_id": 0}).sort("starts_at", -1).limit(100).to_list(100)
+    return events
+
+
+@api.post("/admin/events")
+async def admin_create_event(req: EventCreateReq, user: dict = Depends(get_staff_dep)):
+    event_id = f"ev_{uuid.uuid4().hex[:10]}"
+    doc = {
+        "event_id": event_id,
+        "name": req.name.strip(),
+        "description": req.description.strip(),
+        "starts_at": req.starts_at,
+        "ends_at": req.ends_at,
+        "icon": req.icon or "Calendar",
+        "color": req.color or "#7C3AED",
+        "reward_xp": req.reward_xp or 0,
+        "reward_aether": req.reward_aether or 0,
+        "created_by": user["username"],
+        "created_at": now_utc().isoformat(),
+    }
+    await db.scheduled_events.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.put("/admin/events/{event_id}")
+async def admin_update_event(event_id: str, req: EventCreateReq, user: dict = Depends(get_staff_dep)):
+    ev = await db.scheduled_events.find_one({"event_id": event_id})
+    if not ev:
+        raise HTTPException(404, "Événement introuvable")
+    update = {
+        "name": req.name.strip(),
+        "description": req.description.strip(),
+        "starts_at": req.starts_at,
+        "ends_at": req.ends_at,
+        "icon": req.icon or "Calendar",
+        "color": req.color or "#7C3AED",
+        "reward_xp": req.reward_xp or 0,
+        "reward_aether": req.reward_aether or 0,
+        "updated_at": now_utc().isoformat(),
+    }
+    await db.scheduled_events.update_one({"event_id": event_id}, {"$set": update})
+    updated = await db.scheduled_events.find_one({"event_id": event_id}, {"_id": 0})
+    return updated
+
+
+@api.delete("/admin/events/{event_id}")
+async def admin_delete_event(event_id: str, user: dict = Depends(get_staff_dep)):
+    ev = await db.scheduled_events.find_one({"event_id": event_id})
+    if not ev:
+        raise HTTPException(404, "Événement introuvable")
+    await db.scheduled_events.delete_one({"event_id": event_id})
+    return {"ok": True}
 
 
 @api.get("/widgets/rifts-map")
@@ -5386,6 +5575,33 @@ async def decline_friend_request(request_id: str, user: dict = Depends(get_user_
     return {"ok": True}
 
 
+@api.get("/friends/requests/sent")
+async def list_sent_friend_requests(user: dict = Depends(get_user_dep)):
+    """Pending requests sent BY me that haven't been answered yet."""
+    reqs = await db.friend_requests.find(
+        {"from_user": user["user_id"], "status": "pending"}, {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    to_ids = [r["to_user"] for r in reqs]
+    udocs = await db.users.find(
+        {"user_id": {"$in": to_ids}},
+        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1, "avatar_url": 1},
+    ).to_list(100)
+    umap = {u["user_id"]: u for u in udocs}
+    for r in reqs:
+        r["to"] = umap.get(r["to_user"], {})
+    return reqs
+
+
+@api.delete("/friends/requests/{request_id}")
+async def cancel_friend_request(request_id: str, user: dict = Depends(get_user_dep)):
+    """Cancel a pending outgoing friend request."""
+    req_doc = await db.friend_requests.find_one({"request_id": request_id, "from_user": user["user_id"]})
+    if not req_doc or req_doc["status"] != "pending":
+        raise HTTPException(404, "Demande introuvable ou déjà traitée")
+    await db.friend_requests.delete_one({"request_id": request_id})
+    return {"ok": True}
+
+
 def _nexus_online_ids():
     try:
         import nexus_world
@@ -5395,9 +5611,50 @@ def _nexus_online_ids():
 
 
 def _enrich_friends_online(friends: list) -> list:
+    # Legacy sync helper — superseded by the async version in list_friends.
     online = _nexus_online_ids()
     for f in friends:
         f["online"] = f.get("user_id") in online
+    return friends
+
+
+async def _enrich_friends_online_async(friends: list) -> list:
+    """Determine online status from SITE sessions (not just Nexus socket),
+    and honour each friend's appear_offline preference.
+
+    A friend is online if:
+      1. They have an active session with recent activity (≤ 5 min), AND
+      2. They have NOT enabled appear_offline.
+    """
+    if not friends:
+        return friends
+    now_iso = now_utc().isoformat()
+    cutoff = (now_utc() - timedelta(minutes=5)).isoformat()
+    friend_ids = [f["user_id"] for f in friends if f.get("user_id")]
+    if not friend_ids:
+        return friends
+
+    # Who has an active session in the last 5 minutes?
+    active_sessions = set(await db.user_sessions.distinct("user_id", {
+        "user_id": {"$in": friend_ids},
+        "expires_at": {"$gt": now_iso},
+        "$or": [
+            {"last_activity_at": {"$gt": cutoff}},
+            {"last_activity_at": {"$exists": False}, "created_at": {"$gt": cutoff}},
+        ],
+    }))
+
+    # Who has appear_offline enabled?
+    hidden_users = set()
+    async for doc in db.users.find(
+        {"user_id": {"$in": friend_ids}, "appear_offline": True},
+        {"user_id": 1, "_id": 0},
+    ):
+        hidden_users.add(doc["user_id"])
+
+    for f in friends:
+        uid = f.get("user_id")
+        f["online"] = (uid in active_sessions) and (uid not in hidden_users)
     return friends
 
 
@@ -5410,7 +5667,7 @@ async def list_friends(user: dict = Depends(get_user_dep)):
     friends = await db.users.find({"user_id": {"$in": friend_ids}},
         {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_id": 1, "class_name": 1,
          "role": 1, "avatar_url": 1, "rank": 1}).to_list(500)
-    return _enrich_friends_online(friends)
+    return await _enrich_friends_online_async(friends)
 
 
 @api.get("/friends/requests/count")
@@ -5538,7 +5795,9 @@ async def send_friend_message(friend_id: str, req: FriendMessageReq, user: dict 
     push_doc["from_username"] = user.get("username") or "Héros"
     try:
         import nexus_world
+        # Push to recipient (real-time if in Nexus) and to sender (other tabs/devices).
         await nexus_world.push_to_user(friend_id, "friend_message:new", push_doc)
+        await nexus_world.push_to_user(user["user_id"], "friend_message:new", push_doc)
     except Exception:
         pass
     try:
@@ -5667,16 +5926,25 @@ class TicketStatusReq(BaseModel):
 
 
 @api.put("/tickets/{ticket_id}/status")
-async def set_ticket_status(ticket_id: str, req: TicketStatusReq, user: dict = Depends(get_staff_dep)):
+async def set_ticket_status(ticket_id: str, req: TicketStatusReq, user: dict = Depends(get_user_dep)):
     if req.status not in ("open", "in_progress", "resolved", "closed"):
         raise HTTPException(400, "Statut invalide")
     t = await db.tickets.find_one({"ticket_id": ticket_id})
     if not t:
         raise HTTPException(404, "Doléance introuvable")
+    is_staff = user.get("role") in ("admin", "moderator")
+    is_owner = t["user_id"] == user["user_id"]
+    # Ticket owner may only mark their own ticket as "resolved" (not close/reopen)
+    if not is_staff:
+        if not is_owner:
+            raise HTTPException(403, "Action interdite")
+        if req.status != "resolved":
+            raise HTTPException(403, "Vous pouvez uniquement marquer votre ticket comme résolu")
     await db.tickets.update_one({"ticket_id": ticket_id}, {"$set": {"status": req.status, "updated_at": now_utc().isoformat()}})
-    await push_notification(db, t["user_id"], "ticket_status",
-        f"Doléance « {t['subject'][:60]} » → {req.status}",
-        "Le Conseil a mis à jour votre dossier", "ding", "Mail")
+    if is_staff and t["user_id"] != user["user_id"]:
+        await push_notification(db, t["user_id"], "ticket_status",
+            f"Doléance « {t['subject'][:60]} » → {req.status}",
+            "Le Conseil a mis à jour votre dossier", "ding", "Mail")
     return {"ok": True}
 
 
