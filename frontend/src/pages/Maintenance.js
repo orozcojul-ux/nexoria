@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import {
   Database, Globe, Crosshair,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "@/lib/api";
 import MaintenanceBrand from "@/components/maintenance/MaintenanceBrand";
 import MaintenanceGlobalProgress from "@/components/maintenance/MaintenanceGlobalProgress";
@@ -68,7 +68,10 @@ function SystemsPanel({ systems }) {
 
 export default function Maintenance() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [statusData, setStatusData] = useState(null);
+  // Error message forwarded from mobile Discord OAuth callback
+  const discordError = searchParams.get("error");
 
   const loadStatus = useCallback(async () => {
     try {
@@ -185,7 +188,7 @@ export default function Maintenance() {
         </a>
       </motion.aside>
 
-      <MaintenanceStaffGate />
+        <MaintenanceStaffGate discordError={discordError} />
     </div>
   );
 }

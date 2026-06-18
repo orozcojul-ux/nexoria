@@ -15,7 +15,7 @@ function DiscordIcon({ className }) {
   );
 }
 
-export default function MaintenanceStaffGate() {
+export default function MaintenanceStaffGate({ discordError }) {
   const { setUser } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -23,8 +23,23 @@ export default function MaintenanceStaffGate() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [discordLoading, setDiscordLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(discordError || "");
   const oauthWindowRef = useRef(null);
+  // Pre-fetched Discord URL — loaded on mount so the click handler stays synchronous
+  // (async window.open() calls are silently blocked on iOS/Android).
+  const [discordUrl, setDiscordUrl] = useState(null);
+
+  // Pre-fetch Discord OAuth URL on mount so the button click is fully synchronous.
+  useEffect(() => {
+    api.get("/auth/discord/url")
+      .then((r) => setDiscordUrl(r.data?.url || null))
+      .catch(() => setDiscordUrl(null));
+  }, []);
+
+  // Auto-open the modal if a Discord error was forwarded from the callback (mobile flow).
+  useEffect(() => {
+    if (discordError) setOpen(true);
+  }, [discordError]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -84,22 +99,32 @@ export default function MaintenanceStaffGate() {
     }
   };
 
-  const loginWithDiscord = async () => {
+  // Synchronous click handler — no await, so iOS/Android don't block the popup.
+  const loginWithDiscord = () => {
+    if (!discordUrl) {
+      setError("URL Discord non disponible — réessayez dans quelques secondes");
+      return;
+    }
     setError("");
-    try {
-      const { data } = await api.get("/auth/discord/url");
-      if (!data?.url) { setError("OAuth Discord indisponible"); return; }
-      // Open OAuth in a small popup
-      const w = 500, h = 700;
-      const left = Math.max(0, (window.screen.width - w) / 2);
-      const top = Math.max(0, (window.screen.height - h) / 2);
-      oauthWindowRef.current = window.open(
-        data.url,
-        "discord_oauth",
-        `width=${w},height=${h},left=${left},top=${top},toolbar=0,menubar=0,location=0`
-      );
-    } catch {
-      setError("Impossible d'ouvrir la fenêtre Discord");
+
+    // Try a popup first (desktop browsers)
+    const w = 500, h = 700;
+    const left = Math.max(0, (window.screen.width - w) / 2);
+    const top = Math.max(0, (window.screen.height - h) / 2);
+    const popup = window.open(
+      discordUrl,
+      "discord_oauth",
+      `width=${w},height=${h},left=${left},top=${top},toolbar=0,menubar=0,location=0`
+    );
+
+    if (!popup || popup.closed || typeof popup.closed === "undefined") {
+      // Popup blocked (mobile browsers, iOS Safari, aggressive popup blockers).
+      // Fall back to same-window navigation; the callback page will detect this
+      // via the sessionStorage flag and call the maintenance endpoint directly.
+      sessionStorage.setItem("nexoria_maint_discord_flow", "1");
+      window.location.href = discordUrl;
+    } else {
+      oauthWindowRef.current = popup;
     }
   };
 

@@ -60,13 +60,50 @@ export default function DiscordCallback() {
 
     }
 
-    // If this callback was opened as a popup by the maintenance staff gate,
-    // send the code back to the parent window and close immediately.
+    // ── Maintenance staff gate: popup (desktop) ──────────────────────────────
+    // The popup was opened with window.name = "discord_oauth". Send the code to
+    // the parent window and close the popup.
     if (window.opener && window.name === "discord_oauth") {
 
       window.opener.postMessage({ type: "discord_oauth_code", code }, window.location.origin);
 
       window.close();
+
+      return;
+
+    }
+
+    // ── Maintenance staff gate: same-window redirect (mobile / popup blocked) ─
+    // The flag is set by MaintenanceStaffGate when popup was blocked.
+    // Call the maintenance Discord endpoint directly, then navigate to /feed.
+    const isMaintFlow = sessionStorage.getItem("nexoria_maint_discord_flow");
+    if (isMaintFlow) {
+
+      sessionStorage.removeItem("nexoria_maint_discord_flow");
+
+      (async () => {
+
+        try {
+
+          const { data } = await api.post("/staff/maintenance-discord-callback", { code });
+
+          if (data.session_token) {
+            const { setToken } = await import("@/lib/api");
+            setToken(data.session_token);
+          }
+
+          // AuthContext will pick up the user on next render via checkAuth
+          window.location.replace("/feed");
+
+        } catch (err) {
+
+          const msg = err?.response?.data?.detail || "Accès refusé";
+
+          navigate(`/maintenance?error=${encodeURIComponent(typeof msg === "string" ? msg : "Accès refusé")}`);
+
+        }
+
+      })();
 
       return;
 
