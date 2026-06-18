@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { User, Lock, Globe, Trash2, Save, AlertTriangle, KeyRound, Mail, AtSign, Server } from "lucide-react";
+import { User, Lock, Globe, Trash2, Save, AlertTriangle, KeyRound, Mail, AtSign } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import api, { formatApiError } from "@/lib/api";
@@ -20,7 +20,6 @@ const BASE_SECTIONS = [
   { id: "account",     icon: Mail,    key: "settings.account" },
   { id: "security",    icon: Lock,    key: "settings.security" },
   { id: "preferences", icon: Globe,   key: "settings.preferences" },
-  { id: "server",      icon: Server,  key: "settings.server" },
   { id: "danger",      icon: AlertTriangle, key: "settings.danger" },
 ];
 
@@ -56,8 +55,7 @@ export default function Settings() {
           {section === "profile" && <ProfileCustomizeForm user={user} refresh={refresh} t={t} />}
           {section === "account" && <AccountSection user={user} refresh={refresh} t={t} />}
           {section === "security" && <SecuritySection t={t} />}
-          {section === "preferences" && <PreferencesSection t={t} />}
-          {section === "server" && <ServerSection user={user} refresh={refresh} t={t} isStaff={isStaff} />}
+          {section === "preferences" && <PreferencesSection user={user} refresh={refresh} t={t} />}
           {section === "danger" && <DangerSection logout={logout} navigate={navigate} t={t} />}
           </PremiumCard>
         </main>
@@ -264,9 +262,48 @@ function SecuritySection({ t }) {
   );
 }
 
-function PreferencesSection({ t }) {
+function PreferencesSection({ user, refresh, t }) {
+  const [savingPresence, setSavingPresence] = useState(false);
+  const [savingAuto, setSavingAuto] = useState(false);
+  const appearOnline = user?.appear_offline !== true;
+  const autoConnect = user?.nexus_auto_connect !== false;
+
+  const togglePresence = async () => {
+    const nextHidden = appearOnline; // currently visible → hide
+    setSavingPresence(true);
+    try {
+      await api.put("/profile", { appear_offline: nextHidden });
+      sfx.success();
+      toast.success(nextHidden
+        ? "Présence masquée — vous apparaissez hors ligne sur le site et le Nexus"
+        : "Vous apparaissez désormais en ligne");
+      await refresh();
+    } catch (err) {
+      toast.error(formatApiError(err) || "Erreur");
+    } finally {
+      setSavingPresence(false);
+    }
+  };
+
+  const toggleAuto = async () => {
+    const next = !autoConnect;
+    setSavingAuto(true);
+    try {
+      await api.put("/profile", { nexus_auto_connect: next });
+      sfx.success();
+      toast.success(next
+        ? "Connexion automatique au Nexus activée"
+        : "Connexion automatique désactivée — vous n'apparaîtrez plus sur le ONLINE sans entrer manuellement");
+      await refresh();
+    } catch (err) {
+      toast.error(formatApiError(err) || "Erreur");
+    } finally {
+      setSavingAuto(false);
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="settings-preferences-section">
       <h2 className="font-display font-bold text-xl mb-2">{t("settings.preferences")}</h2>
       <div>
         <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-bold mb-3">{t("settings.language")}</div>
@@ -275,6 +312,48 @@ function PreferencesSection({ t }) {
       <div>
         <div className="text-[10px] uppercase tracking-[0.3em] text-violet-400 font-bold mb-2">{t("settings.theme")}</div>
         <ThemeSwitcher />
+      </div>
+
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-400 font-bold mb-3">Présence</div>
+        <div className="space-y-3">
+          <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-white mb-1">Apparaître en ligne</div>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Si vous décochez, vous passez en mode hors ligne : vous n'apparaissez plus
+                  comme connecté, ni sur le site (amis, joueurs, carte) ni sur le Nexus Online.
+                </p>
+              </div>
+              <ToggleSwitch
+                checked={appearOnline}
+                disabled={savingPresence}
+                onClick={togglePresence}
+                testid="settings-presence-toggle"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-white mb-1">Connexion automatique au Nexus (ONLINE)</div>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Quand c'est activé, vous rejoignez le Nexus Online automatiquement à chaque
+                  connexion au site. Désactivé, vous restez sur le site sans apparaître sur le
+                  ONLINE — vous pourrez toujours y entrer manuellement via le menu Nexus.
+                </p>
+              </div>
+              <ToggleSwitch
+                checked={autoConnect}
+                disabled={savingAuto}
+                onClick={toggleAuto}
+                testid="settings-nexus-auto-toggle"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -299,86 +378,6 @@ function ToggleSwitch({ checked, onClick, disabled, testid }) {
         }`}
       />
     </button>
-  );
-}
-
-function ServerSection({ user, refresh, t, isStaff }) {
-  const [saving, setSaving] = useState(false);
-  const [savingPresence, setSavingPresence] = useState(false);
-  const enabled = user?.staff_nexus_auto_connect !== false;
-  const appearOnline = user?.appear_offline !== true;
-
-  const toggle = async () => {
-    const next = !enabled;
-    setSaving(true);
-    try {
-      await api.put("/profile", { staff_nexus_auto_connect: next });
-      sfx.success();
-      toast.success(t(next ? "settings.server.nexus_auto_on" : "settings.server.nexus_auto_off"));
-      await refresh();
-    } catch (err) {
-      toast.error(formatApiError(err) || "Erreur");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const togglePresence = async () => {
-    const nextHidden = appearOnline; // currently visible → hide
-    setSavingPresence(true);
-    try {
-      await api.put("/profile", { appear_offline: nextHidden });
-      sfx.success();
-      toast.success(nextHidden ? "Votre présence est désormais masquée" : "Vous apparaissez en ligne");
-      await refresh();
-    } catch (err) {
-      toast.error(formatApiError(err) || "Erreur");
-    } finally {
-      setSavingPresence(false);
-    }
-  };
-
-  return (
-    <div className="space-y-6" data-testid="settings-server-section">
-      <h2 className="font-display font-bold text-xl mb-2">{t("settings.server")}</h2>
-
-      <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-sm font-bold text-white mb-1">
-              {appearOnline ? "Apparaître en ligne" : "Présence masquée"}
-            </div>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Lorsque votre présence est masquée, vous n'apparaissez plus dans le compteur de
-              joueurs en ligne ni sur la carte du Nexus pour les autres héros.
-            </p>
-          </div>
-          <ToggleSwitch
-            checked={appearOnline}
-            disabled={savingPresence}
-            onClick={togglePresence}
-            testid="settings-presence-toggle"
-          />
-        </div>
-      </div>
-
-      {isStaff && (
-        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="text-sm font-bold text-white mb-1">{t("settings.server.nexus_auto")}</div>
-              <p className="text-xs text-zinc-400 leading-relaxed">{t("settings.server.nexus_auto_hint")}</p>
-            </div>
-            <ToggleSwitch
-              checked={enabled}
-              disabled={saving}
-              onClick={toggle}
-              testid="settings-staff-nexus-auto-toggle"
-            />
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 

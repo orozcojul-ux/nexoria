@@ -158,8 +158,8 @@ function AvatarForm({ current, onClose, onSave }) {
       toast.error("Fichier image uniquement");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image max 5 Mo");
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Image max 15 Mo");
       return;
     }
     setUploading(true);

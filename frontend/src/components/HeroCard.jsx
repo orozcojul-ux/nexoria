@@ -295,7 +295,7 @@ export default function HeroCard({ userId, open, onClose, onWhisper }) {
                     ? "Cette carte héros est réservée aux compagnons de l'aventurier."
                     : "Ce héros a choisi de garder sa carte confidentielle."}
                 </p>
-                <p style={{ fontSize: 12, color: "#8892a0" }}>{data.display_name || data.username}</p>
+                <p style={{ fontSize: 12, color: "#8892a0" }}>{data.username}</p>
               </div>
             ) : !u ? (
               <div className={styles.empty}>Carte introuvable</div>

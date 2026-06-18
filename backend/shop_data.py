@@ -22,7 +22,7 @@ SHOP_ITEMS = [
     # ---------- Boosts (time-limited) ----------
     {"sku": "boost_xp_2x_1h", "name": "Élixir d'XP — 1h", "category": "boost", "price": 200, "icon": "Zap", "rarity": "rare", "description": "Double XP pendant 1 heure", "boost_type": "xp_multiplier", "boost_value": 2, "duration_minutes": 60, "unlock_level": 1},
     {"sku": "boost_xp_2x_24h", "name": "Élixir d'XP — 24h", "category": "boost", "price": 1500, "icon": "Zap", "rarity": "epic", "description": "Double XP pendant 24 heures", "boost_type": "xp_multiplier", "boost_value": 2, "duration_minutes": 1440, "unlock_level": 15},
-    {"sku": "boost_aether_2x_1h", "name": "Élixir d'Aether — 1h", "category": "boost", "price": 300, "icon": "Coins", "rarity": "rare", "description": "Double Aether gagné pendant 1 heure", "boost_type": "aether_multiplier", "boost_value": 2, "duration_minutes": 60, "unlock_level": 5},
+    {"sku": "boost_aether_2x_1h", "name": "Élixir d'Écus — 1h", "category": "boost", "price": 300, "icon": "Coins", "rarity": "rare", "description": "Double les Écus gagnés pendant 1 heure", "boost_type": "aether_multiplier", "boost_value": 2, "duration_minutes": 60, "unlock_level": 5},
     {"sku": "boost_luck_1h", "name": "Œil de Fortune — 1h", "category": "boost", "price": 400, "icon": "Eye", "rarity": "epic", "description": "Augmente les chances de raretés élevées en coffre", "boost_type": "luck", "boost_value": 1.5, "duration_minutes": 60, "unlock_level": 10},
 
     # ---------- Consumables ----------
@@ -33,12 +33,12 @@ SHOP_ITEMS = [
 
     # ---------- Kingdom (permanent perks) ----------
     {"sku": "kingdom_inventory_slot", "name": "Coffre Étendu", "category": "kingdom", "price": 1000, "icon": "Package", "rarity": "rare", "description": "+10 slots d'inventaire permanents", "unlock_level": 5},
-    {"sku": "kingdom_aether_mine", "name": "Mine d'Aether", "category": "kingdom", "price": 3000, "icon": "Pickaxe", "rarity": "legendary", "description": "Génère 50 Aether par jour passivement", "unlock_level": 20},
+    {"sku": "kingdom_aether_mine", "name": "Mine d'Écus", "category": "kingdom", "price": 3000, "icon": "Pickaxe", "rarity": "legendary", "description": "Génère 50 Écus par jour passivement", "unlock_level": 20},
     {"sku": "kingdom_ban_archive", "name": "Archives du Conseil", "category": "kingdom", "price": 4000, "icon": "ScrollText", "rarity": "epic", "description": "Accès permanent aux Archives de Bannissements du royaume", "unlock_level": 25, "perk": "ban_history"},
     {"sku": "kingdom_oracle_link", "name": "Lien à l'Oracle", "category": "kingdom", "price": 5000, "icon": "Eye", "rarity": "legendary", "description": "Consultation illimitée du Sanctuaire — accès au Présage quotidien", "unlock_level": 30, "perk": "oracle_unlimited"},
     {"sku": "kingdom_chronicle_vault", "name": "Voûte des Chroniques", "category": "kingdom", "price": 6000, "icon": "BookOpen", "rarity": "legendary", "description": "Accès aux Chroniques complètes du royaume (toutes époques)", "unlock_level": 35, "perk": "chronicle_full"},
     {"sku": "kingdom_throne_room", "name": "Salle du Trône", "category": "kingdom", "price": 12000, "icon": "Crown", "rarity": "mythic", "description": "Trône personnel affiché sur votre profil, badge royal exclusif", "unlock_level": 50, "perk": "throne"},
-    {"sku": "kingdom_treasury", "name": "Trésorerie Royale", "category": "kingdom", "price": 18000, "icon": "Coins", "rarity": "mythic", "description": "Génère 200 Aether par jour passivement (cumulable avec Mine)", "unlock_level": 60, "perk": "treasury"},
+    {"sku": "kingdom_treasury", "name": "Trésorerie Royale", "category": "kingdom", "price": 18000, "icon": "Coins", "rarity": "mythic", "description": "Génère 200 Écus par jour passivement (cumulable avec Mine)", "unlock_level": 60, "perk": "treasury"},
     {"sku": "kingdom_constellation", "name": "Constellation Personnelle", "category": "kingdom", "price": 25000, "icon": "Sparkles", "rarity": "divine", "description": "Constellation unique tracée dans le ciel de NEXORIA portant votre nom", "unlock_level": 80, "perk": "constellation"},
 
     # ---------- Chests (instant relic open) ----------
@@ -65,3 +65,19 @@ SHOP_ITEMS = [
 
 def get_shop_item(sku: str):
     return next((i for i in SHOP_ITEMS if i["sku"] == sku), None)
+
+
+# ---------- Écus packs (real-money top-up via Stripe) ----------
+# `price_eur` is the charge; `ecus` is the base amount; `bonus` is extra écus
+# granted on top (marketing). Total credited = ecus + bonus. Prices in EUR cents
+# are derived at checkout (price_eur * 100).
+ECU_PACKS = [
+    {"id": "ecus_1000",  "ecus": 1000,  "bonus": 0,    "price_eur": 4.99,  "label": "Petite bourse"},
+    {"id": "ecus_2500",  "ecus": 2500,  "bonus": 250,  "price_eur": 9.99,  "label": "Bourse du marchand", "popular": True},
+    {"id": "ecus_6000",  "ecus": 6000,  "bonus": 900,  "price_eur": 19.99, "label": "Coffre royal"},
+    {"id": "ecus_15000", "ecus": 15000, "bonus": 3000, "price_eur": 44.99, "label": "Trésor cosmique", "best_value": True},
+]
+
+
+def get_ecu_pack(pack_id: str):
+    return next((p for p in ECU_PACKS if p["id"] == pack_id), None)

@@ -46,7 +46,7 @@ export default function NexusOverlay() {
   const [announceText, setAnnounceText] = useState("");
   const [popupTitle, setPopupTitle] = useState("Décret du Conseil");
   const [popupBody, setPopupBody] = useState("");
-  const [spawnForm, setSpawnForm] = useState({ name: "Éclat d'Aether", rarity: "rare", icon: "✨" });
+  const [spawnForm, setSpawnForm] = useState({ name: "Éclat d'Écus", rarity: "rare", icon: "✨" });
   const [gmInvisible, setGmInvisible] = useState(false);
   const [gmGodmode, setGmGodmode] = useState(false);
   const [inspectData, setInspectData] = useState(null);

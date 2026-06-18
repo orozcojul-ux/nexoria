@@ -70,7 +70,7 @@ ROOMS = {
         "portals_to": ["place_centrale", "marche_astral", "camp_aventuriers"],
         "npcs": [
             {"name": "Maître Brundir", "class_id": "alchemist", "tx": 11, "ty": 7,
-             "line": "Une chope d'Aether pour le voyageur ?"},
+             "line": "Une chope d'écus pour le voyageur ?"},
             {"name": "Barde Selenya", "class_id": "mage", "tx": 14, "ty": 13,
              "line": "Écoutez la complainte des étoiles..."},
         ],
@@ -103,7 +103,7 @@ ROOMS = {
         "portals_to": ["place_centrale", "taverne_etoilee", "atelier_inventeurs"],
         "npcs": [
             {"name": "Marchande Xilia", "class_id": "explorer", "tx": 8, "ty": 7,
-             "line": "Reliques rares à prix d'éclat d'Aether !"},
+             "line": "Reliques rares à prix d'éclat d'écus !"},
             {"name": "Forgeron Korn", "class_id": "warrior", "tx": 16, "ty": 7,
              "line": "Armes forgées dans les étoiles, héros."},
         ],

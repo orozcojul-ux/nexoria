@@ -97,7 +97,7 @@ async def consult_oracle(user_profile: dict, question: str) -> str:
         f"- Titre actif: {user_profile.get('active_title', 'Aucun')}\n"
         f"- Badges: {user_profile.get('badge_count', 0)}\n"
         f"- Réputation: {user_profile.get('reputation', 0)}\n"
-        f"- Or (Aether): {user_profile.get('aether', 0)}\n"
+        f"- Or (Écus): {user_profile.get('aether', 0)}\n"
     )
     full_question = f"{profile_summary}\n\nLe héros demande: {question}"
 

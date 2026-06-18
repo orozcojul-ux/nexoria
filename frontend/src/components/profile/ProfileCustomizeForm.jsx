@@ -4,7 +4,7 @@ import { Save, Eye, Palette, Link2, User, BookOpen, Settings2, Upload, Loader2 }
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
-import { PremiumBadge, PremiumButton } from "@/components/ui-premium";
+import { PremiumButton } from "@/components/ui-premium";
 
 const ACCENT_PRESETS = ["#7B2FF7", "#00E5FF", "#FCD34D", "#10B981", "#F97316", "#EC4899", "#6366F1"];
 
@@ -13,15 +13,12 @@ function emptySocial(links) {
     twitter: links?.twitter || "",
     twitch: links?.twitch || "",
     youtube: links?.youtube || "",
-    discord_tag: links?.discord_tag || "",
   };
 }
 
 export default function ProfileCustomizeForm({ user, refresh, t }) {
   const [form, setForm] = useState({
-    display_name: user.display_name || "",
     status_message: user.status_message || "",
-    pronouns: user.pronouns || "",
     location: user.location || "",
     bio: user.bio || "",
     quote: user.quote || "",
@@ -31,7 +28,6 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
     website_url: user.website_url || "",
     social_links: emptySocial(user.social_links),
     profile_accent: user.profile_accent || "#7B2FF7",
-    featured_badge_id: user.featured_badge_id || "",
     profile_show_stats: user.profile_show_stats !== false,
     profile_show_dna: user.profile_show_dna !== false,
     profile_show_chronicle: user.profile_show_chronicle !== false,
@@ -39,8 +35,6 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
     profile_hide_hero_card: user.profile_hide_hero_card === true,
     active_frame: user.active_frame || "",
   });
-  const [badges, setBadges] = useState([]);
-  const [badgeDefs, setBadgeDefs] = useState([]);
   const [frames, setFrames] = useState([]);
   const [titles, setTitles] = useState([]);
   const [activeTitle, setActiveTitle] = useState(user.active_title || "novice");
@@ -56,8 +50,8 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
       toast.error("Format non supporté (JPG, PNG, GIF, WebP)");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image trop lourde (max 5 Mo)");
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Image trop lourde (max 15 Mo)");
       return;
     }
     setUploadingAvatar(true);
@@ -79,14 +73,10 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
 
   useEffect(() => {
     Promise.all([
-      api.get("/badges/mine"),
-      api.get("/game/badges"),
       api.get("/shop/inventory"),
       api.get("/shop/items"),
       api.get("/game/titles"),
-    ]).then(([b, defs, inv, items, tRes]) => {
-      setBadges(b.data || []);
-      setBadgeDefs(defs.data || []);
+    ]).then(([inv, items, tRes]) => {
       const ownedSkus = (inv.data?.cosmetics || []).map((c) => c.sku);
       setFrames((items.data || []).filter((i) => i.sku?.includes("frame") && ownedSkus.includes(i.sku)));
       setTitles(tRes.data || []);
@@ -96,16 +86,12 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
   const setSocial = (key, val) => setForm((f) => ({ ...f, social_links: { ...f.social_links, [key]: val } }));
 
-  const badgeMap = Object.fromEntries(badgeDefs.map((b) => [b.id, b]));
-
   const save = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
       await api.put("/profile", {
-        display_name: form.display_name.trim(),
         status_message: form.status_message.trim(),
-        pronouns: form.pronouns.trim(),
         location: form.location.trim(),
         bio: form.bio.trim(),
         quote: form.quote.trim(),
@@ -115,7 +101,6 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
         website_url: form.website_url.trim() || null,
         social_links: form.social_links,
         profile_accent: form.profile_accent,
-        featured_badge_id: form.featured_badge_id || null,
         profile_show_stats: form.profile_show_stats,
         profile_show_dna: form.profile_show_dna,
         profile_show_chronicle: form.profile_show_chronicle,
@@ -136,7 +121,7 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
     }
   };
 
-  const displayLabel = form.display_name || user.username;
+  const displayLabel = user.username;
 
   return (
     <form onSubmit={save} className="space-y-8" data-testid="profile-customize-form">
@@ -175,16 +160,13 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
           <div className="pt-6 min-w-0">
             <div className="font-display font-bold text-white truncate">{displayLabel}</div>
             {form.status_message && <div className="text-xs text-zinc-400 truncate">{form.status_message}</div>}
-            {form.pronouns && <div className="text-[10px] text-zinc-500">{form.pronouns}</div>}
           </div>
         </div>
       </div>
 
       <Section title="Identité" icon={User}>
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Nom affiché" value={form.display_name} onChange={(v) => set("display_name", v)} testid="display-name-input" placeholder={user.username} hint="Laisser vide = pseudo" />
-          <Field label="Pronoms" value={form.pronouns} onChange={(v) => set("pronouns", v)} testid="pronouns-input" placeholder="il/lui, elle, iel…" />
-          <Field label="Statut / humeur" value={form.status_message} onChange={(v) => set("status_message", v)} testid="status-input" placeholder="En quête dans le Nexus…" />
+          <Field label="Statut / humeur" value={form.status_message} onChange={(v) => set("status_message", v)} testid="status-input" placeholder="En quête dans le Nexus…" hint="Affiché sur votre profil public" />
           <Field label="Localisation" value={form.location} onChange={(v) => set("location", v)} testid="location-input" placeholder="Royaume d'Aethermoor" />
         </div>
         <div className="mt-4">
@@ -239,7 +221,7 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
                 {uploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                 {uploadingAvatar ? "Import en cours…" : "Importer depuis mon ordinateur"}
               </button>
-              <span className="text-xs text-zinc-500">JPG, PNG, GIF ou WebP — max 5 Mo.</span>
+              <span className="text-xs text-zinc-500">JPG, PNG, GIF ou WebP — max 15 Mo.</span>
             </div>
           </div>
         </div>
@@ -292,7 +274,6 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
           <Field label="Twitter / X" value={form.social_links.twitter} onChange={(v) => setSocial("twitter", v)} testid="twitter-input" placeholder="@pseudo" />
           <Field label="Twitch" value={form.social_links.twitch} onChange={(v) => setSocial("twitch", v)} testid="twitch-input" placeholder="pseudo" />
           <Field label="YouTube" value={form.social_links.youtube} onChange={(v) => setSocial("youtube", v)} testid="youtube-input" placeholder="chaîne ou URL" />
-          <Field label="Discord (tag)" value={form.social_links.discord_tag} onChange={(v) => setSocial("discord_tag", v)} testid="discord-tag-input" placeholder="pseudo#0000" />
         </div>
       </Section>
 
@@ -319,29 +300,6 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
             />
           )}
         </div>
-        {badges.length > 0 && (
-          <div className="mt-4">
-            <label className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-2 block">Badge mis en avant</label>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => set("featured_badge_id", "")} className={`px-3 py-1.5 rounded-lg border text-xs ${!form.featured_badge_id ? "border-cyan-500/50 bg-cyan-500/10" : "border-white/10"}`}>
-                Aucun
-              </button>
-              {badges.slice(0, 12).map((b) => {
-                const def = badgeMap[b.badge_id] || { badge_id: b.badge_id, name: b.badge_id };
-                return (
-                <button
-                  key={b.badge_id}
-                  type="button"
-                  onClick={() => set("featured_badge_id", b.badge_id)}
-                  className={`p-1 rounded-lg border ${form.featured_badge_id === b.badge_id ? "border-cyan-500/50 bg-cyan-500/10" : "border-white/10"}`}
-                  data-testid={`featured-badge-${b.badge_id}`}
-                >
-                  <PremiumBadge badge={{ ...def, badge_id: b.badge_id }} size="sm" />
-                </button>
-              );})}
-            </div>
-          </div>
-        )}
       </Section>
 
       <PremiumButton type="submit" variant="cyan" disabled={saving} icon={Save} testid="save-profile-btn">

@@ -1139,13 +1139,13 @@ def build_socketio_app(db, hooks=None):
             import discord_rewards
             await push_notification(db, target_user_id, "aether",
                                     "Le Conseil intervient",
-                                    f"Un Gardien a ajusté votre Aether de {amount:+d}.",
+                                    f"Un Gardien a ajusté vos Écus de {amount:+d}.",
                                     sound="chime", icon="Coins")
             if amount != 0:
                 discord_rewards.schedule_reward_notify(
                     db, target_user_id, "Game Master",
                     aether=amount,
-                    extra=[f"Solde : {new_val} Aether"],
+                    extra=[f"Solde : {new_val} Écus"],
                 )
         except Exception:
             pass
@@ -1459,8 +1459,19 @@ async def push_to_user(user_id: str, event: str, payload: dict):
 
 
 def get_online_user_ids():
-    """User IDs currently connected to the Nexus realtime layer."""
-    return set(_user_sids.keys())
+    """User IDs currently connected and VISIBLE on the Nexus realtime layer.
+
+    Users who hid their presence (appear_offline → invisible) are excluded so
+    they show as offline everywhere on the site (friends, player search, …).
+    """
+    visible = set()
+    for uid, sids in _user_sids.items():
+        for sid in sids:
+            p = _players.get(sid)
+            if p and not p.get("invisible"):
+                visible.add(uid)
+                break
+    return visible
 
 
 def staff_online_summary():

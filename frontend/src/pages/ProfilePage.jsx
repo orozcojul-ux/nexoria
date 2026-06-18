@@ -1,7 +1,24 @@
 import React, { useMemo } from "react";
+import { Globe, Twitter, Twitch, Youtube } from "lucide-react";
 import { PremiumBadge } from "@/components/ui-premium";
 import ClassImage from "@/components/ClassImage";
 import styles from "./ProfilePage.module.css";
+
+/* Normalise un identifiant social en URL absolue cliquable. */
+function buildSocialUrl(kind, raw) {
+  if (!raw) return null;
+  const v = String(raw).trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  const handle = v.replace(/^@/, "");
+  switch (kind) {
+    case "twitter": return `https://x.com/${handle}`;
+    case "twitch": return `https://twitch.tv/${handle}`;
+    case "youtube": return handle.startsWith("@") ? `https://youtube.com/${handle}` : `https://youtube.com/@${handle}`;
+    case "website": return `https://${v}`;
+    default: return v;
+  }
+}
 
 /* ============================================================
    Décor partagé : coins fleur-de-lys + runes de bordure
@@ -196,9 +213,23 @@ export default function ProfilePage({
   onToggleFollow,
   reportSlot = null,
 }) {
-  const name = hero.display_name || hero.username || "Héros";
+  const name = hero.username || "Héros";
+  const accent = hero.profile_accent || "#7B2FF7";
+  const statusMessage = hero.status_message || "";
+  const bio = hero.bio || "";
+  const quote = hero.quote || "";
+  const story = hero.story || "";
   const rankTitle = (hero.active_title_name || hero.title_name || "Roi des Créateurs").toUpperCase();
   const discordName = hero.discord_username || hero.discord_global_name || hero.username;
+
+  const socials = hero.social_links || {};
+  const socialLinks = [
+    { key: "website", url: buildSocialUrl("website", hero.website_url), Icon: Globe, label: "Site web" },
+    { key: "twitter", url: buildSocialUrl("twitter", socials.twitter), Icon: Twitter, label: "Twitter / X" },
+    { key: "twitch", url: buildSocialUrl("twitch", socials.twitch), Icon: Twitch, label: "Twitch" },
+    { key: "youtube", url: buildSocialUrl("youtube", socials.youtube), Icon: Youtube, label: "YouTube" },
+  ].filter((s) => s.url);
+  const hasAbout = !!(bio || quote || story || socialLinks.length);
   const className = hero.class_name || "Aventurier";
   const level = hero.level ?? 1;
   const cosmicRank = hero.rank || "Cosmique";
@@ -227,7 +258,7 @@ export default function ProfilePage({
     <div
       className={styles.page}
       data-testid="profile-page"
-      style={{ backgroundImage: `url(${pageBg})` }}
+      style={{ backgroundImage: `url(${pageBg})`, "--profile-accent": accent }}
     >
       {/* ===================== BLOC 1 — HEADER ===================== */}
       <header className={`${styles.frame} ${styles.header}`} style={headerStyle}>
@@ -261,8 +292,36 @@ export default function ProfilePage({
               <span>👑</span>
               {rankTitle}
             </div>
-            <h1 className={styles.heroName} data-testid="profile-username">{name}</h1>
+            <h1 className={styles.heroName} data-testid="profile-username" style={{ textShadow: `0 0 18px ${accent}88` }}>{name}</h1>
             <div className={styles.discordLine} data-testid="profile-discord-name">Discord · {discordName}</div>
+            {statusMessage && (
+              <div
+                className={styles.statusLine}
+                data-testid="profile-status"
+                style={{ borderColor: `${accent}66`, color: "#e8e0f0" }}
+              >
+                <span style={{ color: accent }}>“</span>{statusMessage}<span style={{ color: accent }}>”</span>
+              </div>
+            )}
+            {socialLinks.length > 0 && (
+              <div className={styles.socialRow} data-testid="profile-socials">
+                {socialLinks.map(({ key, url, Icon, label }) => (
+                  <a
+                    key={key}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={label}
+                    aria-label={label}
+                    className={styles.socialLink}
+                    style={{ borderColor: `${accent}66`, color: accent }}
+                    data-testid={`profile-social-${key}`}
+                  >
+                    <Icon size={16} />
+                  </a>
+                ))}
+              </div>
+            )}
             <div className={styles.classLine}>
               <ClassImage
                 classId={hero.class_id || hero.class_name}
@@ -375,6 +434,34 @@ export default function ProfilePage({
           )}
         </section>
       </div>
+
+      {/* ===================== BLOC 2.5 — À PROPOS ===================== */}
+      {hasAbout && (
+        <section className={`${styles.frame} ${styles.panel} ${styles.aboutPanel}`}>
+          <FrameDecor />
+          <div className={styles.panelLabel} style={{ color: accent }}>À PROPOS</div>
+
+          {quote && (
+            <blockquote className={styles.aboutQuote} data-testid="profile-quote" style={{ borderColor: accent, color: "#f0e9d6" }}>
+              {quote}
+            </blockquote>
+          )}
+
+          {bio && (
+            <div className={styles.aboutBlock} data-testid="profile-bio">
+              <div className={styles.aboutHeading} style={{ color: accent }}>Biographie</div>
+              <p className={styles.aboutText}>{bio}</p>
+            </div>
+          )}
+
+          {story && (
+            <div className={styles.aboutBlock} data-testid="profile-story">
+              <div className={styles.aboutHeading} style={{ color: accent }}>Histoire du personnage</div>
+              <p className={styles.aboutText}>{story}</p>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ===================== BLOC 3 — CHRONIQUE ===================== */}
       <section>

@@ -71,6 +71,17 @@ export default function Inventory() {
     }
   };
 
+  const equipMount = async (sku) => {
+    try {
+      await api.put("/profile", { active_mount: sku });
+      sfx.success();
+      toast.success("Monture équipée — visible dans le Nexus");
+      await refresh();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Équipement impossible");
+    }
+  };
+
   const openChest = async () => {
     if ((user?.aether || 0) < 50) { toast.error("50 Écus requis pour briser le sceau"); return; }
     setOpening(true);
@@ -199,6 +210,7 @@ export default function Inventory() {
           onEquipFrame={(sku) => equipCosmetic(sku, "frame")}
           onEquipBanner={(sku) => equipCosmetic(sku, "banner")}
           onEquipAura={equipAura}
+          onEquipMount={equipMount}
         />
       )}
 
@@ -233,7 +245,7 @@ export default function Inventory() {
 }
 
 
-function ShopOwnedGrid({ tab, owned, shopItems, user, onEquipFrame, onEquipBanner, onEquipAura }) {
+function ShopOwnedGrid({ tab, owned, shopItems, user, onEquipFrame, onEquipBanner, onEquipAura, onEquipMount }) {
   const itemsByKey = Object.fromEntries(shopItems.map((it) => [it.sku, it]));
   const now = Date.now();
   let list = [];
@@ -264,7 +276,8 @@ function ShopOwnedGrid({ tab, owned, shopItems, user, onEquipFrame, onEquipBanne
         const isBanner = sku?.startsWith("banner_");
         const equipped = isFrame && user?.active_frame === sku
           || isBanner && user?.active_banner === sku
-          || tab === "auras" && user?.active_aura_sku === sku;
+          || tab === "auras" && user?.active_aura_sku === sku
+          || tab === "mounts" && user?.active_mount === sku;
         return (
           <PremiumCard key={`${sku}-${i}`} tone="violet" className={`border-2 ${tok.border}`}
             style={{ boxShadow: `0 0 12px ${tok.glow}` }}
@@ -295,6 +308,12 @@ function ShopOwnedGrid({ tab, owned, shopItems, user, onEquipFrame, onEquipBanne
                   <PremiumButton variant={equipped ? "cyan" : "ghost"} size="sm" className="mt-2"
                     onClick={() => onEquipAura(sku)}>
                     {equipped ? "Aura active" : "Équiper l'aura"}
+                  </PremiumButton>
+                )}
+                {tab === "mounts" && (
+                  <PremiumButton variant={equipped ? "cyan" : "ghost"} size="sm" className="mt-2"
+                    onClick={() => onEquipMount(sku)}>
+                    {equipped ? "Monture active" : "Équiper la monture"}
                   </PremiumButton>
                 )}
               </div>

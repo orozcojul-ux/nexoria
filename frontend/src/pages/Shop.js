@@ -13,6 +13,7 @@ import { useProfileSync } from "@/hooks/useProfileSync";
 import { RARITY } from "@/lib/design-tokens";
 import { PremiumButton, PremiumCard, PageShell } from "@/components/ui-premium";
 import VipPassSection from "@/components/shop/VipPassSection";
+import BuyEcusSection from "@/components/shop/BuyEcusSection";
 import { drawPixelBanner } from "@/lib/pixelArtUi";
 import { usePageBanner } from "@/lib/page-banners";
 import { useI18n } from "@/contexts/I18nContext";
@@ -29,6 +30,32 @@ const CAT_KEYS = [
   { id: "pass", key: "shop.cat.pass", icon: Ticket },
   { id: "kingdom", key: "shop.cat.kingdom", icon: Shield },
 ];
+
+// Aide « comment activer / où retrouver » par article (bouton info "i").
+function itemActivationInfo(item) {
+  const sku = item.sku || "";
+  const cat = item.category;
+  if (sku === "scroll_rename") return "Confère un parchemin. Utilisez-le dans Paramètres › Compte › Pseudo pour changer de nom.";
+  if (sku === "scroll_class_change") return "Crédite 3 changements de classe. Utilisez-les depuis votre Carte de Héros › bouton « Changer ».";
+  if (sku === "key_chest_cosmic") return "Ouvre immédiatement un coffre garanti Épique+. Les reliques partent dans votre Inventaire.";
+  if (sku === "summon_rift") return "Fait apparaître une faille dimensionnelle. Récupérez-la depuis votre page Héros / le Fil.";
+  if (sku === "kingdom_inventory_slot") return "+10 emplacements ajoutés immédiatement à votre Inventaire.";
+  if (sku === "kingdom_aether_mine" || sku === "kingdom_treasury") return "Génère des Écus passivement chaque jour, crédités automatiquement à la connexion.";
+  if (sku === "kingdom_throne_room") return "Trône affiché sur votre profil + badge royal. Visible sur votre page Héros.";
+  if (cat === "boost") return "Effet actif immédiatement après l'achat. Suivez le compte à rebours dans « Effets actifs » en haut de la boutique.";
+  if (cat === "chest") return "Ouvre immédiatement un coffre. Les reliques obtenues partent dans votre Inventaire.";
+  if (cat === "mount") return "Monture équipée automatiquement. Visible dans le Nexus (monde) et sur votre profil.";
+  if (cat === "aura") return "Aura équipée automatiquement. Visible autour de votre avatar dans le Nexus.";
+  if (cat === "title") return "Titre équipé automatiquement. Modifiable dans Paramètres › Profil.";
+  if (cat === "pass") return "Réservé pendant une saison active. Récompense immédiate + récompenses de fin de saison doublées.";
+  if (cat === "kingdom") return "Avantage permanent appliqué à votre compte. Retrouvez-le sur la page Royaume.";
+  if (cat === "cosmetic") {
+    if (sku.startsWith("frame_")) return "Cadre équipé automatiquement. Modifiable dans Paramètres › Profil (cadre).";
+    if (sku.startsWith("banner_")) return "Bannière débloquée. À équiper depuis Paramètres › Profil (bannière).";
+    return "Cosmétique débloqué. À équiper depuis votre profil.";
+  }
+  return "Article débloqué pour votre compte après l'achat.";
+}
 
 // Bannières pixel art — style Dofus/WoW (plus d'images IA)
 const FEATURED_VISUALS = [
@@ -51,11 +78,22 @@ export default function Shop() {
   const [cartOpen, setCartOpen] = useState(false);
   const [featuredIdx, setFeaturedIdx] = useState(0);
   const [chestReveal, setChestReveal] = useState(null); // { name, items: [...] }
+  const [seasonActive, setSeasonActive] = useState(true);
+
+  // Returning from Stripe Checkout → open the écus tab so the confirmation runs.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("ecus")) setCat("buy_ecus");
+  }, []);
 
   const load = useCallback(async () => {
-    const [a, b] = await Promise.all([api.get("/shop/items"), api.get("/shop/inventory")]);
+    const [a, b, s] = await Promise.all([
+      api.get("/shop/items"),
+      api.get("/shop/inventory"),
+      api.get("/seasons/current").catch(() => ({ data: null })),
+    ]);
     setItems(a.data);
     setOwned(b.data);
+    setSeasonActive(!!s.data);
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -172,6 +210,11 @@ export default function Shop() {
                 {user?.aether ?? 0}
               </span>
               <span className="text-[10px] text-yellow-300/70">⟡ ÉCUS</span>
+              <button onClick={() => setCat("buy_ecus")} data-testid="shop-topup-btn"
+                title="Recharger des écus"
+                className="ml-1 w-6 h-6 rounded-md bg-yellow-400/20 border border-yellow-300/50 text-yellow-200 hover:bg-yellow-400/30 flex items-center justify-center">
+                <Plus className="w-3.5 h-3.5" />
+              </button>
             </div>
             {/* Cart trigger */}
             <button onClick={() => setCartOpen(true)} data-testid="cart-toggle"
@@ -222,6 +265,14 @@ export default function Shop() {
                     <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-400/25 text-amber-100 border border-amber-300/50 relative z-10">VIP</span>
                   </button>
                 )}
+                {c.id === "all" && (
+                  <button onClick={() => setCat("buy_ecus")} data-testid="shop-cat-buy-ecus"
+                    className={`w-full text-left px-3 py-2 rounded-lg border flex items-center gap-2 transition-all ${cat === "buy_ecus" ? "border-yellow-400/70 bg-yellow-400/10 text-yellow-200" : "border-yellow-500/30 text-yellow-300/80 hover:border-yellow-400/60 hover:bg-yellow-400/5"}`}>
+                    <Coins className="w-4 h-4" />
+                    <span className="flex-1 font-display font-bold text-sm">Recharger des Écus</span>
+                    <Plus className="w-3.5 h-3.5 opacity-70" />
+                  </button>
+                )}
               </React.Fragment>
             );
           })}
@@ -242,10 +293,15 @@ export default function Shop() {
 
         {/* ===== Main ===== */}
         <main className="space-y-5">
-          {cat === "vip" ? (
+          {cat === "buy_ecus" ? (
+            <BuyEcusSection />
+          ) : cat === "vip" ? (
             <VipPassSection />
           ) : (
           <>
+          {/* Active boosts countdown */}
+          <ActiveBoostsPanel boosts={owned.boosts} onExpire={load} />
+
           {/* Hero featured carousel */}
           <div className="relative h-56 rounded-2xl overflow-hidden border border-purple-500/40 group" data-testid="shop-hero">
             <AnimatePresence mode="wait">
@@ -295,7 +351,7 @@ export default function Shop() {
                   <ItemCard key={it.sku} item={it} compact rank={i + 1}
                     owned={ownedSkus.has(it.sku)} buying={buying === it.sku}
                     onBuy={() => buyOne(it.sku)} onAdd={() => addToCart(it)} aether={user?.aether ?? 0}
-                    userLevel={user?.level ?? 1} />
+                    userLevel={user?.level ?? 1} seasonActive={seasonActive} />
                 ))}
               </div>
             </Section>
@@ -312,7 +368,7 @@ export default function Shop() {
                   <ItemCard key={it.sku} item={it}
                     owned={ownedSkus.has(it.sku)} buying={buying === it.sku}
                     onBuy={() => buyOne(it.sku)} onAdd={() => addToCart(it)} aether={user?.aether ?? 0}
-                    userLevel={user?.level ?? 1} />
+                    userLevel={user?.level ?? 1} seasonActive={seasonActive} />
                 ))}
               </div>
             )}
@@ -443,6 +499,73 @@ function ChestRevealModal({ reveal, onClose }) {
   );
 }
 
+const BOOST_LABELS = {
+  xp_multiplier: { label: "XP", color: "#a855f7", icon: Zap },
+  aether_multiplier: { label: "Écus", color: "#FCD34D", icon: Coins },
+  luck: { label: "Chance", color: "#34D399", icon: Sparkles },
+};
+
+function fmtCountdown(ms) {
+  if (ms <= 0) return "00:00";
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
+function ActiveBoostsPanel({ boosts, onExpire }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const active = (boosts || [])
+    .map((b) => ({ ...b, remaining: new Date(b.expires_at).getTime() - now }))
+    .filter((b) => b.remaining > 0);
+
+  // Trigger a refresh once a boost crosses to expired.
+  const expiredRef = React.useRef(false);
+  useEffect(() => {
+    const anyExpired = (boosts || []).some((b) => new Date(b.expires_at).getTime() - now <= 0);
+    if (anyExpired && !expiredRef.current) { expiredRef.current = true; onExpire?.(); }
+    if (!anyExpired) expiredRef.current = false;
+  }, [now, boosts, onExpire]);
+
+  if (active.length === 0) return null;
+  return (
+    <div className="rounded-2xl border border-purple-500/40 bg-gradient-to-r from-purple-900/30 to-cyan-900/20 p-4" data-testid="active-boosts-panel">
+      <div className="flex items-center gap-2 mb-3">
+        <Zap className="w-4 h-4 text-purple-300" />
+        <h2 className="font-display font-black text-sm uppercase tracking-widest text-purple-200">Effets actifs</h2>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+        {active.map((b) => {
+          const cfg = BOOST_LABELS[b.boost_type] || { label: b.boost_type, color: "#22D3EE", icon: Zap };
+          const BIco = cfg.icon;
+          const urgent = b.remaining < 60000;
+          return (
+            <div key={b.sku + b.expires_at} className="flex items-center gap-3 p-3 rounded-xl border bg-black/40"
+              style={{ borderColor: `${cfg.color}55` }} data-testid={`active-boost-${b.sku}`}>
+              <BIco className="w-5 h-5 shrink-0" style={{ color: cfg.color }} />
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-sm text-white truncate">{b.name || cfg.label}</div>
+                <div className="text-[10px] uppercase tracking-widest" style={{ color: cfg.color }}>
+                  {cfg.label} ×{b.boost_value}
+                </div>
+              </div>
+              <div className={`font-mono-stat font-black text-sm ${urgent ? "text-red-300 animate-pulse" : "text-zinc-200"}`}>
+                {fmtCountdown(b.remaining)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, icon: Icon, accent = "text-cyan-300", children }) {
   return (
     <div>
@@ -456,14 +579,17 @@ function Section({ title, icon: Icon, accent = "text-cyan-300", children }) {
   );
 }
 
-function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, rank, compact }) {
+function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, rank, compact, seasonActive = true }) {
   const { t } = useI18n();
+  const [showInfo, setShowInfo] = useState(false);
   const r = RARITY[item.rarity] || RARITY.common;
   const requiredLevel = item.unlock_level ?? 1;
   const levelOk = userLevel >= requiredLevel;
   const canAfford = (aether ?? 0) >= (item.price || 0);
-  const canBuy = canAfford && levelOk && !owned;
+  const seasonBlocked = item.category === "pass" && !seasonActive;
+  const canBuy = canAfford && levelOk && !owned && !seasonBlocked;
   const Ico = item.icon && Lucide[item.icon] ? Lucide[item.icon] : Sparkles;
+  const info = itemActivationInfo(item);
   return (
     <PremiumCard
       tone="violet"
@@ -472,8 +598,29 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, ra
       testid={`shop-item-${item.sku}`}
       style={{ borderColor: `${r.color}66`, boxShadow: `0 0 16px ${r.glow}` }}
     >
+      {/* Info button */}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setShowInfo((v) => !v); }}
+        onMouseEnter={() => setShowInfo(true)}
+        onMouseLeave={() => setShowInfo(false)}
+        data-testid={`shop-info-${item.sku}`}
+        aria-label="Informations sur l'article"
+        className="absolute top-2 right-2 z-20 w-5 h-5 rounded-full border border-cyan-400/50 bg-cyan-500/15 text-cyan-200 text-[11px] font-black flex items-center justify-center hover:bg-cyan-500/30 transition-colors"
+      >
+        i
+      </button>
+      {showInfo && (
+        <div
+          className="absolute top-9 right-2 z-30 w-52 p-3 rounded-lg border border-cyan-400/40 bg-[#0A0613]/95 backdrop-blur-md shadow-[0_8px_30px_rgba(0,0,0,0.6)] text-left"
+          data-testid={`shop-info-popover-${item.sku}`}
+        >
+          <div className="text-[10px] uppercase tracking-widest text-cyan-300 font-bold mb-1">Comment l'utiliser</div>
+          <p className="text-[11px] text-zinc-300 leading-relaxed">{info}</p>
+        </div>
+      )}
       {rank && (
-        <div className="absolute top-2 right-2 text-[10px] font-black text-yellow-300 bg-yellow-500/10 border border-yellow-500/40 rounded-full w-6 h-6 flex items-center justify-center">
+        <div className="absolute top-2 left-2 text-[10px] font-black text-yellow-300 bg-yellow-500/10 border border-yellow-500/40 rounded-full w-6 h-6 flex items-center justify-center">
           #{rank}
         </div>
       )}
@@ -504,6 +651,9 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, ra
         {!levelOk && requiredLevel > 1 && (
           <div className="text-[10px] text-amber-400/90 mt-1 font-semibold">{t("shop.level_required", { level: requiredLevel })}</div>
         )}
+        {seasonBlocked && (
+          <div className="text-[10px] text-amber-400/90 mt-1 font-semibold">Aucune saison en cours</div>
+        )}
       </div>
       <div className="mt-3 flex gap-1">
         {owned ? (
@@ -514,7 +664,7 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, ra
           <>
             <button onClick={onBuy} disabled={!canBuy || buying} data-testid={`shop-buy-${item.sku}`}
               className="flex-1 px-2 py-1.5 rounded border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 text-xs font-bold disabled:opacity-40">
-              {buying ? "..." : !levelOk ? t("shop.level_insufficient") : t("shop.buy")}
+              {buying ? "..." : seasonBlocked ? "Indisponible" : !levelOk ? t("shop.level_insufficient") : t("shop.buy")}
             </button>
             <button onClick={onAdd} title="Ajouter au panier"
               data-testid={`shop-cart-${item.sku}`}

@@ -53,7 +53,7 @@ except Exception as _oracle_err:
 
     def oracle_llm_configured():
         return False
-from shop_data import SHOP_ITEMS, get_shop_item
+from shop_data import SHOP_ITEMS, get_shop_item, ECU_PACKS, get_ecu_pack
 from notifications import push_notification, push_staff_alert
 import discord_auth
 import discord_sync
@@ -88,7 +88,26 @@ MAINTENANCE_PUBLIC_PATHS = frozenset({
     "/api/auth/logout",
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
+    "/api/webhooks/stripe",  # Stripe calls this server-to-server (no session)
 })
+
+# ---------- Stripe (real-money écus top-up) ----------
+# Configured entirely via environment variables — no secret ever hardcoded.
+# Leave unset to keep the feature in "not configured" state (UI stays visible
+# but checkout returns a clear message).
+try:
+    import stripe as _stripe
+except Exception:  # pragma: no cover - dependency always present in requirements
+    _stripe = None
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "").strip()
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
+STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "").strip()
+if _stripe and STRIPE_SECRET_KEY:
+    _stripe.api_key = STRIPE_SECRET_KEY
+
+
+def stripe_enabled() -> bool:
+    return bool(_stripe and STRIPE_SECRET_KEY)
 
 # ---------- Helpers ----------
 def now_utc():
@@ -112,6 +131,12 @@ VIP_BONUS_MULTIPLIER = 1.10  # +10% XP & écus
 VIP_DAILY_BONUS_AETHER = 100  # « coffre quotidien » VIP
 # ID du rôle Discord VIP (optionnel — défini via l'environnement, jamais en dur).
 DISCORD_VIP_ROLE_ID = os.environ.get("DISCORD_VIP_ROLE_ID", "").strip()
+
+# Passe Saison : récompense de bienvenue (l'XP alimente aussi le classement
+# saisonnier) + bonus multiplié sur les récompenses de fin de saison.
+SEASON_PASS_BONUS_XP = 3000
+SEASON_PASS_BONUS_AETHER = 1000
+SEASON_PASS_REWARD_MULTIPLIER = 2  # récompenses de fin de saison doublées
 
 
 def _parse_dt(value):
@@ -489,7 +514,7 @@ async def maybe_process_daily_login(user_id: str):
         if "kingdom_treasury" in skus:
             passive += 200
         if passive > 0:
-            await grant_aether(user_id, passive, "Aether passif quotidien")
+            await grant_aether(user_id, passive, "Écus passifs quotidiens")
             await db.users.update_one(
                 {"user_id": user_id},
                 {"$set": {"last_passive_aether_date": today}},
@@ -672,8 +697,13 @@ def pick_random_item():
     return _secure_choice(ITEM_TEMPLATES)
 
 
-async def open_chest(user_id: str):
-    """Generate 1-3 random items. Respects inventory slot limit and luck boosts."""
+async def open_chest(user_id: str, min_rarity: str = None, luck_boost: float = 1.0):
+    """Generate 1-3 random items. Respects inventory slot limit and luck boosts.
+
+    `min_rarity` forces every generated item to be at least that rarity (premium
+    chests/keys honor their guaranteed-rarity descriptions). `luck_boost` further
+    skews the roll toward high rarities for upgraded chests.
+    """
     slot_limit = await inventory_slot_limit(user_id)
     owned_count = await db.inventory.count_documents({"user_id": user_id})
     if owned_count >= slot_limit:
@@ -690,8 +720,14 @@ async def open_chest(user_id: str):
     owned_set = {(d["name"], d["rarity"]) for d in owned_docs}
 
     rarity_ids = list(RARITIES.keys())
+    # Apply a rarity floor when requested (e.g. Clé Cosmique → Épique+).
+    if min_rarity and min_rarity in rarity_ids:
+        floor_idx = rarity_ids.index(min_rarity)
+        rarity_ids = rarity_ids[floor_idx:]
     base_weights = [RARITIES[r]["weight"] for r in rarity_ids]
     luck_mult = await get_active_boost_multiplier(user_id, "luck")
+    if luck_boost and luck_boost > 1:
+        luck_mult *= luck_boost
     high_rarities = {"epic", "legendary", "mythic", "divine", "cosmic"}
     weights = [
         w * luck_mult if r in high_rarities else w
@@ -705,10 +741,10 @@ async def open_chest(user_id: str):
         # Filter templates NOT already owned, of this rarity
         candidates = [t for t in ITEM_TEMPLATES if t["rarity"] == rarity and (t["name"], t["rarity"]) not in owned_set]
         if not candidates:
-            # try any rarity not owned
-            candidates = [t for t in ITEM_TEMPLATES if (t["name"], t["rarity"]) not in owned_set]
+            # try any allowed rarity not owned (respect the rarity floor when set)
+            candidates = [t for t in ITEM_TEMPLATES if t["rarity"] in rarity_ids and (t["name"], t["rarity"]) not in owned_set]
             if not candidates:
-                break  # User owns everything — stop, return what we have
+                break  # User owns everything in range — stop, return what we have
         tmpl = _secure_choice(candidates)
 
         item = {
@@ -1452,8 +1488,9 @@ class ProfileUpdateReq(BaseModel):
     active_mount: Optional[str] = None    # SKU of equipped mount
     language: Optional[str] = None        # User-selected language code
     theme: Optional[str] = None           # UI theme: dark/midnight/amethyst
-    staff_nexus_auto_connect: Optional[bool] = None  # Staff: auto-join Nexus socket on login
-    appear_offline: Optional[bool] = None  # Hide online presence in the Nexus (all users)
+    staff_nexus_auto_connect: Optional[bool] = None  # Staff: auto-join Nexus socket on login (legacy)
+    nexus_auto_connect: Optional[bool] = None  # All users: auto-join Nexus ONLINE on login
+    appear_offline: Optional[bool] = None  # Hide online presence (site + Nexus) for all users
 
 
 @api.get("/users/search")
@@ -1494,7 +1531,7 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         else:
             update["featured_badge_id"] = None
     if "social_links" in update and update["social_links"] is not None:
-        allowed = {"twitter", "twitch", "youtube", "discord_tag"}
+        allowed = {"twitter", "twitch", "youtube"}
         update["social_links"] = {k: str(v)[:128] for k, v in update["social_links"].items() if k in allowed and v}
     class_change_inc = {}
     if "class_id" in update:
@@ -1753,7 +1790,7 @@ async def open_chest_endpoint(user: dict = Depends(get_user_dep)):
     cost = 50
     fresh = await db.users.find_one({"user_id": user["user_id"]})
     if fresh.get("aether", 0) < cost:
-        raise HTTPException(400, f"Aether insuffisant ({cost} requis)")
+        raise HTTPException(400, f"Écus insuffisants ({cost} requis)")
     # Defensive: collapse any existing duplicates before computing "already owned"
     await dedupe_inventory(user["user_id"])
     await spend_aether(user["user_id"], cost, "open_chest")
@@ -1799,7 +1836,7 @@ async def upgrade_building(building_id: str, user: dict = Depends(get_user_dep))
     cost = 100 * next_level
     fresh = await db.users.find_one({"user_id": user["user_id"]})
     if fresh.get("aether", 0) < cost:
-        raise HTTPException(400, f"Coût: {cost} Aether")
+        raise HTTPException(400, f"Coût: {cost} Écus")
     await spend_aether(user["user_id"], cost, f"Amélioration royaume : {building['name']} (niv. {next_level})")
     kingdom[building_id] = {"level": next_level}
     await db.users.update_one(
@@ -2172,7 +2209,7 @@ async def check_rift(user: dict = Depends(get_user_dep)):
     rift_types = [
         {"type": "double_xp", "name": "Faille de Puissance", "description": "Double XP pendant cette session", "reward": "+200 XP"},
         {"type": "chest", "name": "Faille de Trésor", "description": "Un coffre cosmique apparaît", "reward": "Coffre offert"},
-        {"type": "aether", "name": "Faille Dorée", "description": "Une pluie d'Aether vous bénit", "reward": "+150 Aether"},
+        {"type": "aether", "name": "Faille Dorée", "description": "Une pluie d'Écus vous bénit", "reward": "+150 Écus"},
         {"type": "badge", "name": "Faille Mystique", "description": "Vous traversez la dimension", "reward": "Badge Marcheur des Failles"},
     ]
     rift = _secure_choice(rift_types)
@@ -2202,7 +2239,7 @@ async def claim_rift(rift_id: str, user: dict = Depends(get_user_dep)):
         rewards.extend([f"{i['name']}" for i in items])
     elif rift["type"] == "aether":
         await grant_aether(user["user_id"], 150, "rift")
-        rewards.append("150 Aether")
+        rewards.append("150 Écus")
     elif rift["type"] == "badge":
         await grant_badge(user["user_id"], "rift_walker")
         rewards.append("Badge Marcheur des Failles")
@@ -2612,8 +2649,8 @@ async def content_upload_image(request: Request, file: UploadFile = File(...), u
     if content_type not in MAINTENANCE_IMAGE_TYPES:
         raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
     data = await file.read()
-    if len(data) > 5 * 1024 * 1024:
-        raise HTTPException(400, "Image trop lourde (max 5 Mo)")
+    if len(data) > 15 * 1024 * 1024:
+        raise HTTPException(400, "Image trop lourde (max 15 Mo)")
     filename = f"{uuid.uuid4().hex}{MAINTENANCE_IMAGE_TYPES[content_type]}"
     dest = CONTENT_UPLOAD_DIR / filename
     dest.write_bytes(data)
@@ -2628,8 +2665,8 @@ async def upload_avatar(request: Request, file: UploadFile = File(...), user: di
     if content_type not in MAINTENANCE_IMAGE_TYPES:
         raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
     data = await file.read()
-    if len(data) > 5 * 1024 * 1024:
-        raise HTTPException(400, "Image trop lourde (max 5 Mo)")
+    if len(data) > 15 * 1024 * 1024:
+        raise HTTPException(400, "Image trop lourde (max 15 Mo)")
     filename = f"{user['user_id']}_{uuid.uuid4().hex[:8]}{MAINTENANCE_IMAGE_TYPES[content_type]}"
     dest = AVATAR_UPLOAD_DIR / filename
     dest.write_bytes(data)
@@ -2651,8 +2688,8 @@ async def maintenance_upload_image(request: Request, file: UploadFile = File(...
     if content_type not in MAINTENANCE_IMAGE_TYPES:
         raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
     data = await file.read()
-    if len(data) > 5 * 1024 * 1024:
-        raise HTTPException(400, "Image trop lourde (max 5 Mo)")
+    if len(data) > 15 * 1024 * 1024:
+        raise HTTPException(400, "Image trop lourde (max 15 Mo)")
     filename = f"{uuid.uuid4().hex}{MAINTENANCE_IMAGE_TYPES[content_type]}"
     dest = MAINTENANCE_UPLOAD_DIR / filename
     dest.write_bytes(data)
@@ -3011,6 +3048,164 @@ async def list_shop_items():
     return SHOP_ITEMS + custom
 
 
+# ---------- Real-money écus top-up (Stripe Checkout) ----------
+class EcusCheckoutReq(BaseModel):
+    pack_id: str
+
+
+async def _credit_ecu_order(session_id: str, *, user_id: str = None, ecus: int = None):
+    """Idempotently credit écus for a PAID Stripe session.
+
+    Safe against the webhook and the confirm endpoint racing each other: the
+    `credited` flag is flipped atomically so écus are granted exactly once.
+    """
+    if not session_id:
+        return None
+    order = await db.ecu_orders.find_one({"session_id": session_id})
+    if not order:
+        if not (user_id and ecus):
+            return None
+        order = {
+            "session_id": session_id, "user_id": user_id, "pack_id": None,
+            "ecus": int(ecus), "amount_eur": None, "status": "paid",
+            "credited": False, "created_at": now_utc().isoformat(),
+        }
+        await db.ecu_orders.insert_one(order)
+    if order.get("credited"):
+        return order
+    res = await db.ecu_orders.find_one_and_update(
+        {"session_id": session_id, "credited": {"$ne": True}},
+        {"$set": {"credited": True, "status": "paid", "credited_at": now_utc().isoformat()}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not res:
+        return order  # credited concurrently by the other path
+    await grant_aether(res["user_id"], int(res["ecus"]),
+                       f"Achat d'Écus — {res.get('pack_id') or 'recharge'}")
+    try:
+        await push_notification(db, res["user_id"], "ecus_purchase",
+            "Recharge d'Écus", f"+{int(res['ecus'])} Écus crédités sur votre compte",
+            "chime", "Coins")
+    except Exception:
+        pass
+    return res
+
+
+@api.get("/shop/ecus/packs")
+async def list_ecu_packs():
+    """Packs d'écus achetables avec de l'argent réel + état de configuration."""
+    return {
+        "enabled": stripe_enabled(),
+        "currency": "eur",
+        "packs": ECU_PACKS,
+        "publishable_key": STRIPE_PUBLISHABLE_KEY or None,
+    }
+
+
+@api.post("/shop/ecus/checkout")
+async def create_ecu_checkout(req: EcusCheckoutReq, user: dict = Depends(get_user_dep)):
+    pack = get_ecu_pack(req.pack_id)
+    if not pack:
+        raise HTTPException(404, "Pack introuvable")
+    if not stripe_enabled():
+        raise HTTPException(503, "Le paiement par carte n'est pas encore configuré. Réessayez bientôt.")
+    frontend = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    total_ecus = pack["ecus"] + pack.get("bonus", 0)
+    try:
+        session = _stripe.checkout.Session.create(
+            mode="payment",
+            payment_method_types=["card"],
+            line_items=[{
+                "quantity": 1,
+                "price_data": {
+                    "currency": "eur",
+                    "unit_amount": int(round(pack["price_eur"] * 100)),
+                    "product_data": {
+                        "name": f"{total_ecus} Écus — {pack.get('label', 'Pack Écus')}",
+                        "description": "Écus NEXORIA — monnaie virtuelle du site",
+                    },
+                },
+            }],
+            success_url=f"{frontend}/shop?ecus=success&session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{frontend}/shop?ecus=cancel",
+            client_reference_id=user["user_id"],
+            metadata={
+                "user_id": user["user_id"],
+                "pack_id": pack["id"],
+                "ecus": str(total_ecus),
+            },
+        )
+    except Exception as e:
+        logger.error(f"[stripe] checkout create failed: {e}")
+        raise HTTPException(502, "Impossible de créer la session de paiement.")
+    await db.ecu_orders.insert_one({
+        "session_id": session.id,
+        "user_id": user["user_id"],
+        "pack_id": pack["id"],
+        "ecus": total_ecus,
+        "amount_eur": pack["price_eur"],
+        "status": "pending",
+        "credited": False,
+        "created_at": now_utc().isoformat(),
+    })
+    return {"url": session.url, "session_id": session.id}
+
+
+@api.get("/shop/ecus/confirm")
+async def confirm_ecu_purchase(session_id: str, user: dict = Depends(get_user_dep)):
+    """Fallback confirmation after Stripe redirect (webhook remains the source of truth)."""
+    if not stripe_enabled():
+        raise HTTPException(503, "Paiement non configuré")
+    try:
+        session = _stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        logger.warning(f"[stripe] retrieve session failed: {e}")
+        raise HTTPException(404, "Session introuvable")
+    owner = session.get("client_reference_id") or (session.get("metadata") or {}).get("user_id")
+    if owner != user["user_id"]:
+        raise HTTPException(403, "Cette session ne vous appartient pas")
+    if session.get("payment_status") != "paid":
+        return {"status": session.get("payment_status"), "credited": False}
+    meta = session.get("metadata") or {}
+    order = await _credit_ecu_order(
+        session_id, user_id=user["user_id"],
+        ecus=int(meta["ecus"]) if meta.get("ecus") else None,
+    )
+    return {"status": "paid", "credited": True, "ecus": (order or {}).get("ecus", 0)}
+
+
+@api.post("/webhooks/stripe")
+async def stripe_webhook(request: Request):
+    if not stripe_enabled():
+        raise HTTPException(503, "Stripe non configuré")
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    if STRIPE_WEBHOOK_SECRET:
+        try:
+            event = _stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
+        except Exception as e:
+            logger.warning(f"[stripe] webhook signature check failed: {e}")
+            raise HTTPException(400, "Signature invalide")
+    else:
+        import json as _json
+        try:
+            event = _json.loads(payload.decode("utf-8"))
+        except Exception:
+            raise HTTPException(400, "Payload invalide")
+    try:
+        etype = event["type"]
+        obj = event["data"]["object"]
+    except Exception:
+        return {"received": True}
+    if etype == "checkout.session.completed" and obj.get("payment_status") == "paid":
+        meta = obj.get("metadata") or {}
+        await _credit_ecu_order(
+            obj.get("id"), user_id=meta.get("user_id"),
+            ecus=int(meta["ecus"]) if meta.get("ecus") else None,
+        )
+    return {"received": True}
+
+
 @api.post("/shop/purchase/{sku}")
 async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
     item = get_shop_item(sku)
@@ -3027,7 +3222,7 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
     if full.get("level", 1) < required_level:
         raise HTTPException(403, f"Niveau {required_level} requis pour acquérir cet article")
     if full["aether"] < item["price"]:
-        raise HTTPException(400, f"Aether insuffisant ({item['price']} requis)")
+        raise HTTPException(400, f"Écus insuffisants ({item['price']} requis)")
 
     # Prevent duplicate purchase for non-stackable categories
     if item["category"] in ("cosmetic", "kingdom", "mount", "title", "aura", "pass"):
@@ -3109,7 +3304,7 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
             applied["rift_summoned"] = True
         else:
             if sku == "key_chest_cosmic":
-                items_won = await open_chest(user["user_id"])
+                items_won = await open_chest(user["user_id"], min_rarity="epic")
                 applied["chest_items"] = items_won
             elif sku == "scroll_class_change":
                 await db.users.update_one(
@@ -3140,8 +3335,14 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
         if item.get("perk") in ("treasury",) or item.get("sku") == "kingdom_aether_mine":
             applied["passive_aether"] = True
     elif item["category"] == "chest":
+        # Premium chests honor their guaranteed-rarity descriptions.
+        chest_kwargs = {}
+        if sku == "chest_divine":
+            chest_kwargs = {"min_rarity": "rare", "luck_boost": 2.0}  # reliques rares garanties
+        elif sku == "chest_royal":
+            chest_kwargs = {"luck_boost": 1.6}  # meilleures chances d'Épique
         try:
-            items_won = await open_chest(user["user_id"])
+            items_won = await open_chest(user["user_id"], **chest_kwargs)
         except HTTPException:
             await grant_aether(user["user_id"], item["price"], f"Remboursement boutique : {item['name']}")
             await db.shop_purchases.delete_one({"purchase_id": purchase_doc["purchase_id"]})
@@ -3168,18 +3369,39 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
         await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_aura_sku": sku}})
         applied["aura_equipped"] = sku
     elif item["category"] == "pass":
+        active_season = await db.seasons.find_one({"active": True}, {"_id": 0})
+        if not active_season:
+            await grant_aether(user["user_id"], item["price"], f"Remboursement boutique : {item['name']}")
+            await db.shop_purchases.delete_one({"purchase_id": purchase_doc["purchase_id"]})
+            raise HTTPException(400, "Aucune saison n'est en cours. Le Passe Saison sera disponible au lancement de la prochaine saison.")
+        season_id = active_season["season_id"]
+        existing_pass = await db.user_passes.find_one({"user_id": user["user_id"], "season_id": season_id})
+        if existing_pass:
+            await grant_aether(user["user_id"], item["price"], f"Remboursement boutique : {item['name']}")
+            await db.shop_purchases.delete_one({"purchase_id": purchase_doc["purchase_id"]})
+            raise HTTPException(400, "Vous possédez déjà le Passe pour la saison en cours.")
         await db.user_passes.insert_one({
             "user_id": user["user_id"], "sku": sku,
-            "season_id": item.get("season_id", "season_1"),
+            "season_id": season_id,
             "obtained_at": now_utc().isoformat(),
         })
+        # Reward the holder right away + flag the pass for end-of-season bonus.
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {f"season_pass.{season_id}": True}},
+        )
+        await grant_badge(user["user_id"], "season_passholder")
+        await grant_xp(user["user_id"], SEASON_PASS_BONUS_XP, "Passe Saison")
+        await grant_aether(user["user_id"], SEASON_PASS_BONUS_AETHER, "Passe Saison — récompense de bienvenue")
         applied["pass_unlocked"] = sku
+        applied["season_id"] = season_id
+        applied["season_pass_bonus"] = {"xp": SEASON_PASS_BONUS_XP, "aether": SEASON_PASS_BONUS_AETHER}
     else:
         await grant_aether(user["user_id"], item["price"], f"Remboursement boutique : {item['name']}")
         await db.shop_purchases.delete_one({"purchase_id": purchase_doc["purchase_id"]})
         raise HTTPException(400, f"Catégorie boutique non supportée : {item['category']}")
 
-    await add_chronicle(user["user_id"], f"A acquis « {item['name']} » à la Boutique d'Aether", "shop")
+    await add_chronicle(user["user_id"], f"A acquis « {item['name']} » à la Boutique des Écus", "shop")
     await push_notification(db, user["user_id"], "shop", "Achat confirmé", f"« {item['name']} » est à vous", "ding", "ShoppingBag")
 
     # WebSocket sync: push inventory refresh without polling.
@@ -3390,7 +3612,7 @@ async def admin_edit_user(user_id: str, req: UserEditReq, user: dict = Depends(g
     if "xp" in update and update["xp"] < 0:
         raise HTTPException(400, "XP invalide")
     if "aether" in update and update["aether"] < 0:
-        raise HTTPException(400, "Aether invalide")
+        raise HTTPException(400, "Écus invalides")
     if "reputation" in update and update["reputation"] < 0:
         raise HTTPException(400, "Réputation invalide")
 
@@ -4087,6 +4309,7 @@ async def world_heroes():
     users = await db.users.find({}, {
         "_id": 0, "user_id": 1, "username": 1, "class_id": 1, "class_name": 1,
         "level": 1, "rank": 1, "avatar_url": 1, "active_title": 1, "role": 1,
+        "appear_offline": 1,
     }).to_list(500)
     # active = valid session with recent activity (5 min)
     cutoff = (now_utc() - timedelta(minutes=5)).isoformat()
@@ -4100,7 +4323,9 @@ async def world_heroes():
     })
     active_set = set(active_sessions)
     for u in users:
-        u["online"] = u["user_id"] in active_set
+        # Hidden-presence heroes always read as offline on the public map.
+        u["online"] = (u["user_id"] in active_set) and not u.get("appear_offline")
+        u.pop("appear_offline", None)
         # Deterministic pseudo-coordinates from hash of user_id
         h = sum(ord(c) for c in u["user_id"])
         u["x"] = (h * 17) % 100  # 0-100 (percentage)
@@ -4129,7 +4354,7 @@ async def create_guild(req: GuildCreateReq, user: dict = Depends(get_user_dep)):
     if full.get("level", 1) < GUILD_CREATE_LEVEL:
         raise HTTPException(403, f"Niveau {GUILD_CREATE_LEVEL} requis pour fonder un ordre")
     if full.get("aether", 0) < GUILD_CREATE_COST:
-        raise HTTPException(400, f"{GUILD_CREATE_COST} Aether requis pour fonder un ordre")
+        raise HTTPException(400, f"{GUILD_CREATE_COST} Écus requis pour fonder un ordre")
     if await db.guild_members.find_one({"user_id": user["user_id"]}):
         raise HTTPException(400, "Vous appartenez déjà à un ordre")
     name = req.name.strip()
@@ -4371,7 +4596,7 @@ async def deposit_vault(guild_id: str, req: GuildVaultReq, user: dict = Depends(
         raise HTTPException(400, "Montant invalide")
     fresh = await db.users.find_one({"user_id": user["user_id"]})
     if fresh.get("aether", 0) < req.amount:
-        raise HTTPException(400, "Aether insuffisant")
+        raise HTTPException(400, "Écus insuffisants")
     g = await db.guilds.find_one({"guild_id": guild_id})
     await spend_aether(user["user_id"], req.amount, f"Dépôt au coffre — {g['name']}")
     await db.guilds.update_one({"guild_id": guild_id}, {"$inc": {"vault_aether": req.amount, "xp": req.amount // 10}})
@@ -4395,7 +4620,7 @@ async def withdraw_vault(guild_id: str, target_user_id: str, req: GuildVaultReq,
     await db.guilds.update_one({"guild_id": guild_id}, {"$inc": {"vault_aether": -req.amount}})
     await grant_aether(target_user_id, req.amount, f"Récompense de guilde — {g['name']}")
     await push_notification(db, target_user_id, "guild_reward",
-        f"Récompense de l'ordre « {g['name']} »", f"+{req.amount} Aether", "coin", "Coins")
+        f"Récompense de l'ordre « {g['name']} »", f"+{req.amount} Écus", "coin", "Coins")
     return {"ok": True}
 
 
@@ -4981,10 +5206,22 @@ async def end_season(season_id: str, user: dict = Depends(get_admin_dep)):
             await grant_badge(row["user_id"], "season_elite")
         elif rank <= 50:
             reward_aether = season["rewards"]["top_50"]["aether"]
+        # Passe Saison : récompenses doublées pour les détenteurs du pass.
+        has_pass = await db.user_passes.find_one(
+            {"user_id": row["user_id"], "season_id": season_id}, {"_id": 0}
+        )
         if reward_aether:
-            await grant_aether(row["user_id"], reward_aether, f"Récompense de saison (rang #{rank})")
+            if has_pass:
+                reward_aether *= SEASON_PASS_REWARD_MULTIPLIER
+            label = " (Passe Saison ×2)" if has_pass else ""
+            await grant_aether(row["user_id"], reward_aether, f"Récompense de saison (rang #{rank}){label}")
             await push_notification(db, row["user_id"], "season_reward",
-                f"Récompense saison #{rank}", f"+{reward_aether} Aether", "coin", "Coins")
+                f"Récompense saison #{rank}", f"+{reward_aether} Écus{label}", "coin", "Coins")
+        elif has_pass:
+            # Hors Top 50 mais détenteur du pass : récompense de participation.
+            await grant_aether(row["user_id"], 500, "Passe Saison — récompense de participation")
+            await push_notification(db, row["user_id"], "season_reward",
+                "Passe Saison", "+500 Écus pour votre participation à la saison", "coin", "Ticket")
     await db.seasons.update_one({"season_id": season_id}, {"$set": {"active": False, "ended_at": now_utc().isoformat()}})
     return {"ok": True, "ranked": len(rows)}
 
@@ -5592,16 +5829,16 @@ async def admin_grant_aether(req: AetherGrantReq, user: dict = Depends(get_admin
             extra=[req.reason or "sans motif"],
         )
         await add_chronicle(req.target_user_id,
-            f"Le Conseil ({user['username']}) retire {req.amount} Aether · {req.reason or 'sans motif'}",
+            f"Le Conseil ({user['username']}) retire {req.amount} Écus · {req.reason or 'sans motif'}",
             "admin")
         return {"ok": True, "new_aether": new_aether}
     new_aether = max(0, target.get("aether", 0) + req.amount)
     sign = "+" if req.amount > 0 else ""
     await add_chronicle(req.target_user_id,
-        f"Le Conseil ({user['username']}) accorde {sign}{req.amount} Aether · {req.reason or 'sans motif'}",
+        f"Le Conseil ({user['username']}) accorde {sign}{req.amount} Écus · {req.reason or 'sans motif'}",
         "admin")
     await push_notification(db, req.target_user_id, "aether_grant",
-        f"{sign}{req.amount} Aether du Conseil",
+        f"{sign}{req.amount} Écus du Conseil",
         req.reason or "Don administratif", "coin", "Coins")
     await push_wallet_updated(req.target_user_id)
     return {"ok": True, "new_aether": new_aether}

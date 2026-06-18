@@ -70,7 +70,7 @@ class TestGuildCreate:
         _empower(admin_s, u["user_id"], level=15, aether=0)
         r = s.post(f"{API}/guilds", json={"name": "OrdreFail2", "tag": "OF2"}, timeout=15)
         assert r.status_code == 400
-        assert "Aether" in r.text
+        assert "Écus" in r.text
 
     def test_create_validation_name_tag(self, admin_session):
         admin_s, _ = admin_session

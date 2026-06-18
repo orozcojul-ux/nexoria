@@ -47,10 +47,13 @@ export function NexusSocketProvider({ children }) {
   const [nexusGate, setNexusGate] = useState({ open: true, html: {} });
 
   const userStaff = isStaffRole(user);
-  const staffAutoConnect = user?.staff_nexus_auto_connect !== false;
+  // « Connexion automatique » (tous les utilisateurs) : rejoindre le Nexus ONLINE
+  // dès la connexion au site. Quand c'est désactivé, l'utilisateur n'apparaît pas
+  // sur le ONLINE tant qu'il n'entre pas manuellement via l'overlay.
+  const autoConnect = user?.nexus_auto_connect !== false;
   const nexusGateOpen = nexusGate.open !== false;
   const mayConnectNexus = nexusGateOpen || userStaff;
-  const autoConnectSocket = userStaff ? staffAutoConnect : nexusGateOpen;
+  const autoConnectSocket = mayConnectNexus && autoConnect;
   const shouldEstablishSocket = mayConnectNexus && (autoConnectSocket || overlayOpen);
 
   // Refs for movement/scene callbacks
