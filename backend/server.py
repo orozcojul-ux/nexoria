@@ -801,11 +801,15 @@ DISCORD_AMBASSADOR_ROLE_ID = os.environ.get("DISCORD_AMBASSADOR_ROLE_ID", "").st
 # Milestones are cumulative and each is granted exactly once.
 REFERRAL_AETHER_REWARD = 50  # « Écus du Nexus » accordés au 1er filleul
 REFERRAL_MILESTONES = [
-    {"threshold": 1, "type": "aether", "amount": REFERRAL_AETHER_REWARD,
+    {"threshold": 1,  "type": "aether", "amount": REFERRAL_AETHER_REWARD,
      "label": f"+{REFERRAL_AETHER_REWARD} Écus du Nexus"},
-    {"threshold": 3, "type": "badge", "badge_id": "recruteur", "label": "Badge Recruteur"},
-    {"threshold": 10, "type": "title", "title_id": "ambassadeur_nexus", "label": "Titre Ambassadeur du Nexus"},
-    {"threshold": 25, "type": "discord_role", "label": "Rôle Discord spécial"},
+    {"threshold": 3,  "type": "badge",  "badge_id": "recruteur",       "label": "Badge Recruteur"},
+    {"threshold": 5,  "type": "aether", "amount": 150,                  "label": "+150 Écus (palier 5)"},
+    {"threshold": 10, "type": "title",  "title_id": "ambassadeur_nexus","label": "Titre Ambassadeur du Nexus"},
+    {"threshold": 15, "type": "badge",  "badge_id": "mentor_heroe",     "label": "Badge Mentor des Héros"},
+    {"threshold": 25, "type": "discord_role",                            "label": "Rôle Discord Ambassadeur"},
+    {"threshold": 50, "type": "multi",  "badge_id": "parrain_legendaire","amount": 500,
+     "label": "Badge Parrain Légendaire + 500 Écus"},
 ]
 
 
@@ -865,8 +869,19 @@ async def process_referral_rewards(referrer_id: str):
                     db, referrer_id, DISCORD_AMBASSADOR_ROLE_ID, "NEXORIA — Ambassadeur (25 parrainages)")
             await push_notification(
                 db, referrer_id, "referral",
-                "Rôle Discord spécial", "Ton statut d'Ambassadeur t'a octroyé un rôle Discord exclusif.",
-                "fanfare", "MessageSquare", link="/parrainage",
+                "Rôle Discord Ambassadeur", "Ton statut d'Ambassadeur t'a octroyé un rôle Discord exclusif.",
+                "fanfare", "MessageSquare", link="/settings?section=parrainage",
+            )
+        elif ms["type"] == "multi":
+            # Grant both écus and badge in one milestone.
+            if ms.get("amount"):
+                await grant_aether(referrer_id, ms["amount"], "Parrainage — palier 50")
+            if ms.get("badge_id"):
+                await grant_badge(referrer_id, ms["badge_id"])
+            await push_notification(
+                db, referrer_id, "referral",
+                "Parrain Légendaire !", ms["label"],
+                "fanfare", "Crown", link="/settings?section=parrainage",
             )
         claimed.add(th)
     await db.users.update_one(
@@ -3114,7 +3129,10 @@ async def create_ecu_checkout(req: EcusCheckoutReq, user: dict = Depends(get_use
     try:
         session = _stripe.checkout.Session.create(
             mode="payment",
-            payment_method_types=["card"],
+            # Ne pas lister payment_method_types : laisser Stripe afficher
+            # automatiquement tous les moyens activés dans le Dashboard
+            # (Google Pay, Apple Pay, Link, CB, etc.) selon l'éligibilité client.
+            automatic_payment_methods={"enabled": True},
             line_items=[{
                 "quantity": 1,
                 "price_data": {
@@ -3134,6 +3152,10 @@ async def create_ecu_checkout(req: EcusCheckoutReq, user: dict = Depends(get_use
                 "pack_id": pack["id"],
                 "ecus": str(total_ecus),
             },
+        )
+        logger.info(
+            "[stripe] Checkout créé avec automatic_payment_methods — session %s pack %s (%s Écus)",
+            session.id, pack["id"], total_ecus,
         )
     except Exception as e:
         logger.error(f"[stripe] checkout create failed: {e}")
@@ -5623,9 +5645,11 @@ async def reply_ticket(ticket_id: str, req: TicketReplyReq, user: dict = Depends
         update["status"] = "in_progress"
     await db.tickets.update_one({"ticket_id": ticket_id}, {"$inc": {"replies_count": 1}, "$set": update})
     if is_staff and t["user_id"] != user["user_id"]:
+        preview = content[:120] + ("…" if len(content) > 120 else "")
         await push_notification(db, t["user_id"], "ticket_reply",
-            "Réponse du Conseil à votre doléance", t["subject"][:100], "ding", "MessageCircle",
-            link="/tickets")
+            f"Le Conseil a répondu à « {t['subject'][:60]} »",
+            preview, "ding", "MessageCircle",
+            link=f"/tickets")
     elif not is_staff:
         await push_staff_alert(
             db, "staff_ticket_reply",

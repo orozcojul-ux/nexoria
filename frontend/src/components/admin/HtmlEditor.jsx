@@ -53,15 +53,20 @@ export default function HtmlEditor({
   const isArticle = variant === "article";
   const editorRef = useRef(null);
   const fileRef = useRef(null);
+  const focusedRef = useRef(false); // true while user is actively editing
   const [mode, setMode] = useState("visual");
   const [source, setSource] = useState(value || "");
   const [uploading, setUploading] = useState(false);
 
+  // Only push external value changes into the DOM when the user is NOT typing.
+  // This prevents the cursor from jumping back to the start on every keystroke.
   useEffect(() => {
-    setSource(value || "");
-    if (mode === "visual" && editorRef.current) {
-      const next = value || "";
-      if (editorRef.current.innerHTML !== next) editorRef.current.innerHTML = next;
+    const next = value || "";
+    setSource(next);
+    if (mode === "visual" && editorRef.current && !focusedRef.current) {
+      if (editorRef.current.innerHTML !== next) {
+        editorRef.current.innerHTML = next;
+      }
     }
   }, [value, mode]);
 
@@ -155,8 +160,8 @@ export default function HtmlEditor({
       toast.error("Fichier image uniquement");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image max 5 Mo");
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Image max 15 Mo");
       return;
     }
     setUploading(true);
@@ -333,8 +338,9 @@ export default function HtmlEditor({
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
+            onFocus={() => { focusedRef.current = true; }}
+            onBlur={() => { focusedRef.current = false; syncFromEditor(); }}
             onInput={syncFromEditor}
-            onBlur={syncFromEditor}
             onPaste={onPaste}
             onDrop={onDrop}
             onDragOver={(e) => e.preventDefault()}
@@ -354,7 +360,7 @@ export default function HtmlEditor({
       </div>
       {mode === "visual" && (
         <p className="text-[9px] text-zinc-600">
-          Émojis · glisser-déposer images · upload max 5 Mo
+          Émojis · glisser-déposer images · upload max 15 Mo
           {variant === "forum" ? " · codes :sword: :crown: :fire:" : " · tableaux et callouts en mode article"}
         </p>
       )}

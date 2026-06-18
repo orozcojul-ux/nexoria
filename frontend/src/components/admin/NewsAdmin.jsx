@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Newspaper, Plus, Trash2, Eye, EyeOff, Star, StarOff, Pencil } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Newspaper, Plus, Trash2, Eye, EyeOff, Star, StarOff, Pencil, Upload, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import HtmlEditor from "@/components/admin/HtmlEditor";
@@ -18,6 +18,27 @@ export default function NewsAdmin() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverFileRef = useRef(null);
+
+  const uploadCover = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Fichier image uniquement"); return; }
+    if (file.size > 15 * 1024 * 1024) { toast.error("Image max 15 Mo"); return; }
+    setUploadingCover(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const { data } = await api.post("/upload/image", fd);
+      setForm((f) => ({ ...f, image_url: data.url }));
+      toast.success("Image de couverture définie");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Échec upload");
+    } finally {
+      setUploadingCover(false);
+      if (coverFileRef.current) coverFileRef.current.value = "";
+    }
+  };
 
   const load = async () => {
     try {
@@ -116,13 +137,49 @@ export default function NewsAdmin() {
             variant="article"
             testid="news-content-editor"
           />
-          <input
-            type="url"
-            value={form.image_url}
-            onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-            placeholder="URL image de couverture (optionnel)"
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm"
-          />
+          {/* Cover image — URL or upload from PC */}
+          <div className="space-y-2">
+            <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold">Image de couverture</div>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={form.image_url}
+                onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+                placeholder="URL de l'image (ou uploadez depuis votre PC →)"
+                className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                disabled={uploadingCover}
+                onClick={() => coverFileRef.current?.click()}
+                className="px-3 py-2 rounded-lg border border-cyan-500/40 text-cyan-300 text-sm font-bold flex items-center gap-2 hover:bg-cyan-500/10 disabled:opacity-50"
+                title="Uploader depuis votre PC"
+              >
+                {uploadingCover ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {!uploadingCover && <span className="hidden sm:inline">Uploader</span>}
+              </button>
+              <input
+                ref={coverFileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="hidden"
+                onChange={(e) => uploadCover(e.target.files?.[0])}
+              />
+            </div>
+            {form.image_url && (
+              <div className="flex items-center gap-2">
+                <img src={form.image_url} alt="Aperçu" className="h-20 w-36 object-cover rounded-lg border border-white/10" />
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, image_url: "" })}
+                  className="p-1.5 text-zinc-500 hover:text-red-400"
+                  title="Supprimer l'image"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
           <div className="flex flex-wrap gap-3 items-center">
             <select
               value={form.category}

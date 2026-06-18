@@ -84,6 +84,8 @@ BADGES = [
     {"id": "discord_herald", "name": "Héraut Discord", "category": "social", "icon": "MessageSquare", "rarity": "rare", "description": "Inscription ou liaison via Discord", "color": "#5865F2"},
     {"id": "loyal_friend", "name": "Ami Fidèle", "category": "social", "icon": "Users", "rarity": "rare", "description": "10 abonnements", "color": "#3B82F6"},
     {"id": "recruteur", "name": "Recruteur", "category": "social", "icon": "UserPlus", "rarity": "epic", "description": "A parrainé 3 nouveaux héros", "color": "#A855F7"},
+    {"id": "mentor_heroe", "name": "Mentor des Héros", "category": "social", "icon": "GraduationCap", "rarity": "legendary", "description": "A parrainé 15 nouveaux héros", "color": "#EAB308"},
+    {"id": "parrain_legendaire", "name": "Parrain Légendaire", "category": "social", "icon": "Crown", "rarity": "mythic", "description": "A parrainé 50 nouveaux héros", "color": "#EF4444"},
     {"id": "vip_nexus", "name": "VIP Nexus", "category": "social", "icon": "Gem", "rarity": "legendary", "description": "Détenteur du Pass Ascendant", "color": "#FBBF24"},
     {"id": "pionnier_nexus", "name": "Pionnier du Nexus", "category": "social", "icon": "Flag", "rarity": "mythic", "description": "Parmi les 100 premiers héros à rejoindre NEXORIA", "color": "#22D3EE"},
     {"id": "season_passholder", "name": "Détenteur du Passe Saison", "category": "social", "icon": "Ticket", "rarity": "legendary", "description": "A acquis le Passe Saison premium", "color": "#EC4899"},

@@ -112,7 +112,7 @@ export default function Forum() {
   if (cat) {
     return (
       <ForumShell banner={banner} sidebar={sidebar}>
-        <ThreadList category={cat} query={query} onBack={goCats} onOpen={(id) => goThread(cat, id)} />
+        <ThreadList category={cat} query={query} forumMute={forumMute} onBack={goCats} onOpen={(id) => goThread(cat, id)} />
       </ForumShell>
     );
   }
@@ -270,7 +270,7 @@ function ForumSidebar({ categories, recent, totalThreads, query, onQueryChange, 
   );
 }
 
-function ThreadList({ category, query, onBack, onOpen }) {
+function ThreadList({ category, query, forumMute, onBack, onOpen }) {
   const { user } = useAuth();
   const [threads, setThreads] = useState([]);
   const [showNew, setShowNew] = useState(false);
@@ -309,7 +309,19 @@ function ThreadList({ category, query, onBack, onOpen }) {
             <h2 className="font-display font-black text-xl text-white">{cat?.name || category}</h2>
             {cat?.description && <p className="text-xs text-zinc-500 mt-1">{cat.description}</p>}
           </div>
-          <PremiumButton variant="gold" size="sm" icon={Plus} onClick={() => setShowNew(true)} testid="open-new-thread">
+          <PremiumButton
+            variant="gold"
+            size="sm"
+            icon={Plus}
+            onClick={() => {
+              if (forumMute) {
+                toast.error(`Vous êtes réduit au silence jusqu'au ${fmtDate(forumMute.until)}. Vous ne pouvez pas créer de sujet.`);
+                return;
+              }
+              setShowNew(true);
+            }}
+            testid="open-new-thread"
+          >
             Nouveau sujet
           </PremiumButton>
         </div>
@@ -400,7 +412,12 @@ function NewThreadDialog({ category, onClose, onCreated }) {
       sfx.success();
       await onCreated();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      const detail = err.response?.data?.detail;
+      if (detail?.forum_muted) {
+        toast.error(`Vous êtes réduit au silence jusqu'au ${fmtDate(detail.until)}. Création impossible.`);
+      } else {
+        toast.error(typeof detail === "string" ? detail : "Erreur lors de la création du sujet");
+      }
     } finally {
       setSaving(false);
     }

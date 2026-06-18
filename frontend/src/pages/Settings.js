@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { User, Lock, Globe, Trash2, Save, AlertTriangle, KeyRound, Mail, AtSign } from "lucide-react";
+import { User, Lock, Globe, Trash2, Save, AlertTriangle, KeyRound, Mail, AtSign, UserPlus, Copy, Check, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import api, { formatApiError } from "@/lib/api";
@@ -16,10 +16,11 @@ import { usePageBanner } from "@/lib/page-banners";
 import { isStaffRole } from "@/lib/staff-roles";
 
 const BASE_SECTIONS = [
-  { id: "profile",     icon: User,    key: "settings.profile" },
-  { id: "account",     icon: Mail,    key: "settings.account" },
-  { id: "security",    icon: Lock,    key: "settings.security" },
-  { id: "preferences", icon: Globe,   key: "settings.preferences" },
+  { id: "profile",     icon: User,      key: "settings.profile" },
+  { id: "account",     icon: Mail,      key: "settings.account" },
+  { id: "security",    icon: Lock,      key: "settings.security" },
+  { id: "preferences", icon: Globe,     key: "settings.preferences" },
+  { id: "parrainage",  icon: UserPlus,  key: "settings.referral" },
   { id: "danger",      icon: AlertTriangle, key: "settings.danger" },
 ];
 
@@ -56,6 +57,7 @@ export default function Settings() {
           {section === "account" && <AccountSection user={user} refresh={refresh} t={t} />}
           {section === "security" && <SecuritySection t={t} />}
           {section === "preferences" && <PreferencesSection user={user} refresh={refresh} t={t} />}
+          {section === "parrainage" && <ReferralSection t={t} />}
           {section === "danger" && <DangerSection logout={logout} navigate={navigate} t={t} />}
           </PremiumCard>
         </main>
@@ -378,6 +380,134 @@ function ToggleSwitch({ checked, onClick, disabled, testid }) {
         }`}
       />
     </button>
+  );
+}
+
+function ReferralSection({ t }) {
+  const [data, setData] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  React.useEffect(() => {
+    api.get("/referral/me")
+      .then((r) => setData(r.data))
+      .catch(() => {});
+  }, []);
+
+  const copy = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const MILESTONE_ICONS = { 1: "🎁", 3: "🏅", 5: "💰", 10: "👑", 15: "🌟", 25: "💎", 50: "⚡" };
+
+  return (
+    <div className="space-y-6" data-testid="settings-referral-section">
+      <div>
+        <h2 className="font-display font-bold text-xl mb-1 flex items-center gap-2">
+          <UserPlus className="w-5 h-5 text-emerald-400" /> Parrainage
+        </h2>
+        <p className="text-xs text-zinc-500 leading-relaxed">
+          Invitez des amis à rejoindre NEXORIA. Chaque héros qui s'inscrit avec votre code vous rapporte des récompenses.
+        </p>
+      </div>
+
+      {!data ? (
+        <div className="text-xs text-zinc-500 italic">Chargement…</div>
+      ) : (
+        <>
+          {/* Code + lien */}
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5 space-y-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-400 font-bold mb-2">Votre code de parrainage</div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-2xl font-black tracking-widest text-white bg-black/40 border border-white/15 rounded-lg px-4 py-2" data-testid="referral-code">
+                  {data.code}
+                </span>
+                <button
+                  onClick={() => copy(data.code)}
+                  className="p-2 rounded-lg border border-white/15 text-zinc-400 hover:text-white hover:border-emerald-400/50 transition-colors"
+                  title="Copier le code"
+                  data-testid="referral-copy-code"
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-bold mb-2">Lien d'invitation</div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-400 bg-black/40 border border-white/10 rounded px-3 py-2 flex-1 truncate font-mono" data-testid="referral-link">
+                  {data.link}
+                </span>
+                <button
+                  onClick={() => copy(data.link)}
+                  className="p-2 rounded-lg border border-white/15 text-zinc-400 hover:text-white hover:border-cyan-400/50 transition-colors"
+                  title="Copier le lien"
+                  data-testid="referral-copy-link"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+                <a
+                  href={data.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-lg border border-white/15 text-zinc-400 hover:text-white transition-colors"
+                  title="Ouvrir le lien"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pt-1 border-t border-white/10">
+              <span className="text-sm text-zinc-300">Filleuls :</span>
+              <span className="font-mono-stat text-2xl font-black text-emerald-300" data-testid="referral-count">{data.count}</span>
+            </div>
+          </div>
+
+          {/* Paliers */}
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-amber-400 font-bold mb-3">Paliers de récompenses</div>
+            <div className="space-y-2">
+              {(data.milestones || []).map((ms) => {
+                const icon = MILESTONE_ICONS[ms.threshold] || "🎯";
+                return (
+                  <div
+                    key={ms.threshold}
+                    data-testid={`referral-milestone-${ms.threshold}`}
+                    className={`rounded-xl border p-3 flex items-center gap-3 transition-all ${
+                      ms.claimed
+                        ? "border-emerald-500/40 bg-emerald-500/8 opacity-70"
+                        : ms.reached
+                          ? "border-amber-400/60 bg-amber-400/10 shadow-[0_0_14px_rgba(251,191,36,0.2)]"
+                          : "border-white/10 bg-white/[0.02]"
+                    }`}
+                  >
+                    <span className="text-xl shrink-0">{icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-white">{ms.threshold} filleul{ms.threshold > 1 ? "s" : ""}</div>
+                      <div className="text-xs text-zinc-400">{ms.label}</div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      {ms.claimed ? (
+                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Obtenu
+                        </span>
+                      ) : ms.reached ? (
+                        <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wide">En attente</span>
+                      ) : (
+                        <span className="text-[10px] text-zinc-600 font-mono-stat">{data.count} / {ms.threshold}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
