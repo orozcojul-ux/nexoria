@@ -20,6 +20,7 @@ import { sfx } from "@/lib/sfx";
 import { stripHtml } from "@/lib/stripHtml";
 import { usePageBanner } from "@/lib/page-banners";
 import "@/pages/pages-hub.css";
+import "@/pages/forum.css";
 
 const fmtDate = (s) =>
   s ? new Date(s).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -118,50 +119,103 @@ export default function Forum() {
     );
   }
 
+  const catMap = Object.fromEntries(categories.map((c) => [c.id, c]));
+  const q = query.trim().toLowerCase();
+  const recentFiltered = q
+    ? recent.filter((tpc) => tpc.title?.toLowerCase().includes(q))
+    : recent;
+
   return (
-    <ForumShell banner={banner} sidebar={sidebar}>
-      <div className="flex justify-end mb-4">
-        <span className="hub-stat-pill">
-          <Hash className="w-3 h-3" /> {categories.length} catégories · {totalThreads} sujets
-        </span>
+    <PageShell wide testid="forum-page" banner={banner}>
+      <div className="forum-portal-stat">
+        <Hash className="w-3 h-3" /> {categories.length} catégories · {totalThreads} sujets
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {categories.map((c, i) => {
-          const Icon = Lucide[c.icon] || Lucide.MessageCircle;
-          return (
-            <motion.button
-              key={c.id}
-              type="button"
-              onClick={() => goThreads(c.id)}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.04 }}
-              className="forum-cat-card"
-              data-testid={`forum-cat-${c.id}`}
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ background: "rgba(234,179,8,0.12)", boxShadow: "0 0 12px rgba(234,179,8,0.15)" }}
-                >
-                  <Icon className="w-5 h-5 text-yellow-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-display font-bold text-base text-white mb-0.5">{c.name}</h3>
-                  <p className="text-xs text-zinc-500 line-clamp-2">{c.description}</p>
-                  <div className="flex items-center gap-3 mt-3 text-[10px] font-mono-stat font-bold uppercase tracking-wider">
-                    <span className="text-cyan-400 flex items-center gap-1">
-                      <MessageCircle className="w-3 h-3" /> {c.thread_count} sujet{c.thread_count > 1 ? "s" : ""}
-                    </span>
-                    <span className="text-zinc-600">{c.last_activity_at ? fmtDate(c.last_activity_at) : "—"}</span>
-                  </div>
-                </div>
+
+      <div className="forum-portal">
+        {/* ─── LEFT : categories ─── */}
+        <div className="forum-cats">
+          {categories.map((c, i) => {
+            const Icon = Lucide[c.icon] || Lucide.MessageCircle;
+            return (
+              <motion.button
+                key={c.id}
+                type="button"
+                onClick={() => goThreads(c.id)}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="forum-cat-btn"
+                data-testid={`forum-cat-${c.id}`}
+              >
+                <span className="forum-cat-ico"><Icon /></span>
+                <span className="forum-cat-text">
+                  <span className="forum-cat-name">{c.name}</span>
+                  <span className="forum-cat-desc">{c.description}</span>
+                </span>
+                <span className="forum-cat-count">
+                  {c.thread_count || 0}
+                </span>
+              </motion.button>
+            );
+          })}
+        </div>
+
+        {/* ─── RIGHT : recent activity panel ─── */}
+        <div className="forum-activity" data-testid="forum-activity">
+          <div className="forum-activity-bar">
+            <input
+              className="forum-activity-search"
+              placeholder="Rechercher un sujet…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              data-testid="forum-search"
+            />
+            <span className="forum-activity-pill"><BookOpen className="w-3 h-3" /> Sujets</span>
+            <span className="forum-activity-pill"><TrendingUp className="w-3 h-3" /> Récents</span>
+          </div>
+
+          <div className="forum-activity-head">
+            <span className="forum-activity-head-label">
+              <Flame className="w-3.5 h-3.5" /> Activité récente
+            </span>
+          </div>
+
+          <div className="forum-activity-list">
+            {recentFiltered.length === 0 ? (
+              <div className="forum-activity-empty">
+                {q ? "Aucun sujet ne correspond à votre recherche." : "Aucun sujet récent — ouvrez le premier débat."}
               </div>
-            </motion.button>
-          );
-        })}
+            ) : (
+              recentFiltered.map((tpc, i) => {
+                const c = catMap[tpc.category];
+                const TIcon = Lucide[c?.icon] || MessageCircle;
+                return (
+                  <button
+                    key={tpc.thread_id}
+                    type="button"
+                    onClick={() => goThread(tpc.category, tpc.thread_id)}
+                    className={`forum-topic-row ${i === 0 ? "forum-topic-row--lead" : ""}`}
+                    data-testid={`forum-recent-${tpc.thread_id}`}
+                  >
+                    <span className="forum-topic-ico"><TIcon /></span>
+                    <span className="forum-topic-body">
+                      <span className="forum-topic-title">{tpc.title}</span>
+                      <span className="forum-topic-sub">{c?.name || "Tribune"}</span>
+                    </span>
+                    <span className="forum-topic-meta">
+                      <span className="forum-topic-count">
+                        <MessageCircle className="w-3 h-3" /> {tpc.replies_count ?? 0}
+                      </span>
+                      <span className="forum-topic-date">{fmtDate(tpc.last_activity_at)}</span>
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
       </div>
-    </ForumShell>
+    </PageShell>
   );
 }
 

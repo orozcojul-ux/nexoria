@@ -5,13 +5,14 @@ import { toast } from "sonner";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
-import { PageShell, PremiumButton } from "@/components/ui-premium";
+import { PageShell } from "@/components/ui-premium";
 import StarField from "@/components/StarField";
 import HeroName from "@/components/HeroName";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
 import FriendChat from "@/components/friends/FriendChat";
 import { sfx } from "@/lib/sfx";
 import { usePageBanner } from "@/lib/page-banners";
+import "./friends.css";
 
 export default function Friends() {
   const banner = usePageBanner("friends");
@@ -120,7 +121,8 @@ export default function Friends() {
     >
       <StarField density={30} />
 
-      <div className="flex flex-wrap gap-2 mb-5">
+      <div className="friends-topbar">
+        <div className="friends-topbar-stats">
           <span className="hub-stat-pill"><Users className="w-3 h-3" /> {friends.length} compagnon{friends.length > 1 ? "s" : ""}</span>
           <span className="hub-stat-pill"><Circle className="w-3 h-3 text-emerald-400 fill-emerald-400" /> {onlineCount} en ligne</span>
           {requests.length > 0 && (
@@ -133,10 +135,9 @@ export default function Friends() {
             <span className="hub-stat-pill"><MessageCircle className="w-3 h-3 text-cyan-400" /> {chatUnread} non lu{chatUnread > 1 ? "s" : ""}</span>
           )}
         </div>
-      <div className="flex justify-end mb-4">
-        <PremiumButton variant="cyan" size="sm" icon={UserPlus} onClick={() => setShowAdd(true)}>
-          Ajouter
-        </PremiumButton>
+        <button type="button" className="friends-add-btn" onClick={() => setShowAdd(true)} data-testid="friends-add-btn">
+          <UserPlus className="w-3.5 h-3.5" /> Ajouter
+        </button>
       </div>
 
       {sentRequests.length > 0 && (
@@ -199,53 +200,57 @@ export default function Friends() {
         </div>
       )}
 
-      <div className="friends-hub-layout">
-        <section className="friends-hub-chat rounded-xl border border-cyan-500/15 overflow-hidden bg-black/20">
-          <div className="px-4 py-2.5 border-b border-white/5 flex items-center gap-2">
+      <div className="friends-layout">
+        <section className="friends-chat-block" data-testid="friends-chat-block">
+          <div className="friends-chat-header">
             <MessageCircle className="w-4 h-4 text-cyan-400" />
-            <span className="text-[10px] uppercase tracking-[0.25em] text-cyan-300 font-bold">Échos privés</span>
+            <span className="friends-chat-header-label">Échos privés</span>
           </div>
           <FriendChat initialFriendId={chatFriendId} onUnreadChange={setChatUnread} />
         </section>
 
         <aside>
-          <div className="text-[10px] uppercase tracking-[0.25em] text-zinc-500 font-bold mb-3 flex items-center gap-2">
+          <div className="friends-list-head">
             <Users className="w-3.5 h-3.5" /> Liste ({friends.length})
           </div>
-          <div className="space-y-2 max-h-[32rem] overflow-y-auto pr-1" data-testid="friends-grid">
+          <div className="friends-list" data-testid="friends-grid">
             {loading && (
               <div className="text-center text-zinc-500 italic py-8 text-sm">Chargement…</div>
             )}
             {!loading && friends.length === 0 && (
-              <div className="rounded-xl border border-white/8 bg-black/20 p-8 text-center text-zinc-500 italic text-sm">
+              <div className="friends-empty">
                 Aucun compagnon — ajoute des héros pour commencer.
               </div>
             )}
-            {friends.map((f) => (
+            {friends.map((f, i) => (
               <motion.div
                 key={f.user_id}
-                initial={{ opacity: 0, x: 6 }}
+                initial={{ opacity: 0, x: 8 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="rounded-xl border border-white/8 bg-black/25 hover:border-violet-500/25 transition-all p-3 flex items-center gap-3"
+                transition={{ delay: i * 0.04 }}
+                className={`friend-card ${chatFriendId === f.user_id ? "friend-card--active" : ""}`}
                 data-testid={`friend-${f.user_id}`}
               >
-                <Link to={`/profile/${f.username}`} className="friend-chat-avatar friend-chat-avatar--pixel shrink-0" style={{ width: "2.5rem", height: "3rem" }}>
-                  <HeroPixelAvatar user={f} size={32} />
+                <Link to={`/profile/${f.username}`} className="friend-card-avatar">
+                  <span className={`friend-card-status ${f.online ? "friend-card-status--on" : "friend-card-status--off"}`} />
+                  <HeroPixelAvatar user={f} size={34} />
                 </Link>
-                <div className="flex-1 min-w-0">
-                  <Link to={`/profile/${f.username}`}><HeroName user={f} size="sm" /></Link>
-                  <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold flex items-center gap-1.5 mt-0.5">
-                    <span className="truncate">{f.class_name} · Niv. {f.level}</span>
-                    <span className={`friend-online-badge shrink-0 ${f.online ? "friend-online-badge--on" : "friend-online-badge--off"}`}>
+                <div className="friend-card-body">
+                  <Link to={`/profile/${f.username}`} className="friend-card-name">
+                    <HeroName user={f} size="sm" />
+                  </Link>
+                  <div className="friend-card-sub">
+                    <span className="friend-card-class">{f.class_name} · Niv. {f.level}</span>
+                    <span className={`friend-online-badge ${f.online ? "friend-online-badge--on" : "friend-online-badge--off"}`}>
                       {f.online ? "En ligne" : "Hors ligne"}
                     </span>
                   </div>
                 </div>
-                <div className="flex flex-col gap-1 shrink-0">
-                  <button type="button" onClick={() => openChat(f.user_id)} className="friend-btn-message" data-testid={`friend-message-${f.user_id}`}>
-                    <MessageCircle className="w-3 h-3" />
+                <div className="friend-card-actions">
+                  <button type="button" onClick={() => openChat(f.user_id)} className="friend-card-msg" data-testid={`friend-message-${f.user_id}`} title="Envoyer un message">
+                    <MessageCircle className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => unfriend(f.user_id)} data-testid={`unfriend-${f.user_id}`} className="text-red-400/70 hover:text-red-300 p-1" title="Rompre le lien">
+                  <button type="button" onClick={() => unfriend(f.user_id)} data-testid={`unfriend-${f.user_id}`} className="friend-card-unfriend" title="Rompre le lien">
                     <UserX className="w-3.5 h-3.5" />
                   </button>
                 </div>

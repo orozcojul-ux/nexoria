@@ -5,10 +5,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import PlayerSearchBar from "@/components/PlayerSearchBar";
 
-const BASE = process.env.PUBLIC_URL || "";
-const HEADER_ART = `${BASE}/assets/ui/site-header.png`;
-
-/** Emblème ailé doré/cyan (écho du header art). */
+/** Emblème ailé doré/cyan. */
 function WingedCrest() {
   return (
     <svg width={34} height={26} viewBox="0 0 34 26" fill="none" aria-hidden="true" className={styles.crest}>
@@ -26,11 +23,6 @@ function WingedCrest() {
 export default function SiteHeader() {
   return (
     <header className={styles.header} data-testid="site-header">
-      <div
-        className={styles.art}
-        style={{ backgroundImage: `url(${HEADER_ART})` }}
-        aria-hidden
-      />
       <div className={styles.brand}>
         <span className={`${styles.rule} ${styles.ruleL}`} />
         <WingedCrest />
