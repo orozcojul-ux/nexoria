@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { FlaskConical, Loader2, Send, Users } from "lucide-react";
 import api from "@/lib/api";
 
-const DISCORD_URL = process.env.REACT_APP_DISCORD_URL || "https://discord.gg/RC5QjcWDCH";
 const BETA_SLOTS = 100;
 
 export default function MaintenanceBetaApply() {
@@ -54,7 +53,7 @@ export default function MaintenanceBetaApply() {
         <div>
           <h2 className="maint-panel-title maint-beta-apply-title">Candidature beta testeur</h2>
           <p className="maint-beta-apply-lead">
-            NEXORIA recrute <strong>{stats.max} pionniers</strong>. Rejoins le Discord puis envoie ta candidature —
+            NEXORIA recrute <strong>{stats.max} pionniers</strong>. Envoie ta candidature —
             examinée en privé par le Conseil (Sages).
           </p>
         </div>
@@ -77,7 +76,7 @@ export default function MaintenanceBetaApply() {
 
       {success ? (
         <div className="maint-beta-apply-success" data-testid="beta-apply-success">
-          Candidature envoyée ! Rejoins le Discord pour suivre ta validation.
+          Candidature envoyée ! Tu seras contacté après examen par le Conseil.
         </div>
       ) : stats.open ? (
         <form className="maint-beta-apply-form" onSubmit={submit} data-testid="beta-apply-form">
@@ -144,30 +143,10 @@ export default function MaintenanceBetaApply() {
                 </>
               )}
             </button>
-            <a
-              href={DISCORD_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="maint-beta-apply-discord"
-              data-testid="maintenance-discord-link"
-            >
-              Rejoindre le Discord
-            </a>
           </div>
         </form>
       ) : (
-        <div className="maint-beta-apply-closed-wrap">
-          <p className="maint-beta-apply-closed">Les {stats.max} places beta sont pourvues. Rejoins quand même le Discord pour l'ouverture !</p>
-          <a
-            href={DISCORD_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="maint-beta-apply-discord"
-            data-testid="maintenance-discord-link"
-          >
-            Rejoindre le Discord
-          </a>
-        </div>
+        <p className="maint-beta-apply-closed">Les {stats.max} places beta sont pourvues. Merci pour ton intérêt — rendez-vous à l'ouverture !</p>
       )}
     </div>
   );

@@ -466,6 +466,79 @@
   opacity: 0.85;
 }
 
+/* ── Communauté Discord ── */
+.maint-discord-panel {
+  padding: 1rem 1.25rem 1.05rem !important;
+  border-color: rgba(88, 101, 242, 0.22);
+}
+
+.maint-discord-title {
+  margin-bottom: 0.65rem !important;
+  font-size: 0.7rem !important;
+}
+
+.maint-discord-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+
+.maint-discord-icon-wrap {
+  width: 2.85rem;
+  height: 2.85rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #5865F2 0%, #404EED 100%);
+  box-shadow: 0 0 16px rgba(88, 101, 242, 0.35);
+}
+
+.maint-discord-icon {
+  width: 1.45rem;
+  height: 1.45rem;
+  color: #fff;
+}
+
+.maint-discord-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.maint-discord-lead {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #d4d4d8;
+}
+
+.maint-discord-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  padding: 0.65rem 0.9rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fff;
+  text-decoration: none;
+  background: linear-gradient(135deg, #5865F2 0%, #404EED 100%);
+  box-shadow: 0 4px 14px rgba(88, 101, 242, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.maint-discord-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(88, 101, 242, 0.4);
+}
+
 /* ── Rune staff (accès caché) ── */
 .maint-secret-rune {
   position: fixed;
@@ -646,7 +719,7 @@
 
 .maint-beta-apply-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.75rem;
   margin-top: 0.35rem;
 }

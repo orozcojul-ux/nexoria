@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "@/lib/api";
 import MaintenanceBrand from "@/components/maintenance/MaintenanceBrand";
 import MaintenanceGlobalProgress from "@/components/maintenance/MaintenanceGlobalProgress";
+import MaintenanceDiscordCommunity from "@/components/maintenance/MaintenanceDiscordCommunity";
 import MaintenanceStaffGate from "@/components/maintenance/MaintenanceStaffGate";
 import MaintenanceBetaGate from "@/components/maintenance/MaintenanceBetaGate";
 import MaintenanceBetaApply from "@/components/maintenance/MaintenanceBetaApply";
@@ -149,6 +150,7 @@ export default function Maintenance() {
                 updatedAt={statusData?.updated_at}
                 subtitle={statusData?.subtitle}
               />
+              <MaintenanceDiscordCommunity />
             </div>
             <div className="maint-panels-col maint-panels-col--beta">
               <MaintenanceBetaApply />
