@@ -470,6 +470,70 @@ def _current_quest_periods() -> set:
     }
 
 
+async def _ensure_period_quests(user_id: str, user: dict | None = None) -> None:
+    """Crée les quêtes daily/weekly/monthly manquantes pour la période courante."""
+    if user is None:
+        user = await db.users.find_one({"user_id": user_id})
+    if not user:
+        return
+    today = now_utc().date().isoformat()
+    week = now_utc().strftime("%Y-W%U")
+    month = now_utc().strftime("%Y-%m")
+    user_is_vip = is_vip_active(user)
+    existing = await db.user_quests.find({"user_id": user_id}).to_list(500)
+    existing_ids = {(q["quest_id"], q.get("period")) for q in existing}
+    for tmpl in QUEST_TEMPLATES:
+        if tmpl.get("vip_only") and not user_is_vip:
+            continue
+        period = today if tmpl["type"] == "daily" else (week if tmpl["type"] == "weekly" else month)
+        if (tmpl["id"], period) in existing_ids:
+            continue
+        await db.user_quests.insert_one({
+            "user_id_quest_id": f"{user_id}_{tmpl['id']}_{period}",
+            "user_id": user_id,
+            "quest_id": tmpl["id"],
+            "name": tmpl["name"],
+            "description": tmpl["description"],
+            "type": tmpl["type"],
+            "action": tmpl["action"],
+            "target": tmpl["target"],
+            "progress": 0,
+            "completed": False,
+            "xp": tmpl["xp"],
+            "aether": tmpl["aether"],
+            "period": period,
+            "created_at": now_utc().isoformat(),
+        })
+
+
+async def _repair_daily_login_quest(user_id: str, today: str, *, grant_if_new: bool = True) -> None:
+    """Répare la quête Présence Quotidienne si la connexion du jour est déjà enregistrée."""
+    q = await db.user_quests.find_one({
+        "user_id": user_id,
+        "quest_id": "daily_login",
+        "period": today,
+    })
+    if not q:
+        return
+    target = int(q.get("target") or 1)
+    progress = int(q.get("progress") or 0)
+    if q.get("completed") and progress >= target:
+        return
+    was_completed = bool(q.get("completed"))
+    await db.user_quests.update_one(
+        {"_id": q["_id"]},
+        {"$set": {
+            "progress": target,
+            "completed": True,
+            "completed_at": q.get("completed_at") or now_utc().isoformat(),
+        }},
+    )
+    if grant_if_new and not was_completed:
+        await grant_xp(user_id, q.get("xp", 0), f"quest:{q['quest_id']}")
+        await grant_aether(user_id, q.get("aether", 0), f"Quête : {q.get('name', 'daily_login')}")
+        await add_chronicle(user_id, f"A accompli la quête « {q.get('name', 'Présence Quotidienne')} »", "quest")
+
+
 async def count_site_online() -> int:
     """Users with a valid session active in the last 5 minutes, excluding hidden presence."""
     now = now_utc()
@@ -514,14 +578,25 @@ async def get_active_boost_multiplier(user_id: str, boost_type: str) -> float:
 async def maybe_process_daily_login(user_id: str):
     """Once per calendar day: login quest + streak (any page, not only /hero)."""
     today = now_utc().date().isoformat()
-    user = await db.users.find_one({"user_id": user_id}, {"last_daily_quest_date": 1})
-    if not user or user.get("last_daily_quest_date") == today:
+    user = await db.users.find_one(
+        {"user_id": user_id},
+        {"last_daily_quest_date": 1, "vip_until": 1, "last_passive_aether_date": 1, "last_vip_chest_date": 1},
+    )
+    if not user:
         return
+
+    await _ensure_period_quests(user_id, user)
+
+    if user.get("last_daily_quest_date") == today:
+        await _repair_daily_login_quest(user_id, today)
+        return
+
+    await progress_quests(user_id, "login", 1)
     await db.users.update_one(
         {"user_id": user_id},
         {"$set": {"last_daily_quest_date": today}},
     )
-    await progress_quests(user_id, "login", 1)
+    await _repair_daily_login_quest(user_id, today, grant_if_new=False)
     await track_login_streak(user_id)
     # Passive aether from kingdom perks (same logic as daily-login endpoint)
     fresh = await db.users.find_one({"user_id": user_id}, {"last_passive_aether_date": 1})
@@ -2618,58 +2693,36 @@ async def follow_user(username: str, user: dict = Depends(get_user_dep)):
 # ---------- Quests ----------
 @api.get("/quests")
 async def get_quests(user: dict = Depends(get_user_dep)):
-    # Ensure daily quests exist for today
+    await maybe_process_daily_login(user["user_id"])
+
     today = now_utc().date().isoformat()
     week = now_utc().strftime("%Y-W%U")
     month = now_utc().strftime("%Y-%m")
 
     user_is_vip = is_vip_active(user)
 
+    await _ensure_period_quests(user["user_id"], user)
     existing = await db.user_quests.find({"user_id": user["user_id"]}).to_list(500)
     existing_ids = {(q["quest_id"], q.get("period")) for q in existing}
 
-    for tmpl in QUEST_TEMPLATES:
-        # Les quêtes VIP ne sont créées que pour les détenteurs du Pass Ascendant.
-        if tmpl.get("vip_only") and not user_is_vip:
-            continue
-        period = today if tmpl["type"] == "daily" else (week if tmpl["type"] == "weekly" else month)
-        if (tmpl["id"], period) in existing_ids:
-            continue
-        await db.user_quests.insert_one({
-            "user_id_quest_id": f"{user['user_id']}_{tmpl['id']}_{period}",
-            "user_id": user["user_id"],
-            "quest_id": tmpl["id"],
-            "name": tmpl["name"],
-            "description": tmpl["description"],
-            "type": tmpl["type"],
-            "action": tmpl["action"],
-            "target": tmpl["target"],
-            "progress": 0,
-            "completed": False,
-            "xp": tmpl["xp"],
-            "aether": tmpl["aether"],
-            "period": period,
-            "created_at": now_utc().isoformat(),
-        })
-
-    # Synchronise le libellé/objectif des quêtes en cours avec les modèles
-    # actuels (les descriptions plus précises s'appliquent immédiatement,
-    # sans réinitialiser la progression déjà acquise).
     tmpl_by_id = {t["id"]: t for t in QUEST_TEMPLATES}
     for q in existing:
         tmpl = tmpl_by_id.get(q["quest_id"])
         if not tmpl or q.get("period") not in (today, week, month):
             continue
         progress = q.get("progress", 0)
+        target = tmpl["target"]
+        is_done = q.get("completed", False) or progress >= target
         synced = {
             "name": tmpl["name"],
             "description": tmpl["description"],
             "action": tmpl["action"],
-            "target": tmpl["target"],
+            "target": target,
             "xp": tmpl["xp"],
             "aether": tmpl["aether"],
             "type": tmpl["type"],
-            "completed": q.get("completed", False) or progress >= tmpl["target"],
+            "completed": is_done,
+            "progress": target if is_done else progress,
         }
         if any(q.get(k) != v for k, v in synced.items()):
             await db.user_quests.update_one({"_id": q["_id"]}, {"$set": synced})

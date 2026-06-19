@@ -23,6 +23,7 @@ export default function Quests() {
   const [loadingOracle, setLoadingOracle] = useState(false);
 
   const load = async () => {
+    await api.post("/quests/daily-login").catch(() => {});
     const { data } = await api.get("/quests");
     setQuests(data);
   };
@@ -110,7 +111,8 @@ export default function Quests() {
           </PremiumCard>
         )}
         {filtered.map((q, i) => {
-          const pct = Math.min(100, (q.progress / q.target) * 100);
+          const displayProgress = q.completed ? q.target : q.progress;
+          const pct = Math.min(100, (displayProgress / q.target) * 100);
           return (
             <motion.div
               key={q.user_id_quest_id}
@@ -132,7 +134,7 @@ export default function Quests() {
                     <div className="text-xs text-zinc-500 mt-1 leading-relaxed">{q.description}</div>
                     <div className="mt-3 flex justify-between text-[10px] font-mono-stat uppercase tracking-wider text-zinc-500">
                       <span>{t("quests.progress")}</span>
-                      <span className="text-cyan-300">{q.progress}/{q.target}</span>
+                      <span className="text-cyan-300">{displayProgress}/{q.target}</span>
                     </div>
                     <div className="h-1.5 bg-black/40 rounded-full overflow-hidden mt-1">
                       <div

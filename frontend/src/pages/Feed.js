@@ -136,12 +136,13 @@ function StatBox({ value, label, color = "feed-stat-val" }) {
 }
 
 function QuestItem({ quest }) {
+  const displayProgress = quest.completed ? quest.target : quest.progress;
   const pct = quest.completed ? 100 : Math.min(100, (quest.progress / quest.target) * 100);
   return (
     <div className="feed-quest-item" data-testid={`feed-quest-${quest.quest_id || quest.user_id_quest_id}`}>
       <div className="feed-quest-head">
         <span className="truncate" style={{ fontSize: "0.73rem" }}>{quest.name}</span>
-        <span className="feed-quest-counter">{quest.progress}/{quest.target}</span>
+        <span className="feed-quest-counter">{displayProgress}/{quest.target}</span>
       </div>
       <div className="feed-quest-track">
         <div
@@ -216,7 +217,10 @@ export default function Feed() {
     api.get("/news", { params: { limit: 20 } }).then((r) => setNews(r.data || [])).catch(() => {});
     api.get("/leaderboard/xp").then((r) => setLeaderboard((r.data || []).slice(0, 5))).catch(() => {});
     api.get("/community-challenges").then((r) => setCommunityChallenges(r.data || [])).catch(() => {});
-    api.get("/quests").then((r) => setQuests(r.data || [])).catch(() => {});
+    api.post("/quests/daily-login").catch(() => {})
+      .then(() => api.get("/quests"))
+      .then((r) => setQuests(r.data || []))
+      .catch(() => {});
   }, []);
 
   const featured  = news.slice(0, 2);
