@@ -51,6 +51,18 @@ import NexusOverlay from "@/components/NexusOverlay";
 import NexusFAB from "@/components/NexusFAB";
 import AetherTicker from "@/components/AetherTicker";
 
+function MaintenanceSoftBanner({ visible }) {
+  if (!visible) return null;
+  return (
+    <div
+      role="status"
+      className="fixed top-0 inset-x-0 z-[100] bg-amber-950/95 border-b border-amber-500/40 px-4 py-2 text-center text-sm text-amber-100 shadow-lg"
+    >
+      Royaume en maintenance — certaines fonctionnalités peuvent être limitées.
+    </div>
+  );
+}
+
 function MaintenanceGate({ children }) {
   const { user, loading: authLoading } = useAuth();
   const location = useLocation();
@@ -79,11 +91,19 @@ function MaintenanceGate({ children }) {
 
   if (maint === null || authLoading) return null;
   const isStaff = user?.role === "admin" || user?.role === "moderator";
-  if (maint.enabled && !isStaff && !maint.beta_access) {
+  const softMode = maint.soft_mode !== false;
+  const hardLock = maint.enabled && !isStaff && !maint.beta_access && !softMode;
+  if (hardLock) {
     window.location.replace("/maintenance");
     return null;
   }
-  return children;
+  const showSoftBanner = maint.enabled && !isStaff && !maint.beta_access && softMode;
+  return (
+    <>
+      <MaintenanceSoftBanner visible={showSoftBanner} />
+      {children}
+    </>
+  );
 }
 
 /** Racine : les héros connectés vont au feed, les visiteurs voient la landing. */

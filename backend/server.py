@@ -79,6 +79,10 @@ logging.basicConfig(level=logging.INFO)
 
 OWNER_USERNAME = os.environ.get("OWNER_USERNAME", "SmouzYi")
 MAINTENANCE_MODE_ENV = os.environ.get("MAINTENANCE_MODE", "").strip().lower() in ("true", "1", "yes", "on")
+# Soft maintenance (default): inform users via header/banner without blocking game APIs.
+MAINTENANCE_SOFT_MODE = os.environ.get("MAINTENANCE_SOFT_MODE", "true").strip().lower() in ("true", "1", "yes", "on")
+# When soft mode is on and this is false, all /api routes stay reachable (except explicit strict blocks).
+MAINTENANCE_BLOCK_PUBLIC = os.environ.get("MAINTENANCE_BLOCK_PUBLIC", "false").strip().lower() in ("true", "1", "yes", "on")
 
 # Routes always reachable while site is locked (maintenance or online gate)
 MAINTENANCE_PUBLIC_PATHS = frozenset({
@@ -99,6 +103,103 @@ MAINTENANCE_PUBLIC_PATHS = frozenset({
     "/api/webhooks/stripe",  # Stripe calls this server-to-server (no session)
     "/api/discord/interactions",  # Discord Interactions (translation flags)
 })
+
+# Never return 503 for these prefixes (webhooks, health, docs, maintenance probes).
+MAINTENANCE_NEVER_BLOCK_PREFIXES = (
+    "/api/maintenance",
+    "/api/system/maintenance",
+    "/api/system/online-gate",
+    "/api/online",
+    "/api/health",
+    "/api/docs",
+    "/api/openapi.json",
+    "/api/webhooks/stripe",
+    "/api/discord",
+    "/api/staff",
+)
+
+# Game-essential API prefixes allowed when MAINTENANCE_SOFT_MODE + MAINTENANCE_BLOCK_PUBLIC=true.
+MAINTENANCE_SOFT_ALLOWED_PREFIXES = (
+    "/api/auth",
+    "/api/users",
+    "/api/profile",
+    "/api/quests",
+    "/api/daily-quests",
+    "/api/oracle",
+    "/api/badges",
+    "/api/leaderboard",
+    "/api/hall-of-legends",
+    "/api/game",
+    "/api/inventory",
+    "/api/kingdom",
+    "/api/skills",
+    "/api/economy",
+    "/api/shop",
+    "/api/vip",
+    "/api/forum",
+    "/api/friends",
+    "/api/news",
+    "/api/events",
+    "/api/widgets",
+    "/api/broadcasts",
+    "/api/referral",
+    "/api/chronicle",
+    "/api/rifts",
+    "/api/community-challenges",
+    "/api/boss",
+    "/api/nexus",
+    "/api/discord",
+    "/api/admin",
+    "/api/upload",
+    "/api/feed",
+    "/api/posts",
+    "/api/follow",
+)
+
+
+def _normalize_api_path(path: str) -> str:
+    return path.rstrip("/") or path
+
+
+def _path_matches_prefix(norm: str, prefix: str) -> bool:
+    base = prefix.rstrip("/")
+    return norm == base or norm.startswith(base + "/")
+
+
+def _is_never_blocked_maintenance_path(norm: str) -> bool:
+    if norm in MAINTENANCE_PUBLIC_PATHS:
+        return True
+    return any(_path_matches_prefix(norm, p) for p in MAINTENANCE_NEVER_BLOCK_PREFIXES)
+
+
+def _is_soft_allowed_maintenance_path(norm: str) -> bool:
+    if _is_never_blocked_maintenance_path(norm):
+        return True
+    return any(_path_matches_prefix(norm, p) for p in MAINTENANCE_SOFT_ALLOWED_PREFIXES)
+
+
+def _maintenance_access_allowed(
+    norm: str,
+    *,
+    is_staff: bool,
+    has_beta: bool,
+) -> tuple[bool, str]:
+    """Return (allowed, block_reason). block_reason is set only when allowed is False."""
+    if _is_never_blocked_maintenance_path(norm):
+        return True, ""
+    if is_staff:
+        return True, ""
+    if has_beta:
+        return True, ""
+    if MAINTENANCE_SOFT_MODE:
+        if not MAINTENANCE_BLOCK_PUBLIC:
+            return True, ""
+        if _is_soft_allowed_maintenance_path(norm):
+            return True, ""
+        return False, "soft_mode_public_blocked"
+    if norm in MAINTENANCE_PUBLIC_PATHS:
+        return True, ""
+    return False, "strict_mode"
 
 # ---------- Stripe (real-money écus top-up) ----------
 # Configured entirely via environment variables — no secret ever hardcoded.
@@ -3365,6 +3466,8 @@ async def maintenance_status(request: Request):
         "systems": systems,
         "open_at": doc.get("open_at"),
         "beta_access": await has_beta_access(request),
+        "soft_mode": MAINTENANCE_SOFT_MODE,
+        "block_public": MAINTENANCE_BLOCK_PUBLIC,
     }
 
 
@@ -3385,6 +3488,8 @@ async def maintenance_full_status(request: Request):
         "open_at": doc.get("open_at"),
         "beta_access": await has_beta_access(request),
         "updated_at": doc.get("updated_at"),
+        "soft_mode": MAINTENANCE_SOFT_MODE,
+        "block_public": MAINTENANCE_BLOCK_PUBLIC,
     }
 
 
@@ -6362,7 +6467,7 @@ app.add_middleware(
 
 @app.middleware("http")
 async def maintenance_gate(request: Request, call_next):
-    """Block non-staff API access while global maintenance is active."""
+    """Gate API access during global maintenance (soft by default)."""
     # CORS preflight must never be blocked — browsers send OPTIONS without auth headers.
     if request.method == "OPTIONS":
         return await call_next(request)
@@ -6370,22 +6475,39 @@ async def maintenance_gate(request: Request, call_next):
     path = request.url.path
     if not path.startswith("/api"):
         return await call_next(request)
-    norm = path.rstrip("/") or path
-    if norm in MAINTENANCE_PUBLIC_PATHS or any(norm.startswith(p) for p in ("/api/maintenance/", "/api/online/")):
-        return await call_next(request)
+
+    norm = _normalize_api_path(path)
     blocked, reason, message = await _site_access_block()
     if not blocked:
         return await call_next(request)
-    # Allow authenticated staff through
+
+    is_staff = False
     try:
         user = await get_current_user(request, db)
-        if is_staff_user(user):
-            return await call_next(request)
+        is_staff = is_staff_user(user)
     except HTTPException:
         pass
-    # Allow beta testers holding a valid key cookie
-    if reason == "maintenance" and await has_beta_access(request):
-        return await call_next(request)
+
+    has_beta = reason == "maintenance" and await has_beta_access(request)
+    allowed, block_reason = _maintenance_access_allowed(
+        norm,
+        is_staff=is_staff,
+        has_beta=has_beta,
+    )
+
+    if allowed:
+        response = await call_next(request)
+        if reason == "maintenance":
+            response.headers["X-Maintenance-Mode"] = "1"
+        return response
+
+    logger.warning(
+        "maintenance blocked %s %s — reason=%s message=%s",
+        request.method,
+        path,
+        block_reason or reason,
+        message,
+    )
     return JSONResponse(
         status_code=503,
         content={
@@ -7556,7 +7678,12 @@ async def startup():
             }},
             upsert=True,
         )
-        logger.info("NEXORIA: MAINTENANCE_MODE=true — site verrouillé (staff autorisé)")
+        if MAINTENANCE_SOFT_MODE:
+            logger.info(
+                "NEXORIA: MAINTENANCE_MODE=true — maintenance soft (API essentielles ouvertes, staff autorisé)"
+            )
+        else:
+            logger.info("NEXORIA: MAINTENANCE_MODE=true — site verrouillé (staff autorisé)")
 
     # One-time cleanup: remove the legacy "founder" badge from all beta accounts (per user request)
     try:
