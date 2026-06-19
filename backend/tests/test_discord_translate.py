@@ -4,8 +4,10 @@ import pytest
 from discord_translate import (
     build_source_version_embed,
     build_translation_embed,
+    normalize_select_lang,
     parse_discord_message,
     payload_source_hash,
+    translate_select_component_rows,
 )
 
 
@@ -51,7 +53,7 @@ def test_build_translation_embed_has_line_breaks():
         }],
     }
     embed = build_translation_embed(translated, "en", "fr")
-    assert embed["title"] == "🇬🇧 Traduction anglaise"
+    assert embed["title"] == "🇬🇧 English"
     assert "**Chroniques du Nexus**" in embed["description"]
     assert "\n\n" in embed["description"]
     assert "connexions, inscriptions" in embed["description"]
@@ -77,3 +79,26 @@ def test_payload_source_hash_changes_when_text_changes():
     assert payload_source_hash(a) == payload_source_hash(b)
     b["embeds"][0]["description"] += " extra"
     assert payload_source_hash(a) != payload_source_hash(b)
+
+
+def test_translate_select_component_single_row():
+    rows = translate_select_component_rows()
+    assert len(rows) == 1
+    assert rows[0]["type"] == 1
+    components = rows[0]["components"]
+    assert len(components) == 1
+    select = components[0]
+    assert select["type"] == 3
+    assert select["custom_id"] == "translate_select"
+    assert "Traduire" in select["placeholder"]
+    assert len(select["options"]) == 8
+    labels = [opt["label"] for opt in select["options"]]
+    assert any("Français" in label for label in labels)
+    assert any("English" in label for label in labels)
+    values = [opt["value"] for opt in select["options"]]
+    assert "pt-BR" in values
+
+
+def test_normalize_select_lang_pt_br():
+    assert normalize_select_lang("pt-BR") == "pt"
+    assert normalize_select_lang("en") == "en"

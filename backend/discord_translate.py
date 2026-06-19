@@ -1,7 +1,7 @@
-"""Discord message translation — flag buttons + Interactions API.
+"""Discord message translation — select menu + Interactions API.
 
-Messages bot are published in French (source). Flag buttons translate to other
-languages via: i18n prédéfini → LibreTranslate local → Gemini (fallback).
+Messages bot are published in French (source). A compact language select menu
+translates to other languages via: i18n prédéfini → LibreTranslate local → Gemini.
 """
 from __future__ import annotations
 
@@ -26,17 +26,21 @@ DISCORD_API = "https://discord.com/api/v10"
 DEFAULT_SOURCE_LANG = "fr"
 
 TRANSLATE_LANGS: list[dict[str, str]] = [
-    {"code": "fr", "label": "française", "label_full": "Français", "flag": "🇫🇷"},
-    {"code": "en", "label": "anglaise", "label_full": "English", "flag": "🇬🇧"},
-    {"code": "es", "label": "espagnole", "label_full": "Español", "flag": "🇪🇸"},
-    {"code": "de", "label": "allemande", "label_full": "Deutsch", "flag": "🇩🇪"},
-    {"code": "it", "label": "italienne", "label_full": "Italiano", "flag": "🇮🇹"},
-    {"code": "pt", "label": "portugaise (Brésil)", "label_full": "Português", "flag": "🇧🇷"},
-    {"code": "nl", "label": "néerlandaise", "label_full": "Nederlands", "flag": "🇳🇱"},
-    {"code": "ja", "label": "japonaise", "label_full": "日本語", "flag": "🇯🇵"},
+    {"code": "fr", "select_value": "fr", "label": "française", "label_full": "Français", "flag": "🇫🇷"},
+    {"code": "en", "select_value": "en", "label": "anglaise", "label_full": "English", "flag": "🇬🇧"},
+    {"code": "es", "select_value": "es", "label": "espagnole", "label_full": "Español", "flag": "🇪🇸"},
+    {"code": "de", "select_value": "de", "label": "allemande", "label_full": "Deutsch", "flag": "🇩🇪"},
+    {"code": "it", "select_value": "it", "label": "italienne", "label_full": "Italiano", "flag": "🇮🇹"},
+    {"code": "pt", "select_value": "pt-BR", "label": "portugaise (Brésil)", "label_full": "Português (BR)", "flag": "🇧🇷"},
+    {"code": "nl", "select_value": "nl", "label": "néerlandaise", "label_full": "Nederlands", "flag": "🇳🇱"},
+    {"code": "ja", "select_value": "ja", "label": "japonaise", "label_full": "日本語", "flag": "🇯🇵"},
 ]
 
 LANG_CODES = {lang["code"] for lang in TRANSLATE_LANGS}
+SELECT_VALUE_TO_LANG = {lang["select_value"]: lang["code"] for lang in TRANSLATE_LANGS}
+SELECT_VALUE_TO_LANG.update({lang["code"]: lang["code"] for lang in TRANSLATE_LANGS})
+
+TRANSLATE_SELECT_CUSTOM_ID = "translate_select"
 
 TARGET_LANG_PROMPT = {
     "fr": "français",
@@ -72,7 +76,46 @@ def lang_meta(code: str) -> dict[str, str]:
     return {"code": code, "label": code, "label_full": code.upper(), "flag": "🌐"}
 
 
+def normalize_select_lang(value: str) -> str:
+    """Map select-menu value (e.g. pt-BR) to internal lang code (pt)."""
+    key = (value or "").strip()
+    if not key:
+        return ""
+    return SELECT_VALUE_TO_LANG.get(key, key.lower())
+
+
+def translate_select_options() -> list[dict[str, str]]:
+    options: list[dict[str, str]] = []
+    for lang in TRANSLATE_LANGS:
+        option: dict[str, str] = {
+            "label": f"{lang['flag']} {lang['label_full']}"[:100],
+            "value": lang["select_value"],
+        }
+        if lang["code"] == DEFAULT_SOURCE_LANG:
+            option["description"] = "Version originale"[:100]
+        else:
+            option["description"] = f"Traduire en {lang['label_full']}"[:100]
+        options.append(option)
+    return options
+
+
+def translate_select_component_rows() -> list[dict]:
+    """Single compact String Select Menu — replaces legacy flag button rows."""
+    return [{
+        "type": 1,
+        "components": [{
+            "type": 3,
+            "custom_id": TRANSLATE_SELECT_CUSTOM_ID,
+            "placeholder": "🌍 Traduire ce message",
+            "min_values": 1,
+            "max_values": 1,
+            "options": translate_select_options(),
+        }],
+    }]
+
+
 def flag_component_rows() -> list[dict]:
+    """Legacy flag buttons — kept for backward compatibility with old messages."""
     rows: list[dict] = []
     row: list[dict] = []
     for lang in TRANSLATE_LANGS:
@@ -557,9 +600,9 @@ def build_translation_embed(
     footer_text = f"Traduit depuis {src['flag']} {src['label_full']}"
 
     embed: dict[str, Any] = {
-        "title": f"{tgt['flag']} Traduction {tgt['label']}"[:256],
+        "title": f"{tgt['flag']} {tgt['label_full']}"[:256],
         "description": description or "—",
-        "color": 0x7C3AED,
+        "color": 0x5865F2,
         "footer": {"text": footer_text[:2048]},
     }
     if embed_fields:
@@ -776,12 +819,12 @@ async def _finish_deferred_translation(
         )
 
 
-async def handle_component_interaction(payload: dict) -> dict:
-    custom_id = (payload.get("data") or {}).get("custom_id") or ""
-    if not custom_id.startswith("tr:"):
-        return _ephemeral_response(content="Action inconnue.")
-
-    target = custom_id.split(":", 1)[1].lower()
+async def _handle_translation_request(
+    *,
+    payload: dict,
+    target: str,
+) -> dict:
+    """Shared translation flow for select menu and legacy flag buttons."""
     if target not in LANG_CODES:
         return _ephemeral_response(content="Langue non prise en charge.")
 
@@ -801,8 +844,7 @@ async def handle_component_interaction(payload: dict) -> dict:
             "Discord translation source display message_id=%s target=%s source=%s provider=none",
             message_id, target, source_lang,
         )
-        embed = build_source_version_embed(source_payload, DEFAULT_SOURCE_LANG)
-        return _ephemeral_response(embeds=[embed])
+        return _ephemeral_response(content="🇫🇷 Ce message est déjà en français.")
 
     src_hash = payload_source_hash(source_payload)
     cache_key = make_cache_key(message_id, source_lang, target, src_hash)
@@ -887,6 +929,31 @@ async def handle_component_interaction(payload: dict) -> dict:
     return _ephemeral_response(embeds=[embed])
 
 
+def _parse_translation_target(payload: dict) -> str:
+    """Extract target language from select menu or legacy button interaction."""
+    data = payload.get("data") or {}
+    custom_id = (data.get("custom_id") or "").strip()
+    component_type = data.get("component_type")
+
+    if component_type == 3 and custom_id.startswith(TRANSLATE_SELECT_CUSTOM_ID):
+        values = data.get("values") or []
+        if values:
+            return normalize_select_lang(str(values[0]))
+        return ""
+
+    if custom_id.startswith("tr:"):
+        return custom_id.split(":", 1)[1].lower()
+
+    return ""
+
+
+async def handle_component_interaction(payload: dict) -> dict:
+    target = _parse_translation_target(payload)
+    if not target:
+        return _ephemeral_response(content="Action inconnue.")
+    return await _handle_translation_request(payload=payload, target=target)
+
+
 async def handle_interaction(body: bytes) -> dict:
     data = json.loads(body)
     itype = data.get("type")
@@ -899,7 +966,7 @@ async def handle_interaction(body: bytes) -> dict:
 
 def attach_translate_components(payload: dict) -> dict:
     payload = dict(payload)
-    payload["components"] = flag_component_rows()
+    payload["components"] = translate_select_component_rows()
     return payload
 
 

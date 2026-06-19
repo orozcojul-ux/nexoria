@@ -152,7 +152,7 @@ async def post_channel_message(
     translatable: bool = True,
     source_lang: str = discord_translate.DEFAULT_SOURCE_LANG,
 ) -> bool:
-    """Post content and/or embeds with optional translation flag buttons."""
+    """Post content and/or embeds with optional translation select menu."""
     token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
     if not token or not channel_id:
         return False
