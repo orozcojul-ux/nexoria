@@ -426,7 +426,7 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
 
           <button
             type="button"
-            onClick={async () => { await logout(); navigate("/"); onClose?.(); }}
+            onClick={async () => { const dest = await logout(); if (dest !== "/maintenance") navigate(dest); onClose?.(); }}
             data-testid="logout-btn"
             className={styles.logout}
           >

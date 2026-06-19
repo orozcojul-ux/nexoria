@@ -414,7 +414,7 @@ export default function Sidebar() {
         {!useCmsNav && <SupportFooter t={t} />}
         <button
           type="button"
-          onClick={async () => { await logout(); navigate("/"); }}
+          onClick={async () => { const dest = await logout(); if (dest !== "/maintenance") navigate(dest); }}
           data-testid="logout-btn"
           className="mx-3 w-[calc(100%-24px)] flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-widest font-semibold text-zinc-600 hover:text-red-400/90 transition-colors"
         >

@@ -538,8 +538,8 @@ function DangerSection({ logout, navigate, t }) {
     try {
       await api.delete("/profile");
       toast.success("Compte supprimé");
-      await logout();
-      navigate("/");
+      const dest = await logout();
+      navigate(dest);
     } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
   };
   return (

@@ -231,6 +231,17 @@ export function AuthProvider({ children }) {
     setToken(null);
     setUserState(null);
     setBanInfo(null);
+
+    try {
+      const { data } = await api.get("/system/maintenance");
+      if (data.enabled && !data.beta_access) {
+        window.location.replace("/maintenance");
+        return "/maintenance";
+      }
+    } catch {
+      /* MaintenanceGate handles redirect on next navigation */
+    }
+    return "/";
   }, []);
 
   return (
