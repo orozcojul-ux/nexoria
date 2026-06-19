@@ -34,35 +34,33 @@ export default function MaintenanceGlobalProgress({ systems, updatedAt, subtitle
   }, [systems]);
 
   return (
-    <div className="maint-panel" data-testid="maintenance-global-progress">
-      <h2 className="maint-panel-title">Avancement global</h2>
+    <div className="maint-panel maint-global-panel" data-testid="maintenance-global-progress">
+      <h2 className="maint-panel-title maint-global-title">Avancement global</h2>
 
-      <div className="maint-global-head">
+      <div className="maint-global-compact">
         <div className="maint-global-ring" style={{ "--pct": overall }}>
           <span className="maint-global-pct">{overall}%</span>
         </div>
-        <div className="min-w-0">
+        <div className="maint-global-body">
           <p className="maint-global-phase">
-            <Activity className="w-3.5 h-3.5 inline -mt-0.5 mr-1 text-cyan-300" />
+            <Activity className="maint-global-phase-icon" strokeWidth={2} aria-hidden />
             {phase.label}
           </p>
           <p className="maint-global-hint">{subtitle?.trim() || phase.hint}</p>
+          <div className="maint-global-bar" aria-hidden>
+            <motion.div
+              className="maint-global-bar-fill"
+              initial={{ width: 0 }}
+              animate={{ width: `${overall}%` }}
+              transition={{ duration: 1.4, ease: "easeOut" }}
+            />
+          </div>
+          <p className="maint-global-updated">
+            <Clock className="maint-global-updated-icon" strokeWidth={2} aria-hidden />
+            {formatRelativeTime(updatedAt)}
+          </p>
         </div>
       </div>
-
-      <div className="maint-global-bar" aria-hidden>
-        <motion.div
-          className="maint-global-bar-fill"
-          initial={{ width: 0 }}
-          animate={{ width: `${overall}%` }}
-          transition={{ duration: 1.4, ease: "easeOut" }}
-        />
-      </div>
-
-      <p className="maint-global-updated">
-        <Clock className="w-3 h-3 inline -mt-px mr-1" />
-        Dernière actualisation : {formatRelativeTime(updatedAt)}
-      </p>
     </div>
   );
 }

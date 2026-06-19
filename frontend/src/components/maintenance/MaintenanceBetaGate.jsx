@@ -39,7 +39,7 @@ export default function MaintenanceBetaGate() {
       ) : (
         <form onSubmit={submit} className="maint-beta-form">
           <p className="maint-beta-hint">
-            Vous faites partie des testeurs&nbsp;? Entrez votre clé beta pour accéder au site.
+            Déjà testeur&nbsp;? Entrez votre clé beta pour accéder au site.
           </p>
           <div className="maint-beta-field">
             <KeyRound className="maint-beta-field-icon" strokeWidth={1.75} />

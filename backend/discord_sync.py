@@ -16,6 +16,8 @@ import logging
 import asyncio
 import httpx
 
+import discord_translate
+
 logger = logging.getLogger("nexoria.discord_sync")
 
 DISCORD_API = "https://discord.com/api/v10"
@@ -110,22 +112,74 @@ async def _modify_member_roles(client: httpx.AsyncClient, guild_id: str, discord
         raise RuntimeError(f"Discord PATCH member failed: {r.status_code} {r.text[:200]}")
 
 
-async def post_notification(content: str, channel_id: str = None) -> bool:
+async def post_notification(
+    content: str,
+    channel_id: str = None,
+    *,
+    translatable: bool = True,
+    source_lang: str = "en",
+) -> bool:
     """Post a message to the configured notification channel. No-op if not configured."""
     cfg = _config()
     chan = channel_id or cfg["notify_channel_id"]
     if not cfg["token"] or not chan:
         return False
+    payload: dict = {"content": content[:1900]}
+    if translatable and content.strip():
+        payload = discord_translate.attach_translate_components(payload)
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             r = await client.post(
                 f"{DISCORD_API}/channels/{chan}/messages",
                 headers={**_headers(cfg["token"]), "Content-Type": "application/json"},
-                json={"content": content[:1900]},
+                json=payload,
             )
-            return r.status_code in (200, 201)
+            if r.status_code in (200, 201):
+                if translatable and content.strip():
+                    await discord_translate.after_post(chan, r.json(), source_lang=source_lang)
+                return True
+            return False
     except Exception as e:
         logger.warning(f"discord notify failed: {e}")
+        return False
+
+
+async def post_channel_message(
+    channel_id: str,
+    *,
+    content: str = "",
+    embeds: list | None = None,
+    translatable: bool = True,
+    source_lang: str = "en",
+) -> bool:
+    """Post content and/or embeds with optional translation flag buttons."""
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    if not token or not channel_id:
+        return False
+    message: dict = {}
+    if content:
+        message["content"] = content[:1900]
+    if embeds:
+        message["embeds"] = embeds
+    if not message:
+        return False
+    if translatable:
+        message = discord_translate.attach_translate_components(message)
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.post(
+                f"{DISCORD_API}/channels/{channel_id}/messages",
+                headers={**_headers(token), "Content-Type": "application/json"},
+                json=message,
+            )
+            if r.status_code in (200, 201):
+                if translatable:
+                    await discord_translate.after_post(channel_id, r.json(), source_lang=source_lang)
+                return True
+            logger.warning("discord post_channel_message failed: %s %s", r.status_code, r.text[:300])
+            return False
+    except Exception as e:
+        logger.warning("discord post_channel_message failed: %s", e)
         return False
 
 
@@ -169,7 +223,7 @@ async def create_forum_thread(
     if not message:
         return False
     payload = {
-        "name": (name or "Annonce")[:100],
+        "name": (name or "Announcement")[:100],
         "auto_archive_duration": auto_archive_duration,
         "message": message,
     }
@@ -200,12 +254,14 @@ async def create_forum_thread(
 
             # Fallback: post embed directly in the channel (text/announcement).
             if meta and meta.get("type") in (0, 5):
+                fallback = discord_translate.attach_translate_components(dict(message))
                 r2 = await client.post(
                     f"{DISCORD_API}/channels/{channel_id}/messages",
                     headers={**_headers(token), "Content-Type": "application/json"},
-                    json=message,
+                    json=fallback,
                 )
                 if r2.status_code in (200, 201):
+                    await discord_translate.after_post(channel_id, r2.json(), source_lang="en")
                     return True
                 logger.warning(f"discord message fallback failed: {r2.status_code} {r2.text[:300]}")
             return False

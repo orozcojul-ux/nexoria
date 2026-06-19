@@ -1145,7 +1145,7 @@ def build_socketio_app(db, hooks=None):
                 discord_rewards.schedule_reward_notify(
                     db, target_user_id, "Game Master",
                     aether=amount,
-                    extra=[f"Solde : {new_val} Écus"],
+                    extra=[f"Balance: {new_val} Ecus"],
                 )
         except Exception:
             pass

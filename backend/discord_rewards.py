@@ -1,4 +1,4 @@
-"""Discord channel announcements for NEXORIA economy (gains & dépenses)."""
+"""Discord channel announcements for NEXORIA economy (gains & spends)."""
 from __future__ import annotations
 
 import asyncio
@@ -10,42 +10,44 @@ import discord_sync
 logger = logging.getLogger("nexoria.discord_rewards")
 
 DEFAULT_REWARDS_CHANNEL_ID = "1514271132667347055"
-# Salon dédié aux annonces de montée de niveau (peut être surchargé via l'env).
 DEFAULT_LEVELUP_CHANNEL_ID = "1514271122412146739"
 
+# English labels for Discord. Keys include legacy French action codes from server.py.
 ACTION_LABELS = {
-    "post": "Publication sur le fil",
-    "comment": "Commentaire",
-    "react": "Réaction donnée",
-    "reaction_received": "Réaction reçue sur un post",
-    "customization": "Personnalisation du profil",
-    "story_written": "Histoire du personnage rédigée",
-    "rift": "Faille dimensionnelle",
-    "renamed": "Renommage du héros",
-    "news_comment": "Commentaire sur une actualité",
-    "forum_thread": "Sujet créé sur la Tribune",
-    "forum_reply": "Réponse sur la Tribune",
-    "report_validated": "Signalement validé",
-    "gain_aether": "Gain d'Écus",
-    "gain_reputation": "Gain de réputation",
-    "gain_xp": "Gain d'expérience",
-    "Inscription via Discord": "Inscription via Discord",
-    "Récompense": "Récompense",
-    "Écus passifs quotidiens": "Écus passifs quotidiens",
-    "Don du Conseil": "Don du Conseil",
-    "Retrait du Conseil": "Retrait du Conseil",
-    "Récompense de saison": "Récompense de saison",
-    "Récompense de guilde": "Récompense de guilde",
-    "Game Master": "Action Game Master",
-    "Badge débloqué": "Badge débloqué",
-    "skill_allocate": "Point de compétence dépensé",
-    "shop_purchase": "Achat boutique",
-    "open_chest": "Ouverture de coffre",
-    "kingdom_upgrade": "Amélioration du royaume",
-    "guild_create": "Fondation d'un ordre",
-    "guild_deposit": "Dépôt au coffre de guilde",
-    "chest_refund": "Remboursement coffre",
-    "Modification du Conseil": "Modification du Conseil",
+    "post": "Feed post",
+    "comment": "Comment",
+    "react": "Reaction given",
+    "reaction_received": "Reaction received on a post",
+    "customization": "Profile customization",
+    "story_written": "Character story written",
+    "rift": "Dimensional rift",
+    "renamed": "Hero renamed",
+    "news_comment": "News comment",
+    "forum_thread": "Forum thread created",
+    "forum_reply": "Forum reply",
+    "report_validated": "Report validated",
+    "gain_aether": "Ecus gained",
+    "gain_reputation": "Reputation gained",
+    "gain_xp": "XP gained",
+    "Inscription via Discord": "Discord signup",
+    "Récompense": "Reward",
+    "Écus passifs quotidiens": "Daily passive Ecus",
+    "Don du Conseil": "Council grant",
+    "Retrait du Conseil": "Council withdrawal",
+    "Récompense de saison": "Season reward",
+    "Récompense de guilde": "Guild reward",
+    "Game Master": "Game Master action",
+    "Badge débloqué": "Badge unlocked",
+    "skill_allocate": "Skill point spent",
+    "shop_purchase": "Shop purchase",
+    "open_chest": "Chest opened",
+    "kingdom_upgrade": "Kingdom upgrade",
+    "guild_create": "Guild founded",
+    "guild_deposit": "Guild vault deposit",
+    "chest_refund": "Chest refund",
+    "Modification du Conseil": "Council edit",
+    "Dépense": "Purchase",
+    "Remboursement": "Refund",
 }
 
 
@@ -59,20 +61,37 @@ def levelup_channel_id() -> str:
 
 def action_label(action: str) -> str:
     if not action:
-        return "Action inconnue"
+        return "Unknown action"
     if action.startswith("quest:"):
         qid = action.split(":", 1)[1]
-        return f"Quête accomplie ({qid})"
-    if action.startswith("Quête :"):
-        return action
-    if action.startswith("Achat boutique :"):
-        return action
-    if action.startswith("Amélioration royaume :"):
-        return action
-    if action.startswith("Dépôt au coffre —"):
-        return action
-    if action.startswith("Remboursement boutique :"):
-        return action
+        return f"Quest completed ({qid})"
+    if action.startswith("Quête :") or action.startswith("Quest:"):
+        name = action.split(":", 1)[1].strip()
+        return f"Quest completed ({name})"
+    if action.startswith("Achat boutique :") or action.startswith("Shop purchase:"):
+        name = action.split(":", 1)[1].strip()
+        return f"Shop purchase ({name})"
+    if action.startswith("Amélioration royaume :") or action.startswith("Kingdom upgrade:"):
+        detail = action.split(":", 1)[1].strip()
+        return f"Kingdom upgrade ({detail})"
+    if action.startswith("Dépôt au coffre —") or action.startswith("Guild vault deposit —"):
+        detail = action.split("—", 1)[1].strip() if "—" in action else action.split("-", 1)[-1].strip()
+        return f"Guild vault deposit ({detail})"
+    if action.startswith("Remboursement boutique :") or action.startswith("Shop refund:"):
+        name = action.split(":", 1)[1].strip()
+        return f"Shop refund ({name})"
+    if action.startswith("Don du Conseil —") or action.startswith("Council grant —"):
+        detail = action.split("—", 1)[1].strip() if "—" in action else action.split("-", 1)[-1].strip()
+        return f"Council grant ({detail})"
+    if action.startswith("Récompense de guilde —") or action.startswith("Guild reward —"):
+        detail = action.split("—", 1)[1].strip() if "—" in action else action.split("-", 1)[-1].strip()
+        return f"Guild reward ({detail})"
+    if action.startswith("Récompense de saison") or action.startswith("Season reward"):
+        return "Season reward"
+    if action.startswith("Achat d'Écus") or action.startswith("Ecus purchase"):
+        return action.replace("Achat d'Écus", "Ecus purchase").replace("recharge", "top-up")
+    if action.startswith("Remboursement coffre"):
+        return "Chest refund (duplicate relic)"
     return ACTION_LABELS.get(action, action.replace("_", " ").strip().capitalize())
 
 
@@ -94,12 +113,12 @@ def _format_deltas(
     if xp != 0:
         parts.append(_fmt_delta(xp, "XP"))
     if aether != 0:
-        parts.append(_fmt_delta(aether, "Écus"))
+        parts.append(_fmt_delta(aether, "Ecus"))
     if reputation != 0:
-        parts.append(_fmt_delta(reputation, "Réputation"))
+        parts.append(_fmt_delta(reputation, "Reputation"))
     if skill_points != 0:
         sign = "+" if skill_points > 0 else ""
-        parts.append(f"{sign}{skill_points} point(s) de compétence")
+        parts.append(f"{sign}{skill_points} skill point(s)")
     if badge_name:
         parts.append(f"Badge « {badge_name} »")
     if level_up:
@@ -107,11 +126,11 @@ def _format_deltas(
         new_lvl = level_up.get("new")
         rank = level_up.get("rank", "")
         tier = level_up.get("tier")
-        chunk = f"Niveau {old_lvl} → {new_lvl}"
+        chunk = f"Level {old_lvl} → {new_lvl}"
         if rank:
-            chunk += f" · Rang {rank}"
+            chunk += f" · Rank {rank}"
         if tier:
-            chunk += f" · Palier {tier}"
+            chunk += f" · Tier {tier}"
         parts.append(chunk)
     if extra:
         parts.extend(extra)
@@ -160,7 +179,7 @@ async def notify_reward(
         return
 
     user = await db.users.find_one({"user_id": user_id}, {"username": 1})
-    username = (user or {}).get("username") or "Héros"
+    username = (user or {}).get("username") or "Hero"
     label = action_label(action)
     emoji = _pick_emoji(
         xp=xp, aether=aether, reputation=reputation,
@@ -176,7 +195,7 @@ def schedule_reward_notify(db, user_id: str, action: str, **kwargs) -> None:
         loop = asyncio.get_running_loop()
         loop.create_task(notify_reward(db, user_id, action, **kwargs))
     except RuntimeError:
-        logger.warning("discord rewards: pas de boucle asyncio active")
+        logger.warning("discord rewards: no active asyncio loop")
 
 
 _custom_tasks: set = set()
@@ -189,9 +208,9 @@ async def notify_levelup(db, user_id: str, new_level: int, rank: str | None = No
     if not channel or not os.environ.get("DISCORD_BOT_TOKEN", "").strip():
         return
     user = await db.users.find_one({"user_id": user_id}, {"username": 1})
-    username = (user or {}).get("username") or "Un héros"
-    rank_part = f" — Rang {rank}" if rank else ""
-    message = f"⬆️ **{username}** vient de passer **niveau {new_level}**{rank_part} ! 🎉"
+    username = (user or {}).get("username") or "A hero"
+    rank_part = f" — Rank {rank}" if rank else ""
+    message = f"⬆️ **{username}** just reached **level {new_level}**{rank_part}! 🎉"
     ok = await discord_sync.post_notification(message, channel_id=channel)
     if ok:
         logger.info("discord level-up message sent for %s (lvl %s)", username, new_level)
@@ -207,7 +226,7 @@ def schedule_levelup(db, user_id: str, new_level: int, rank: str | None = None) 
         _levelup_tasks.add(task)
         task.add_done_callback(_levelup_tasks.discard)
     except RuntimeError:
-        logger.warning("discord rewards: pas de boucle asyncio active")
+        logger.warning("discord rewards: no active asyncio loop")
 
 
 async def notify_custom(message: str) -> None:
@@ -230,7 +249,7 @@ def schedule_custom(message: str) -> None:
         _custom_tasks.add(task)
         task.add_done_callback(_custom_tasks.discard)
     except RuntimeError:
-        logger.warning("discord rewards: pas de boucle asyncio active")
+        logger.warning("discord rewards: no active asyncio loop")
 
 
 async def notify_to_channel(message: str, channel_id: str) -> None:
@@ -255,4 +274,4 @@ def schedule_to_channel(message: str, channel_id: str) -> None:
         _custom_tasks.add(task)
         task.add_done_callback(_custom_tasks.discard)
     except RuntimeError:
-        logger.warning("discord rewards: pas de boucle asyncio active")
+        logger.warning("discord rewards: no active asyncio loop")

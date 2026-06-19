@@ -1,10 +1,17 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { KeyRound, Plus, Copy, Trash2, Check, Power } from "lucide-react";
+import { KeyRound, Plus, Copy, Trash2, Check, Power, FlaskConical, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 
+const STATUS_LABELS = {
+  pending: { label: "En attente", cls: "text-amber-300" },
+  approved: { label: "Acceptée", cls: "text-emerald-400" },
+  rejected: { label: "Refusée", cls: "text-red-400" },
+};
+
 export default function BetaKeysAdmin() {
   const [keys, setKeys] = useState([]);
+  const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [label, setLabel] = useState("");
   const [maxUses, setMaxUses] = useState(0);
@@ -13,10 +20,14 @@ export default function BetaKeysAdmin() {
 
   const load = useCallback(async () => {
     try {
-      const { data } = await api.get("/admin/beta-keys");
-      setKeys(Array.isArray(data) ? data : []);
+      const [keysRes, appsRes] = await Promise.all([
+        api.get("/admin/beta-keys"),
+        api.get("/admin/beta-applications"),
+      ]);
+      setKeys(Array.isArray(keysRes.data) ? keysRes.data : []);
+      setApplications(Array.isArray(appsRes.data) ? appsRes.data : []);
     } catch {
-      toast.error("Impossible de charger les clés beta");
+      toast.error("Impossible de charger les données beta");
     }
   }, []);
 
@@ -62,6 +73,18 @@ export default function BetaKeysAdmin() {
       setTimeout(() => setCopied(""), 1500);
     } catch { toast.error("Copie impossible"); }
   };
+
+  const setAppStatus = async (applicationId, status) => {
+    try {
+      await api.post(`/admin/beta-applications/${encodeURIComponent(applicationId)}/status`, { status });
+      toast.success(status === "approved" ? "Candidature acceptée" : status === "rejected" ? "Candidature refusée" : "Statut mis à jour");
+      await load();
+    } catch {
+      toast.error("Erreur lors de la mise à jour");
+    }
+  };
+
+  const pendingCount = applications.filter((a) => a.status === "pending").length;
 
   return (
     <div className="space-y-5" data-testid="beta-keys-admin">
@@ -121,6 +144,47 @@ export default function BetaKeysAdmin() {
             <Plus className="w-4 h-4" /> Générer
           </button>
         </div>
+      </div>
+
+      {/* Candidatures beta */}
+      <div className="rounded-lg border border-violet-500/20 bg-violet-500/[0.03] p-4 space-y-3" data-testid="beta-applications-admin">
+        <div className="flex items-center gap-2">
+          <FlaskConical className="w-5 h-5 text-violet-400" />
+          <h4 className="font-display font-bold">Candidatures beta testeur</h4>
+          {pendingCount > 0 && (
+            <span className="text-[10px] uppercase tracking-widest font-bold text-amber-300">{pendingCount} en attente</span>
+          )}
+        </div>
+        {applications.length === 0 ? (
+          <p className="text-sm text-zinc-600 italic">Aucune candidature pour l'instant.</p>
+        ) : (
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {applications.map((a) => {
+              const st = STATUS_LABELS[a.status] || STATUS_LABELS.pending;
+              return (
+                <div key={a.application_id} className="rounded-lg border border-white/10 bg-black/30 p-3 text-sm" data-testid={`beta-app-${a.application_id}`}>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="font-bold text-violet-100">{a.pseudo}</span>
+                    <span className={`text-[10px] uppercase tracking-widest font-bold ${st.cls}`}>{st.label}</span>
+                    {a.slot_number && <span className="text-[10px] text-zinc-500">#{a.slot_number}</span>}
+                  </div>
+                  <p className="text-xs text-zinc-400">{a.discord_username} · {a.email}</p>
+                  {a.motivation && <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{a.motivation}</p>}
+                  {a.status === "pending" && (
+                    <div className="flex gap-2 mt-2">
+                      <button type="button" onClick={() => setAppStatus(a.application_id, "approved")} className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10">
+                        <CheckCircle className="w-3.5 h-3.5" /> Accepter
+                      </button>
+                      <button type="button" onClick={() => setAppStatus(a.application_id, "rejected")} className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs border border-red-500/40 text-red-300 hover:bg-red-500/10">
+                        <XCircle className="w-3.5 h-3.5" /> Refuser
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Liste */}

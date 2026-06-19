@@ -38,7 +38,7 @@ from game_data import (
     CLASSES, SKILLS, KINGDOM_BUILDINGS, RARITIES, TITLES, BADGES, SHOP_ONLY_TITLES,
     REFERRAL_TITLES, VIP_TITLES,
     QUEST_TEMPLATES, ITEM_TEMPLATES, xp_for_level, level_from_xp, rank_from_level,
-    COMMUNITY_CHALLENGES,
+    COMMUNITY_CHALLENGES, class_portrait_path, is_class_portrait_url,
 )
 try:
     from oracle import consult_oracle, generate_personalized_quest, oracle_llm_configured
@@ -59,6 +59,8 @@ import discord_auth
 import discord_sync
 import discord_rewards
 import discord_auth_forum
+import discord_beta
+import discord_translate
 import online_gate
 import asyncio
 import nexus_world
@@ -95,6 +97,7 @@ MAINTENANCE_PUBLIC_PATHS = frozenset({
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
     "/api/webhooks/stripe",  # Stripe calls this server-to-server (no session)
+    "/api/discord/interactions",  # Discord Interactions (translation flags)
 })
 
 # ---------- Stripe (real-money écus top-up) ----------
@@ -140,6 +143,9 @@ REFERRAL_VIP_BONUS_AETHER = 150
 REFERRAL_VIP_BONUS_XP = 300
 # ID du rôle Discord VIP (optionnel — défini via l'environnement, jamais en dur).
 DISCORD_VIP_ROLE_ID = os.environ.get("DISCORD_VIP_ROLE_ID", "").strip()
+DISCORD_SAGE_ROLE_ID = os.environ.get("DISCORD_SAGE_ROLE_ID", "1515273094258888775").strip()
+DISCORD_GUARDIAN_ROLE_ID = os.environ.get("DISCORD_GUARDIAN_ROLE_ID", "1515273093483073667").strip()
+DISCORD_BETA_TESTER_ROLE_ID = os.environ.get("DISCORD_BETA_TESTER_ROLE_ID", "").strip()
 
 # Passe Saison : récompense de bienvenue (l'XP alimente aussi le classement
 # saisonnier) + bonus multiplié sur les récompenses de fin de saison.
@@ -1153,7 +1159,7 @@ async def register(req: RegisterReq, response: Response):
         "class_id": req.class_id,
         "class_name": cls["name"],
         "secondary_class_id": None,
-        "avatar_url": None,
+        "avatar_url": class_portrait_path(req.class_id),
         "banner_url": None,
         "bio": "",
         "story": "",
@@ -1665,6 +1671,8 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
             if free_used >= 1:
                 class_change_inc["class_change_credits"] = -1
         update["needs_class_selection"] = False
+        if is_class_portrait_url(user.get("avatar_url")):
+            update["avatar_url"] = class_portrait_path(update["class_id"])
     if "secondary_class_id" in update and update["secondary_class_id"] not in CLASSES:
         raise HTTPException(400, "Classe secondaire invalide")
     # Validate cosmetic ownership for active_* fields
@@ -1742,7 +1750,7 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         # Optional notification
         cls_name = update.get("class_name", update["class_id"])
         asyncio.create_task(discord_sync.post_notification(
-            f"⚔️ **{user['username']}** a embrassé la voie du **{cls_name}**"
+            f"⚔️ **{user['username']}** embraced the path of **{cls_name}**"
         ))
 
     # Badges + XP for customization (only for textual/avatar/banner_url changes)
@@ -2080,7 +2088,7 @@ async def economy_send_ecus(req: SendEcusReq, user: dict = Depends(get_user_dep)
     await add_chronicle(target["user_id"], f"A reçu {amount} Écus de {user['username']}", "economy")
     try:
         discord_rewards.schedule_custom(
-            f"💸 **{user['username']}** a envoyé **{amount} Écus** à **{target['username']}**"
+            f"💸 **{user['username']}** sent **{amount} Ecus** to **{target['username']}**"
         )
     except Exception:
         pass
@@ -2126,7 +2134,7 @@ async def economy_gift_item(req: GiftItemReq, user: dict = Depends(get_user_dep)
     try:
         qty_str = f"×{snapshot['quantity']}" if snapshot.get("quantity", 1) > 1 else ""
         discord_rewards.schedule_to_channel(
-            f"🎁 **{user['username']}** a offert **{snapshot['name']}{qty_str}** à **{target['username']}**",
+            f"🎁 **{user['username']}** gifted **{snapshot['name']}{qty_str}** to **{target['username']}**",
             DISCORD_TRADE_CHANNEL_ID,
         )
     except Exception:
@@ -2358,11 +2366,11 @@ async def accept_trade(trade_id: str, req: AcceptTradeReq, user: dict = Depends(
     def _goods_str(items, ecus):
         parts = [f"{it['name']}{'×' + str(it['quantity']) if it.get('quantity', 1) > 1 else ''}" for it in (items or [])]
         if ecus:
-            parts.append(f"{ecus} Écus")
+            parts.append(f"{ecus} Ecus")
         return ", ".join(parts) or "rien"
     try:
         discord_rewards.schedule_to_channel(
-            f"🤝 Échange conclu : **{t['from_username']}** ({_goods_str(t.get('give_items'), t.get('give_ecus'))}) "
+            f"🤝 Trade completed: **{t['from_username']}** ({_goods_str(t.get('give_items'), t.get('give_ecus'))}) "
             f"↔ **{user['username']}** ({_goods_str(counter_snaps, counter_ecus)})",
             DISCORD_TRADE_CHANNEL_ID,
         )
@@ -2844,7 +2852,7 @@ async def check_rift(user: dict = Depends(get_user_dep)):
     rift_doc.pop("_id", None)
     try:
         discord_rewards.schedule_to_channel(
-            f"🌀 **Faille dimensionnelle !** Une « {rift['name']} » s'est ouverte pour **{user['username']}** "
+            f"🌀 **Dimensional rift!** A « {rift['name']} » opened for **{user['username']}** "
             f"— {rift.get('reward', '')}",
             DISCORD_RIFT_CHANNEL_ID,
         )
@@ -3242,6 +3250,7 @@ async def get_maintenance() -> dict:
 # ---------- Clés beta (accès testeurs pendant la maintenance) ----------
 BETA_COOKIE = "nexoria_beta"
 _BETA_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+BETA_TESTER_SLOTS = 100
 
 
 def _gen_beta_key() -> str:
@@ -3358,11 +3367,101 @@ async def redeem_beta_key(payload: dict, request: Request, response: Response):
         if not name:
             name = doc.get("label") or "Un nouveau testeur"
         discord_auth_forum.schedule_beta_redeemed(name)
+    try:
+        current = await get_current_user(request, db)
+        discord_beta.schedule_grant_beta_tester(db, current["user_id"])
+    except HTTPException:
+        pass
     response.set_cookie(
         BETA_COOKIE, key, httponly=True, secure=True, samesite="none",
         max_age=30 * 24 * 3600, path="/",
     )
     return {"ok": True, "label": doc.get("label") or ""}
+
+
+@api.get("/maintenance/beta/stats")
+async def beta_application_stats():
+    """Places restantes pour le programme beta testeur."""
+    count = await db.beta_applications.count_documents({"status": {"$ne": "rejected"}})
+    return {
+        "count": count,
+        "max": BETA_TESTER_SLOTS,
+        "open": count < BETA_TESTER_SLOTS,
+    }
+
+
+@api.post("/maintenance/beta/apply")
+async def submit_beta_application(payload: dict, request: Request):
+    """Formulaire public — candidature beta testeur (max 100)."""
+    pseudo = str(payload.get("pseudo", "")).strip()[:32]
+    email = str(payload.get("email", "")).strip().lower()[:120]
+    discord_username = str(payload.get("discord_username", "")).strip()[:64]
+    motivation = str(payload.get("motivation", "")).strip()[:600]
+    experience = str(payload.get("experience", "")).strip()[:400]
+
+    if not pseudo or len(pseudo) < 2:
+        raise HTTPException(400, "Pseudo requis (2 caractères minimum)")
+    if not email or "@" not in email:
+        raise HTTPException(400, "E-mail invalide")
+    if not discord_username:
+        raise HTTPException(400, "Pseudo Discord requis")
+
+    count = await db.beta_applications.count_documents({"status": {"$ne": "rejected"}})
+    if count >= BETA_TESTER_SLOTS:
+        raise HTTPException(403, "Les 100 places beta sont déjà pourvues")
+
+    dup = await db.beta_applications.find_one({
+        "$or": [{"email": email}, {"discord_username": discord_username.lower()}],
+        "status": {"$ne": "rejected"},
+    })
+    if dup:
+        raise HTTPException(409, "Une candidature existe déjà avec cet e-mail ou ce Discord")
+
+    app_id = str(uuid.uuid4())
+    doc = {
+        "application_id": app_id,
+        "pseudo": pseudo,
+        "email": email,
+        "discord_username": discord_username,
+        "motivation": motivation,
+        "experience": experience,
+        "status": "pending",
+        "slot_number": count + 1,
+        "created_at": now_utc().isoformat(),
+        "ip_hash": None,
+    }
+    await db.beta_applications.insert_one(doc)
+
+    discord_beta.schedule_beta_application({
+        **doc,
+        "total_slots": BETA_TESTER_SLOTS,
+    })
+
+    return {"ok": True, "application_id": app_id, "slot_number": count + 1}
+
+
+@api.get("/admin/beta-applications")
+async def list_beta_applications(user: dict = Depends(get_admin_dep)):
+    rows = await db.beta_applications.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return rows
+
+
+@api.post("/admin/beta-applications/{application_id}/status")
+async def update_beta_application_status(application_id: str, payload: dict, user: dict = Depends(get_admin_dep)):
+    status = str(payload.get("status", "")).strip().lower()
+    if status not in ("pending", "approved", "rejected"):
+        raise HTTPException(400, "Statut invalide")
+    result = await db.beta_applications.update_one(
+        {"application_id": application_id},
+        {"$set": {"status": status, "reviewed_at": now_utc().isoformat(), "reviewed_by": user.get("user_id")}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, "Candidature introuvable")
+    if status == "approved":
+        app = await db.beta_applications.find_one({"application_id": application_id}, {"_id": 0})
+        if app:
+            discord_beta.schedule_grant_beta_tester_by_application(db, app)
+    return {"ok": True, "status": status}
 
 
 @api.get("/admin/beta-keys")
@@ -3857,7 +3956,7 @@ async def vip_purchase(req: VipPurchaseReq, user: dict = Depends(get_user_dep)):
     if DISCORD_VIP_ROLE_ID:
         discord_sync.schedule_extra_role(db, uid, DISCORD_VIP_ROLE_ID, "NEXORIA — Pass Ascendant (VIP)")
     discord_rewards.schedule_custom(
-        f"✨ **{username}** vient d'activer le Pass ascendant jusqu'au {new_until.strftime('%d/%m/%Y')}."
+        f"✨ **{username}** activated the Ascendant Pass until {new_until.strftime('%Y-%m-%d')}."
     )
     logger.info("VIP purchase: user=%s plan=%s price=%s until=%s", uid, plan["id"], price, new_until.isoformat())
 
@@ -3939,7 +4038,7 @@ async def _credit_ecu_order(session_id: str, *, user_id: str = None, ecus: int =
         username = (buyer or {}).get("username") or "Un héros"
         amount_str = f"{res.get('amount_eur') or '?'}€" if res.get("amount_eur") else ""
         discord_rewards.schedule_custom(
-            f"💳 **{username}** a rechargé **{int(res['ecus'])} Écus**"
+            f"💳 **{username}** topped up **{int(res['ecus'])} Ecus**"
             + (f" ({amount_str})" if amount_str else "")
             + f" — pack `{res.get('pack_id') or 'custom'}` 🎉"
         )
@@ -4175,7 +4274,7 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
             applied["rift_summoned"] = True
             try:
                 discord_rewards.schedule_to_channel(
-                    f"🌀 **Faille invoquée !** **{user['username']}** a catalysé une « {r['name']} » "
+                    f"🌀 **Rift invoked!** **{user['username']}** catalyzed a « {r['name']} » "
                     f"— {r.get('reward', '')}",
                     DISCORD_RIFT_CHANNEL_ID,
                 )
@@ -4627,7 +4726,7 @@ async def admin_edit_user(user_id: str, req: UserEditReq, user: dict = Depends(g
             xp=economy_deltas.get("xp", 0),
             aether=economy_deltas.get("aether", 0),
             reputation=economy_deltas.get("reputation", 0),
-            extra=[f"Champs modifiés : {', '.join(updated_fields)}"],
+            extra=[f"Fields updated: {', '.join(updated_fields)}"],
         )
     if any(k in update for k in ("aether", "level", "xp", "rank", "skill_points")):
         await push_wallet_updated(user_id)
@@ -4842,6 +4941,7 @@ async def discord_exchange(req: DiscordExchangeReq, response: Response):
     await touch_user_last_seen(user["user_id"])
     await maybe_process_daily_login(user["user_id"])
     discord_sync.schedule_sync(db, user["user_id"])
+    discord_beta.schedule_maybe_grant_beta_on_link(db, user["user_id"], email)
     if is_new_account:
         discord_auth_forum.schedule_auth_event("register", user, method="discord")
         if req.referral_code:
@@ -7207,6 +7307,28 @@ async def gm_audit_log(
     return await cursor.to_list(limit)
 
 
+@api.post("/discord/interactions")
+async def discord_interactions(request: Request):
+    """Discord Interactions endpoint — flag buttons translate bot messages."""
+    body = await request.body()
+    sig = request.headers.get("X-Signature-Ed25519")
+    ts = request.headers.get("X-Signature-Timestamp")
+    if public_key := discord_translate.public_key_hex():
+        if not discord_translate.verify_interaction_signature(sig, ts, body):
+            return JSONResponse({"error": "invalid request signature"}, status_code=401)
+    elif sig:
+        logger.warning("Discord interaction received but DISCORD_PUBLIC_KEY is not set")
+    try:
+        response = await discord_translate.handle_interaction(body)
+        return JSONResponse(response)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Discord interaction handler failed: %s", exc)
+        return JSONResponse({
+            "type": 4,
+            "data": {"content": "Translation failed. Please try again.", "flags": 64},
+        })
+
+
 # ---------- Mount router at the very end (after ALL endpoint declarations) ----------
 app.include_router(api)
 app.mount("/uploads", StaticFiles(directory=str(ROOT_DIR / "uploads")), name="uploads")
@@ -7323,6 +7445,10 @@ async def startup():
     await db.users.create_index("referral_code", sparse=True)
     await db.referrals.create_index("referred_id", unique=True, sparse=True)
     await db.referrals.create_index([("referrer_id", 1), ("created_at", -1)])
+    await db.beta_applications.create_index("application_id", unique=True)
+    await db.beta_applications.create_index("email")
+    await db.beta_applications.create_index("discord_username")
+    await db.beta_applications.create_index([("status", 1), ("created_at", -1)])
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@nexoria.com").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
@@ -7429,6 +7555,9 @@ async def startup():
 
     # Auto-sync Discord roles/ranks on a rotating 30s schedule.
     try:
+        discord_translate.init(db)
+        await db.discord_translatable_messages.create_index("message_id", unique=True)
+        await db.translation_cache.create_index("key", unique=True)
         discord_sync.start_periodic_sync(db, interval=30)
     except Exception as e:
         logger.warning(f"NEXORIA: could not start Discord periodic sync — {e}")

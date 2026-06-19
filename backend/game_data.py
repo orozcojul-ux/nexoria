@@ -104,6 +104,42 @@ CLASSES = {
     },
 }
 
+# Class portrait filenames (mirrors frontend CLASS_IMAGE_FILES → /assets/classes/*.png)
+CLASS_PORTRAIT_FILES = {
+    "mage": "mage",
+    "warrior": "guerrier",
+    "guerrier": "guerrier",
+    "assassin": "assassin",
+    "paladin": "paladin",
+    "alchemist": "alchimiste",
+    "alchimiste": "alchimiste",
+    "explorer": "explorateur",
+    "explorateur": "explorateur",
+    "necromancer": "necromancien",
+    "necromancien": "necromancien",
+    "architect": "architecte",
+    "architecte": "architecte",
+    "chronomancer": "chronomancien",
+    "chronomancien": "chronomancien",
+    "inventor": "inventeur",
+    "inventeur": "inventeur",
+}
+
+
+def class_portrait_path(class_id: str | None) -> str:
+    """Relative public URL for the class portrait used as default avatar."""
+    cid = (class_id or "explorer").lower()
+    file = CLASS_PORTRAIT_FILES.get(cid, "explorateur")
+    return f"/assets/classes/{file}.png"
+
+
+def is_class_portrait_url(url: str | None) -> bool:
+    """True when avatar is unset or still the default class portrait."""
+    if not url:
+        return True
+    return "/assets/classes/" in url
+
+
 # 8 Skills (Path of Exile style)
 SKILLS = [
     {"id": "creativity", "name": "Créativité", "icon": "Palette", "color": "#A855F7", "description": "Augmente l'XP gagnée par publication"},

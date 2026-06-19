@@ -1,16 +1,18 @@
 import React, { useMemo } from "react";
 import { getHeroAvatarDataURL } from "@/lib/NexusPixelArt";
+import { getUserAvatarUrl } from "@/lib/user-avatar";
 
 /** Avatar pixel partagé — identique au sprite in-game */
 export default function HeroPixelAvatar({ user, size = 40, className = "", style = {} }) {
   const classId = user?.class_id || "explorer";
   const role = user?.role || "user";
-  const src = useMemo(() => getHeroAvatarDataURL(classId, role), [classId, role]);
+  const pixelSrc = useMemo(() => getHeroAvatarDataURL(classId, role), [classId, role]);
+  const avatarSrc = getUserAvatarUrl(user);
 
-  if (user?.avatar_url) {
+  if (avatarSrc) {
     return (
       <img
-        src={user.avatar_url}
+        src={avatarSrc}
         alt=""
         className={className}
         style={{ width: size, height: size, objectFit: "cover", borderRadius: "0.4rem", ...style }}
@@ -20,7 +22,7 @@ export default function HeroPixelAvatar({ user, size = 40, className = "", style
 
   return (
     <img
-      src={src}
+      src={pixelSrc}
       alt=""
       className={`pixel-art ${className}`}
       style={{

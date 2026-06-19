@@ -1,8 +1,8 @@
 """Discord channel announcements for NEXORIA registrations and logins.
 
-Connexion / déconnexion / inscription / renommage sont annoncés dans le salon
-**notifications** (DISCORD_NOTIFY_CHANNEL_ID). Les récompenses restent gérées
-séparément dans DISCORD_REWARDS_CHANNEL_ID (module discord_rewards).
+Connection / disconnection / registration / rename are announced in the
+**notifications** channel (DISCORD_NOTIFY_CHANNEL_ID). Rewards are handled
+separately in DISCORD_REWARDS_CHANNEL_ID (discord_rewards module).
 """
 from __future__ import annotations
 
@@ -17,22 +17,15 @@ logger = logging.getLogger("nexoria.discord_auth_forum")
 
 DEFAULT_AUTH_FORUM_CHANNEL_ID = "1515325507208745080"
 
-# Anti-spam : on n'annonce pas deux fois la connexion d'un même héros en rafale
-# (re-login rapide, double appel OAuth, refresh, etc.).
+# Anti-spam: skip duplicate login announcements within a short window.
 LOGIN_DEDUP_SECONDS = 60
 _recent_login: dict[str, float] = {}
 
-# On garde une référence forte sur les tâches fire-and-forget, sinon le GC peut
-# les supprimer avant qu'elles ne s'exécutent (notification jamais envoyée).
 _background_tasks: set[asyncio.Task] = set()
 
 
 def notify_channel_id() -> str:
-    """Salon des notifications (connexion/déconnexion…).
-
-    Priorité au salon notifications dédié ; on retombe sur l'ancien salon
-    d'annonces puis sur la valeur par défaut pour rester rétro-compatible.
-    """
+    """Notifications channel (login/logout…)."""
     return (
         os.environ.get("DISCORD_NOTIFY_CHANNEL_ID", "").strip()
         or os.environ.get("DISCORD_AUTH_FORUM_CHANNEL_ID", "").strip()
@@ -40,10 +33,9 @@ def notify_channel_id() -> str:
     )
 
 
-# Libellé lisible de la méthode d'authentification.
 _METHOD_LABELS = {
     "discord": "via Discord",
-    "email": "via e-mail",
+    "email": "via email",
     "google": "via Google",
 }
 
@@ -54,18 +46,18 @@ def _method_suffix(method: str | None) -> str:
 
 
 def _format_message(event: str, user: dict, method: str | None = None) -> str:
-    username = user.get("username") or "Héros"
+    username = user.get("username") or "Hero"
     via = _method_suffix(method)
     if event == "register":
-        return f"✨ **{username}** vient de rejoindre NEXORIA{via} — bienvenue sur le Discord !"
+        return f"✨ **{username}** just joined NEXORIA{via} — welcome to the Discord!"
     if event == "login":
-        return f"✨ **{username}** s'est connecté{via}, bienvenue sur Nexoria !"
+        return f"✨ **{username}** logged in{via} — welcome back to Nexoria!"
     if event == "logout":
-        return f"🔴 **{username}** s'est déconnecté de NEXORIA — à bientôt sur le Discord !"
+        return f"🔴 **{username}** logged out of NEXORIA — see you soon on Discord!"
     if event == "rename":
         old = user.get("old_username") or "?"
-        return f"✏️ **{old}** est devenu **{username}** sur NEXORIA"
-    return f"👋 **{username}** sur NEXORIA"
+        return f"✏️ **{old}** is now **{username}** on NEXORIA"
+    return f"👋 **{username}** on NEXORIA"
 
 
 async def notify_auth_event(event: str, user: dict, method: str | None = None) -> bool:
@@ -74,7 +66,7 @@ async def notify_auth_event(event: str, user: dict, method: str | None = None) -
         return False
     channel_id = notify_channel_id()
     if not channel_id:
-        logger.warning("Discord auth notification %s failed: aucun salon notifications configuré", event)
+        logger.warning("Discord auth notification %s failed: no notifications channel configured", event)
         return False
 
     try:
@@ -82,7 +74,7 @@ async def notify_auth_event(event: str, user: dict, method: str | None = None) -
             _format_message(event, user, method),
             channel_id=channel_id,
         )
-    except Exception as exc:  # noqa: BLE001 — fire-and-forget, on ne casse rien
+    except Exception as exc:  # noqa: BLE001
         logger.warning(
             "Discord auth notification %s failed: %s (%s)",
             event,
@@ -99,7 +91,7 @@ async def notify_auth_event(event: str, user: dict, method: str | None = None) -
         )
     else:
         logger.warning(
-            "Discord auth notification %s failed: publication refusée par Discord (%s)",
+            "Discord auth notification %s failed: post rejected by Discord (%s)",
             event,
             user.get("username") or "?",
         )
@@ -107,26 +99,30 @@ async def notify_auth_event(event: str, user: dict, method: str | None = None) -
 
 
 async def notify_beta_redeemed(name: str) -> bool:
-    """Annonce qu'un joueur a activé une clé beta testeur (salon dédié)."""
-    message = f"🔑 **{name}** a reçu une clé BETA TESTEUR"
+    """Announce that a player activated a beta tester key (beta-signup channel)."""
+    message = f"🔑 **{name}** activated their BETA TESTER key — welcome among the pioneers!"
+    channel_id = (
+        os.environ.get("DISCORD_BETA_SIGNUP_CHANNEL_ID", "").strip()
+        or DEFAULT_AUTH_FORUM_CHANNEL_ID
+    )
     try:
-        ok = await discord_sync.post_notification(message, channel_id=DEFAULT_AUTH_FORUM_CHANNEL_ID)
+        ok = await discord_sync.post_notification(message, channel_id=channel_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Discord beta notification failed: %s (%s)", exc, name)
         return False
     if ok:
         logger.info("Discord beta notification sent for %s", name)
     else:
-        logger.warning("Discord beta notification failed: publication refusée par Discord (%s)", name)
+        logger.warning("Discord beta notification failed: post rejected by Discord (%s)", name)
     return ok
 
 
 def schedule_beta_redeemed(name: str) -> None:
-    """Fire-and-forget — annonce l'activation d'une clé beta."""
+    """Fire-and-forget — announce beta key activation."""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        logger.warning("Discord beta notification failed: pas de boucle asyncio active")
+        logger.warning("Discord beta notification failed: no active asyncio loop")
         return
     task = loop.create_task(notify_beta_redeemed(name))
     _background_tasks.add(task)
@@ -135,12 +131,7 @@ def schedule_beta_redeemed(name: str) -> None:
 
 
 def schedule_auth_event(event: str, user: dict, method: str | None = None) -> None:
-    """Fire-and-forget Discord auth announcement (ne ralentit pas la requête).
-
-    `method` précise comment l'utilisateur s'est authentifié ("discord",
-    "email", "google") et est ajouté au message pour login/register.
-    """
-    # Dé-doublonnage des connexions pour éviter le spam.
+    """Fire-and-forget Discord auth announcement (does not slow the request)."""
     if event == "login":
         uid = user.get("user_id")
         if uid:
@@ -157,7 +148,7 @@ def schedule_auth_event(event: str, user: dict, method: str | None = None) -> No
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        logger.warning("Discord auth notification %s failed: pas de boucle asyncio active", event)
+        logger.warning("Discord auth notification %s failed: no active asyncio loop", event)
         return
 
     task = loop.create_task(notify_auth_event(event, user, method))

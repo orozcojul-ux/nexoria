@@ -12,6 +12,7 @@ import { PremiumBadge, PremiumButton, PremiumCard, PremiumSection, PageShell } f
 import HeroName from "@/components/HeroName";
 import RankBadge from "@/components/RankBadge";
 import ClassImage from "@/components/ClassImage";
+import { getUserAvatarUrl } from "@/lib/user-avatar";
 import ClassChangeModal from "@/components/ClassChangeModal";
 import { getRankStyle } from "@/lib/rank-styles";
 import { useInventorySync } from "@/hooks/useInventorySync";
@@ -55,6 +56,8 @@ export default function Hero() {
   }, [loadHeroData, refresh]));
 
   if (!user) return null;
+
+  const heroAvatarUrl = getUserAvatarUrl(user);
 
   // XP progression comes from backend (single source of truth)
   const xpNext = user.xp_next ?? user.xp;
@@ -168,7 +171,7 @@ export default function Hero() {
             <div className="flex items-start gap-4 mb-6">
               <div className="relative">
                 <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-3xl font-display font-black border-2 border-cyan-500/50 shadow-[0_0_28px_rgba(0,229,255,0.3)]" data-testid="hero-avatar">
-                  {user.avatar_url ? <img src={user.avatar_url} alt="" className="w-full h-full object-cover rounded-xl" /> : user.username[0]?.toUpperCase()}
+                  {heroAvatarUrl ? <img src={heroAvatarUrl} alt="" className="w-full h-full object-cover rounded-xl" /> : user.username[0]?.toUpperCase()}
                 </div>
                 <div className="absolute -bottom-1 -right-1 bg-[#0A0A0E] border border-cyan-500/50 rounded-full px-2 py-0.5 text-[10px] font-mono-stat text-cyan-300 font-bold">
                   Niv. {user.level}
