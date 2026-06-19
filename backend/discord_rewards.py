@@ -11,6 +11,7 @@ logger = logging.getLogger("nexoria.discord_rewards")
 
 DEFAULT_REWARDS_CHANNEL_ID = "1514271132667347055"
 DEFAULT_LEVELUP_CHANNEL_ID = "1514271122412146739"
+DEFAULT_CLASSES_CHANNEL_ID = "1514271118532411565"
 
 ACTION_LABELS = {
     "post": "Publication sur le fil",
@@ -56,6 +57,10 @@ def rewards_channel_id() -> str:
 
 def levelup_channel_id() -> str:
     return os.environ.get("DISCORD_LEVELUP_CHANNEL_ID", DEFAULT_LEVELUP_CHANNEL_ID).strip()
+
+
+def classes_channel_id() -> str:
+    return os.environ.get("DISCORD_CLASSES_CHANNEL_ID", DEFAULT_CLASSES_CHANNEL_ID).strip()
 
 
 def action_label(action: str) -> str:
@@ -213,6 +218,51 @@ def schedule_levelup(db, user_id: str, new_level: int, rank: str | None = None) 
         task = loop.create_task(notify_levelup(db, user_id, new_level, rank))
         _levelup_tasks.add(task)
         task.add_done_callback(_levelup_tasks.discard)
+    except RuntimeError:
+        logger.warning("discord rewards: pas de boucle asyncio active")
+
+
+_class_change_tasks: set = set()
+
+
+async def notify_class_change(
+    username: str,
+    new_class_name: str,
+    *,
+    old_class_name: str | None = None,
+    initial: bool = False,
+) -> None:
+    channel = classes_channel_id()
+    if not channel or not os.environ.get("DISCORD_BOT_TOKEN", "").strip():
+        return
+    if initial or not old_class_name or old_class_name == new_class_name:
+        message = f"⚔️ **{username}** a embrassé la voie du **{new_class_name}**"
+    else:
+        message = f"🔄 **{username}** est passé de **{old_class_name}** à **{new_class_name}**"
+    ok = await discord_sync.post_notification(message, channel_id=channel)
+    if ok:
+        logger.info("discord class change sent for %s → %s", username, new_class_name)
+    else:
+        logger.warning("discord class change failed for %s", username)
+
+
+def schedule_class_change_notify(
+    username: str,
+    new_class_name: str,
+    *,
+    old_class_name: str | None = None,
+    initial: bool = False,
+) -> None:
+    try:
+        loop = asyncio.get_running_loop()
+        task = loop.create_task(notify_class_change(
+            username,
+            new_class_name,
+            old_class_name=old_class_name,
+            initial=initial,
+        ))
+        _class_change_tasks.add(task)
+        task.add_done_callback(_class_change_tasks.discard)
     except RuntimeError:
         logger.warning("discord rewards: pas de boucle asyncio active")
 

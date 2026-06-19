@@ -1828,6 +1828,7 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         allowed = {"twitter", "twitch", "youtube"}
         update["social_links"] = {k: str(v)[:128] for k, v in update["social_links"].items() if k in allowed and v}
     class_change_inc = {}
+    class_change_notify: tuple[str, str | None, str, bool] | None = None
     if "class_id" in update:
         if update["class_id"] not in CLASSES:
             raise HTTPException(400, "Classe invalide")
@@ -1849,6 +1850,14 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         update["needs_class_selection"] = False
         if is_class_portrait_url(user.get("avatar_url")):
             update["avatar_url"] = class_portrait_path(update["class_id"])
+        if update["class_id"] != current_class or is_initial:
+            old_name = CLASSES.get(current_class, {}).get("name") if current_class else None
+            class_change_notify = (
+                user["username"],
+                old_name,
+                update["class_name"],
+                is_initial,
+            )
     if "secondary_class_id" in update and update["secondary_class_id"] not in CLASSES:
         raise HTTPException(400, "Classe secondaire invalide")
     # Validate cosmetic ownership for active_* fields
@@ -1922,12 +1931,14 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
     sync_class_or_progress = "class_id" in update or "level" in update
     if sync_class_or_progress:
         discord_sync.schedule_sync(db, user["user_id"])
-    if "class_id" in update:
-        # Optional notification
-        cls_name = update.get("class_name", update["class_id"])
-        asyncio.create_task(discord_sync.post_notification(
-            f"⚔️ **{user['username']}** a embrassé la voie du **{cls_name}**"
-        ))
+    if class_change_notify:
+        username, old_name, new_name, is_initial = class_change_notify
+        discord_rewards.schedule_class_change_notify(
+            username,
+            new_name,
+            old_class_name=old_name,
+            initial=is_initial,
+        )
 
     # Badges + XP for customization (only for textual/avatar/banner_url changes)
     if "avatar_url" in update or "banner_url" in update:
