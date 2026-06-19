@@ -2,9 +2,12 @@
 
 .maintenance-page {
   min-height: 100vh;
+  min-height: -webkit-fill-available;
   min-height: 100dvh;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   color: #fff;
   background: #050816;
 }
@@ -50,6 +53,7 @@
   position: relative;
   z-index: 2;
   min-height: 100vh;
+  min-height: -webkit-fill-available;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;

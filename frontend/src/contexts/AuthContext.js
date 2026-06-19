@@ -55,19 +55,29 @@ export function AuthProvider({ children }) {
       setBanInfo(null);
     } catch (err) {
       const detail = err?.response?.data?.detail;
-      if (err?.response?.status === 503 && err?.response?.data?.maintenance) {
+      const status = err?.response?.status;
+      if (status === 503 && err?.response?.data?.maintenance) {
+        // Soft maintenance: keep token, let the user retry / stay on public routes.
         setLoading(false);
         return;
       }
-      if (err?.response?.status === 403 && detail?.banned) {
-        setBanInfo({
-          banned: true,
-          reason: detail.reason || "Violation des règles du royaume",
-          until: detail.until || null,
-        });
-        setUserState(null);
+      if (status === 401 || status === 403) {
+        if (status === 403 && detail?.banned) {
+          setBanInfo({
+            banned: true,
+            reason: detail.reason || "Violation des règles du royaume",
+            until: detail.until || null,
+          });
+          setUserState(null);
+        } else if (status === 401) {
+          setToken(null);
+          setUserState(null);
+        }
+      } else if (!err?.response) {
+        // Network error (Safari offline, timeout) — do not wipe the session.
+        console.warn("Auth check network error", err?.message);
       } else {
-        console.warn("Auth check failed, clearing token", err?.response?.status);
+        console.warn("Auth check failed", status);
         setToken(null);
         setUserState(null);
       }
@@ -234,7 +244,8 @@ export function AuthProvider({ children }) {
 
     try {
       const { data } = await api.get("/system/maintenance");
-      if (data.enabled && !data.beta_access) {
+      const softMode = data.soft_mode !== false;
+      if (data.enabled && !data.beta_access && !softMode) {
         window.location.replace("/maintenance");
         return "/maintenance";
       }

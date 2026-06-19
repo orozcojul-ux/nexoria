@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { MaintenanceProvider, useMaintenance, isMaintenancePublicRoute } from "@/contexts/MaintenanceContext";
 import { I18nProvider } from "@/contexts/I18nContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { UserPrefsSync } from "@/components/AppProviders";
 import { NexusSocketProvider } from "@/contexts/NexusSocketContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
-import api from "@/lib/api";
 
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
@@ -50,46 +50,52 @@ import StaffAlertOverlay from "@/components/StaffAlertOverlay";
 import NexusOverlay from "@/components/NexusOverlay";
 import NexusFAB from "@/components/NexusFAB";
 import AetherTicker from "@/components/AetherTicker";
+import MaintenanceSoftBanner from "@/components/maintenance/MaintenanceSoftBanner";
+import MaintenanceBootShell from "@/components/maintenance/MaintenanceBootShell";
 
 function MaintenanceGate({ children }) {
   const { user, loading: authLoading } = useAuth();
+  const maint = useMaintenance();
   const location = useLocation();
-  const [maint, setMaint] = useState(null);
 
-  // Routes that must NEVER be blocked by maintenance:
-  // – /maintenance itself (would cause infinite redirect)
-  // – /auth/discord/callback (OAuth popup must complete even during maintenance so
-  //   staff can log in via Discord from the maintenance gate)
-  const MAINT_BYPASS = ["/maintenance", "/auth/discord/callback"];
-  const isBypassRoute = MAINT_BYPASS.includes(location.pathname);
-
-  useEffect(() => {
-    const load = () => {
-      api.get("/system/maintenance").then((r) => setMaint(r.data)).catch(() => setMaint({ enabled: false }));
-    };
-    load();
-    const id = setInterval(load, 30000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Bypass routes always render immediately — don't block on API response.
-  // This is critical for the Discord callback popup: it must mount and run its
-  // useEffect before the window times out or shows a blank screen.
-  if (isBypassRoute) return children;
-
-  if (maint === null || authLoading) return null;
+  const isPublicRoute = isMaintenancePublicRoute(location.pathname);
   const isStaff = user?.role === "admin" || user?.role === "moderator";
-  if (maint.enabled && !isStaff && !maint.beta_access) {
-    window.location.replace("/maintenance");
-    return null;
+  const softMode = maint.soft_mode !== false;
+  const locked = maint.enabled && !isStaff && !maint.beta_access;
+  const showBanner = locked && softMode;
+
+  // Auth & public routes: always render immediately (no blank screen on Safari).
+  if (isPublicRoute) {
+    return (
+      <div className={showBanner ? "maint-app-with-banner" : undefined}>
+        {showBanner && <MaintenanceSoftBanner />}
+        {children}
+      </div>
+    );
   }
-  return children;
+
+  if (maint.loading || authLoading) {
+    return <MaintenanceBootShell />;
+  }
+
+  // Hard maintenance: redirect protected routes to the maintenance page.
+  if (locked && !softMode) {
+    window.location.replace("/maintenance");
+    return <MaintenanceBootShell label="Redirection vers la maintenance…" />;
+  }
+
+  return (
+    <div className={showBanner ? "maint-app-with-banner" : undefined}>
+      {showBanner && <MaintenanceSoftBanner />}
+      {children}
+    </div>
+  );
 }
 
 /** Racine : les héros connectés vont au feed, les visiteurs voient la landing. */
 function RootRoute() {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <MaintenanceBootShell />;
   if (user) return <Navigate to="/feed" replace />;
   return <Landing />;
 }
@@ -156,14 +162,16 @@ function App() {
         <I18nProvider>
           <ThemeProvider>
             <AuthProvider>
-              <UserPrefsSync>
-                <NexusSocketProvider>
-                  <AppRouter />
-                  <Toaster theme="dark" position="top-right" toastOptions={{
-                    style: { background: "var(--nx-surface)", border: "1px solid var(--nx-border)", color: "var(--nx-fg)" },
-                  }} />
-                </NexusSocketProvider>
-              </UserPrefsSync>
+              <MaintenanceProvider>
+                <UserPrefsSync>
+                  <NexusSocketProvider>
+                    <AppRouter />
+                    <Toaster theme="dark" position="top-right" toastOptions={{
+                      style: { background: "var(--nx-surface)", border: "1px solid var(--nx-border)", color: "var(--nx-fg)" },
+                    }} />
+                  </NexusSocketProvider>
+                </UserPrefsSync>
+              </MaintenanceProvider>
             </AuthProvider>
           </ThemeProvider>
         </I18nProvider>

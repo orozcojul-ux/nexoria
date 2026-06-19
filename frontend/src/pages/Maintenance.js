@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "@/lib/api";
+import MaintenanceBootShell from "@/components/maintenance/MaintenanceBootShell";
 import MaintenanceBrand from "@/components/maintenance/MaintenanceBrand";
 import MaintenanceGlobalProgress from "@/components/maintenance/MaintenanceGlobalProgress";
 import MaintenanceDiscordCommunity from "@/components/maintenance/MaintenanceDiscordCommunity";
@@ -94,6 +95,10 @@ export default function Maintenance() {
   const systems = normalizeMaintenanceSystems(statusData?.systems);
 
   const text = resolveMaintenanceText(statusData?.html);
+
+  if (!statusData) {
+    return <MaintenanceBootShell label="Chargement de la maintenance…" />;
+  }
 
   return (
     <div className="maintenance-page" data-testid="maintenance-page">

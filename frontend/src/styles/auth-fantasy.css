@@ -28,9 +28,13 @@
 
 .af-lang {
   position: fixed;
-  top: 1.25rem;
-  right: 1.25rem;
+  top: calc(1.25rem + env(safe-area-inset-top, 0px));
+  right: calc(1.25rem + env(safe-area-inset-right, 0px));
   z-index: 50;
+}
+
+.maint-app-with-banner .af-lang {
+  top: calc(3.5rem + env(safe-area-inset-top, 0px));
 }
 
 /* ─── Mystical background scene ─── */
