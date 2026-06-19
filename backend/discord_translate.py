@@ -301,6 +301,71 @@ async def translate_payload(
     return translated
 
 
+async def migrate_source_lang_to_french() -> int:
+    """One-shot migration: legacy bot messages registered with source_lang=en."""
+    if _db is None:
+        return 0
+    try:
+        result = await _db.discord_translatable_messages.update_many(
+            {"source_lang": {"$ne": DEFAULT_SOURCE_LANG}},
+            {"$set": {"source_lang": DEFAULT_SOURCE_LANG}},
+        )
+        return result.modified_count
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("discord translate migration failed: %s", exc)
+        return 0
+
+
+def build_source_version_embed(payload: dict[str, Any], lang: str = DEFAULT_SOURCE_LANG) -> dict[str, Any]:
+    """Display the source-language content without calling a translation provider."""
+    meta = lang_meta(lang)
+    description_parts: list[str] = []
+    embed_fields: list[dict] = []
+    source_footer = ""
+
+    content = (payload.get("content") or "").strip()
+    if content:
+        description_parts.append(content)
+
+    for emb in payload.get("embeds") or []:
+        title = (emb.get("title") or "").strip()
+        desc = (emb.get("description") or "").strip()
+        if title:
+            description_parts.append(f"**{title}**")
+        if desc:
+            description_parts.append(desc)
+        for field in emb.get("fields") or []:
+            name = (field.get("name") or "").strip()
+            value = (field.get("value") or "").strip()
+            if name and value:
+                embed_fields.append({
+                    "name": name[:256],
+                    "value": value[:1024],
+                    "inline": bool(field.get("inline")),
+                })
+            elif name:
+                description_parts.append(f"**{name}**")
+            elif value:
+                description_parts.append(value)
+        if emb.get("footer"):
+            source_footer = str(emb.get("footer") or "").strip()
+
+    description = "\n\n".join(description_parts).strip()
+    if len(description) > 4096:
+        description = description[:4093] + "…"
+
+    title_label = "Version française" if lang == "fr" else f"Version {meta['label_full']}"
+    embed: dict[str, Any] = {
+        "title": f"{meta['flag']} {title_label}"[:256],
+        "description": description or "—",
+        "color": 0x5865F2,
+        "footer": {"text": (source_footer or "NEXORIA — forge ta légende")[:2048]},
+    }
+    if embed_fields:
+        embed["fields"] = embed_fields[:25]
+    return embed
+
+
 def build_translation_embed(
     translated: dict[str, Any],
     target: str,
@@ -416,33 +481,30 @@ async def resolve_source_payload(
     channel_id: str,
     interaction_message: dict | None,
 ) -> tuple[dict[str, Any], str]:
-    source_lang = DEFAULT_SOURCE_LANG
     payload: dict[str, Any] | None = None
 
     if _db is not None:
         doc = await _db.discord_translatable_messages.find_one({"message_id": message_id})
         if doc:
-            source_lang = doc.get("source_lang") or DEFAULT_SOURCE_LANG
             payload = parse_discord_message({
                 "content": doc.get("content") or "",
                 "embeds": doc.get("embeds") or [],
             })
 
-    if not payload or not (payload.get("content") or payload.get("embeds")):
+    if not payload or not _payload_has_text(payload):
         msg = interaction_message or await fetch_discord_message(channel_id, message_id)
         if msg:
             payload = parse_discord_message(msg)
-            source_lang = DEFAULT_SOURCE_LANG
             if _db is not None:
                 await register_message(
                     message_id,
                     channel_id,
                     content=msg.get("content") or "",
                     embeds=msg.get("embeds") or [],
-                    source_lang=source_lang,
+                    source_lang=DEFAULT_SOURCE_LANG,
                 )
 
-    return payload or {"content": "", "embeds": []}, source_lang
+    return payload or {"content": "", "embeds": []}, DEFAULT_SOURCE_LANG
 
 
 def _payload_has_text(payload: dict[str, Any]) -> bool:
@@ -477,15 +539,18 @@ async def handle_component_interaction(payload: dict) -> dict:
         return _ephemeral_response(content="Message introuvable.")
 
     source_payload, source_lang = await resolve_source_payload(message_id, channel_id, message)
+    source_lang = DEFAULT_SOURCE_LANG
     if not _payload_has_text(source_payload):
         return _ephemeral_response(content="Aucun contenu à traduire dans ce message.")
 
-    if target == source_lang:
-        embed = {
-            "title": f"{lang_meta('fr')['flag']} Français",
-            "description": "Ce message est déjà en français.",
-            "color": 0x5865F2,
-        }
+    provider_name = _translation_provider()[1] or "none"
+
+    if target == DEFAULT_SOURCE_LANG:
+        logger.info(
+            "Discord translation source display message_id=%s target=%s source=%s provider=none",
+            message_id, target, source_lang,
+        )
+        embed = build_source_version_embed(source_payload, DEFAULT_SOURCE_LANG)
         return _ephemeral_response(embeds=[embed])
 
     translated = await translate_payload(
@@ -496,13 +561,21 @@ async def handle_component_interaction(payload: dict) -> dict:
     )
     if translated is None:
         logger.warning(
-            "Discord translation failed message_id=%s target=%s provider=%s",
+            "Discord translation failed message_id=%s target=%s source=%s provider=%s",
             message_id,
             target,
-            _translation_provider()[1] or "none",
+            source_lang,
+            provider_name,
         )
         return _ephemeral_response(content="Traduction indisponible pour le moment.")
 
+    logger.info(
+        "Discord translation ok message_id=%s target=%s source=%s provider=%s",
+        message_id,
+        target,
+        source_lang,
+        provider_name,
+    )
     embed = build_translation_embed(translated, target, source_lang)
     return _ephemeral_response(embeds=[embed])
 

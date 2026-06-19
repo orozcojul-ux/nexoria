@@ -208,6 +208,7 @@ async def post_signup_form_message(client: httpx.AsyncClient, channel_id: str, t
         json=payload,
     )
     if r.status_code in (200, 201):
+        await discord_translate.after_post(channel_id, r.json(), source_lang="fr")
         print("Message formulaire publié dans #inscriptions-beta")
     else:
         print(f"Publication formulaire échouée: {r.status_code} {r.text[:300]}")
@@ -230,6 +231,7 @@ async def post_vip_welcome(client: httpx.AsyncClient, channel_id: str, token: st
         json=payload,
     )
     if r.status_code in (200, 201):
+        await discord_translate.after_post(channel_id, r.json(), source_lang="fr")
         print("Message de bienvenue publié dans #salon-vip")
     else:
         print(f"Publication VIP échouée: {r.status_code} {r.text[:300]}")

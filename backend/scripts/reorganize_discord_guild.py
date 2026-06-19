@@ -231,7 +231,7 @@ async def post_welcome(client: httpx.AsyncClient, channel_id: str, token: str, d
             "title": spec["title"],
             "description": spec["description"],
             "color": spec.get("color", 0x7C3AED),
-            "footer": {"text": "NEXORIA — Forge ta légende"},
+            "footer": {"text": "NEXORIA — forge ta légende"},
         }],
     }
     payload = discord_translate.attach_translate_components(payload)

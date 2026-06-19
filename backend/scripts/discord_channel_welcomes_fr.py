@@ -101,8 +101,8 @@ def channel_welcomes(site_url: str) -> dict[str, dict]:
         "1515325507208745080": {
             "title": "🌌 Chroniques du Nexus",
             "description": (
-                "Flux **automatique** des grandes actions du royaume : "
-                "connexions, inscriptions, départs et renommages de héros.\n\n"
+                "Flux automatique de l'activité majeure du royaume : "
+                "connexions, inscriptions, déconnexions et renommages de héros.\n\n"
                 "Chaque ligne reflète l'activité en direct sur NEXORIA."
             ),
             "color": 0x6366F1,

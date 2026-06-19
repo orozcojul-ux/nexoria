@@ -2,6 +2,7 @@
 import pytest
 
 from discord_translate import (
+    build_source_version_embed,
     build_translation_embed,
     parse_discord_message,
     payload_source_hash,
@@ -58,6 +59,16 @@ def test_build_translation_embed_has_line_breaks():
     # No glued words
     assert "NexusAutomatic" not in embed["description"]
     assert "ChroniclesAutomatic" not in embed["description"]
+
+
+def test_build_source_version_embed_french():
+    payload = parse_discord_message(SAMPLE_MESSAGE)
+    embed = build_source_version_embed(payload, "fr")
+    assert embed["title"] == "🇫🇷 Version française"
+    assert "**Chroniques du Nexus**" in embed["description"]
+    assert "\n\n" in embed["description"]
+    assert embed["footer"]["text"] == "NEXORIA — forge ta légende"
+    assert "NexusAutomatic" not in embed["description"]
 
 
 def test_payload_source_hash_changes_when_text_changes():
