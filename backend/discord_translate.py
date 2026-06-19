@@ -1,7 +1,7 @@
 """Discord message translation — flag buttons + Interactions API.
 
 Messages bot are published in French (source). Flag buttons translate to other
-languages via LLM (Gemini / Anthropic) with structured embed responses.
+languages via: i18n prédéfini → LibreTranslate local → Gemini (fallback).
 """
 from __future__ import annotations
 
@@ -14,6 +14,9 @@ from copy import deepcopy
 from typing import Any
 
 import httpx
+
+import discord_i18n
+import libretranslate_client
 
 logger = logging.getLogger("nexoria.discord_translate")
 
@@ -138,21 +141,53 @@ def _cache_doc_id(message_id: str, target: str, source_hash: str) -> str:
     return f"{message_id}:{target}:{source_hash}"
 
 
+def _gemini_available() -> bool:
+    return bool(os.environ.get("GEMINI_API_KEY", "").strip())
+
+
+def _gemini_model() -> str:
+    return os.environ.get("DISCORD_TRANSLATE_MODEL", "gemini/gemini-2.0-flash")
+
+
+async def _translate_with_providers(
+    payload: dict[str, Any],
+    target: str,
+    source: str,
+) -> tuple[dict[str, Any] | None, str]:
+    """Chaîne : i18n → LibreTranslate → Gemini."""
+    i18n_result = discord_i18n.lookup_i18n(payload, target, source)
+    if i18n_result is not None:
+        return i18n_result, "i18n"
+
+    if libretranslate_client.is_configured():
+        lt_result = await libretranslate_client.translate_payload(payload, source, target)
+        if lt_result is not None:
+            return lt_result, "libretranslate"
+        logger.warning(
+            "Discord translation LibreTranslate failed (source=%s target=%s), trying fallback",
+            source,
+            target,
+        )
+
+    if _gemini_available():
+        gemini_result = await _translate_with_gemini(payload, target, source)
+        if gemini_result is not None:
+            return gemini_result, "gemini"
+        logger.warning(
+            "Discord translation Gemini failed (source=%s target=%s)",
+            source,
+            target,
+        )
+
+    return None, "none"
+
+
 def _translation_provider() -> tuple[str, str, str | None]:
-    """Returns (model, provider_name, api_key)."""
+    """Returns (model, provider_name, api_key) — Gemini fallback only."""
     gemini = os.environ.get("GEMINI_API_KEY", "").strip()
     if gemini:
-        return os.environ.get("DISCORD_TRANSLATE_MODEL", "gemini/gemini-2.0-flash"), "gemini", gemini
-    emergent = os.environ.get("EMERGENT_LLM_KEY", "").strip()
-    anthropic = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    key = emergent or anthropic
-    if key:
-        model = os.environ.get(
-            "DISCORD_TRANSLATE_MODEL",
-            os.environ.get("ORACLE_MODEL", "anthropic/claude-sonnet-4-20250514"),
-        )
-        return model, "anthropic", key
-    return "", "", None
+        return _gemini_model(), "gemini", gemini
+    return "", "none", None
 
 
 def _translation_system_prompt(target: str, source: str) -> str:
@@ -215,13 +250,9 @@ def _normalize_translated_payload(raw: dict[str, Any], source: dict[str, Any]) -
     return out
 
 
-async def _translate_with_llm(payload: dict[str, Any], target: str, source: str) -> dict[str, Any] | None:
+async def _translate_with_gemini(payload: dict[str, Any], target: str, source: str) -> dict[str, Any] | None:
     model, provider, api_key = _translation_provider()
     if not model or not api_key:
-        logger.warning(
-            "Discord translation unavailable: no provider (message_id cache miss, target=%s)",
-            target,
-        )
         return None
 
     import litellm
@@ -242,20 +273,24 @@ async def _translate_with_llm(payload: dict[str, Any], target: str, source: str)
         parsed = _parse_llm_json(str(content or ""))
         if not parsed:
             logger.warning(
-                "Discord translation LLM invalid JSON (provider=%s, target=%s)",
-                provider,
+                "Discord translation Gemini invalid JSON (target=%s)",
                 target,
             )
             return None
         return _normalize_translated_payload(parsed, payload)
     except Exception as exc:  # noqa: BLE001
         logger.warning(
-            "Discord translation LLM failed (provider=%s, target=%s): %s",
-            provider,
+            "Discord translation Gemini failed (target=%s): %s",
             target,
             str(exc)[:200],
         )
         return None
+
+
+async def _translate_with_llm(payload: dict[str, Any], target: str, source: str) -> dict[str, Any] | None:
+    """Alias legacy — préférer _translate_with_providers."""
+    result, _ = await _translate_with_providers(payload, target, source)
+    return result
 
 
 async def translate_payload(
@@ -264,21 +299,21 @@ async def translate_payload(
     source: str,
     *,
     message_id: str = "",
-) -> dict[str, Any] | None:
+) -> tuple[dict[str, Any] | None, str]:
     if target == source:
-        return deepcopy(payload)
+        return deepcopy(payload), "none"
 
     src_hash = payload_source_hash(payload)
     cache_id = _cache_doc_id(message_id, target, src_hash) if message_id else None
 
     if _db is not None and cache_id:
-        cached = await _db.translation_cache.find_one({"_id": cache_id}, {"payload": 1})
+        cached = await _db.translation_cache.find_one({"_id": cache_id}, {"payload": 1, "provider": 1})
         if cached and cached.get("payload"):
-            return cached["payload"]
+            return cached["payload"], cached.get("provider") or "cache"
 
-    translated = await _translate_with_llm(payload, target, source)
+    translated, provider = await _translate_with_providers(payload, target, source)
     if translated is None:
-        return None
+        return None, provider
 
     if _db is not None and cache_id:
         try:
@@ -291,14 +326,14 @@ async def translate_payload(
                     "source_hash": src_hash,
                     "source_lang": source,
                     "payload": translated,
-                    "provider": _translation_provider()[1],
+                    "provider": provider,
                 }},
                 upsert=True,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("translation cache write failed: %s", exc)
 
-    return translated
+    return translated, provider
 
 
 async def migrate_source_lang_to_french() -> int:
@@ -543,8 +578,6 @@ async def handle_component_interaction(payload: dict) -> dict:
     if not _payload_has_text(source_payload):
         return _ephemeral_response(content="Aucun contenu à traduire dans ce message.")
 
-    provider_name = _translation_provider()[1] or "none"
-
     if target == DEFAULT_SOURCE_LANG:
         logger.info(
             "Discord translation source display message_id=%s target=%s source=%s provider=none",
@@ -553,7 +586,7 @@ async def handle_component_interaction(payload: dict) -> dict:
         embed = build_source_version_embed(source_payload, DEFAULT_SOURCE_LANG)
         return _ephemeral_response(embeds=[embed])
 
-    translated = await translate_payload(
+    translated, provider_name = await translate_payload(
         source_payload,
         target,
         source_lang,
