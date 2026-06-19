@@ -11,8 +11,10 @@ import logging
 import os
 import re
 from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Any
 
+import asyncio
 import httpx
 
 import discord_i18n
@@ -137,8 +139,125 @@ def payload_source_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _cache_doc_id(message_id: str, target: str, source_hash: str) -> str:
-    return f"{message_id}:{target}:{source_hash}"
+def make_cache_key(
+    message_id: str,
+    source_language: str,
+    target_language: str,
+    source_hash: str,
+) -> str:
+    """Clé de cache stable, non vide — sha256(message:source:target:hash)."""
+    if not message_id or not source_hash or not source_language or not target_language:
+        return ""
+    raw = f"{message_id}:{source_language}:{target_language}:{source_hash}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+async def _read_translation_cache(cache_key: str) -> dict[str, Any] | None:
+    if _db is None or not cache_key:
+        return None
+    doc = await _db.translation_cache.find_one({"key": cache_key}, {"payload": 1, "provider": 1})
+    if doc and doc.get("payload"):
+        return doc
+    return None
+
+
+async def _write_translation_cache(
+    *,
+    cache_key: str,
+    message_id: str,
+    source_language: str,
+    target_language: str,
+    source_hash: str,
+    payload: dict[str, Any],
+    provider: str,
+) -> None:
+    if _db is None:
+        return
+    if not cache_key:
+        logger.warning(
+            "translation cache skip write: empty cache_key (message_id=%s target=%s)",
+            message_id,
+            target_language,
+        )
+        return
+    now = _utc_now_iso()
+    try:
+        await _db.translation_cache.update_one(
+            {"key": cache_key},
+            {
+                "$set": {
+                    "key": cache_key,
+                    "message_id": message_id,
+                    "source_language": source_language,
+                    "target_language": target_language,
+                    "source_hash": source_hash,
+                    "source_lang": source_language,
+                    "payload": payload,
+                    "provider": provider,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {"created_at": now},
+            },
+            upsert=True,
+        )
+        logger.debug(
+            "translation cache stored key=%s message_id=%s target=%s provider=%s",
+            cache_key[:16],
+            message_id,
+            target_language,
+            provider,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "translation cache write failed key=%s message_id=%s target=%s: %s",
+            cache_key[:16] if cache_key else "?",
+            message_id,
+            target_language,
+            exc,
+        )
+
+
+async def migrate_translation_cache() -> dict[str, int]:
+    """Nettoie les entrées key:null et recrée l'index unique sur key."""
+    stats = {"deleted_null_keys": 0, "indexes_rebuilt": 0}
+    if _db is None:
+        return stats
+    try:
+        result = await _db.translation_cache.delete_many({
+            "$or": [
+                {"key": None},
+                {"key": ""},
+                {"key": {"$exists": False}},
+            ],
+        })
+        stats["deleted_null_keys"] = result.deleted_count
+
+        indexes = await _db.translation_cache.index_information()
+        for name, info in list(indexes.items()):
+            if name == "_id_":
+                continue
+            keys = info.get("key", [])
+            if any(k == "key" for k, _ in keys):
+                try:
+                    await _db.translation_cache.drop_index(name)
+                    stats["indexes_rebuilt"] += 1
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("translation_cache drop index %s failed: %s", name, exc)
+
+        await _db.translation_cache.create_index(
+            "key",
+            unique=True,
+            partialFilterExpression={"key": {"$type": "string"}},
+            name="key_1",
+        )
+        stats["indexes_rebuilt"] += 1
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("translation cache migration failed: %s", exc)
+    return stats
 
 
 def _gemini_available() -> bool:
@@ -304,34 +423,27 @@ async def translate_payload(
         return deepcopy(payload), "none"
 
     src_hash = payload_source_hash(payload)
-    cache_id = _cache_doc_id(message_id, target, src_hash) if message_id else None
+    cache_key = make_cache_key(message_id, source, target, src_hash) if message_id else ""
 
-    if _db is not None and cache_id:
-        cached = await _db.translation_cache.find_one({"_id": cache_id}, {"payload": 1, "provider": 1})
-        if cached and cached.get("payload"):
+    if cache_key:
+        cached = await _read_translation_cache(cache_key)
+        if cached:
             return cached["payload"], cached.get("provider") or "cache"
 
     translated, provider = await _translate_with_providers(payload, target, source)
     if translated is None:
         return None, provider
 
-    if _db is not None and cache_id:
-        try:
-            await _db.translation_cache.update_one(
-                {"_id": cache_id},
-                {"$set": {
-                    "_id": cache_id,
-                    "message_id": message_id,
-                    "target_language": target,
-                    "source_hash": src_hash,
-                    "source_lang": source,
-                    "payload": translated,
-                    "provider": provider,
-                }},
-                upsert=True,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("translation cache write failed: %s", exc)
+    if cache_key:
+        await _write_translation_cache(
+            cache_key=cache_key,
+            message_id=message_id,
+            source_language=source,
+            target_language=target,
+            source_hash=src_hash,
+            payload=translated,
+            provider=provider,
+        )
 
     return translated, provider
 
@@ -558,6 +670,112 @@ def _payload_has_text(payload: dict[str, Any]) -> bool:
     return False
 
 
+def _deferred_ephemeral_ack() -> dict:
+    """Accusé de réception différé — Discord exige une réponse < 3 s."""
+    return {"type": 5, "data": {"flags": 64}}
+
+
+async def _edit_deferred_interaction(
+    application_id: str,
+    interaction_token: str,
+    *,
+    content: str = "",
+    embeds: list | None = None,
+) -> bool:
+    token = bot_token()
+    if not token or not application_id or not interaction_token:
+        return False
+    url = f"{DISCORD_API}/webhooks/{application_id}/{interaction_token}/messages/@original"
+    data: dict[str, Any] = {"flags": 64}
+    if embeds:
+        data["embeds"] = embeds[:10]
+    if content:
+        data["content"] = content[:2000]
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.patch(
+                url,
+                headers={**_headers(token), "Content-Type": "application/json"},
+                json=data,
+            )
+            if r.status_code in (200, 201):
+                return True
+            logger.warning(
+                "Discord deferred edit failed HTTP %s: %s",
+                r.status_code,
+                r.text[:200],
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Discord deferred edit error: %s", exc)
+    return False
+
+
+def _is_fast_translation_path(source_payload: dict[str, Any], target: str, source: str) -> bool:
+    """i18n prédéfini — réponse immédiate sans appel réseau."""
+    if target == source:
+        return True
+    return discord_i18n.lookup_i18n(source_payload, target, source) is not None
+
+
+async def _finish_deferred_translation(
+    *,
+    application_id: str,
+    interaction_token: str,
+    message_id: str,
+    channel_id: str,
+    target: str,
+    source_lang: str,
+    source_payload: dict[str, Any],
+) -> None:
+    try:
+        translated, provider_name = await translate_payload(
+            source_payload,
+            target,
+            source_lang,
+            message_id=message_id,
+        )
+        if translated is None:
+            logger.warning(
+                "Discord deferred translation failed message_id=%s target=%s source=%s provider=%s",
+                message_id,
+                target,
+                source_lang,
+                provider_name,
+            )
+            await _edit_deferred_interaction(
+                application_id,
+                interaction_token,
+                content="Traduction indisponible pour le moment.",
+            )
+            return
+
+        logger.info(
+            "Discord deferred translation ok message_id=%s target=%s source=%s provider=%s",
+            message_id,
+            target,
+            source_lang,
+            provider_name,
+        )
+        embed = build_translation_embed(translated, target, source_lang)
+        await _edit_deferred_interaction(
+            application_id,
+            interaction_token,
+            embeds=[embed],
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Discord deferred translation error message_id=%s target=%s: %s",
+            message_id,
+            target,
+            exc,
+        )
+        await _edit_deferred_interaction(
+            application_id,
+            interaction_token,
+            content="Traduction impossible. Réessaie dans un instant.",
+        )
+
+
 async def handle_component_interaction(payload: dict) -> dict:
     custom_id = (payload.get("data") or {}).get("custom_id") or ""
     if not custom_id.startswith("tr:"):
@@ -586,6 +804,61 @@ async def handle_component_interaction(payload: dict) -> dict:
         embed = build_source_version_embed(source_payload, DEFAULT_SOURCE_LANG)
         return _ephemeral_response(embeds=[embed])
 
+    src_hash = payload_source_hash(source_payload)
+    cache_key = make_cache_key(message_id, source_lang, target, src_hash)
+    if cache_key:
+        cached = await _read_translation_cache(cache_key)
+        if cached:
+            logger.info(
+                "Discord translation cache hit key=%s message_id=%s target=%s provider=%s",
+                cache_key[:16],
+                message_id,
+                target,
+                cached.get("provider") or "cache",
+            )
+            embed = build_translation_embed(cached["payload"], target, source_lang)
+            return _ephemeral_response(embeds=[embed])
+
+    if _is_fast_translation_path(source_payload, target, source_lang):
+        translated, provider_name = await translate_payload(
+            source_payload,
+            target,
+            source_lang,
+            message_id=message_id,
+        )
+        if translated is None:
+            return _ephemeral_response(content="Traduction indisponible pour le moment.")
+        logger.info(
+            "Discord translation ok message_id=%s target=%s source=%s provider=%s cache_key=%s",
+            message_id,
+            target,
+            source_lang,
+            provider_name,
+            cache_key[:16] if cache_key else "-",
+        )
+        embed = build_translation_embed(translated, target, source_lang)
+        return _ephemeral_response(embeds=[embed])
+
+    application_id = str(payload.get("application_id") or "")
+    interaction_token = str(payload.get("token") or "")
+    if application_id and interaction_token:
+        asyncio.create_task(_finish_deferred_translation(
+            application_id=application_id,
+            interaction_token=interaction_token,
+            message_id=message_id,
+            channel_id=channel_id,
+            target=target,
+            source_lang=source_lang,
+            source_payload=source_payload,
+        ))
+        logger.info(
+            "Discord translation deferred message_id=%s target=%s source=%s",
+            message_id,
+            target,
+            source_lang,
+        )
+        return _deferred_ephemeral_ack()
+
     translated, provider_name = await translate_payload(
         source_payload,
         target,
@@ -603,11 +876,12 @@ async def handle_component_interaction(payload: dict) -> dict:
         return _ephemeral_response(content="Traduction indisponible pour le moment.")
 
     logger.info(
-        "Discord translation ok message_id=%s target=%s source=%s provider=%s",
+        "Discord translation ok message_id=%s target=%s source=%s provider=%s cache_key=%s",
         message_id,
         target,
         source_lang,
         provider_name,
+        cache_key[:16] if cache_key else "-",
     )
     embed = build_translation_embed(translated, target, source_lang)
     return _ephemeral_response(embeds=[embed])

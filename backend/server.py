@@ -7559,8 +7559,13 @@ async def startup():
         migrated = await discord_translate.migrate_source_lang_to_french()
         if migrated:
             logger.info("NEXORIA: migrated %d discord message(s) to source_lang=fr", migrated)
+        cache_stats = await discord_translate.migrate_translation_cache()
+        if cache_stats.get("deleted_null_keys"):
+            logger.info(
+                "NEXORIA: removed %d translation_cache row(s) with null key",
+                cache_stats["deleted_null_keys"],
+            )
         await db.discord_translatable_messages.create_index("message_id", unique=True)
-        await db.translation_cache.create_index([("message_id", 1), ("target_language", 1)])
         discord_sync.start_periodic_sync(db, interval=30)
     except Exception as e:
         logger.warning(f"NEXORIA: could not start Discord periodic sync — {e}")

@@ -47,6 +47,25 @@ def test_i18n_unknown_title_returns_none():
     assert discord_i18n.lookup_i18n(payload, "en", "fr") is None
 
 
+def test_make_cache_key_stable_and_non_empty():
+    from discord_translate import make_cache_key
+
+    k1 = make_cache_key("123", "fr", "en", "abc123")
+    k2 = make_cache_key("123", "fr", "en", "abc123")
+    k3 = make_cache_key("123", "fr", "de", "abc123")
+    assert k1
+    assert k1 == k2
+    assert k1 != k3
+    assert len(k1) == 64
+
+
+def test_make_cache_key_empty_when_missing_parts():
+    from discord_translate import make_cache_key
+
+    assert make_cache_key("", "fr", "en", "hash") == ""
+    assert make_cache_key("123", "fr", "en", "") == ""
+
+
 def test_translate_payload_uses_i18n_without_network(monkeypatch):
     from discord_translate import translate_payload
 
