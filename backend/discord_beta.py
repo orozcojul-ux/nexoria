@@ -120,16 +120,16 @@ async def notify_beta_application(app: dict) -> bool:
     total = app.get("total_slots", 100)
 
     embed = {
-        "title": f"📝 New beta application — {pseudo}",
+        "title": f"📝 Nouvelle candidature beta — {pseudo}",
         "color": 0xA78BFA,
         "fields": [
-            {"name": "NEXORIA username", "value": pseudo, "inline": True},
+            {"name": "Pseudo NEXORIA", "value": pseudo, "inline": True},
             {"name": "Discord", "value": discord_user, "inline": True},
-            {"name": "Email", "value": email, "inline": False},
+            {"name": "E-mail", "value": email, "inline": False},
             {"name": "Motivation", "value": motivation, "inline": False},
-            {"name": "RPG / MMO experience", "value": experience, "inline": False},
+            {"name": "Expérience RPG / MMO", "value": experience, "inline": False},
         ],
-        "footer": {"text": f"Application #{slot or '?'} / {total} slots"},
+        "footer": {"text": f"Candidature n°{slot or '?'} / {total} places"},
     }
 
     try:
@@ -137,7 +137,7 @@ async def notify_beta_application(app: dict) -> bool:
             channel_id,
             embeds=[embed],
             translatable=True,
-            source_lang="en",
+            source_lang="fr",
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("Discord beta application post error: %s", exc)

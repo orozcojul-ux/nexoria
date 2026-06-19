@@ -1,4 +1,4 @@
-"""Post the beta scope reminder in #beta-test (does not purge the channel)."""
+"""Publie le rappel du périmètre beta dans #beta-test (sans purger le salon)."""
 import asyncio
 import os
 import sys
@@ -23,22 +23,26 @@ async def main():
     if not token:
         return 1
     embed = {
-        "title": "⚠️ Beta scope — read before testing",
+        "title": "⚠️ Périmètre du beta — à lire avant de tester",
         "description": (
-            "For now, the beta covers **the Nexoria website only** "
-            "(signup, profile, forum, shop, quests, etc.).\n\n"
-            "**Nexus Online** (virtual world / MMO) **is not developed at all** — "
-            "no zones, 3D avatars, or gameplay are available yet.\n\n"
-            "Please report **website bugs and feedback only** in this channel."
+            "Pour l'instant, le beta couvre **uniquement le site web Nexoria** "
+            "(inscription, profil, forum, boutique, quêtes…).\n\n"
+            "**Nexus Online** (monde virtuel / MMO) **n'est pas du tout développé** — "
+            "aucune zone, avatar 3D ou gameplay n'est disponible pour le moment.\n\n"
+            "Merci de signaler **uniquement les bugs et retours du site** dans ce salon."
         ),
         "color": 0xF59E0B,
-        "footer": {"text": "NEXORIA — Beta Program"},
+        "footer": {"text": "NEXORIA — Programme Beta"},
     }
     payload = discord_translate.attach_translate_components({"embeds": [embed]})
     h = {"Authorization": f"Bot {token}", "User-Agent": "Nexoria/1.0", "Content-Type": "application/json"}
     async with httpx.AsyncClient(timeout=20) as c:
         r = await c.post(f"{API}/channels/{CHANNEL}/messages", headers=h, json=payload)
-        print("OK" if r.status_code in (200, 201) else f"FAIL {r.status_code} {r.text[:200]}")
+        if r.status_code in (200, 201):
+            await discord_translate.after_post(CHANNEL, r.json(), source_lang="fr")
+            print("OK")
+        else:
+            print(f"FAIL {r.status_code} {r.text[:200]}")
     return 0
 
 

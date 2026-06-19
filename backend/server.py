@@ -1750,7 +1750,7 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         # Optional notification
         cls_name = update.get("class_name", update["class_id"])
         asyncio.create_task(discord_sync.post_notification(
-            f"⚔️ **{user['username']}** embraced the path of **{cls_name}**"
+            f"⚔️ **{user['username']}** a embrassé la voie du **{cls_name}**"
         ))
 
     # Badges + XP for customization (only for textual/avatar/banner_url changes)
@@ -2088,7 +2088,7 @@ async def economy_send_ecus(req: SendEcusReq, user: dict = Depends(get_user_dep)
     await add_chronicle(target["user_id"], f"A reçu {amount} Écus de {user['username']}", "economy")
     try:
         discord_rewards.schedule_custom(
-            f"💸 **{user['username']}** sent **{amount} Ecus** to **{target['username']}**"
+            f"💸 **{user['username']}** a envoyé **{amount} Éclats** à **{target['username']}**"
         )
     except Exception:
         pass
@@ -2134,7 +2134,7 @@ async def economy_gift_item(req: GiftItemReq, user: dict = Depends(get_user_dep)
     try:
         qty_str = f"×{snapshot['quantity']}" if snapshot.get("quantity", 1) > 1 else ""
         discord_rewards.schedule_to_channel(
-            f"🎁 **{user['username']}** gifted **{snapshot['name']}{qty_str}** to **{target['username']}**",
+            f"🎁 **{user['username']}** a offert **{snapshot['name']}{qty_str}** à **{target['username']}**",
             DISCORD_TRADE_CHANNEL_ID,
         )
     except Exception:
@@ -2366,11 +2366,11 @@ async def accept_trade(trade_id: str, req: AcceptTradeReq, user: dict = Depends(
     def _goods_str(items, ecus):
         parts = [f"{it['name']}{'×' + str(it['quantity']) if it.get('quantity', 1) > 1 else ''}" for it in (items or [])]
         if ecus:
-            parts.append(f"{ecus} Ecus")
+            parts.append(f"{ecus} Éclats")
         return ", ".join(parts) or "rien"
     try:
         discord_rewards.schedule_to_channel(
-            f"🤝 Trade completed: **{t['from_username']}** ({_goods_str(t.get('give_items'), t.get('give_ecus'))}) "
+            f"🤝 Échange conclu : **{t['from_username']}** ({_goods_str(t.get('give_items'), t.get('give_ecus'))}) "
             f"↔ **{user['username']}** ({_goods_str(counter_snaps, counter_ecus)})",
             DISCORD_TRADE_CHANNEL_ID,
         )
@@ -2852,7 +2852,7 @@ async def check_rift(user: dict = Depends(get_user_dep)):
     rift_doc.pop("_id", None)
     try:
         discord_rewards.schedule_to_channel(
-            f"🌀 **Dimensional rift!** A « {rift['name']} » opened for **{user['username']}** "
+            f"🌀 **Faille dimensionnelle !** Une « {rift['name']} » s'est ouverte pour **{user['username']}** "
             f"— {rift.get('reward', '')}",
             DISCORD_RIFT_CHANNEL_ID,
         )
@@ -3956,7 +3956,7 @@ async def vip_purchase(req: VipPurchaseReq, user: dict = Depends(get_user_dep)):
     if DISCORD_VIP_ROLE_ID:
         discord_sync.schedule_extra_role(db, uid, DISCORD_VIP_ROLE_ID, "NEXORIA — Pass Ascendant (VIP)")
     discord_rewards.schedule_custom(
-        f"✨ **{username}** activated the Ascendant Pass until {new_until.strftime('%Y-%m-%d')}."
+        f"✨ **{username}** a activé le Pass Ascendant jusqu'au {new_until.strftime('%d/%m/%Y')}."
     )
     logger.info("VIP purchase: user=%s plan=%s price=%s until=%s", uid, plan["id"], price, new_until.isoformat())
 
@@ -4038,7 +4038,7 @@ async def _credit_ecu_order(session_id: str, *, user_id: str = None, ecus: int =
         username = (buyer or {}).get("username") or "Un héros"
         amount_str = f"{res.get('amount_eur') or '?'}€" if res.get("amount_eur") else ""
         discord_rewards.schedule_custom(
-            f"💳 **{username}** topped up **{int(res['ecus'])} Ecus**"
+            f"💳 **{username}** a rechargé **{int(res['ecus'])} Éclats**"
             + (f" ({amount_str})" if amount_str else "")
             + f" — pack `{res.get('pack_id') or 'custom'}` 🎉"
         )
@@ -4274,7 +4274,7 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
             applied["rift_summoned"] = True
             try:
                 discord_rewards.schedule_to_channel(
-                    f"🌀 **Rift invoked!** **{user['username']}** catalyzed a « {r['name']} » "
+                    f"🌀 **Faille invoquée !** **{user['username']}** a catalysé une « {r['name']} » "
                     f"— {r.get('reward', '')}",
                     DISCORD_RIFT_CHANNEL_ID,
                 )
@@ -7325,7 +7325,7 @@ async def discord_interactions(request: Request):
         logger.warning("Discord interaction handler failed: %s", exc)
         return JSONResponse({
             "type": 4,
-            "data": {"content": "Translation failed. Please try again.", "flags": 64},
+            "data": {"content": "Traduction impossible. Réessaie dans un instant.", "flags": 64},
         })
 
 
@@ -7557,7 +7557,7 @@ async def startup():
     try:
         discord_translate.init(db)
         await db.discord_translatable_messages.create_index("message_id", unique=True)
-        await db.translation_cache.create_index("key", unique=True)
+        await db.translation_cache.create_index([("message_id", 1), ("target_language", 1)])
         discord_sync.start_periodic_sync(db, interval=30)
     except Exception as e:
         logger.warning(f"NEXORIA: could not start Discord periodic sync — {e}")

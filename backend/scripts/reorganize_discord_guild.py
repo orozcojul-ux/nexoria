@@ -30,7 +30,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 import httpx
 
 import discord_translate
-from discord_channel_welcomes_en import channel_welcomes
+from discord_channel_welcomes_fr import channel_welcomes
 
 DISCORD_API = "https://discord.com/api/v10"
 SITE_URL = os.environ.get("FRONTEND_URL", "https://nexoria.gg").rstrip("/")
@@ -105,7 +105,7 @@ CHANNEL_POSITIONS = {
     "1514271217077452962": 3,
 }
 
-# Welcome messages per channel (English)
+# Messages de bienvenue par salon (français)
 CHANNEL_WELCOMES: dict[str, dict] = channel_welcomes(SITE_URL)
 
 
@@ -231,7 +231,7 @@ async def post_welcome(client: httpx.AsyncClient, channel_id: str, token: str, d
             "title": spec["title"],
             "description": spec["description"],
             "color": spec.get("color", 0x7C3AED),
-            "footer": {"text": "NEXORIA — Forge your legend"},
+            "footer": {"text": "NEXORIA — Forge ta légende"},
         }],
     }
     payload = discord_translate.attach_translate_components(payload)
@@ -251,7 +251,7 @@ async def post_welcome(client: httpx.AsyncClient, channel_id: str, token: str, d
             if mongo_url and db_name:
                 mclient = AsyncIOMotorClient(mongo_url)
                 discord_translate.init(mclient[db_name])
-                await discord_translate.after_post(channel_id, r.json(), source_lang="en")
+                await discord_translate.after_post(channel_id, r.json(), source_lang="fr")
                 mclient.close()
         except Exception:
             pass

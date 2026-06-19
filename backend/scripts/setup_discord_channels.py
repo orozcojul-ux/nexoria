@@ -182,24 +182,24 @@ async def create_channel(
 
 async def post_signup_form_message(client: httpx.AsyncClient, channel_id: str, token: str) -> None:
     embed = {
-        "title": "📝 Beta Tester Sign-ups — 100 slots",
+        "title": "📝 Inscriptions Beta testeur — 100 places",
         "description": (
-            "NEXORIA is recruiting **100 pioneers** to test the **website** before the official launch.\n\n"
-            "**Important:** this beta does **not** cover **Nexus Online** (virtual world) — "
-            "it is **not developed yet**.\n\n"
-            "**How to apply:**\n"
-            f"1. Fill out the form on the [maintenance page]({SITE_URL}/maintenance)\n"
-            "2. Join the Discord if you haven't already\n"
-            "3. Wait for team approval — you'll receive your beta key\n\n"
-            "Each application appears automatically in this channel (Council only)."
+            "NEXORIA recrute **100 pionniers** pour tester le **site web** avant le lancement officiel.\n\n"
+            "**Important :** ce beta ne couvre **pas** **Nexus Online** (monde virtuel) — "
+            "il **n'est pas encore développé**.\n\n"
+            "**Comment candidater :**\n"
+            f"1. Remplis le formulaire sur la [page maintenance]({SITE_URL}/maintenance)\n"
+            "2. Rejoins le Discord si ce n'est pas déjà fait\n"
+            "3. Attends la validation de l'équipe — tu recevras ta clé beta\n\n"
+            "Chaque candidature apparaît automatiquement dans ce salon (Conseil uniquement)."
         ),
         "color": 0xA78BFA,
         "fields": [
-            {"name": "Slots", "value": "100 beta testers", "inline": True},
-            {"name": "Tester channel", "value": "#🧪┃beta-test", "inline": True},
-            {"name": "VIP", "value": "#👑┃salon-vip (Ascendant Pass)", "inline": True},
+            {"name": "Places", "value": "100 beta testeurs", "inline": True},
+            {"name": "Salon testeurs", "value": "#🧪┃beta-test", "inline": True},
+            {"name": "VIP", "value": "#👑┃salon-vip (Pass Ascendant)", "inline": True},
         ],
-        "footer": {"text": "NEXORIA — Beta Program"},
+        "footer": {"text": "NEXORIA — Programme Beta"},
     }
     payload = discord_translate.attach_translate_components({"embeds": [embed]})
     r = await client.post(
@@ -215,11 +215,11 @@ async def post_signup_form_message(client: httpx.AsyncClient, channel_id: str, t
 
 async def post_vip_welcome(client: httpx.AsyncClient, channel_id: str, token: str) -> None:
     embed = {
-        "title": "👑 VIP Lounge — Ascendant Pass",
+        "title": "👑 Salon VIP — Pass Ascendant",
         "description": (
-            "Welcome to the exclusive **Ascendant Pass** lounge.\n\n"
-            "Chat with other VIPs, share your discoveries, "
-            "and access previews reserved for premium members."
+            "Bienvenue dans le salon exclusif du **Pass Ascendant**.\n\n"
+            "Échange avec les autres VIP, partage tes découvertes "
+            "et accède aux previews réservées aux membres premium."
         ),
         "color": 0xF59E0B,
     }

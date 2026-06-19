@@ -117,7 +117,7 @@ async def post_notification(
     channel_id: str = None,
     *,
     translatable: bool = True,
-    source_lang: str = "en",
+    source_lang: str = discord_translate.DEFAULT_SOURCE_LANG,
 ) -> bool:
     """Post a message to the configured notification channel. No-op if not configured."""
     cfg = _config()
@@ -150,7 +150,7 @@ async def post_channel_message(
     content: str = "",
     embeds: list | None = None,
     translatable: bool = True,
-    source_lang: str = "en",
+    source_lang: str = discord_translate.DEFAULT_SOURCE_LANG,
 ) -> bool:
     """Post content and/or embeds with optional translation flag buttons."""
     token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
@@ -261,7 +261,9 @@ async def create_forum_thread(
                     json=fallback,
                 )
                 if r2.status_code in (200, 201):
-                    await discord_translate.after_post(channel_id, r2.json(), source_lang="en")
+                    await discord_translate.after_post(
+                        channel_id, r2.json(), source_lang=discord_translate.DEFAULT_SOURCE_LANG,
+                    )
                     return True
                 logger.warning(f"discord message fallback failed: {r2.status_code} {r2.text[:300]}")
             return False

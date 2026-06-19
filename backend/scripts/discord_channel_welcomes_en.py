@@ -1,4 +1,4 @@
-"""English welcome embeds for Discord channels (used by reorganize_discord_guild.py)."""
+"""OBSOLÈTE — remplacé par discord_channel_welcomes_fr.py (langue source : français)."""
 
 
 def channel_welcomes(site_url: str) -> dict[str, dict]:
