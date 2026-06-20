@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { Send, X, Smile, Trash2, ScrollText, Palette, Crown, HelpCircle } from "lucide-react";
+import { Send, X, Smile, Trash2, ScrollText, Palette, Crown, HelpCircle, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import HeroName from "@/components/HeroName";
 import { isStaffRole } from "@/lib/staff-roles";
@@ -22,6 +22,8 @@ export default function NexusChatDock({
   onSubmit,
   chatEndRef,
   viewerRole = "user",
+  chatMuted = false,
+  chatMutedUntil = null,
   isVip = false,
   chatColor = null,
   onSetChatColor,
@@ -32,14 +34,16 @@ export default function NexusChatDock({
   const [colorOpen, setColorOpen] = useState(false);
 
   const isStaff = isStaffRole(viewerRole);
+  const writeBlocked = chatMuted && !isStaff;
 
   useEffect(() => {
-    if (open && inputRef.current) {
+    if (open && inputRef.current && !writeBlocked) {
       inputRef.current.focus();
     }
-  }, [open]);
+  }, [open, writeBlocked]);
 
   const handleKeyDown = (e) => {
+    if (writeBlocked) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       onSubmit(e);
@@ -61,11 +65,15 @@ export default function NexusChatDock({
       <div className="nexus-chat-dock nexus-chat-dock--collapsed" data-testid="nexus-chat">
         <button type="button" className="nexus-chat-bar" onClick={onOpen}>
           <ScrollText className="w-4 h-4 text-amber-200/70" />
-          <span>Clique ici pour tchatter</span>
+          <span>{writeBlocked ? "Tchat en lecture seule (salle muette)" : "Clique ici pour tchatter"}</span>
         </button>
       </div>
     );
   }
+
+  const mutedUntilLabel = chatMutedUntil
+    ? new Date(chatMutedUntil).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    : null;
 
   return (
     <div className="nexus-chat-dock nexus-chat-dock--open" data-testid="nexus-chat">
@@ -153,7 +161,17 @@ export default function NexusChatDock({
           <div ref={chatEndRef} />
         </div>
 
-        {isVip && (
+        {writeBlocked && (
+          <div className="nexus-chat-muted-notice" data-testid="nexus-chat-muted-notice">
+            <VolumeX className="w-4 h-4 shrink-0" />
+            <span>
+              La salle est réduite au silence — vous pouvez lire le tchat, pas écrire.
+              {mutedUntilLabel ? ` (fin ~${mutedUntilLabel})` : ""}
+            </span>
+          </div>
+        )}
+
+        {isVip && !writeBlocked && (
           <div className="nexus-chat-vip-colors">
             <button
               type="button"
@@ -192,35 +210,42 @@ export default function NexusChatDock({
           </div>
         )}
 
-        <div className="nexus-chat-emoji-strip">
-          {NEXUS_CHAT_EMOJIS.map((e) => (
-            <button key={e} type="button" className="nexus-chat-emoji-btn" onClick={() => onInsertEmoji?.(e)}>
-              {e}
-            </button>
-          ))}
-        </div>
+        {!writeBlocked && (
+          <div className="nexus-chat-emoji-strip">
+            {NEXUS_CHAT_EMOJIS.map((e) => (
+              <button key={e} type="button" className="nexus-chat-emoji-btn" onClick={() => onInsertEmoji?.(e)}>
+                {e}
+              </button>
+            ))}
+          </div>
+        )}
 
-        <form onSubmit={onSubmit} className="nexus-chat-input-row">
-          <button type="button" className="nexus-icon-btn" title="Émojis" onClick={() => onInsertEmoji?.("✨")}>
+        <form
+          onSubmit={writeBlocked ? (e) => e.preventDefault() : onSubmit}
+          className={`nexus-chat-input-row${writeBlocked ? " nexus-chat-input-row--disabled" : ""}`}
+        >
+          <button type="button" className="nexus-icon-btn" title="Émojis" disabled={writeBlocked} onClick={() => onInsertEmoji?.("✨")}>
             <Smile className="w-3.5 h-3.5" />
           </button>
           <textarea
             ref={inputRef}
             value={text}
-            onChange={(e) => onTextChange(e.target.value)}
+            onChange={(e) => !writeBlocked && onTextChange(e.target.value)}
             onKeyDown={handleKeyDown}
             maxLength={300}
             rows={1}
-            placeholder={`/help · Parler dans ${roomName}…`}
+            disabled={writeBlocked}
+            readOnly={writeBlocked}
+            placeholder={writeBlocked ? "Salle muette — lecture seule" : `/help · Parler dans ${roomName}…`}
             className="nexus-chat-input nexus-chat-textarea"
             data-testid="nexus-chat-input"
             autoCapitalize="sentences"
             autoCorrect="off"
-            spellCheck
+            spellCheck={!writeBlocked}
           />
           <button
             type="submit"
-            disabled={!text.trim()}
+            disabled={writeBlocked || !text.trim()}
             data-testid="nexus-chat-send"
             className="nexus-chat-send-btn"
             aria-label="Envoyer"

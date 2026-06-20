@@ -28,10 +28,10 @@ export default function ClassChangeModal({ open, onClose, user, onChanged }) {
     if (!selected || selected === user.class_id) return;
     setSaving(true);
     try {
-      await api.put("/profile", { class_id: selected });
+      const { data: profile } = await api.put("/profile", { class_id: selected });
       sfx.success?.();
       toast.success("Classe changée avec succès !");
-      await onChanged?.();
+      await onChanged?.(profile);
       onClose();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Changement impossible");

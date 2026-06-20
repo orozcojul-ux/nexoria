@@ -121,7 +121,10 @@ export default function NexusOverlay() {
       onWorldBossUpdate: (data) => sceneRef.current?.setWorldBoss?.(data.boss),
       onRiftUpdate: (data) => sceneRef.current?.setActiveRift?.(data.rift),
       onPlayerProfile: (patch) => {
-        if (patch?.sid) sceneRef.current?.setPlayerProfile?.(patch.sid, patch);
+        const scene = sceneRef.current;
+        if (!scene) return;
+        const sid = patch?.sid || scene.findPlayerSidByUserId?.(patch?.user_id);
+        if (sid) scene.setPlayerProfile?.(sid, patch);
       },
     });
     return () => detachScene();
@@ -326,6 +329,10 @@ export default function NexusOverlay() {
       setText("");
       return;
     }
+    if (you?.muted && !isStaff) {
+      toast.error("La salle est muette — vous ne pouvez pas écrire.");
+      return;
+    }
     if (sendRoomChat(trimmed)) {
       setText("");
     }
@@ -511,6 +518,8 @@ export default function NexusOverlay() {
                 onInsertEmoji={(e) => setText((t) => (t.length < 300 ? t + e : t))}
                 chatEndRef={chatEndRef}
                 viewerRole={you?.role || "user"}
+                chatMuted={!!you?.muted}
+                chatMutedUntil={you?.chat_muted_until || null}
                 isVip={!!you?.is_vip}
                 chatColor={you?.nexus_chat_color || you?.chat_color || null}
                 onSetChatColor={handleSetChatColor}

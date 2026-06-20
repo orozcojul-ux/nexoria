@@ -607,10 +607,20 @@ export default function HeroCard({ userId, open, onClose }) {
         open={classModalOpen}
         onClose={() => setClassModalOpen(false)}
         user={u || me}
-        onChanged={async () => {
+        onChanged={async (profile) => {
           await loadCard();
           if (data?.is_self) {
             try { await refreshAuth(); } catch { /* silent */ }
+            if (profile?.class_id) {
+              window.dispatchEvent(new CustomEvent("nexoria:nexus-class-changed", {
+                detail: {
+                  user_id: profile.user_id,
+                  class_id: profile.class_id,
+                  class_name: profile.class_name,
+                  avatar_url: profile.avatar_url,
+                },
+              }));
+            }
           }
         }}
       />

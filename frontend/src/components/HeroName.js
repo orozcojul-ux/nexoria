@@ -73,11 +73,8 @@ export default function HeroName({ user, className = "", showIcon = true, size =
           />
         )}
         <span
-          className={customNameStyle ? "" : (isVip ? "" : roleCfg.text)}
-          style={
-            customNameStyle
-              || (isVip ? VIP_NAME_STYLE : { color: roleCfg.color, textShadow: `0 0 8px ${roleCfg.glow}` })
-          }
+          className={customNameStyle ? "" : roleCfg.text}
+          style={customNameStyle || { color: roleCfg.color, textShadow: `0 0 8px ${roleCfg.glow}` }}
         >
           {username}
         </span>

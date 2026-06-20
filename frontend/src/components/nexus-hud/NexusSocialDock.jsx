@@ -1,5 +1,6 @@
 import React from "react";
 import { Users, Crown, VolumeX, Snowflake, EyeOff, MessageCircle } from "lucide-react";
+import { getStaffVisuals } from "@/lib/staff-roles";
 import HeroName from "@/components/HeroName";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
 import ClassImage from "@/components/ClassImage";
@@ -28,7 +29,9 @@ export default function NexusSocialDock({
           {visible.length === 0 ? (
             <p className="text-[11px] text-zinc-500 text-center py-6 italic">Le sanctuaire est vide…</p>
           ) : (
-            visible.map((p) => (
+            visible.map((p) => {
+              const staffVisuals = getStaffVisuals(p);
+              return (
               <div key={p.sid} className="nexus-hero-row group">
                 <button type="button" className="flex items-center gap-2 flex-1 min-w-0" onClick={() => onSelectHero(p.user_id)}>
                   <span className="nexus-hero-avatar nexus-hero-avatar--pixel">
@@ -36,7 +39,12 @@ export default function NexusSocialDock({
                   </span>
                   <div className="nexus-hero-meta">
                     <div className="nexus-hero-name">
-                      <HeroName user={p} size="sm" />
+                      <HeroName
+                        user={p}
+                        size="sm"
+                        showIcon={!!staffVisuals}
+                        nameColor={staffVisuals?.color || null}
+                      />
                       {p.sid === you?.sid && <span className="text-[9px] text-cyan-400 ml-1">(vous)</span>}
                     </div>
                     <div className="nexus-hero-class" style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -67,7 +75,8 @@ export default function NexusSocialDock({
                   )}
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

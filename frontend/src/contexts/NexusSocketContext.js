@@ -231,13 +231,41 @@ export function NexusSocketProvider({ children }) {
     socket.on("nexus_chat_help", () => {
       setChatHelpOpen(true);
     });
-    socket.on("room_chat_user_muted", ({ user_id }) => {
-      setPlayers((prev) => prev.map((p) => (p.user_id === user_id ? { ...p, muted: true } : p)));
-      setYou((prev) => (prev?.user_id === user_id ? { ...prev, muted: true } : prev));
+    socket.on("room_chat_user_muted", ({ user_id, bulk, room_id, until }) => {
+      if (bulk) {
+        if (room_id && roomRef.current?.id && roomRef.current.id !== room_id) return;
+        setPlayers((prev) => prev.map((p) => (
+          isStaffRole(p.role) ? p : { ...p, muted: true, chat_muted_until: until || p.chat_muted_until }
+        )));
+        setYou((prev) => (
+          prev && !isStaffRole(prev.role)
+            ? { ...prev, muted: true, chat_muted_until: until || prev.chat_muted_until }
+            : prev
+        ));
+        return;
+      }
+      if (!user_id) return;
+      setPlayers((prev) => prev.map((p) => (
+        p.user_id === user_id ? { ...p, muted: true, chat_muted_until: until || p.chat_muted_until } : p
+      )));
+      setYou((prev) => (
+        prev?.user_id === user_id ? { ...prev, muted: true, chat_muted_until: until || prev.chat_muted_until } : prev
+      ));
     });
-    socket.on("room_chat_user_unmuted", ({ user_id }) => {
-      setPlayers((prev) => prev.map((p) => (p.user_id === user_id ? { ...p, muted: false } : p)));
-      setYou((prev) => (prev?.user_id === user_id ? { ...prev, muted: false } : prev));
+    socket.on("room_chat_user_unmuted", ({ user_id, bulk, room_id }) => {
+      if (bulk) {
+        if (room_id && roomRef.current?.id && roomRef.current.id !== room_id) return;
+        setPlayers((prev) => prev.map((p) => (
+          isStaffRole(p.role) ? p : { ...p, muted: false, chat_muted_until: null }
+        )));
+        setYou((prev) => (
+          prev && !isStaffRole(prev.role) ? { ...prev, muted: false, chat_muted_until: null } : prev
+        ));
+        return;
+      }
+      if (!user_id) return;
+      setPlayers((prev) => prev.map((p) => (p.user_id === user_id ? { ...p, muted: false, chat_muted_until: null } : p)));
+      setYou((prev) => (prev?.user_id === user_id ? { ...prev, muted: false, chat_muted_until: null } : prev));
     });
     socket.on("chat", (msg) => {
       const ch = msg.channel || "room";
@@ -376,7 +404,11 @@ export function NexusSocketProvider({ children }) {
       };
       setYou((prev) => (prev && data?.user_id === prev.user_id ? { ...prev, ...patch } : prev));
       setPlayers((prev) => prev.map((p) => (p.user_id === data?.user_id ? { ...p, ...patch } : p)));
-      sceneApiRef.current?.onPlayerProfile?.(patch);
+      const youNow = youRef.current;
+      const sid = data?.user_id === youNow?.user_id
+        ? youNow?.sid
+        : playersRef.current.find((p) => p.user_id === data?.user_id)?.sid;
+      sceneApiRef.current?.onPlayerProfile?.(sid ? { sid, ...patch } : patch);
     });
 
     socket.on("player_profile", (patch) => {
@@ -424,6 +456,12 @@ export function NexusSocketProvider({ children }) {
     if (/^\/(help|aide|\?)$/i.test(content)) {
       setChatHelpOpen(true);
       return true;
+    }
+
+    const staff = isStaffRole(youNow.role);
+    if (youNow.muted && !staff) {
+      toast.error("La salle est muette — vous ne pouvez pas écrire.");
+      return false;
     }
 
     const isCommand = content.startsWith("/");
@@ -530,6 +568,10 @@ export function NexusSocketProvider({ children }) {
       if (!prev) return prev;
       const next = { ...prev, ...patch };
       youRef.current = next;
+      if (next.sid) {
+        setPlayers((pls) => pls.map((p) => (p.sid === next.sid ? { ...p, ...patch } : p)));
+        sceneApiRef.current?.onPlayerProfile?.({ sid: next.sid, ...patch });
+      }
       return next;
     });
   }, []);
@@ -558,6 +600,29 @@ export function NexusSocketProvider({ children }) {
     const onOpen = () => setOverlayOpen(true);
     window.addEventListener("nexoria:open-nexus", onOpen);
     return () => window.removeEventListener("nexoria:open-nexus", onOpen);
+  }, []);
+
+  // Mise à jour immédiate du sprite Nexus après changement de classe (carte héros / page Hero)
+  useEffect(() => {
+    const onClassChanged = (e) => {
+      const data = e.detail;
+      if (!data?.user_id || !data?.class_id) return;
+      const patch = {
+        user_id: data.user_id,
+        class_id: data.class_id,
+        class_name: data.class_name,
+        avatar_url: data.avatar_url,
+      };
+      setYou((prev) => (prev?.user_id === data.user_id ? { ...prev, ...patch } : prev));
+      setPlayers((prev) => prev.map((p) => (p.user_id === data.user_id ? { ...p, ...patch } : p)));
+      const youNow = youRef.current;
+      const sid = data.user_id === youNow?.user_id
+        ? youNow?.sid
+        : playersRef.current.find((p) => p.user_id === data.user_id)?.sid;
+      sceneApiRef.current?.onPlayerProfile?.(sid ? { sid, ...patch } : patch);
+    };
+    window.addEventListener("nexoria:nexus-class-changed", onClassChanged);
+    return () => window.removeEventListener("nexoria:nexus-class-changed", onClassChanged);
   }, []);
 
   const value = useMemo(() => ({

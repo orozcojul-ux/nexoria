@@ -404,7 +404,7 @@ export class NexusIsoScene extends Phaser.Scene {
   }
 
   refreshPlayerClassAutosprite(container, p) {
-    if (!container?.usesClassAutosprite || !container.sprite || !this.testVisuals) return;
+    if (!container?.usesClassAutosprite || !container.sprite) return;
     const { assetKey } = resolvePlayerClassAssetKey(this, p.class_id, p.class_name);
     logNexusPlayerClass(p.username, p.class_id, p.class_name, assetKey);
     if (container.classAssetKey === assetKey) return;
@@ -418,6 +418,36 @@ export class NexusIsoScene extends Phaser.Scene {
     container._classFlipX = null;
     container._classMoving = null;
     this.applyClassAutospriteAnim(container, false, 0, -1);
+  }
+
+  applyPlayerClassVisual(container, p) {
+    if (!container || !p) return;
+    if (container.usesClassAutosprite) {
+      this.refreshPlayerClassAutosprite(container, p);
+      return;
+    }
+    if (container.sprite) {
+      const { key, scale } = resolvePlayerTexture(this, p.class_id, p.role);
+      container.sprite.setTexture(key);
+      container.sprite.setScale(scale);
+      if (container.sprite.texture) {
+        container.sprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+      }
+    }
+    if (container.ring?.setFillStyle) {
+      container.ring.setFillStyle(CLASS_COLOR_INT[p.class_id] || 0x9CA3AF, 0.45);
+    }
+    if (container.subText?.setColor) {
+      container.subText.setColor(CLASS_HEX[p.class_id] || "#A1A1AA");
+    }
+  }
+
+  findPlayerSidByUserId(userId) {
+    if (!userId) return null;
+    for (const [sid, c] of Object.entries(this.players)) {
+      if (c.profile?.user_id === userId) return sid;
+    }
+    return null;
   }
 
   /* --- movement --- */
@@ -1151,8 +1181,8 @@ export class NexusIsoScene extends Phaser.Scene {
       const prevClass = existing.profile?.class_id;
       existing.profile = { ...existing.profile, ...p };
       this.updateNameTag(existing);
-      if (prevClass !== p.class_id && this.testVisuals && existing.usesClassAutosprite) {
-        this.refreshPlayerClassAutosprite(existing, existing.profile);
+      if (prevClass !== p.class_id) {
+        this.applyPlayerClassVisual(existing, existing.profile);
       }
       this.movePlayer(p.sid, p.tx, p.ty, p.facing, false);
       return;
@@ -1246,8 +1276,8 @@ export class NexusIsoScene extends Phaser.Scene {
       const prevClass = c.profile.class_id;
       c.profile.class_id = moveMeta.class_id;
       if (moveMeta.class_name) c.profile.class_name = moveMeta.class_name;
-      if (prevClass !== moveMeta.class_id && c.usesClassAutosprite) {
-        this.refreshPlayerClassAutosprite(c, c.profile);
+      if (prevClass !== moveMeta.class_id) {
+        this.applyPlayerClassVisual(c, c.profile);
       }
     }
     let { x: sx, y: sy } = this.screenFromTile(tx, ty);
@@ -1303,8 +1333,8 @@ export class NexusIsoScene extends Phaser.Scene {
     this.updateNameTag(c);
     if ("invisible" in patch) c.setAlpha(patch.invisible ? 0.35 : 1);
     const classChanged = "class_id" in patch && patch.class_id !== prevClass;
-    if (classChanged && this.testVisuals && c.usesClassAutosprite) {
-      this.refreshPlayerClassAutosprite(c, c.profile);
+    if (classChanged) {
+      this.applyPlayerClassVisual(c, c.profile);
     }
     if ("active_frame" in patch || "active_aura_sku" in patch || "active_title" in patch) {
       const profile = { ...c.profile, sid, tx: c.tile.tx, ty: c.tile.ty };

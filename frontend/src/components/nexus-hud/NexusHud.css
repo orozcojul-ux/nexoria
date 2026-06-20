@@ -210,7 +210,7 @@
 }
 
 .nexus-hero-meta { flex: 1; min-width: 0; }
-.nexus-hero-name { font-size: 0.72rem; font-weight: 600; color: #f4f4f5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nexus-hero-name { font-size: 0.72rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nexus-hero-class { font-size: 0.58rem; color: #71717a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .nexus-hero-actions { display: flex; gap: 0.2rem; opacity: 0; }
@@ -542,6 +542,28 @@
   font-size: 0.62rem;
   color: #71717a;
   text-align: center;
+}
+
+.nexus-chat-muted-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0.55rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(127, 29, 29, 0.22);
+  color: #fecaca;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.nexus-chat-input-row--disabled {
+  opacity: 0.55;
+}
+
+.nexus-chat-input-row--disabled .nexus-chat-input {
+  cursor: not-allowed;
 }
 
 .nexus-chat-input-row {
