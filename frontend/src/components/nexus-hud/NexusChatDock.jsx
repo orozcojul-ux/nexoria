@@ -1,31 +1,44 @@
-import React from "react";
-import { MessageCircle, Send, Smile, UserPlus, ChevronDown } from "lucide-react";
+import React, { useRef, useEffect } from "react";
+import { Send, X, Smile, Trash2, ScrollText } from "lucide-react";
 import HeroName from "@/components/HeroName";
-import { CHANNEL_CONFIG, QUICK_EMOJIS } from "./nexus-constants";
+import { nexusChatColors, NEXUS_CHAT_EMOJIS } from "@/lib/nexusChatColors";
 
 export default function NexusChatDock({
-  collapsed,
-  onToggleCollapse,
-  activeChannel,
-  onChannelChange,
-  unreadByChannel,
-  markChannelRead,
-  whisperTarget,
-  onClearWhisper,
-  messages,
+  open,
+  onOpen,
+  onClose,
+  roomName = "Salle",
+  messages = [],
   text,
   onTextChange,
   onSubmit,
-  emojiOpen,
-  onToggleEmoji,
-  onInsertEmoji,
   chatEndRef,
+  isStaff = false,
+  onDeleteMessage,
+  onInsertEmoji,
 }) {
-  if (collapsed) {
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (open && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [open]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onSubmit(e);
+    }
+    if (e.key === "Escape") onClose?.();
+  };
+
+  if (!open) {
     return (
-      <div className="nexus-chat-dock" data-testid="nexus-chat">
-        <button type="button" className="nexus-chat-fab" onClick={onToggleCollapse} aria-label="Ouvrir le chat">
-          <MessageCircle className="w-5 h-5" />
+      <div className="nexus-chat-dock nexus-chat-dock--collapsed" data-testid="nexus-chat">
+        <button type="button" className="nexus-chat-bar" onClick={onOpen}>
+          <ScrollText className="w-4 h-4 text-amber-200/70" />
+          <span>Clique ici pour tchatter</span>
         </button>
       </div>
     );
@@ -33,67 +46,54 @@ export default function NexusChatDock({
 
   return (
     <div className="nexus-chat-dock nexus-chat-dock--open" data-testid="nexus-chat">
-      <div className="nexus-hud-panel flex flex-col" style={{ maxHeight: "55vh" }}>
-        <div className="nexus-hud-panel-head">
-          <MessageCircle className="w-3.5 h-3.5 text-cyan-300" />
-          <span className="nexus-hud-panel-title">Voix du Nexus</span>
-          <button type="button" onClick={onToggleCollapse} className="nexus-icon-btn ml-auto" style={{ width: "1.5rem", height: "1.5rem" }}>
-            <ChevronDown className="w-3 h-3" />
+      <div className="nexus-chat-panel">
+        <div className="nexus-chat-panel-head">
+          <div>
+            <span className="nexus-chat-panel-title">{roomName}</span>
+            <span className="nexus-chat-panel-sub">Tchat de la salle</span>
+          </div>
+          <button type="button" onClick={onClose} className="nexus-icon-btn" aria-label="Fermer le tchat">
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div className="nexus-channel-tabs">
-          {Object.entries(CHANNEL_CONFIG).map(([id, cfg]) => {
-            const Icon = cfg.icon;
-            const unread = unreadByChannel[id] || 0;
-            const active = activeChannel === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => { onChannelChange(id); markChannelRead(id); }}
-                data-testid={`chat-channel-${id}`}
-                className={`nexus-channel-tab ${active ? "nexus-channel-tab--active" : ""}`}
-              >
-                <Icon className="w-3 h-3" />
-                {cfg.fr}
-                {unread > 0 && !active && <span className="nexus-channel-badge">{unread > 9 ? "9+" : unread}</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        {activeChannel === "whisper" && (
-          <div className="px-3 py-1.5 border-b border-pink-500/20 bg-pink-500/5 text-xs flex items-center gap-2">
-            <UserPlus className="w-3 h-3 text-pink-300" />
-            {whisperTarget ? (
-              <>
-                <span className="text-pink-200">À</span>
-                <HeroName user={whisperTarget} size="sm" />
-                <button type="button" onClick={onClearWhisper} className="ml-auto text-zinc-500 hover:text-white text-[10px]">Changer</button>
-              </>
-            ) : (
-              <span className="text-zinc-400 italic">Sélectionnez un héros dans la liste</span>
-            )}
-          </div>
-        )}
-
         <div className="nexus-chat-log" data-testid="nexus-chat-log">
           {messages.length === 0 ? (
-            <p className="text-zinc-500 italic text-center py-6 text-xs">
-              Aucun écho dans <span className="text-cyan-300">{CHANNEL_CONFIG[activeChannel].fr}</span>
+            <p className="nexus-chat-empty">
+              Aucun écho dans <em>{roomName}</em> — soyez le premier à parler.
             </p>
           ) : (
-            messages.map((m, i) => {
-              const ChanIco = CHANNEL_CONFIG[m.channel || "room"]?.icon;
+            messages.map((m) => {
+              const colors = nexusChatColors(m.role, { is_vip: m.is_vip, rank: m.rank, active_title: m.active_title });
               return (
-                <div key={i} className="nexus-chat-msg">
-                  <span className="inline-flex items-center gap-1 flex-wrap">
-                    {ChanIco && <ChanIco className="w-2.5 h-2.5 text-cyan-300" />}
-                    <HeroName user={{ username: m.username, role: m.role, level: m.level, rank: m.rank }} size="xs" showIcon={false} />
-                    <span className="text-zinc-500 text-[10px]">niv.{m.level}</span>
+                <div
+                  key={m.message_id || `${m.ts}-${m.user_id}`}
+                  className="nexus-chat-line group"
+                  style={{ background: colors.badge }}
+                >
+                  <span className="nexus-chat-line-meta">
+                    <HeroName
+                      user={{ username: m.username, role: m.role, level: m.level, rank: m.rank }}
+                      size="xs"
+                      showIcon={false}
+                    />
+                    {m.level != null && (
+                      <span className="nexus-chat-level" style={{ color: colors.name }}>niv.{m.level}</span>
+                    )}
                   </span>
-                  <div className="text-zinc-200 break-words mt-0.5">{m.text}</div>
+                  <p className="nexus-chat-line-text" style={{ color: colors.text }}>
+                    {m.content || m.text}
+                  </p>
+                  {isStaff && m.message_id && !String(m.message_id).startsWith("legacy_") && !String(m.message_id).startsWith("local_") && onDeleteMessage && (
+                    <button
+                      type="button"
+                      title="Supprimer"
+                      onClick={() => onDeleteMessage(m.message_id)}
+                      className="nexus-chat-delete opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="w-2.5 h-2.5" />
+                    </button>
+                  )}
                 </div>
               );
             })
@@ -101,28 +101,38 @@ export default function NexusChatDock({
           <div ref={chatEndRef} />
         </div>
 
-        <form onSubmit={onSubmit} className="nexus-chat-input-row relative">
-          <button type="button" onClick={onToggleEmoji} data-testid="chat-emoji-toggle" className="nexus-icon-btn" style={{ width: "1.75rem", height: "1.75rem" }}>
-            <Smile className="w-3 h-3" />
+        <div className="nexus-chat-emoji-strip">
+          {NEXUS_CHAT_EMOJIS.map((e) => (
+            <button key={e} type="button" className="nexus-chat-emoji-btn" onClick={() => onInsertEmoji?.(e)}>
+              {e}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={onSubmit} className="nexus-chat-input-row">
+          <button type="button" className="nexus-icon-btn" title="Émojis" onClick={() => onInsertEmoji?.("✨")}>
+            <Smile className="w-3.5 h-3.5" />
           </button>
-          <input
+          <textarea
+            ref={inputRef}
             value={text}
             onChange={(e) => onTextChange(e.target.value)}
-            maxLength={280}
-            placeholder={activeChannel === "whisper" && !whisperTarget ? "Choisissez un destinataire…" : `Message — ${CHANNEL_CONFIG[activeChannel].fr}`}
-            className="nexus-chat-input"
+            onKeyDown={handleKeyDown}
+            maxLength={300}
+            rows={1}
+            placeholder={`Parler dans ${roomName}…`}
+            className="nexus-chat-input nexus-chat-textarea"
             data-testid="nexus-chat-input"
           />
-          <button type="submit" disabled={!text.trim() || (activeChannel === "whisper" && !whisperTarget)} data-testid="nexus-chat-send" className="nexus-icon-btn nexus-icon-btn--active" style={{ width: "1.75rem", height: "1.75rem" }}>
-            <Send className="w-3 h-3" />
+          <button
+            type="submit"
+            disabled={!text.trim()}
+            data-testid="nexus-chat-send"
+            className="nexus-chat-send-btn"
+            aria-label="Envoyer"
+          >
+            <Send className="w-3.5 h-3.5" />
           </button>
-          {emojiOpen && (
-            <div className="absolute bottom-11 left-0 grid grid-cols-10 gap-1 p-2 rounded-lg bg-black/95 border border-white/15 shadow-xl z-10">
-              {QUICK_EMOJIS.map((e) => (
-                <button key={e} type="button" onClick={() => onInsertEmoji(e)} className="w-7 h-7 hover:bg-white/10 rounded text-lg">{e}</button>
-              ))}
-            </div>
-          )}
         </form>
       </div>
     </div>

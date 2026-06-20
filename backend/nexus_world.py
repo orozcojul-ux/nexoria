@@ -24,6 +24,7 @@ import socketio
 
 from auth import get_user_by_token
 import online_gate
+import nexus_room_chat as room_chat
 from nexus_rooms import ROOMS, can_access, get_portal_links  # noqa: F401
 
 logger = logging.getLogger("nexoria.nexus")
@@ -169,6 +170,44 @@ def _room_payload(room_id: str) -> dict:
     base["world_boss"] = ws.get("boss")
     base["active_rift"] = ws.get("rift")
     return base
+
+
+async def _room_chat_history_for(room_id: str) -> list[dict]:
+    """50 derniers messages de la salle (MongoDB, fallback buffer mémoire)."""
+    hist = await room_chat.fetch_room_history(_db_ref, room_id)
+    if hist:
+        return hist[-room_chat.ROOM_CHAT_HISTORY_LIMIT:]
+    legacy = []
+    for m in _chat_buffer.get(room_id, [])[-room_chat.ROOM_CHAT_HISTORY_LIMIT:]:
+        legacy.append({
+            "message_id": f"legacy_{int(m.get('ts', 0))}_{m.get('user_id', '')}",
+            "room_id": room_id,
+            "room_name": ROOMS.get(room_id, {}).get("name", room_id),
+            "user_id": m.get("user_id"),
+            "username": m.get("username"),
+            "role": m.get("role", "user"),
+            "class_name": m.get("class_name"),
+            "level": m.get("level", 1),
+            "content": m.get("text", ""),
+            "created_at": room_chat.now_iso(),
+            "ts": m.get("ts", time.time()),
+            "deleted": False,
+        })
+    return legacy
+
+
+def _move_payload(p: dict, **extra) -> dict:
+    """Movement broadcast — includes class identity so clients never lose it."""
+    return {
+        "sid": p["sid"],
+        "user_id": p["user_id"],
+        "class_id": p.get("class_id"),
+        "class_name": p.get("class_name"),
+        "tx": p["tx"],
+        "ty": p["ty"],
+        "facing": p.get("facing", "SE"),
+        **extra,
+    }
 
 
 def _lite(p: dict, viewer_role: str = "user") -> dict:
@@ -428,7 +467,9 @@ def build_socketio_app(db, hooks=None):
             "tx": tx, "ty": ty,
             "room": room,
             "facing": facing,
-            "muted": False, "frozen": False,
+            "muted": room_chat.is_user_chat_muted(user),
+            "chat_muted_until": user.get("nexus_chat_muted_until"),
+            "frozen": False,
             "invisible": bool(user.get("appear_offline")),
             "joined_at": time.time(),
         }
@@ -438,10 +479,12 @@ def build_socketio_app(db, hooks=None):
         await sio.enter_room(sid, room)
 
         # Send room snapshot to the new player
+        room_history = await _room_chat_history_for(room)
         await sio.emit("room_joined", {
             "room": _room_payload(room),
             "players": _visible_players_for(player),
             "chat_history": _chat_buffer[room][-40:],
+            "room_chat_history": room_history,
             "weather": _room_weather[room],
             "items": _room_items[room],
             "you": _lite(player),
@@ -496,16 +539,12 @@ def build_socketio_app(db, hooks=None):
         _rooms_state[p["room"]][sid] = _lite(p)
         # Invisible players don't broadcast movement
         if not p.get("invisible"):
-            await sio.emit("player_move", {
-                "sid": sid, "user_id": p["user_id"], "tx": tx, "ty": ty, "facing": p["facing"],
-            }, to=p["room"], skip_sid=sid)
+            await sio.emit("player_move", _move_payload(p, tx=tx, ty=ty), to=p["room"], skip_sid=sid)
         else:
             # Only broadcast to staff in the room
             for other_sid, other in _rooms_state[p["room"]].items():
                 if other_sid != sid and other.get("role") in STAFF_ROLES:
-                    await sio.emit("player_move", {
-                        "sid": sid, "user_id": p["user_id"], "tx": tx, "ty": ty, "facing": p["facing"],
-                    }, to=other_sid)
+                    await sio.emit("player_move", _move_payload(p, tx=tx, ty=ty), to=other_sid)
 
     # -------------- Chat --------------
     # -------------- Chat (multi-channel) --------------
@@ -513,12 +552,13 @@ def build_socketio_app(db, hooks=None):
     async def chat(sid, data):
         p = _players.get(sid)
         if not p:
+            await sio.emit("system_msg", {"kind": "error", "text": "Session Nexus inactive — réouvrez le Nexus."}, to=sid)
             return
         if p.get("muted"):
-            await sio.emit("system_msg", {"kind": "muted", "text": "Vous êtes réduit au silence."}, to=sid)
+            await sio.emit("system_msg", {"kind": "muted", "text": "Tu es temporairement réduit au silence."}, to=sid)
             return
         text = (data or {}).get("text", "").strip()
-        if not text or len(text) > 280:
+        if not text:
             return
         channel = (data or {}).get("channel", "room")
         if channel not in CHAT_CHANNELS:
@@ -538,6 +578,8 @@ def build_socketio_app(db, hooks=None):
             "role": p["role"],
             "class_name": p["class_name"],
             "level": p["level"],
+            "rank": p.get("rank"),
+            "is_vip": bool(p.get("is_vip")),
             "text": text,
         }
         if channel == "whisper":
@@ -570,9 +612,23 @@ def build_socketio_app(db, hooks=None):
         else:
             # Default: room channel (local)
             room = p["room"]
+            room_name = ROOMS.get(room, {}).get("name", room)
+            content, err = room_chat.validate_message(text, sid)
+            if err:
+                await sio.emit("system_msg", {"kind": "warn", "text": err}, to=sid)
+                return
+            doc = room_chat.build_message_doc(p, room, room_name, content)
+            if _db_ref is not None:
+                try:
+                    await room_chat.persist_message(_db_ref, doc)
+                except Exception as e:
+                    logger.warning(f"room_chat persist failed: {e}")
+            msg["message_id"] = doc["message_id"]
+            msg["room_id"] = room
+            msg["content"] = content
             buf = _chat_buffer[room]
             buf.append(msg)
-            del buf[:-60]
+            del buf[:-room_chat.ROOM_CHAT_BUFFER_MAX]
             await sio.emit("chat", msg, to=room)
 
         hook = _hooks.get("on_chat_message")
@@ -581,6 +637,136 @@ def build_socketio_app(db, hooks=None):
                 await hook(p["user_id"], channel)
             except Exception as e:
                 logger.warning(f"on_chat_message hook failed: {e}")
+
+    @sio.event
+    async def room_chat_message(sid, data):
+        """Tchat simple par salle — diffusé uniquement aux joueurs de la room."""
+        p = _players.get(sid)
+        if not p:
+            return
+        until = room_chat.parse_iso(p.get("chat_muted_until"))
+        if until and until <= datetime.now(timezone.utc):
+            p["muted"] = False
+            p.pop("chat_muted_until", None)
+            if _db_ref is not None:
+                await room_chat.clear_chat_mute(_db_ref, p["user_id"])
+        if p.get("muted"):
+            await sio.emit("system_msg", {"kind": "muted", "text": "Tu es temporairement réduit au silence."}, to=sid)
+            return
+        raw = (data or {}).get("content") or (data or {}).get("text") or ""
+        content, err = room_chat.validate_message(raw, sid)
+        if err:
+            await sio.emit("system_msg", {"kind": "error", "text": err}, to=sid)
+            return
+        room_id = p["room"]
+        room_name = ROOMS.get(room_id, {}).get("name", room_id)
+        doc = room_chat.build_message_doc(p, room_id, room_name, content)
+        if _db_ref is not None:
+            try:
+                await room_chat.persist_message(_db_ref, doc)
+            except Exception as e:
+                logger.warning(f"room_chat persist failed: {e}")
+        buf = _chat_buffer[room_id]
+        legacy = {
+            "ts": doc["ts"], "channel": "room", "user_id": doc["user_id"],
+            "username": doc["username"], "role": doc["role"],
+            "class_name": doc.get("class_name"), "level": doc.get("level"), "text": content,
+        }
+        buf.append(legacy)
+        del buf[:-room_chat.ROOM_CHAT_BUFFER_MAX]
+        await sio.emit("room_chat_message", doc, to=room_id)
+        hook = _hooks.get("on_room_chat_message") or _hooks.get("on_chat_message")
+        if hook:
+            try:
+                await hook(p["user_id"], "room")
+            except Exception as e:
+                logger.warning(f"on_room_chat_message hook failed: {e}")
+
+    @sio.event
+    async def room_chat_history(sid, data):
+        p = _players.get(sid)
+        if not p:
+            return
+        room_id = (data or {}).get("room_id") or p.get("room")
+        if room_id not in ROOMS:
+            return
+        history = await _room_chat_history_for(room_id)
+        await sio.emit("room_chat_history", {"room_id": room_id, "messages": history}, to=sid)
+
+    @sio.event
+    async def gm_room_chat_delete(sid, data):
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        message_id = (data or {}).get("message_id")
+        reason = ((data or {}).get("reason") or "").strip()[:200]
+        if not message_id:
+            return await _send_err(sid, "message_id requis.")
+        deleted = await room_chat.soft_delete_message(_db_ref, message_id, gm, reason)
+        if not deleted:
+            return await _send_err(sid, "Message introuvable.")
+        room_id = deleted.get("room_id")
+        await sio.emit("room_chat_message_deleted", {
+            "message_id": message_id, "room_id": room_id,
+        }, to=room_id or gm["room"])
+        await _audit("room_chat_delete", gm, {
+            "user_id": deleted.get("user_id"), "username": deleted.get("username"),
+        }, {"message_id": message_id, "room_id": room_id, "reason": reason})
+        await _send_ok(sid, "Message supprimé.")
+
+    @sio.event
+    async def gm_room_chat_mute(sid, data):
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        target_user_id = (data or {}).get("target_user_id")
+        duration_minutes = int((data or {}).get("duration_minutes") or 5)
+        reason = ((data or {}).get("reason") or "").strip()[:200]
+        target = _find_target_by_user_id(target_user_id)
+        if not target:
+            return await _send_err(sid, "Cible introuvable.")
+        if target["role"] in STAFF_ROLES and target["user_id"] != gm["user_id"]:
+            return await _send_err(sid, "Impossible de museler un Gardien.")
+        until_iso = await room_chat.set_chat_mute(_db_ref, target["user_id"], duration_minutes)
+        target["muted"] = True
+        target["chat_muted_until"] = until_iso
+        _rooms_state[target["room"]][target["sid"]] = _lite(target)
+        payload = {
+            "user_id": target["user_id"],
+            "username": target["username"],
+            "room_id": target["room"],
+            "duration_minutes": duration_minutes,
+            "muted_until": until_iso,
+            "reason": reason,
+        }
+        await sio.emit("room_chat_user_muted", payload, to=target["room"])
+        await sio.emit("system_msg", {
+            "kind": "muted",
+            "text": "Tu es temporairement réduit au silence.",
+        }, to=target["sid"])
+        await _audit("room_chat_mute", gm, target, payload)
+        await _send_ok(sid, f"{target['username']} réduit au silence ({duration_minutes} min).")
+
+    @sio.event
+    async def gm_room_chat_unmute(sid, data):
+        gm = _require_staff(sid)
+        if not gm:
+            return await _send_err(sid, "Action réservée aux Gardiens.")
+        target_user_id = (data or {}).get("target_user_id")
+        target = _find_target_by_user_id(target_user_id)
+        if not target:
+            return await _send_err(sid, "Cible introuvable.")
+        await room_chat.clear_chat_mute(_db_ref, target["user_id"])
+        target["muted"] = False
+        target.pop("chat_muted_until", None)
+        _rooms_state[target["room"]][target["sid"]] = _lite(target)
+        payload = {"user_id": target["user_id"], "username": target["username"], "room_id": target["room"]}
+        await sio.emit("room_chat_user_unmuted", payload, to=target["room"])
+        await sio.emit("player_status", {
+            "sid": target["sid"], "user_id": target["user_id"], "muted": False,
+        }, to=target["room"])
+        await _audit("room_chat_unmute", gm, target, payload)
+        await _send_ok(sid, f"{target['username']} peut de nouveau parler.")
 
     @sio.event
     async def boss_attack(sid, data):
@@ -650,10 +836,12 @@ def build_socketio_app(db, hooks=None):
         p["tx"], p["ty"] = spawn["tx"], spawn["ty"]
         _rooms_state[new_room][sid] = _lite(p)
         await sio.enter_room(sid, new_room)
+        new_history = await _room_chat_history_for(new_room)
         await sio.emit("room_joined", {
             "room": _room_payload(new_room),
             "players": _visible_players_for(p),
             "chat_history": _chat_buffer[new_room][-40:],
+            "room_chat_history": new_history,
             "weather": _room_weather[new_room],
             "items": _room_items[new_room],
             "you": _lite(p),
@@ -775,10 +963,7 @@ def build_socketio_app(db, hooks=None):
         subject = target or gm
         subject["tx"], subject["ty"] = tx, ty
         _rooms_state[room_id][subject["sid"]] = _lite(subject)
-        await sio.emit("player_move", {
-            "sid": subject["sid"], "user_id": subject["user_id"], "tx": tx, "ty": ty,
-            "facing": subject.get("facing", "SE"), "teleport": True,
-        }, to=room_id)
+        await sio.emit("player_move", _move_payload(subject, teleport=True), to=room_id)
         await _send_ok(sid, f"Téléporté : {subject['username']} → ({tx},{ty})")
         await _audit("teleport", gm, subject, {"tx": tx, "ty": ty})
 
@@ -1002,10 +1187,7 @@ def build_socketio_app(db, hooks=None):
         else:
             gm["tx"], gm["ty"] = target["tx"], target["ty"]
             _rooms_state[gm["room"]][sid] = _lite(gm)
-            await sio.emit("player_move", {
-                "sid": sid, "user_id": gm["user_id"],
-                "tx": gm["tx"], "ty": gm["ty"], "facing": gm["facing"], "teleport": True,
-            }, to=gm["room"])
+            await sio.emit("player_move", _move_payload(gm, teleport=True), to=gm["room"])
         await _send_ok(sid, f"Téléporté vers {target['username']}")
         await _audit("tp_to_player", gm, target, {"tx": target["tx"], "ty": target["ty"]})
 
@@ -1041,10 +1223,7 @@ def build_socketio_app(db, hooks=None):
         else:
             target["tx"], target["ty"] = gm["tx"], gm["ty"]
             _rooms_state[gm["room"]][target["sid"]] = _lite(target)
-            await sio.emit("player_move", {
-                "sid": target["sid"], "user_id": target["user_id"],
-                "tx": target["tx"], "ty": target["ty"], "facing": target["facing"], "teleport": True,
-            }, to=gm["room"])
+            await sio.emit("player_move", _move_payload(target, teleport=True), to=gm["room"])
         await sio.emit("system_msg", {
             "kind": "warn", "text": f"Vous avez été convoqué par {gm['username']}.",
         }, to=target["sid"])
@@ -1145,7 +1324,7 @@ def build_socketio_app(db, hooks=None):
                 discord_rewards.schedule_reward_notify(
                     db, target_user_id, "Game Master",
                     aether=amount,
-                    extra=[f"Solde : {new_val} Éclats"],
+                    extra=[f"Solde : {new_val} Écus"],
                 )
         except Exception:
             pass
@@ -1328,10 +1507,7 @@ def build_socketio_app(db, hooks=None):
             gm["invisible"] = True
             gm["tx"], gm["ty"] = target["tx"], target["ty"]
             _rooms_state[gm["room"]][sid] = _lite(gm)
-            await sio.emit("player_move", {
-                "sid": sid, "user_id": gm["user_id"],
-                "tx": gm["tx"], "ty": gm["ty"], "facing": gm.get("facing", "SE"), "teleport": True,
-            }, to=gm["room"])
+            await sio.emit("player_move", _move_payload(gm, teleport=True), to=gm["room"])
         await _send_ok(sid, f"Vous observez {target['username']} (invisible).")
         await _audit("observe", gm, target, {})
 

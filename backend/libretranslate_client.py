@@ -19,7 +19,7 @@ PROTECTED_TERMS = (
     "NEXORIA",
     "Smouzyi",
     "Discord",
-    "Éclats",
+    "Écus",
     "Nexoria",
 )
 

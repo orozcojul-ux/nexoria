@@ -4,6 +4,7 @@ import { Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
+import { useHeroCard } from "@/contexts/HeroCardContext";
 import HeroName from "@/components/HeroName";
 
 export default function PlayerSearchBar() {
@@ -11,6 +12,7 @@ export default function PlayerSearchBar() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { t } = useI18n();
+  const { openHeroCardByUsername } = useHeroCard();
   const isAdminPage = location.pathname.startsWith("/admin");
 
   const [q, setQ] = useState(() => (isAdminPage ? searchParams.get("q") || "" : ""));
@@ -61,7 +63,7 @@ export default function PlayerSearchBar() {
     if (isAdminPage) {
       navigate(`/admin?tab=users&q=${encodeURIComponent(username)}`);
     } else {
-      navigate(`/profile/${encodeURIComponent(username)}`);
+      openHeroCardByUsername(username);
     }
   };
 
@@ -93,7 +95,7 @@ export default function PlayerSearchBar() {
     if (isAdminPage) {
       navigate(`/admin?tab=users&q=${encodeURIComponent(term)}`);
     } else {
-      navigate(`/profile/${encodeURIComponent(term)}`);
+      openHeroCardByUsername(term);
     }
   };
 

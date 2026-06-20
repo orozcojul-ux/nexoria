@@ -711,3 +711,219 @@
     grid-template-columns: 1fr;
   }
 }
+
+.portraitEditBtn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 229, 204, 0.45);
+  background: rgba(5, 10, 16, 0.88);
+  color: #00e5cc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  z-index: 2;
+}
+
+.portraitEditBtn:hover {
+  background: rgba(0, 229, 204, 0.15);
+  border-color: #00e5cc;
+  color: #fff;
+}
+
+.customizeForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.customizeStaffNote {
+  font-size: 12px;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0;
+}
+
+.customizeSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.customizeSection:last-of-type {
+  border-bottom: none;
+}
+
+.customizeSectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "Rajdhani", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #00d4ff;
+  margin: 0;
+}
+
+.customizeLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #8892a0;
+  font-weight: 700;
+}
+
+.customizeInput {
+  width: 100%;
+  background: rgba(10, 10, 14, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #e8eaf0;
+  outline: none;
+}
+
+.customizeInput:focus {
+  border-color: rgba(0, 229, 204, 0.45);
+}
+
+.customizeTextarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.customizeAvatarRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.customizeAvatarPreview {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  border: 2px solid #7b2ff7;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0613;
+  font-size: 24px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.customizeAvatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.customizeAvatarActions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.customizeUploadBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(124, 58, 237, 0.45);
+  background: rgba(124, 58, 237, 0.1);
+  color: #c4b5fd;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.customizeUploadBtn:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 0.2);
+}
+
+.customizeUploadBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.customizeHint {
+  font-size: 11px;
+  color: #8892a0;
+}
+
+.customizeAccentRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.customizeAccentSwatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.customizeAccentSwatchActive {
+  border-color: #fff;
+  transform: scale(1.08);
+}
+
+.customizeColorPicker {
+  width: 36px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.customizeSaveBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 229, 204, 0.5);
+  background: rgba(0, 229, 204, 0.1);
+  color: #00e5cc;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.customizeSaveBtn:hover:not(:disabled) {
+  background: rgba(0, 229, 204, 0.18);
+}
+
+.customizeSaveBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

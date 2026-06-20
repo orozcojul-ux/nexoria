@@ -1,7 +1,7 @@
 import React from "react";
-import { Link } from "react-router-dom";
 import { Shield } from "lucide-react";
 import { PremiumCard } from "@/components/ui-premium";
+import HeroCardOpener from "@/components/HeroCardOpener";
 import { useI18n } from "@/contexts/I18nContext";
 import { groupStaffByGrade, EMPTY_STAFF_ONLINE } from "@/lib/staff-roles";
 
@@ -29,14 +29,15 @@ function GradeRow({ grade, members, compact }) {
         <ul className={`space-y-0.5 pl-3.5 ${compact ? "max-h-16 overflow-y-auto" : ""}`}>
           {members.map((m) => (
             <li key={m.user_id} className="truncate">
-              <Link
-                to={`/profile/${m.username}`}
+              <HeroCardOpener
+                userId={m.user_id}
+                username={m.username}
                 className="text-xs text-zinc-300 hover:text-white transition-colors"
                 title={m.rank ? `${m.username} · ${m.rank}` : m.username}
                 data-testid={`staff-online-${m.username}`}
               >
                 {m.username}
-              </Link>
+              </HeroCardOpener>
             </li>
           ))}
         </ul>

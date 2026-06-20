@@ -84,10 +84,10 @@ I18N_BY_FR_TITLE: dict[str, dict[str, dict[str, str]]] = {
                 f"Sign up at {SITE_URL} and choose your class.\n\n"
                 "**How do I link Discord?**\n"
                 "Settings → Account → Connect Discord.\n\n"
-                "**What are Éclats?**\n"
+                "**What are Écus?**\n"
                 "The realm's currency — earned by playing or via the shop.\n\n"
                 "**Ascendant Pass (VIP)?**\n"
-                "Premium perks: exclusive shop, XP/Éclats bonuses, VIP lounge…"
+                "Premium perks: exclusive shop, XP/Écus bonuses, VIP lounge…"
             ),
         },
     },
@@ -105,7 +105,7 @@ I18N_BY_FR_TITLE: dict[str, dict[str, dict[str, str]]] = {
         "en": {
             "title": "📊 XP & progression",
             "description": (
-                "**Automatic** channel — XP, Éclats, reputation, badges, "
+                "**Automatic** channel — XP, Écus, reputation, badges, "
                 "shop purchases, and quest rewards.\n\n"
                 "Every feat on the site may leave a trace here."
             ),

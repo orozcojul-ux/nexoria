@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link } from "react-router-dom";
 import { Globe, Users, Sparkles, Filter, Wifi, WifiOff, Crown, ShieldCheck, Compass } from "lucide-react";
 import api from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import { PageShell, PremiumCard, PremiumModal } from "@/components/ui-premium";
+import HeroCardOpener from "@/components/HeroCardOpener";
 import StarField from "@/components/StarField";
 import { usePageBanner } from "@/lib/page-banners";
 
@@ -301,11 +301,14 @@ function HeroDetail({ hero, onClose }) {
             Rang {hero.rank} · Niveau <span className="text-cyan-300 font-bold">{hero.level}</span>
             {hero.online && <span className="ml-2 text-green-400 text-xs">● actif</span>}
           </div>
-          <Link to={`/profile/${hero.username}`}
+          <HeroCardOpener
+            userId={hero.user_id}
+            username={hero.username}
             className="inline-block px-5 py-2 rounded-md border border-cyan-500/50 text-cyan-300 font-bold font-display tracking-wide hover:shadow-[0_0_20px_rgba(0,229,255,0.4)] transition-all"
-            data-testid="open-hero-profile">
+            data-testid="open-hero-profile"
+          >
             Consulter son codex →
-          </Link>
+          </HeroCardOpener>
         </div>
         </div>
       </PremiumModal>

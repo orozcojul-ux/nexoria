@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Crown, Shield, Package, Award, History, Users, BarChart3,
   MessageCircle, UserPlus, Sword, Trophy, Compass, Flame, Star, Frame, Flag, Gem,
+  Settings2, Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import api from "@/lib/api";
+import api, { getToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { RARITY } from "@/lib/design-tokens";
 import { PremiumBadge } from "@/components/ui-premium";
@@ -16,6 +17,7 @@ import { getHeroAvatarDataURL } from "@/lib/NexusPixelArt";
 import { getTitleLabel } from "@/lib/title-labels";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
 import ClassImage from "@/components/ClassImage";
+import HeroCardCustomizeTab from "@/components/HeroCardCustomizeTab";
 import styles from "./HeroCard.module.css";
 
 /** @deprecated Use PremiumBadge — kept for backward compatibility */
@@ -23,13 +25,14 @@ export function BadgeCard({ badge, size = "md" }) {
   return <PremiumBadge badge={badge} size={size} />;
 }
 
-const TABS = [
+const BASE_TABS = [
   { id: "overview", label: "Aperçu", icon: Crown },
   { id: "info", label: "Infos", icon: BarChart3 },
   { id: "inventory", label: "Inventaire", icon: Package },
   { id: "badges", label: "Badges", icon: Award },
   { id: "history", label: "Historique", icon: History },
   { id: "relations", label: "Relations", icon: Users },
+  { id: "customize", label: "Personnaliser", icon: Settings2 },
 ];
 
 const CLASS_HEX = {
@@ -153,28 +156,54 @@ function badgeGlowClass(rarity) {
 }
 
 export default function HeroCard({ userId, open, onClose, onWhisper }) {
-  const { user: me } = useAuth();
+  const { user: me, refresh: refreshAuth, loading: authLoading, checkAuth } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("overview");
   const openedAtRef = useRef(0);
 
-  const loadCard = useCallback(() => {
+  const isStaff = me?.role === "admin" || me?.role === "moderator";
+  const canEditProfile = Boolean(data?.can_edit_profile);
+  const tabs = canEditProfile ? BASE_TABS : BASE_TABS.filter((t) => t.id !== "customize");
+
+  const loadCard = useCallback(async (retry = false) => {
     if (!userId) return;
+    if (!getToken()) {
+      toast.error("Session expirée — reconnectez-vous");
+      onClose?.();
+      return;
+    }
     setLoading(true);
-    api.get(`/users/${userId}/card`)
-      .then((r) => setData(r.data))
-      .catch(() => toast.error("Impossible de charger la carte héros"))
-      .finally(() => setLoading(false));
-  }, [userId]);
+    try {
+      const { data: card } = await api.get(`/users/${userId}/card`);
+      setData(card);
+    } catch (err) {
+      if (err?.response?.status === 401 && !retry) {
+        try {
+          await checkAuth();
+          if (getToken()) {
+            await loadCard(true);
+            return;
+          }
+        } catch { /* fall through */ }
+        toast.error("Session expirée — reconnectez-vous");
+        onClose?.();
+        return;
+      }
+      toast.error("Impossible de charger la carte héros");
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, onClose, checkAuth]);
 
   useEffect(() => {
-    if (!open || !userId) return;
+    if (!open || !userId || authLoading) return;
+    if (!me?.user_id) return;
     openedAtRef.current = Date.now();
     setTab("overview");
     loadCard();
-  }, [open, userId, loadCard]);
+  }, [open, userId, authLoading, me?.user_id, loadCard]);
 
   useInventorySync(useCallback(() => {
     if (open && data?.is_self) loadCard();
@@ -246,6 +275,13 @@ export default function HeroCard({ userId, open, onClose, onWhisper }) {
   const frameCosmetic = data?.equipped_cosmetics?.frame;
   const frameBorder = frameCosmetic ? (RARITY[frameCosmetic.rarity]?.color || "#3a4a5a") : undefined;
 
+  const handleProfileSaved = useCallback(async () => {
+    loadCard();
+    if (data?.is_self) {
+      try { await refreshAuth(); } catch { /* silent */ }
+    }
+  }, [loadCard, data?.is_self, refreshAuth]);
+
   return (
     <AnimatePresence>
       {open && (
@@ -253,7 +289,7 @@ export default function HeroCard({ userId, open, onClose, onWhisper }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/88 backdrop-blur-md"
+          className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/88 backdrop-blur-md"
           onClick={() => {
             if (Date.now() - openedAtRef.current < 250) return;
             onClose();
@@ -320,6 +356,17 @@ export default function HeroCard({ userId, open, onClose, onWhisper }) {
                           <span style={{ fontSize: 64, opacity: 0.35 }}>⚔</span>
                         )}
                       </div>
+                      {canEditProfile && (
+                        <button
+                          type="button"
+                          className={styles.portraitEditBtn}
+                          onClick={() => setTab("customize")}
+                          title="Modifier le profil"
+                          data-testid="hero-card-edit-portrait"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -487,7 +534,7 @@ export default function HeroCard({ userId, open, onClose, onWhisper }) {
 
                 <main className={styles.rightCol}>
                   <div className={styles.tabs}>
-                    {TABS.map((t) => {
+                    {tabs.map((t) => {
                       const Ico = t.icon;
                       const active = tab === t.id;
                       return (
@@ -514,6 +561,15 @@ export default function HeroCard({ userId, open, onClose, onWhisper }) {
                     {tab === "badges" && <BadgesTab badges={data.badges} />}
                     {tab === "history" && <HistoryTab chronicles={data.chronicles} />}
                     {tab === "relations" && <RelationsTab data={data} />}
+                    {tab === "customize" && canEditProfile && (
+                      <HeroCardCustomizeTab
+                        user={u}
+                        targetUserId={userId}
+                        isSelf={data.is_self}
+                        isStaffEdit={!data.is_self && isStaff}
+                        onSaved={handleProfileSaved}
+                      />
+                    )}
                   </div>
                 </main>
               </div>

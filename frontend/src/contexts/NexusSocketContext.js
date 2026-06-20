@@ -33,7 +33,9 @@ export function NexusSocketProvider({ children }) {
   const [weather, setWeather] = useState("clear");
   const [items, setItems] = useState([]);
   const [isStaff, setIsStaff] = useState(false);
-  const [chat, setChat] = useState([]); // flat list across channels with .channel field
+  const [roomChatMessages, setRoomChatMessages] = useState([]);
+  const [chat, setChat] = useState([]); // legacy multi-channel (conservé pour compat)
+  const lastRoomChatSendRef = useRef(0);
   const [activeChannel, setActiveChannel] = useState("room");
   const [whisperTarget, setWhisperTarget] = useState(null); // {user_id, username}
   const [unreadByChannel, setUnreadByChannel] = useState({});
@@ -59,7 +61,11 @@ export function NexusSocketProvider({ children }) {
   // Refs for movement/scene callbacks
   const sceneApiRef = useRef(null); // scene attaches itself here for player_move / item_spawned etc.
   const playersRef = useRef([]);
+  const roomRef = useRef(null);
+  const youRef = useRef(null);
   useEffect(() => { playersRef.current = players; }, [players]);
+  useEffect(() => { roomRef.current = room; }, [room]);
+  useEffect(() => { youRef.current = you; }, [you]);
 
   const attachScene = useCallback((api) => { sceneApiRef.current = api; }, []);
   const detachScene = useCallback(() => { sceneApiRef.current = null; }, []);
@@ -91,7 +97,7 @@ export function NexusSocketProvider({ children }) {
       setRoom(null);
       setYou(null);
       setPlayers([]);
-      setChat([]);
+      setRoomChatMessages([]);
       setFriendMessage(null);
       setWhisperTarget(null);
       setOverlayOpen(false);
@@ -141,12 +147,24 @@ export function NexusSocketProvider({ children }) {
       setRoom(payload.room);
       setYou(payload.you);
       setPlayers(payload.players || []);
-      // Seed chat history (room channel)
+      const hist = payload.room_chat_history || (payload.chat_history || []).map((m) => ({
+        message_id: m.message_id || `legacy_${m.ts}_${m.user_id}`,
+        room_id: payload.room?.id,
+        room_name: payload.room?.name,
+        user_id: m.user_id,
+        username: m.username,
+        role: m.role,
+        class_name: m.class_name,
+        level: m.level,
+        content: m.text || m.content,
+        ts: m.ts,
+        created_at: m.created_at,
+      }));
+      setRoomChatMessages(hist.slice(-50));
       setChat((prev) => {
-        const hist = (payload.chat_history || []).map((m) => ({ ...m, channel: m.channel || "room" }));
-        // Preserve any cross-channel messages from before room switch
+        const legacy = (payload.chat_history || []).map((m) => ({ ...m, channel: m.channel || "room" }));
         const nonRoom = prev.filter((m) => m.channel && m.channel !== "room");
-        return [...nonRoom, ...hist];
+        return [...nonRoom, ...legacy];
       });
       setWeather(payload.weather || "clear");
       setItems(payload.items || []);
@@ -165,25 +183,109 @@ export function NexusSocketProvider({ children }) {
     });
     socket.on("player_move", (m) => {
       sceneApiRef.current?.onPlayerMove?.(m);
-      setPlayers((prev) => prev.map((p) => p.sid === m.sid ? { ...p, tx: m.tx, ty: m.ty, facing: m.facing } : p));
+      setPlayers((prev) => prev.map((p) => {
+        if (p.sid !== m.sid) return p;
+        const patch = { tx: m.tx, ty: m.ty, facing: m.facing };
+        if (m.class_id) patch.class_id = m.class_id;
+        if (m.class_name) patch.class_name = m.class_name;
+        return { ...p, ...patch };
+      }));
     });
     socket.on("player_status", ({ sid, ...patch }) => {
       sceneApiRef.current?.onPlayerStatus?.(sid, patch);
       setPlayers((prev) => prev.map((p) => p.sid === sid ? { ...p, ...patch } : p));
     });
+    socket.on("room_chat_message", (msg) => {
+      setRoomChatMessages((prev) => {
+        const currentRoomId = roomRef.current?.id;
+        if (msg.room_id && currentRoomId && msg.room_id !== currentRoomId) return prev;
+        const dup = prev.some(
+          (m) => !m.pending && m.message_id === msg.message_id,
+        ) || prev.some(
+          (m) => m.pending && m.user_id === msg.user_id && m.content === msg.content && Math.abs((m.ts || 0) - (msg.ts || 0)) < 3,
+        );
+        if (dup) {
+          return prev.map((m) => (
+            m.pending && m.user_id === msg.user_id && m.content === (msg.content || msg.text)
+              ? { ...msg, pending: false }
+              : m
+          )).slice(-50);
+        }
+        return [...prev.filter((m) => !m.pending || m.content !== (msg.content || msg.text)), msg].slice(-50);
+      });
+      const sender = playersRef.current.find((p) => p.user_id === msg.user_id);
+      if (sender && msg.user_id !== youRef.current?.user_id) {
+        sceneApiRef.current?.onChatBubble?.(sender.sid, msg.content || msg.text, msg.role);
+      }
+    });
+    socket.on("room_chat_history", ({ messages }) => {
+      setRoomChatMessages((messages || []).slice(-50));
+    });
+    socket.on("room_chat_message_deleted", ({ message_id }) => {
+      setRoomChatMessages((prev) => prev.filter((m) => m.message_id !== message_id));
+    });
+    socket.on("room_chat_user_muted", ({ user_id }) => {
+      setPlayers((prev) => prev.map((p) => (p.user_id === user_id ? { ...p, muted: true } : p)));
+      setYou((prev) => (prev?.user_id === user_id ? { ...prev, muted: true } : prev));
+    });
+    socket.on("room_chat_user_unmuted", ({ user_id }) => {
+      setPlayers((prev) => prev.map((p) => (p.user_id === user_id ? { ...p, muted: false } : p)));
+      setYou((prev) => (prev?.user_id === user_id ? { ...prev, muted: false } : prev));
+    });
     socket.on("chat", (msg) => {
       const ch = msg.channel || "room";
-      setChat((prev) => [...prev.slice(-300), { ...msg, channel: ch }]);
-      // Bubble above sender on canvas
-      const sender = playersRef.current.find((p) => p.user_id === msg.user_id);
-      if (sender && (ch === "room" || ch === "global" || ch === "trade" || ch === "event")) {
-        sceneApiRef.current?.onChatBubble?.(sender.sid, msg.text);
+      if (ch === "room") {
+        const normalized = {
+          message_id: msg.message_id || `legacy_${msg.ts}_${msg.user_id}`,
+          room_id: msg.room_id || roomRef.current?.id,
+          user_id: msg.user_id,
+          username: msg.username,
+          role: msg.role,
+          class_name: msg.class_name,
+          level: msg.level,
+          rank: msg.rank,
+          is_vip: msg.is_vip,
+          content: msg.text || msg.content,
+          ts: msg.ts,
+        };
+        setRoomChatMessages((prev) => {
+          const withoutPending = prev.filter(
+            (m) => !(m.pending && m.content === normalized.content && m.user_id === normalized.user_id),
+          );
+          const exists = withoutPending.some(
+            (m) => (m.message_id && m.message_id === normalized.message_id)
+              || (m.content === normalized.content && m.user_id === normalized.user_id && Math.abs((m.ts || 0) - (normalized.ts || 0)) < 3),
+          );
+          if (exists) return withoutPending;
+          return [...withoutPending, normalized].slice(-50);
+        });
+        const sender = playersRef.current.find((p) => p.user_id === msg.user_id);
+        if (sender && msg.user_id !== youRef.current?.user_id) {
+          sceneApiRef.current?.onChatBubble?.(sender.sid, normalized.content, msg.role);
+        }
       }
-      // Update unread counter if channel isn't focused or overlay closed
+      setChat((prev) => [...prev.slice(-300), { ...msg, channel: ch }]);
+      if (ch !== "room") {
+        const sender = playersRef.current.find((p) => p.user_id === msg.user_id);
+        if (sender && (ch === "global" || ch === "trade" || ch === "event")) {
+          sceneApiRef.current?.onChatBubble?.(sender.sid, msg.text, msg.role);
+        }
+      }
       setUnreadByChannel((u) => ({ ...u, [ch]: (u[ch] || 0) + 1 }));
     });
     socket.on("system_msg", (m) => {
       if (window.location.pathname === "/maintenance") return;
+      const chatRejected = m.kind === "warn" && /message|patience|refusé|vide|répété/i.test(m.text || "");
+      if (chatRejected) {
+        setRoomChatMessages((prev) => {
+          let idx = -1;
+          for (let i = prev.length - 1; i >= 0; i -= 1) {
+            if (prev[i]?.pending) { idx = i; break; }
+          }
+          if (idx === -1) return prev;
+          return prev.filter((_, i) => i !== idx);
+        });
+      }
       if (m.kind === "error" || m.kind === "muted") toast.error(m.text);
       else if (m.kind === "ok" || m.kind === "info" || m.kind === "pickup") toast.success(m.text);
       else if (m.kind === "warn") (toast.warning || toast)(m.text);
@@ -285,12 +387,57 @@ export function NexusSocketProvider({ children }) {
   }, [userId, shouldEstablishSocket, userStaff, nexusGateOpen]);
 
   // ---- API exposed to consumers ----
+  const sendRoomChat = useCallback((text) => {
+    const content = text?.trim();
+    if (!content) return false;
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      toast.error("Connexion Nexus indisponible.");
+      return false;
+    }
+    const youNow = youRef.current;
+    if (!youNow?.user_id) {
+      toast.error("Connexion à la salle en cours…");
+      return false;
+    }
+    const now = Date.now();
+    if (now - lastRoomChatSendRef.current < 1000) {
+      toast.error("Patience — un message par seconde.");
+      return false;
+    }
+    lastRoomChatSendRef.current = now;
+
+    const roomId = roomRef.current?.id;
+    setRoomChatMessages((prev) => [...prev, {
+      message_id: `local_${now}`,
+      room_id: roomId,
+      user_id: youNow.user_id,
+      username: youNow.username || "Vous",
+      role: youNow.role || "user",
+      level: youNow.level,
+      rank: youNow.rank,
+      is_vip: youNow.is_vip,
+      content,
+      ts: now / 1000,
+      pending: true,
+    }].slice(-50));
+
+    socket.emit("chat", { text: content, channel: "room" });
+    if (youNow.sid) {
+      sceneApiRef.current?.onChatBubble?.(youNow.sid, content, youNow.role);
+    }
+    return true;
+  }, []);
+
   const sendChat = useCallback((text, channel = "room", targetUserId = null) => {
+    if (channel === "room" || !channel) {
+      return sendRoomChat(text);
+    }
     if (!text?.trim() || !socketRef.current) return;
     const payload = { text: text.trim(), channel };
     if (channel === "whisper" && targetUserId) payload.target_user_id = targetUserId;
     socketRef.current.emit("chat", payload);
-  }, []);
+  }, [sendRoomChat]);
 
   const move = useCallback((tx, ty, facing) => {
     socketRef.current?.emit("move", { tx, ty, facing });
@@ -331,6 +478,9 @@ export function NexusSocketProvider({ children }) {
     resetRoom: (room) => socketRef.current?.emit("gm_reset_room", { room }),
     invasion: (count = 6) => socketRef.current?.emit("gm_invasion", { count }),
     godmode: (enabled) => socketRef.current?.emit("gm_godmode", { enabled }),
+    deleteRoomChatMessage: (message_id, reason = "") => socketRef.current?.emit("gm_room_chat_delete", { message_id, reason }),
+    muteRoomChatUser: (target_user_id, duration_minutes = 5, reason = "") => socketRef.current?.emit("gm_room_chat_mute", { target_user_id, duration_minutes, reason }),
+    unmuteRoomChatUser: (target_user_id) => socketRef.current?.emit("gm_room_chat_unmute", { target_user_id }),
   }), []);
 
   const onInspectResult = useCallback((handler) => {
@@ -380,6 +530,7 @@ export function NexusSocketProvider({ children }) {
   const value = useMemo(() => ({
     socket: socketRef.current,
     status, room, you, players, weather, items, isStaff,
+    roomChatMessages, sendRoomChat,
     chat, channels: CHANNELS, activeChannel, setActiveChannel,
     whisperTarget, setWhisperTarget, unreadByChannel, markChannelRead,
     overlayOpen, setOverlayOpen, openNexus, closeNexus, reconnectNexus,
@@ -393,9 +544,9 @@ export function NexusSocketProvider({ children }) {
     gm, onInspectResult,
     attachScene, detachScene,
   }), [
-    status, room, you, players, weather, items, isStaff, chat, activeChannel,
+    status, room, you, players, weather, items, isStaff, roomChatMessages, chat, activeChannel,
     whisperTarget, unreadByChannel, overlayOpen, popup, globalAnnounce, pushNotif, friendMessage, presence, gmLogs, nexusGate,
-    sendChat, move, changeRoom, pickupItem, bossAttack, gm, onInspectResult, attachScene,
+    sendChat, sendRoomChat, move, changeRoom, pickupItem, bossAttack, gm, onInspectResult, attachScene,
     detachScene, markChannelRead, dismissPopup, consumePushNotif, consumeFriendMessage, openNexus, closeNexus, reconnectNexus,
   ]);
 

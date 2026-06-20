@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useHeroCard } from "@/contexts/HeroCardContext";
 import api from "@/lib/api";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import {
@@ -50,11 +51,17 @@ function CrystalLogo({ cms = false, t }) {
   );
 }
 
-function UserCard({ user, profilePath, t }) {
+function UserCard({ user, t }) {
+  const { openHeroCard } = useHeroCard();
   const xpPercent = user.xp_pct ?? 0;
   const avatarSrc = getUserAvatarUrl(user);
   return (
-    <NavLink to={profilePath} className="block mx-3 mb-1" data-testid="sidebar-user-card">
+    <button
+      type="button"
+      onClick={() => openHeroCard(user.user_id)}
+      className="block mx-3 mb-1 w-[calc(100%-24px)] text-left"
+      data-testid="sidebar-user-card"
+    >
       <div
         className="rounded-xl p-3 border transition-all hover:border-violet-500/35"
         style={{
@@ -118,7 +125,7 @@ function UserCard({ user, profilePath, t }) {
           />
         </div>
       </div>
-    </NavLink>
+    </button>
   );
 }
 
@@ -160,12 +167,30 @@ function SidebarLegendButton({ labelKey, icon: Icon, testid }) {
   );
 }
 
-function SidebarLink({ to, label, labelKey, icon: Icon, testid, badge, dynamicBadge, end, hash, adminTab, openNexusOnClick }) {
+function SidebarHeroCardButton({ labelKey, icon: Icon, testid }) {
+  const { t } = useI18n();
+  const { user } = useAuth();
+  const { openHeroCard } = useHeroCard();
+  return (
+    <button
+      type="button"
+      onClick={() => user?.user_id && openHeroCard(user.user_id)}
+      data-testid={testid}
+      className="nexoria-nav-link group flex items-center gap-2.5 mx-2 px-2.5 py-2 rounded-[10px] text-[13px] font-medium transition-all text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03] w-[calc(100%-16px)]"
+    >
+      <NavIconBox Icon={Icon} active={false} />
+      <span className="flex-1 truncate text-left">{t(labelKey)}</span>
+    </button>
+  );
+}
+
+function SidebarLink({ to, label, labelKey, icon: Icon, testid, badge, dynamicBadge, end, hash, adminTab, openNexusOnClick, openHeroCardSelf }) {
   const { t } = useI18n();
   const displayLabel = labelKey ? t(labelKey) : label;
   const resolvedBadge = badge;
   const dest = hash ? { pathname: to, hash } : to;
   const resolveActive = () => {
+    if (openHeroCardSelf) return () => false;
     if (adminTab) {
       return (_, loc) => loc.pathname === "/admin" && getActiveAdminTab(loc.search) === adminTab;
     }
@@ -173,6 +198,10 @@ function SidebarLink({ to, label, labelKey, icon: Icon, testid, badge, dynamicBa
     if (end) return undefined;
     return (_, loc) => loc.pathname === to && !loc.hash;
   };
+
+  if (openHeroCardSelf) {
+    return <SidebarHeroCardButton labelKey={labelKey} icon={Icon} testid={testid} />;
+  }
 
   return (
     <NavLink
@@ -314,7 +343,6 @@ export default function Sidebar() {
 
   const isStaff = user.role === "admin" || user.role === "moderator";
   const isAdmin = user.role === "admin";
-  const profilePath = `/profile/${user.username}`;
   const useCmsNav = isStaff && location.pathname.startsWith("/admin");
   const navSections = useCmsNav ? buildAdminSidebarNav({ isAdmin }) : buildPlayerNav();
   const adminShortcuts = !useCmsNav && isStaff ? buildPlayerAdminShortcuts({ isAdmin }) : [];
@@ -347,7 +375,7 @@ export default function Sidebar() {
         </NavLink>
       </div>
 
-      <UserCard user={user} profilePath={profilePath} t={t} />
+      <UserCard user={user} t={t} />
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto nexoria-sidebar-scroll py-2 space-y-4">
@@ -373,6 +401,11 @@ export default function Sidebar() {
               {section.items.map((item) => (
                 item.openLegend ? (
                   <SidebarLegendButton
+                    key={`${section.titleKey}-${item.labelKey}`}
+                    {...item}
+                  />
+                ) : item.openHeroCardSelf ? (
+                  <SidebarHeroCardButton
                     key={`${section.titleKey}-${item.labelKey}`}
                     {...item}
                   />

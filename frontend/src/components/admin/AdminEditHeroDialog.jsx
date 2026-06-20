@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ExternalLink, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
+import HeroCardOpener from "@/components/HeroCardOpener";
 
 const SURFACE = "relative rounded-xl border border-white/10 bg-gradient-to-br from-[#0F0820]/80 via-[#0A0613]/80 to-[#1A0B3D]/80 backdrop-blur";
 
@@ -168,14 +169,13 @@ export default function AdminEditHeroDialog({ target, onClose, onDone, t }) {
             </h3>
             <p className="text-xs text-zinc-500 font-mono-stat mt-1">{target.user_id}</p>
           </div>
-          <Link
-            to={`/profile/${target.username}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <HeroCardOpener
+            userId={target.user_id}
+            username={target.username}
             className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-cyan-400 hover:text-cyan-300 shrink-0"
           >
-            Fiche <ExternalLink className="w-3 h-3" />
-          </Link>
+            Carte héros <ExternalLink className="w-3 h-3" />
+          </HeroCardOpener>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

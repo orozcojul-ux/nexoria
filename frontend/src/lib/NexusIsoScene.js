@@ -4,9 +4,33 @@ import {
   ensureCharTexture, ensureTileTexture, preloadLandmarkSprites, preloadClassSprites,
   resolvePlayerTexture, tryDrawSpriteLandmark,
 } from "./NexusPixelArt";
+import {
+  PLAYER_SPRITE_HEIGHT,
+  PLAYER_NAME_OFFSET_Y,
+  PLAYER_SUB_OFFSET_Y,
+  PLAYER_BUBBLE_OFFSET_Y,
+  NEXUS_ONLINE_TEXTURE_KEYS,
+  NEXUS_ONLINE_DEFAULT_ASSET_KEY,
+  isNexusOnlineTestRoom,
+  preloadNexusOnlineTestAssets,
+  setupNexusOnlineAutospriteAnimations,
+  collectAssetKeysForPreload,
+  resolvePlayerClassAssetKey,
+  resolveClassAutospriteAnim,
+  pickClassAnimKey,
+  resolveActiveTextureKey,
+  classAnimKey,
+  classAutospriteReady,
+  logNexusPlayerClass,
+  logLocalNexusClassResolved,
+  applyCharacterVisualScale,
+  createNexusPlayerShadow,
+  computeWalkBoundsFromImage,
+  clampPoint,
+} from "./nexusOnlineVisuals";
 
 /* Re-export for consumers */
-export { TILE_W, TILE_H, CLASS_HEX, CLASS_COLOR_INT, RARITY_HEX };
+export { TILE_W, TILE_H, CLASS_HEX, CLASS_COLOR_INT, RARITY_HEX, PLAYER_SPRITE_HEIGHT };
 
 /* Rank → aura config (titles from game_data) */
 const RANK_AURA = {
@@ -51,6 +75,7 @@ export class NexusIsoScene extends Phaser.Scene {
     this.onTileClick = data.onTileClick;
     this.onPlayerClick = data.onPlayerClick;
     this.gmPickerMode = false;
+    this.movementBlocked = false;
     this.players = {};
     this.itemSprites = {};
     this.path = [];
@@ -73,9 +98,14 @@ export class NexusIsoScene extends Phaser.Scene {
   }
 
   preload() {
+    this.testVisuals = isNexusOnlineTestRoom(this.room);
+    if (this.testVisuals) {
+      const players = [this.you, ...(this.initialPlayers || [])].filter(Boolean);
+      preloadNexusOnlineTestAssets(this, players);
+    }
     preloadLandmarkSprites(this);
     preloadClassSprites(this);
-    if (this.sceneUrl) {
+    if (this.sceneUrl && !this.testVisuals) {
       const key = `room_scene_${this.room?.id || "default"}`;
       if (!this.textures.exists(key)) {
         this.load.image(key, this.sceneUrl);
@@ -94,28 +124,10 @@ export class NexusIsoScene extends Phaser.Scene {
     this.worldW = totalW + 80;
     this.worldH = totalH + 200;
 
-    const bg = this.add.graphics();
-    bg.fillGradientStyle(0x080512, 0x080512, 0x1A0B3D, 0x030208, 1);
-    bg.fillRect(0, 0, this.worldW, this.worldH);
-    if (this.sceneKey && this.textures.exists(this.sceneKey)) {
-      const img = this.add.image(this.worldW / 2, this.worldH / 2, this.sceneKey);
-      img.setOrigin(0.5, 0.5);
-      const tex = this.textures.get(this.sceneKey).getSourceImage();
-      const sx = this.worldW / tex.width;
-      const sy = this.worldH / tex.height;
-      const scale = Math.max(sx, sy) * 1.08;
-      img.setScale(scale);
-      img.setAlpha(0.08);
-      img.setBlendMode(Phaser.BlendModes.MULTIPLY);
-      img.setScrollFactor(0.92);
-    }
-    for (let i = 0; i < 120; i++) {
-      const x = Math.random() * this.worldW;
-      const y = Math.random() * this.worldH * 0.65;
-      const r = Math.random() < 0.7 ? 1 : 2;
-      const tint = Math.random() < 0.3 ? 0xc9a565 : Math.random() < 0.5 ? 0x67e8f9 : 0xffffff;
-      const c = this.add.circle(x, y, r, tint, 0.25 + Math.random() * 0.55);
-      this.tweens.add({ targets: c, alpha: 0.08, yoyo: true, repeat: -1, duration: 1400 + Math.random() * 2400 });
+    if (this.testVisuals) {
+      this.setupTestRoomBackground();
+    } else {
+      this.drawDefaultBackdrop();
     }
 
     const theme = room.theme || "cosmic";
@@ -134,21 +146,26 @@ export class NexusIsoScene extends Phaser.Scene {
         const isCenter = tx === midX && ty === midY;
         const variant = isEdge ? "edge" : isCenter ? "center" : "base";
         const key = `tile_v2_${theme}_${variant}`;
-        const tile = this.add.image(x, y, key).setOrigin(0.5, 0).setInteractive(
-          new Phaser.Geom.Polygon([
-            new Phaser.Geom.Point(TILE_W / 2, 0),
-            new Phaser.Geom.Point(TILE_W, TILE_H / 2),
-            new Phaser.Geom.Point(TILE_W / 2, TILE_H),
-            new Phaser.Geom.Point(0, TILE_H / 2),
-          ]),
-          Phaser.Geom.Polygon.Contains,
-        );
-        tile.on("pointerover", () => tile.setTint(0x67e8f9));
-        tile.on("pointerout", () => tile.clearTint());
-        tile.on("pointerdown", () => {
-          if (this.gmPickerMode) { this.onTileClick && this.onTileClick({ tx, ty }); return; }
-          this.requestMoveTo(tx, ty);
-        });
+        const tile = this.add.image(x, y, key).setOrigin(0.5, 0);
+        if (!this.testVisuals) {
+          tile.setInteractive(
+            new Phaser.Geom.Polygon([
+              new Phaser.Geom.Point(TILE_W / 2, 0),
+              new Phaser.Geom.Point(TILE_W, TILE_H / 2),
+              new Phaser.Geom.Point(TILE_W / 2, TILE_H),
+              new Phaser.Geom.Point(0, TILE_H / 2),
+            ]),
+            Phaser.Geom.Polygon.Contains,
+          );
+          tile.on("pointerover", () => tile.setTint(0x67e8f9));
+          tile.on("pointerout", () => tile.clearTint());
+          tile.on("pointerdown", () => {
+            if (this.gmPickerMode) { this.onTileClick && this.onTileClick({ tx, ty }); return; }
+            this.requestMoveTo(tx, ty);
+          });
+        } else {
+          tile.setAlpha(0);
+        }
         this.floorLayer.add(tile);
       }
     }
@@ -159,10 +176,20 @@ export class NexusIsoScene extends Phaser.Scene {
     this.particleLayer = this.add.container(0, 0);
     this.weatherLayer = this.add.container(0, 0);
 
-    (room.landmarks || []).forEach((lm) => this.drawLandmark(lm));
-    (room.npcs || []).forEach((npc) => this.spawnNpc(npc));
-    this.applyParticles(room.particles);
+    if (!this.testVisuals) {
+      (room.landmarks || []).forEach((lm) => this.drawLandmark(lm));
+      (room.npcs || []).forEach((npc) => this.spawnNpc(npc));
+      this.applyParticles(room.particles);
+    }
     this.applyWeather(this.initialWeather);
+
+    if (this.testVisuals) {
+      this.setupTestRoomInput();
+      const assetKeys = collectAssetKeysForPreload([this.you, ...(this.initialPlayers || [])]);
+      this.nexusAutospriteReady = setupNexusOnlineAutospriteAnimations(this, assetKeys);
+    } else {
+      this.nexusAutospriteReady = new Set();
+    }
 
     this.cameras.main.setBounds(0, 0, this.worldW, this.worldH);
     this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
@@ -191,12 +218,215 @@ export class NexusIsoScene extends Phaser.Scene {
     this.tweens.add({ targets: sub, alpha: 0.45, yoyo: true, repeat: -1, duration: 2800 });
   }
 
+  drawDefaultBackdrop() {
+    const bg = this.add.graphics();
+    bg.fillGradientStyle(0x080512, 0x080512, 0x1A0B3D, 0x030208, 1);
+    bg.fillRect(0, 0, this.worldW, this.worldH);
+    if (this.sceneKey && this.textures.exists(this.sceneKey)) {
+      const img = this.add.image(this.worldW / 2, this.worldH / 2, this.sceneKey);
+      img.setOrigin(0.5, 0.5);
+      const tex = this.textures.get(this.sceneKey).getSourceImage();
+      const sx = this.worldW / tex.width;
+      const sy = this.worldH / tex.height;
+      const scale = Math.max(sx, sy) * 1.08;
+      img.setScale(scale);
+      img.setAlpha(0.08);
+      img.setBlendMode(Phaser.BlendModes.MULTIPLY);
+      img.setScrollFactor(0.92);
+    }
+    for (let i = 0; i < 120; i++) {
+      const x = Math.random() * this.worldW;
+      const y = Math.random() * this.worldH * 0.65;
+      const r = Math.random() < 0.7 ? 1 : 2;
+      const tint = Math.random() < 0.3 ? 0xc9a565 : Math.random() < 0.5 ? 0x67e8f9 : 0xffffff;
+      const c = this.add.circle(x, y, r, tint, 0.25 + Math.random() * 0.55);
+      this.tweens.add({ targets: c, alpha: 0.08, yoyo: true, repeat: -1, duration: 1400 + Math.random() * 2400 });
+    }
+  }
+
+  setupTestRoomBackground() {
+    const key = NEXUS_ONLINE_TEXTURE_KEYS.roomBg;
+    const tex = this.textures.exists(key) ? this.textures.get(key) : null;
+    const bgFill = this.add.rectangle(this.worldW / 2, this.worldH / 2, this.worldW, this.worldH, 0x030208, 1);
+    bgFill.setDepth(-20);
+    bgFill.disableInteractive();
+    if (tex) {
+      const imgEl = tex.getSourceImage();
+      const img = this.add.image(this.worldW / 2, this.worldH / 2, key);
+      img.setOrigin(0.5, 0.5);
+      const scale = Math.min(this.worldW / imgEl.width, this.worldH / imgEl.height);
+      img.setScale(scale);
+      img.setDepth(-10);
+      img.disableInteractive();
+      this.roomBgImage = img;
+      this.walkBounds = computeWalkBoundsFromImage(this.worldW, this.worldH, tex);
+    } else {
+      this.walkBounds = computeWalkBoundsFromImage(this.worldW, this.worldH, null);
+    }
+  }
+
+  setupTestRoomInput() {
+    this._testPointerHandler = (pointer, objects) => {
+      if (this.gmPickerMode || this.movementBlocked || !this.you) return;
+      const wx = pointer.worldX;
+      const wy = pointer.worldY;
+      const clickedOtherPlayer = (objects || []).some((obj) => {
+        let node = obj;
+        while (node) {
+          if (node.profile?.sid && node.profile.sid !== this.you.sid) return true;
+          node = node.parentContainer;
+        }
+        return false;
+      });
+      if (clickedOtherPlayer) return;
+      const { tx, ty } = this.screenToTile(wx, wy);
+      if (process.env.NODE_ENV === "development") {
+        console.log("nexus click → tile", tx, ty, "world", Math.round(wx), Math.round(wy));
+      }
+      this.requestMoveTo(tx, ty);
+    };
+    this.input.on("pointerdown", this._testPointerHandler);
+    this.events.once("shutdown", () => {
+      if (this._testPointerHandler) {
+        this.input.off("pointerdown", this._testPointerHandler);
+        this._testPointerHandler = null;
+      }
+    });
+  }
+
+  screenToTile(sx, sy) {
+    const x = sx - TILE_W / 2;
+    const y = sy - TILE_H / 2;
+    const tx = Math.round(
+      ((x - this.originX) * 2 / TILE_W + (y - this.originY) * 2 / TILE_H) / 2,
+    );
+    const ty = Math.round(
+      ((y - this.originY) * 2 / TILE_H - (x - this.originX) * 2 / TILE_W) / 2,
+    );
+    return {
+      tx: Phaser.Math.Clamp(tx, 0, this.room.tiles_x - 1),
+      ty: Phaser.Math.Clamp(ty, 0, this.room.tiles_y - 1),
+    };
+  }
+
+  playerNameOffsetY() {
+    return this.testVisuals ? PLAYER_NAME_OFFSET_Y : -56;
+  }
+
+  playerSubOffsetY() {
+    return this.testVisuals ? PLAYER_SUB_OFFSET_Y : -42;
+  }
+
+  bubbleOffsetY() {
+    return this.testVisuals ? PLAYER_BUBBLE_OFFSET_Y : 72;
+  }
+
+  clampPlayerPosition(x, y) {
+    return clampPoint(this.walkBounds, x, y);
+  }
+
+  screenFromTile(tx, ty) {
+    const screen = tileToScreen(tx, ty, this.originX, this.originY);
+    return { x: screen.x + TILE_W / 2, y: screen.y + TILE_H / 2 };
+  }
+
+  createTestPlayerSprite(container, p) {
+    const shadow = createNexusPlayerShadow(this);
+    const classId = p?.class_id;
+    const className = p?.class_name;
+    const isLocal = Boolean(this.you && p?.sid === this.you.sid);
+    logLocalNexusClassResolved(this, p, isLocal);
+    const { assetKey } = resolvePlayerClassAssetKey(this, classId, className);
+    logNexusPlayerClass(p?.username, classId, className, assetKey);
+
+    if (classAutospriteReady(this, assetKey)) {
+      const idleTexKey = resolveActiveTextureKey(this, assetKey, "idle_up");
+      const tex = this.textures.get(idleTexKey);
+      const sprite = this.add.sprite(0, 0, idleTexKey, 0);
+      applyCharacterVisualScale(sprite, tex);
+      sprite.play(classAnimKey(assetKey, "idle_up"));
+      container.add([shadow, sprite]);
+      return {
+        ring: shadow, sprite, isTestSprite: true, usesClassAutosprite: true, classAssetKey: assetKey,
+      };
+    }
+
+    if (this.textures.exists(NEXUS_ONLINE_TEXTURE_KEYS.player)) {
+      const key = NEXUS_ONLINE_TEXTURE_KEYS.player;
+      const tex = this.textures.get(key);
+      const sprite = this.add.sprite(0, 0, key);
+      applyCharacterVisualScale(sprite, tex);
+      container.add([shadow, sprite]);
+      return {
+        ring: shadow, sprite, isTestSprite: true, usesClassAutosprite: false, classAssetKey: NEXUS_ONLINE_DEFAULT_ASSET_KEY,
+      };
+    }
+
+    return null;
+  }
+
+  createPlayerSprite(container, p) {
+    if (this.testVisuals) {
+      const testSprite = this.createTestPlayerSprite(container, p);
+      if (testSprite) return testSprite;
+    }
+    const { key, scale } = resolvePlayerTexture(this, p.class_id, p.role);
+    const ring = this.add.ellipse(0, 4, 30, 12, CLASS_COLOR_INT[p.class_id] || 0x9CA3AF, 0.45);
+    ring.setStrokeStyle(1, 0xFFFFFF, 0.45);
+    const sprite = this.add.sprite(0, -20, key).setOrigin(0.5, 0.88);
+    sprite.setScale(scale);
+    if (sprite.texture) sprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    container.add([ring, sprite]);
+    return { ring, sprite, isTestSprite: false, usesClassAutosprite: false, classAssetKey: null };
+  }
+
+  applyClassAutospriteAnim(container, moving, dx, dy) {
+    if (!container?.usesClassAutosprite || !container.sprite) return;
+    const assetKey = container.classAssetKey || NEXUS_ONLINE_DEFAULT_ASSET_KEY;
+    const sprite = container.sprite;
+    const { animKey, flipX } = resolveClassAutospriteAnim(assetKey, moving, dx, dy);
+    const resolved = pickClassAnimKey(this, assetKey, animKey);
+    sprite.setFlipX(flipX);
+    if (
+      container._classAnimKey === resolved
+      && container._classFlipX === flipX
+      && container._classMoving === moving
+    ) {
+      return;
+    }
+    container._classAnimKey = resolved;
+    container._classFlipX = flipX;
+    container._classMoving = moving;
+    if (sprite.anims?.currentAnim?.key !== resolved) {
+      sprite.play(resolved, true);
+    }
+  }
+
+  refreshPlayerClassAutosprite(container, p) {
+    if (!container?.usesClassAutosprite || !container.sprite || !this.testVisuals) return;
+    const { assetKey } = resolvePlayerClassAssetKey(this, p.class_id, p.class_name);
+    logNexusPlayerClass(p.username, p.class_id, p.class_name, assetKey);
+    if (container.classAssetKey === assetKey) return;
+    if (!classAutospriteReady(this, assetKey)) return;
+    const idleTexKey = resolveActiveTextureKey(this, assetKey, "idle_up");
+    const tex = this.textures.get(idleTexKey);
+    container.sprite.setTexture(idleTexKey, 0);
+    applyCharacterVisualScale(container.sprite, tex);
+    container.classAssetKey = assetKey;
+    container._classAnimKey = null;
+    container._classFlipX = null;
+    container._classMoving = null;
+    this.applyClassAutospriteAnim(container, false, 0, -1);
+  }
+
   /* --- movement --- */
   requestMoveTo(tx, ty) {
-    if (!this.you) return;
+    if (!this.you || this.movementBlocked) return;
     const me = this.players[this.you.sid];
     if (!me) return;
     if (me.profile?.frozen) return;
+    tx = Phaser.Math.Clamp(tx, 0, this.room.tiles_x - 1);
+    ty = Phaser.Math.Clamp(ty, 0, this.room.tiles_y - 1);
     this.targetTile = { tx, ty };
     this.path = this.computePath(me.tile.tx, me.tile.ty, tx, ty);
   }
@@ -917,53 +1147,60 @@ export class NexusIsoScene extends Phaser.Scene {
     if (!p) return;
     const existing = this.players[p.sid];
     if (existing) {
-      this.movePlayer(p.sid, p.tx, p.ty, p.facing, false);
-      existing.profile = p;
+      const prevClass = existing.profile?.class_id;
+      existing.profile = { ...existing.profile, ...p };
       this.updateNameTag(existing);
+      if (prevClass !== p.class_id && this.testVisuals && existing.usesClassAutosprite) {
+        this.refreshPlayerClassAutosprite(existing, existing.profile);
+      }
+      this.movePlayer(p.sid, p.tx, p.ty, p.facing, false);
       return;
     }
-    const { key, scale } = resolvePlayerTexture(this, p.class_id, p.role);
     const screen = tileToScreen(p.tx, p.ty, this.originX, this.originY);
-    const sx = screen.x + TILE_W / 2;
-    const sy = screen.y + TILE_H / 2;
-    const container = this.add.container(sx, sy);
-    const ring = this.add.ellipse(0, 4, 30, 12, CLASS_COLOR_INT[p.class_id] || 0x9CA3AF, 0.45);
-    ring.setStrokeStyle(1, 0xFFFFFF, 0.45);
-    const sprite = this.add.sprite(0, -20, key).setOrigin(0.5, 0.88);
-    sprite.setScale(scale);
-    if (sprite.texture) sprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
-    if (p.role === "admin" || p.role === "moderator") {
-      this.tweens.add({ targets: ring, scaleX: 1.25, scaleY: 1.25, alpha: 0.15, yoyo: true, repeat: -1, duration: 900 });
+    let sx = screen.x + TILE_W / 2;
+    let sy = screen.y + TILE_H / 2;
+    ({ x: sx, y: sy } = this.clampPlayerPosition(sx, sy));
+    const playerContainer = this.add.container(sx, sy);
+    const { ring, sprite, isTestSprite, usesClassAutosprite, classAssetKey } = this.createPlayerSprite(playerContainer, p);
+    if (!isTestSprite) {
+      if (p.role === "admin" || p.role === "moderator") {
+        this.tweens.add({ targets: ring, scaleX: 1.25, scaleY: 1.25, alpha: 0.15, yoyo: true, repeat: -1, duration: 900 });
+      } else {
+        this.tweens.add({ targets: ring, scaleX: 1.08, scaleY: 1.08, alpha: 0.25, yoyo: true, repeat: -1, duration: 1500 });
+      }
     } else {
-      this.tweens.add({ targets: ring, scaleX: 1.08, scaleY: 1.08, alpha: 0.25, yoyo: true, repeat: -1, duration: 1500 });
+      this.tweens.add({ targets: ring, scaleX: 1.06, scaleY: 1.06, alpha: 0.22, yoyo: true, repeat: -1, duration: 1400 });
     }
-    const nameText = this.add.text(0, -56, "", {
+    const nameText = this.add.text(0, this.playerNameOffsetY(), "", {
       fontFamily: "Cinzel, serif", fontSize: "12px",
       color: p.role === "admin" ? "#FFD700" : p.role === "moderator" ? "#F97316" : "#FFFFFF",
       fontStyle: "bold", stroke: "#000", strokeThickness: 3,
     }).setOrigin(0.5);
-    const subText = this.add.text(0, -42, "", {
+    const subText = this.add.text(0, this.playerSubOffsetY(), "", {
       fontFamily: "ui-monospace, monospace", fontSize: "9px",
       color: CLASS_HEX[p.class_id] || "#A1A1AA", stroke: "#000", strokeThickness: 3,
     }).setOrigin(0.5);
-    container.add([ring, sprite, subText, nameText]);
-    container.tile = { tx: p.tx, ty: p.ty };
-    container.profile = p;
-    container.sprite = sprite;
-    container.ring = ring;
-    container.nameText = nameText;
-    container.subText = subText;
-    this.updateNameTag(container);
-    if (p.invisible) container.setAlpha(0.35);
-    if (p.active_frame) this.addCosmeticFrame(container, p.active_frame);
+    playerContainer.add([subText, nameText]);
+    playerContainer.tile = { tx: p.tx, ty: p.ty };
+    playerContainer.profile = p;
+    playerContainer.sprite = sprite;
+    playerContainer.ring = ring;
+    playerContainer.nameText = nameText;
+    playerContainer.subText = subText;
+    playerContainer.usesClassAutosprite = Boolean(usesClassAutosprite);
+    playerContainer.classAssetKey = classAssetKey || null;
+    playerContainer.lastFacing = p.facing || "S";
+    playerContainer._classMoving = false;
+    this.updateNameTag(playerContainer);
+    if (p.invisible) playerContainer.setAlpha(0.35);
+    if (p.active_frame) this.addCosmeticFrame(playerContainer, p.active_frame);
     const auraCfg = this.resolveAura(p);
-    if (auraCfg) this.addRankAura(container, auraCfg);
-    if (p.is_vip) this.addVipAura(container);
+    if (auraCfg) this.addRankAura(playerContainer, auraCfg);
+    if (p.is_vip) this.addVipAura(playerContainer);
 
     sprite.setInteractive({ useHandCursor: true });
     sprite.on("pointerdown", (pointer, lx, ly, event) => {
       if (event && event.stopPropagation) event.stopPropagation();
-      // Pass pointer button info: rightButtonDown() for right-click, middle for middle button.
       const meta = {
         right: !!(pointer && (pointer.rightButtonDown ? pointer.rightButtonDown() : pointer.button === 2)),
         shift: !!(pointer && pointer.event && pointer.event.shiftKey),
@@ -972,8 +1209,8 @@ export class NexusIsoScene extends Phaser.Scene {
       };
       this.onPlayerClick && this.onPlayerClick(p, meta);
     });
-    this.players[p.sid] = container;
-    this.entityLayer.add(container);
+    this.players[p.sid] = playerContainer;
+    this.entityLayer.add(playerContainer);
     this.sortDepth();
   }
 
@@ -997,42 +1234,77 @@ export class NexusIsoScene extends Phaser.Scene {
     container.subText.setText(`${p.class_name} · niv ${p.level}${rank}`);
   }
 
-  movePlayer(sid, tx, ty, facing, teleport = false) {
+  movePlayer(sid, tx, ty, facing, teleport = false, moveMeta = null) {
     const c = this.players[sid];
     if (!c) return;
-    const screen = tileToScreen(tx, ty, this.originX, this.originY);
-    const sx = screen.x + TILE_W / 2;
-    const sy = screen.y + TILE_H / 2;
+    if (moveMeta?.class_id && c.profile) {
+      const prevClass = c.profile.class_id;
+      c.profile.class_id = moveMeta.class_id;
+      if (moveMeta.class_name) c.profile.class_name = moveMeta.class_name;
+      if (prevClass !== moveMeta.class_id && c.usesClassAutosprite) {
+        this.refreshPlayerClassAutosprite(c, c.profile);
+      }
+    }
+    let { x: sx, y: sy } = this.screenFromTile(tx, ty);
+    ({ x: sx, y: sy } = this.clampPlayerPosition(sx, sy));
     c.tile = { tx, ty };
     if (c.profile) { c.profile.tx = tx; c.profile.ty = ty; }
+    const dir = facing || c.lastFacing || "S";
+    c.lastFacing = dir;
+    const dx = sx - c.x;
+    const dy = sy - c.y;
     if (teleport) {
       const flash = this.add.circle(c.x, c.y, 30, 0x00E5FF, 0.8);
       this.tweens.add({ targets: flash, scale: 3, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
       c.x = sx; c.y = sy;
+      if (c.usesClassAutosprite) {
+        this.applyClassAutospriteAnim(c, false, dx, dy);
+      } else if (dir === "W" || dir === "NW" || dir === "SW") {
+        c.sprite?.setFlipX(true);
+      } else if (dir === "E" || dir === "NE" || dir === "SE") {
+        c.sprite?.setFlipX(false);
+      }
+    } else if (c.usesClassAutosprite) {
+      this.tweens.add({
+        targets: c,
+        x: sx,
+        y: sy,
+        duration: 250,
+        ease: "Sine.easeOut",
+        onStart: () => this.applyClassAutospriteAnim(c, true, dx, dy),
+        onComplete: () => this.applyClassAutospriteAnim(c, false, dx, dy),
+      });
     } else {
       this.tweens.add({ targets: c, x: sx, y: sy, duration: 250, ease: "Sine.easeOut" });
+      if (dir === "W" || dir === "NW" || dir === "SW") c.sprite?.setFlipX(true);
+      else if (dir === "E" || dir === "NE" || dir === "SE") c.sprite?.setFlipX(false);
     }
-    if (facing === "W" || facing === "NW" || facing === "SW") c.sprite?.setFlipX(true);
-    else if (facing === "E" || facing === "NE" || facing === "SE") c.sprite?.setFlipX(false);
     this.sortDepth();
   }
 
   removePlayer(sid) {
     const c = this.players[sid];
     if (!c) return;
+    this.dismissChatBubble(c);
     this.tweens.add({ targets: c, alpha: 0, duration: 200, onComplete: () => { c.destroy(); delete this.players[sid]; } });
   }
 
   setPlayerProfile(sid, patch) {
     const c = this.players[sid];
     if (!c || !c.profile) return;
+    const prevClass = c.profile.class_id;
     Object.assign(c.profile, patch);
     this.updateNameTag(c);
     if ("invisible" in patch) c.setAlpha(patch.invisible ? 0.35 : 1);
+    const classChanged = "class_id" in patch && patch.class_id !== prevClass;
+    if (classChanged && this.testVisuals && c.usesClassAutosprite) {
+      this.refreshPlayerClassAutosprite(c, c.profile);
+    }
     if ("active_frame" in patch || "active_aura_sku" in patch || "active_title" in patch) {
+      const profile = { ...c.profile, sid, tx: c.tile.tx, ty: c.tile.ty };
       c.destroy();
       delete this.players[sid];
-      this.addPlayer(c.profile);
+      this.upsertPlayer(profile);
     }
   }
 
@@ -1044,30 +1316,88 @@ export class NexusIsoScene extends Phaser.Scene {
     if ("invisible" in patch) c.setAlpha(patch.invisible ? 0.35 : 1);
   }
 
-  showBubble(sid, text) {
+  dismissChatBubble(c) {
+    if (!c?.chatBubble) return;
+    const bubble = c.chatBubble;
+    this.tweens.killTweensOf(bubble);
+    if (c.chatBubbleTimer) {
+      c.chatBubbleTimer.remove(false);
+      c.chatBubbleTimer = null;
+    }
+    bubble.destroy();
+    c.chatBubble = null;
+  }
+
+  showBubble(sid, text, role = "user") {
     const c = this.players[sid];
     if (!c) return;
-    const bg = this.add.graphics();
-    const t = this.add.text(0, 0, text.slice(0, 80), {
-      fontFamily: "Cinzel, ui-sans-serif", fontSize: "12px", color: "#E0F7FF",
-      wordWrap: { width: 180 }, align: "center",
+    this.dismissChatBubble(c);
+
+    const isAdmin = role === "admin";
+    const isMod = role === "moderator";
+    const borderColor = isAdmin ? 0xFFD700 : isMod ? 0xFB923C : 0xC9A565;
+    const glowColor = isAdmin ? 0xFFD700 : isMod ? 0xFB923C : 0x7C3AED;
+    const fillColor = isAdmin ? 0x1a1408 : isMod ? 0x1a1008 : 0x0f0a18;
+    const textColor = isAdmin ? "#FFF4CC" : isMod ? "#FFEDD5" : "#F5E6C8";
+
+    const displayText = String(text || "").slice(0, 90);
+    const t = this.add.text(0, -2, displayText, {
+      fontFamily: "ui-sans-serif, system-ui, sans-serif",
+      fontSize: "12px",
+      color: textColor,
+      wordWrap: { width: 200 },
+      align: "center",
+      stroke: "#1a1008",
+      strokeThickness: 2,
     }).setOrigin(0.5);
-    const padX = 10, padY = 6;
-    const w = Math.ceil(t.width) + padX * 2;
+    const padX = 14;
+    const padY = 8;
+    const w = Math.max(Math.ceil(t.width) + padX * 2, 52);
     const h = Math.ceil(t.height) + padY * 2;
-    bg.fillStyle(0x0A0613, 0.92);
-    bg.lineStyle(2, 0x00E5FF, 0.85);
-    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 8);
-    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 8);
-    bg.lineStyle(1, 0x9D4CDD, 0.5);
-    bg.strokeRoundedRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4, 6);
-    bg.fillStyle(0x00E5FF, 0.9);
-    bg.fillTriangle(-5, h / 2, 5, h / 2, 0, h / 2 + 7);
-    const bubble = this.add.container(c.x, c.y - 72, [bg, t]);
+
+    const glow = this.add.graphics();
+    glow.fillStyle(glowColor, 0.22);
+    glow.fillEllipse(0, 0, w + 18, h + 14);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(fillColor, 0.96);
+    bg.lineStyle(2, borderColor, 0.95);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 10);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 10);
+    bg.lineStyle(1, 0xffffff, 0.14);
+    bg.strokeRoundedRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4, 8);
+    bg.fillStyle(borderColor, 0.9);
+    bg.fillTriangle(-7, h / 2, 7, h / 2, 0, h / 2 + 9);
+    bg.lineStyle(1, borderColor, 0.5);
+    bg.strokeTriangle(-7, h / 2, 7, h / 2, 0, h / 2 + 9);
+
+    const bubbleY = c.y - this.bubbleOffsetY();
+    const bubble = this.add.container(c.x, bubbleY, [glow, bg, t]);
+    bubble.setDepth(9000);
     bubble.setAlpha(0);
-    this.tweens.add({ targets: bubble, alpha: 1, y: c.y - 80, duration: 200 });
-    this.time.delayedCall(3800, () => {
-      this.tweens.add({ targets: bubble, alpha: 0, y: bubble.y - 12, duration: 400, onComplete: () => bubble.destroy() });
+    bubble.setScale(0.85);
+    c.chatBubble = bubble;
+    this.tweens.add({
+      targets: bubble,
+      alpha: 1,
+      scale: 1,
+      y: bubbleY - 10,
+      duration: 220,
+      ease: "Back.easeOut",
+    });
+    c.chatBubbleTimer = this.time.delayedCall(9000, () => {
+      if (c.chatBubble !== bubble) return;
+      this.tweens.add({
+        targets: bubble,
+        alpha: 0,
+        y: bubble.y - 14,
+        scale: 0.92,
+        duration: 350,
+        onComplete: () => {
+          if (c.chatBubble === bubble) c.chatBubble = null;
+          bubble.destroy();
+        },
+      });
     });
   }
 
@@ -1164,14 +1494,31 @@ export class NexusIsoScene extends Phaser.Scene {
       const c = this.players[sid];
       if (c.auraTick) c.auraTick(delta);
     }
+
+    const me = this.you ? this.players[this.you.sid] : null;
+    const localMoving = !!(this.path && this.path.length > 0);
+    if (me?.usesClassAutosprite) {
+      if (localMoving) {
+        const next = this.path[0];
+        const target = tileToScreen(next.tx, next.ty, this.originX, this.originY);
+        let sx = target.x + TILE_W / 2;
+        let sy = target.y + TILE_H / 2;
+        ({ x: sx, y: sy } = this.clampPlayerPosition(sx, sy));
+        this.applyClassAutospriteAnim(me, true, sx - me.x, sy - me.y);
+      } else if (me._classMoving) {
+        this.applyClassAutospriteAnim(me, false, 0, -1);
+      }
+      me._classMoving = localMoving;
+    }
+
     if (!this.path || this.path.length === 0 || !this.you) return;
-    const me = this.players[this.you.sid];
     if (!me) return;
-    if (me.profile?.frozen) { this.path = []; this.targetTile = null; return; }
+    if (me.profile?.frozen || this.movementBlocked) { this.path = []; this.targetTile = null; return; }
     const next = this.path[0];
     const target = tileToScreen(next.tx, next.ty, this.originX, this.originY);
-    const sx = target.x + TILE_W / 2;
-    const sy = target.y + TILE_H / 2;
+    let sx = target.x + TILE_W / 2;
+    let sy = target.y + TILE_H / 2;
+    ({ x: sx, y: sy } = this.clampPlayerPosition(sx, sy));
     const dx = sx - me.x, dy = sy - me.y;
     const dist = Math.hypot(dx, dy);
     if (dist < 2) {
@@ -1180,7 +1527,10 @@ export class NexusIsoScene extends Phaser.Scene {
       if (me.profile) { me.profile.tx = next.tx; me.profile.ty = next.ty; }
       this.path.shift();
       const facing = this.computeFacing(dx, dy);
-      if (me.sprite) { if (facing.includes("W")) me.sprite.setFlipX(true); else me.sprite.setFlipX(false); }
+      if (!me.usesClassAutosprite && me.sprite) {
+        if (facing.includes("W")) me.sprite.setFlipX(true);
+        else me.sprite.setFlipX(false);
+      }
       const now = Date.now();
       if (now - this.lastEmit > 90) {
         this.onMoveEmit && this.onMoveEmit(next.tx, next.ty, facing);
@@ -1189,8 +1539,17 @@ export class NexusIsoScene extends Phaser.Scene {
       this.sortDepth();
     } else {
       const step = Math.min(dist, me.profile?.fly ? 8 : 3.5);
-      me.x += (dx / dist) * step;
-      me.y += (dy / dist) * step;
+      let nx = me.x + (dx / dist) * step;
+      let ny = me.y + (dy / dist) * step;
+      ({ x: nx, y: ny } = this.clampPlayerPosition(nx, ny));
+      if (this.testVisuals && process.env.NODE_ENV === "development") {
+        console.log("moving player", Math.round(nx), Math.round(ny));
+      }
+      me.x = nx;
+      me.y = ny;
+      if (me.usesClassAutosprite) {
+        this.applyClassAutospriteAnim(me, true, dx, dy);
+      }
       this.sortDepth();
     }
   }

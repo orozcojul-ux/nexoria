@@ -2,13 +2,14 @@ import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, UserPlus, UserCheck, UserX, Mail, X, Search, MessageCircle, Inbox, Circle, Send } from "lucide-react";
 import { toast } from "sonner";
-import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import { PageShell } from "@/components/ui-premium";
 import StarField from "@/components/StarField";
 import HeroName from "@/components/HeroName";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
+import HeroCardOpener from "@/components/HeroCardOpener";
 import FriendChat from "@/components/friends/FriendChat";
 import { sfx } from "@/lib/sfx";
 import { usePageBanner } from "@/lib/page-banners";
@@ -175,7 +176,7 @@ export default function Friends() {
           <div className="space-y-2">
             {requests.map((r) => (
               <div key={r.request_id} className="friend-request-card" data-testid={`req-${r.request_id}`}>
-                <Link to={`/profile/${r.from?.username}`} className="flex items-center gap-3 flex-1 min-w-0">
+                <HeroCardOpener userId={r.from?.user_id} username={r.from?.username} className="flex items-center gap-3 flex-1 min-w-0 text-left">
                   <div className="friend-chat-avatar" style={{ width: "2.5rem", height: "2.5rem" }}>
                     {r.from?.username?.[0]?.toUpperCase()}
                   </div>
@@ -185,7 +186,7 @@ export default function Friends() {
                       {r.from?.class_name} · Niv. {r.from?.level}
                     </div>
                   </div>
-                </Link>
+                </HeroCardOpener>
                 <div className="friend-request-actions">
                   <button type="button" onClick={() => accept(r.request_id)} data-testid={`req-accept-${r.request_id}`} className="friend-btn-accept">
                     <UserCheck className="w-3 h-3 inline mr-1" /> Accepter
@@ -231,14 +232,14 @@ export default function Friends() {
                 className={`friend-card ${chatFriendId === f.user_id ? "friend-card--active" : ""}`}
                 data-testid={`friend-${f.user_id}`}
               >
-                <Link to={`/profile/${f.username}`} className="friend-card-avatar">
+                <HeroCardOpener userId={f.user_id} username={f.username} className="friend-card-avatar">
                   <span className={`friend-card-status ${f.online ? "friend-card-status--on" : "friend-card-status--off"}`} />
                   <HeroPixelAvatar user={f} size={34} />
-                </Link>
+                </HeroCardOpener>
                 <div className="friend-card-body">
-                  <Link to={`/profile/${f.username}`} className="friend-card-name">
+                  <HeroCardOpener userId={f.user_id} username={f.username} className="friend-card-name">
                     <HeroName user={f} size="sm" />
-                  </Link>
+                  </HeroCardOpener>
                   <div className="friend-card-sub">
                     <span className="friend-card-class">{f.class_name} · Niv. {f.level}</span>
                     <span className={`friend-online-badge ${f.online ? "friend-online-badge--on" : "friend-online-badge--off"}`}>

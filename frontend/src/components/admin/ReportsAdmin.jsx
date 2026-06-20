@@ -3,6 +3,7 @@ import { Flag, Check, X, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
+import HeroCardOpener from "@/components/HeroCardOpener";
 
 const REASON_LABELS = {
   spam: "Spam",
@@ -117,9 +118,13 @@ export default function ReportsAdmin() {
                   </Link>
                 )}
                 {r.reported_username && (
-                  <Link to={`/profile/${r.reported_username}`} className="text-[10px] text-violet-400 hover:text-violet-300">
-                    Voir le profil
-                  </Link>
+                  <HeroCardOpener
+                    username={r.reported_username}
+                    userId={r.reported_user_id}
+                    className="text-[10px] text-violet-400 hover:text-violet-300"
+                  >
+                    Voir la carte héros
+                  </HeroCardOpener>
                 )}
                 {r.reported_user_id && (
                   <Link to="/admin?tab=users" className="text-[10px] text-violet-400 hover:text-violet-300">

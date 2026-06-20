@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Crown, Shield, X, User, Globe, Megaphone, ScrollText } from "lucide-react";
+import { Crown, Shield, X, User, Globe, Megaphone, ScrollText, MessageSquare } from "lucide-react";
 import GmPlayerActions from "./GmPlayerActions";
 import GmWorldControls from "./GmWorldControls";
 import GmBroadcastPanel from "./GmBroadcastPanel";
 import GmLogsStream from "./GmLogsStream";
+import GmChatModeration from "./GmChatModeration";
 import { GM_TABS } from "./constants";
 import "./NexusGm.css";
 import "@/components/nexus-hud/NexusHud.css";
@@ -14,6 +15,7 @@ const TAB_ICONS = {
   world: Globe,
   broadcast: Megaphone,
   logs: ScrollText,
+  chatmod: MessageSquare,
 };
 
 export default function GmPanel({
@@ -21,7 +23,7 @@ export default function GmPanel({
   requestTilePickFor, announceText, setAnnounceText, submitAnnounce,
   popupTitle, setPopupTitle, popupBody, setPopupBody, submitPopup,
   spawnForm, setSpawnForm, gmInvisible, toggleInvisible,
-  godmode, toggleGodmode, onBanClick, onInspect,
+  godmode, toggleGodmode, onBanClick, onInspect, players = [], rooms = [],
 }) {
   const [tab, setTab] = useState("player");
 
@@ -100,6 +102,9 @@ export default function GmPanel({
                   godmode={godmode}
                   toggleGodmode={toggleGodmode}
                 />
+              )}
+              {tab === "chatmod" && (
+                <GmChatModeration room={room} gm={gm} players={players} rooms={rooms} />
               )}
               {tab === "broadcast" && (
                 <GmBroadcastPanel

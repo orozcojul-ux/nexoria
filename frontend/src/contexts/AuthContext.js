@@ -51,6 +51,9 @@ export function AuthProvider({ children }) {
     if (!getToken()) { setLoading(false); return; }
     try {
       const { data } = await api.get("/auth/me");
+      if (process.env.NODE_ENV === "development") {
+        console.log("Current user class:", data?.class, data?.classe, data?.character_class, data?.class_id, data?.class_name);
+      }
       setUserState(data);
       setBanInfo(null);
     } catch (err) {
@@ -220,7 +223,10 @@ export function AuthProvider({ children }) {
       if (err?.response?.status === 503 && err?.response?.data?.maintenance) {
         return null;
       }
-      if (err?.response?.status === 403 && detail?.banned) {
+      if (err?.response?.status === 401) {
+        setToken(null);
+        setUserState(null);
+      } else if (err?.response?.status === 403 && detail?.banned) {
         setBanInfo({
           banned: true,
           reason: detail.reason || "Violation des règles du royaume",

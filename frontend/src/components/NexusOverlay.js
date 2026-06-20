@@ -3,9 +3,9 @@ import Phaser from "phaser";
 import { motion, AnimatePresence } from "framer-motion";
 import { Megaphone, Ban, MapPin, X } from "lucide-react";
 import { toast } from "sonner";
-import HeroCard from "@/components/HeroCard";
 import api from "@/lib/api";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
+import { useHeroCard } from "@/contexts/HeroCardContext";
 import { NexusIsoScene } from "@/lib/NexusIsoScene";
 import { createPhaserGame } from "@/lib/phaserRenderer";
 import { GmPanel, GmContextMenu, GmPlayerInspector } from "@/components/nexus-gm";
@@ -34,8 +34,7 @@ export default function NexusOverlay() {
   const chatEndRef = useRef(null);
 
   const [text, setText] = useState("");
-  const [emojiOpen, setEmojiOpen] = useState(false);
-  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [gmOpen, setGmOpen] = useState(false);
   const [gmPickerMode, setGmPickerMode] = useState(false);
   const [pendingGm, setPendingGm] = useState(null);
@@ -53,7 +52,6 @@ export default function NexusOverlay() {
   const [inspectTab, setInspectTab] = useState("stats");
   const [mapOpen, setMapOpen] = useState(false);
   const [rooms, setRooms] = useState([]);
-  const [heroCardUserId, setHeroCardUserId] = useState(null);
   const [adminMenu, setAdminMenu] = useState(null);
   const [renderError, setRenderError] = useState(null);
   const [friendsOpen, setFriendsOpen] = useState(false);
@@ -71,7 +69,8 @@ export default function NexusOverlay() {
     nexusGate = { open: true, html: {} },
     status = "idle", room = null, you = null,
     players = [], items = [], weather = "clear", isStaff = false,
-    chat = [], activeChannel = "room", setActiveChannel = () => {},
+    chat = [], roomChatMessages = [], sendRoomChat = () => {},
+    activeChannel = "room", setActiveChannel = () => {},
     whisperTarget = null, setWhisperTarget = () => {},
     unreadByChannel = {}, markChannelRead = () => {},
     sendChat = () => {}, move = () => {}, changeRoom = () => {}, pickupItem = () => {}, bossAttack = () => {},
@@ -81,6 +80,19 @@ export default function NexusOverlay() {
     presence = { total: 0, by_room: {}, active_rooms: 0 },
     gmLogs = [],
   } = ns || {};
+
+  const { openHeroCard } = useHeroCard();
+
+  const openPlayerHeroCard = useCallback((uid) => {
+    if (!uid) return;
+    openHeroCard(uid, {
+      onWhisper: (p) => {
+        setWhisperTarget(p);
+        setActiveChannel("whisper");
+        toast.info(`Chuchotement avec ${p.username}`);
+      },
+    });
+  }, [openHeroCard, setWhisperTarget, setActiveChannel]);
 
   useEffect(() => {
     if (!isStaff || !gmApi?.godmode) return;
@@ -107,9 +119,9 @@ export default function NexusOverlay() {
       onRoomJoined: (payload) => { rebuildScene(payload); },
       onPlayerJoin: (p) => sceneRef.current?.upsertPlayer(p),
       onPlayerLeave: (sid) => sceneRef.current?.removePlayer(sid),
-      onPlayerMove: ({ sid, tx, ty, facing, teleport }) => sceneRef.current?.movePlayer(sid, tx, ty, facing, !!teleport),
+      onPlayerMove: (m) => sceneRef.current?.movePlayer(m.sid, m.tx, m.ty, m.facing, !!m.teleport, m),
       onPlayerStatus: (sid, patch) => sceneRef.current?.setPlayerStatus(sid, patch),
-      onChatBubble: (sid, t) => sceneRef.current?.showBubble(sid, t),
+      onChatBubble: (sid, t, role) => sceneRef.current?.showBubble(sid, t, role),
       onWeather: (w) => sceneRef.current?.applyWeather(w),
       onItemSpawned: (item) => sceneRef.current?.spawnItem(item),
       onItemRemoved: (id) => sceneRef.current?.removeItem(id),
@@ -149,7 +161,7 @@ export default function NexusOverlay() {
         setAdminMenu({ target: p, x, y });
         return;
       }
-      setHeroCardUserId(p.user_id);
+      openPlayerHeroCard(p.user_id);
     };
     const onTileClick = (tile) => {
       if (!pendingGmRef.current) return;
@@ -180,6 +192,11 @@ export default function NexusOverlay() {
       weather: payload.weather,
       onPlayerClick, onTileClick, onMoveEmit, onPortalTravel,
     };
+
+    if (process.env.NODE_ENV === "development" && payload?.you) {
+      const u = payload.you;
+      console.log("Current user class:", u?.class, u?.classe, u?.character_class, u?.class_id, u?.class_name);
+    }
 
     if (gameRef.current) {
       try {
@@ -235,7 +252,7 @@ export default function NexusOverlay() {
       if (payload.room?.active_rift) scene.setActiveRift?.(payload.room.active_rift);
     };
     tryReady();
-  }, [gmApi, move, pickupItem, changeRoom, bossAttack]);
+  }, [gmApi, move, pickupItem, changeRoom, bossAttack, openPlayerHeroCard]);
 
   useEffect(() => { pendingGmRef.current = pendingGm; }, [pendingGm]);
   useEffect(() => { spawnFormRef.current = spawnForm; }, [spawnForm]);
@@ -295,30 +312,24 @@ export default function NexusOverlay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overlayOpen, room?.id, you?.sid, weather]);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
-  useEffect(() => { if (overlayOpen) markChannelRead(activeChannel); }, [overlayOpen, activeChannel, markChannelRead]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [roomChatMessages]);
+
+  useEffect(() => {
+    const blocked = mapOpen || gmOpen || friendsOpen || chatOpen;
+    if (sceneRef.current) sceneRef.current.movementBlocked = blocked;
+  }, [mapOpen, gmOpen, friendsOpen, chatOpen]);
 
   useEffect(() => {
     if (!overlayOpen) return;
     api.get("/nexus/rooms").then((r) => setRooms(r.data || [])).catch(() => {});
   }, [overlayOpen]);
 
-  const filteredChat = chat.filter((m) => (m.channel || "room") === activeChannel);
-
   const submitChat = (e) => {
     e?.preventDefault();
     if (!text.trim()) return;
-    if (activeChannel === "whisper") {
-      if (!whisperTarget) {
-        toast.error("Sélectionnez un destinataire pour chuchoter.");
-        return;
-      }
-      sendChat(text, "whisper", whisperTarget.user_id);
-    } else {
-      sendChat(text, activeChannel);
+    if (sendRoomChat(text)) {
+      setText("");
     }
-    setText("");
-    setEmojiOpen(false);
   };
 
   const requestTilePickFor = (kind, target = null) => {
@@ -466,7 +477,7 @@ export default function NexusOverlay() {
                 you={you}
                 isStaff={isStaff}
                 friendIds={friendIds}
-                onSelectHero={setHeroCardUserId}
+                onSelectHero={openPlayerHeroCard}
                 onWhisper={onWhisper}
                 onFriendMessage={(p) => {
                   setFriendsChatId(p.user_id);
@@ -480,22 +491,18 @@ export default function NexusOverlay() {
               <NexusRealmPulse presence={presence} playersCount={players.length} />
 
               <NexusChatDock
-                collapsed={chatCollapsed}
-                onToggleCollapse={() => setChatCollapsed((v) => !v)}
-                activeChannel={activeChannel}
-                onChannelChange={setActiveChannel}
-                unreadByChannel={unreadByChannel}
-                markChannelRead={markChannelRead}
-                whisperTarget={whisperTarget}
-                onClearWhisper={() => setWhisperTarget(null)}
-                messages={filteredChat}
+                open={chatOpen}
+                onOpen={() => setChatOpen(true)}
+                onClose={() => setChatOpen(false)}
+                roomName={room?.name || "Salle"}
+                messages={roomChatMessages}
                 text={text}
                 onTextChange={setText}
                 onSubmit={submitChat}
-                emojiOpen={emojiOpen}
-                onToggleEmoji={() => setEmojiOpen((v) => !v)}
-                onInsertEmoji={(e) => setText((t) => t + e)}
+                onInsertEmoji={(e) => setText((t) => (t.length < 300 ? t + e : t))}
                 chatEndRef={chatEndRef}
+                isStaff={isStaff}
+                onDeleteMessage={(messageId) => gmApi.deleteRoomChatMessage?.(messageId)}
               />
             </>
           )}
@@ -536,6 +543,7 @@ export default function NexusOverlay() {
             room={room}
             gm={gmApi}
             liveLogs={gmLogs}
+            rooms={rooms}
             requestTilePickFor={requestTilePickFor}
             announceText={announceText}
             setAnnounceText={setAnnounceText}
@@ -553,6 +561,7 @@ export default function NexusOverlay() {
             toggleGodmode={toggleGodmode}
             onBanClick={() => setBanOpen(true)}
             onInspect={() => { if (selectedTarget) gmApi.inspect?.(selectedTarget.user_id); }}
+            players={players}
           />
 
           <BanModal
@@ -576,22 +585,11 @@ export default function NexusOverlay() {
             initialFriendId={friendsChatId}
           />
 
-          <HeroCard
-            userId={heroCardUserId}
-            open={!!heroCardUserId}
-            onClose={() => setHeroCardUserId(null)}
-            onWhisper={(p) => {
-              setWhisperTarget(p);
-              setActiveChannel("whisper");
-              toast.info(`Chuchotement avec ${p.username}`);
-            }}
-          />
-
           <GmContextMenu
             menu={adminMenu}
             onClose={() => setAdminMenu(null)}
             gmApi={gmApi}
-            openHeroCard={(uid) => { setAdminMenu(null); setHeroCardUserId(uid); }}
+            openHeroCard={(uid) => { setAdminMenu(null); openPlayerHeroCard(uid); }}
             openGmPanel={(p) => { setAdminMenu(null); setSelectedTarget(p); setGmOpen(true); }}
             startWhisper={(p) => { setAdminMenu(null); setWhisperTarget(p); setActiveChannel("whisper"); }}
             requestTeleport={(p) => { setAdminMenu(null); requestTilePickFor("teleport", p); }}

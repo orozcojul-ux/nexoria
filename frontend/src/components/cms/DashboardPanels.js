@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import { PremiumCard } from "@/components/ui-premium";
 import HeroName from "@/components/HeroName";
+import HeroCardOpener from "@/components/HeroCardOpener";
 import { groupStaffByGrade, EMPTY_STAFF_ONLINE } from "@/lib/staff-roles";
 
 const CLASS_COLORS = {
@@ -159,10 +160,11 @@ export function OnlinePlayersPanel() {
               </div>
               <div className="space-y-1 pl-3">
                 {grade.members.map((p) => (
-                  <Link
+                  <HeroCardOpener
                     key={p.user_id}
-                    to={`/profile/${p.username}`}
-                    className="flex items-center gap-2 py-1 hover:bg-white/[0.03] rounded-lg px-1 transition-all"
+                    userId={p.user_id}
+                    username={p.username}
+                    className="flex items-center gap-2 py-1 hover:bg-white/[0.03] rounded-lg px-1 transition-all w-full text-left"
                   >
                     <div
                       className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
@@ -177,7 +179,7 @@ export function OnlinePlayersPanel() {
                       </div>
                     </div>
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: grade.color, boxShadow: `0 0 6px ${grade.glow}` }} />
-                  </Link>
+                  </HeroCardOpener>
                 ))}
               </div>
             </div>

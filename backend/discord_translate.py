@@ -361,7 +361,7 @@ def _translation_system_prompt(target: str, source: str) -> str:
         "Règles strictes :\n"
         "- Conserve le Markdown Discord (**gras**, *italique*, listes, liens).\n"
         "- Conserve les emojis tels quels.\n"
-        "- Ne traduis PAS : NEXORIA, Nexus Online, Discord, Éclats, Smouzyi, noms de joueurs, "
+        "- Ne traduis PAS : NEXORIA, Nexus Online, Discord, Écus, Smouzyi, noms de joueurs, "
         "URLs, IDs Discord, mentions (<@...>), montants, dates, variables techniques.\n"
         "- Conserve exactement les retours à la ligne \\n et les paragraphes (\\n\\n).\n"
         "- Traduis title, description, fields (name + value) et footer séparément.\n"

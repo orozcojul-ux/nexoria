@@ -45,10 +45,10 @@ def channel_welcomes(site_url: str) -> dict[str, dict]:
                 f"Inscris-toi sur {site_url} et choisis ta classe.\n\n"
                 "**Comment lier Discord ?**\n"
                 "Paramètres → Compte → Connecter Discord.\n\n"
-                "**C'est quoi les Éclats ?**\n"
+                "**C'est quoi les Écus ?**\n"
                 "La monnaie du royaume — gagnée en jouant ou via la boutique.\n\n"
                 "**Pass Ascendant (VIP) ?**\n"
-                "Avantages premium : boutique exclusive, bonus XP/Éclats, salon VIP…"
+                "Avantages premium : boutique exclusive, bonus XP/Écus, salon VIP…"
             ),
             "color": 0xA78BFA,
         },
@@ -119,7 +119,7 @@ def channel_welcomes(site_url: str) -> dict[str, dict]:
         "1514271132667347055": {
             "title": "📊 XP & progression",
             "description": (
-                "Salon **automatique** — gains d'XP, Éclats, réputation, badges, "
+                "Salon **automatique** — gains d'XP, Écus, réputation, badges, "
                 "achats boutique et récompenses de quêtes.\n\n"
                 "Chaque exploit sur le site peut y laisser une trace."
             ),

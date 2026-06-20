@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
+import { useHeroCard } from "@/contexts/HeroCardContext";
 import { buildPublicNav } from "@/i18n/nav-config";
 import Logo from "@/components/Logo";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -11,6 +12,7 @@ import ThemeSwitcher from "@/components/ThemeSwitcher";
 export default function LandingPublicNav() {
   const { user } = useAuth();
   const { t } = useI18n();
+  const { openHeroCard } = useHeroCard();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef(null);
@@ -29,6 +31,36 @@ export default function LandingPublicNav() {
       window.dispatchEvent(new CustomEvent("nexoria:open-nexus"));
       navigate("/nexus");
     }
+    if (item.openHeroCardSelf && user?.user_id) {
+      openHeroCard(user.user_id);
+    }
+  };
+
+  const renderNavItem = (item) => {
+    if (item.openHeroCardSelf) {
+      return (
+        <button
+          key={item.labelKey}
+          type="button"
+          onClick={() => handleNav(item)}
+          className="landing-nav-link px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 hover:text-amber-200 transition-colors"
+          data-testid={`pub-nav-${item.labelKey}`}
+        >
+          {t(item.labelKey)}
+        </button>
+      );
+    }
+    return (
+      <Link
+        key={item.labelKey}
+        to={item.to}
+        onClick={() => handleNav(item)}
+        className="landing-nav-link px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 hover:text-amber-200 transition-colors"
+        data-testid={`pub-nav-${item.labelKey}`}
+      >
+        {t(item.labelKey)}
+      </Link>
+    );
   };
 
   return (
@@ -40,17 +72,7 @@ export default function LandingPublicNav() {
         </Link>
 
         <nav className="hidden xl:flex items-center gap-1 flex-1 justify-center">
-          {main.map((item) => (
-            <Link
-              key={item.labelKey}
-              to={item.to}
-              onClick={() => handleNav(item)}
-              className="landing-nav-link px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 hover:text-amber-200 transition-colors"
-              data-testid={`pub-nav-${item.labelKey}`}
-            >
-              {t(item.labelKey)}
-            </Link>
-          ))}
+          {main.map(renderNavItem)}
           <div className="relative" ref={moreRef}>
             <button
               type="button"

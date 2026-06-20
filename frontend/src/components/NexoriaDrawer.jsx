@@ -6,6 +6,7 @@ import {
   Menu, ChevronUp, ChevronDown, LayoutDashboard, LogOut, Settings,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useHeroCard } from "@/contexts/HeroCardContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import api from "@/lib/api";
@@ -42,7 +43,7 @@ const PLAYER_NAV = [
     titleKey: "sidebar.section.customize",
     fallback: "Personnalisation",
     items: [
-      { to: "/hero", labelKey: "nav.profile", fallback: "Profil", icon: User, testid: "nav-hero" },
+      { openHeroCardSelf: true, labelKey: "nav.profile", fallback: "Carte héros", icon: User, testid: "nav-hero" },
       { to: "/settings", labelKey: "nav.settings", fallback: "Modifier le profil", icon: Settings, testid: "nav-settings" },
       { to: "/inventory", labelKey: "nav.inventory", fallback: "Inventaire", icon: Package, testid: "nav-inventory" },
       { to: "/quests", labelKey: "nav.quests", fallback: "Quêtes", icon: Scroll, testid: "nav-quests" },
@@ -81,6 +82,7 @@ function Diamond({ size = 16, fill = "#c8960a", stroke = "#8a6a1a", strokeWidth 
 
 export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
   const { user, logout } = useAuth();
+  const { openHeroCard } = useHeroCard();
   const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
@@ -365,6 +367,23 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
                       className={styles.item}
                       data-testid={item.testid}
                       onClick={() => handleItemClick(item)}
+                    >
+                      {inner}
+                    </button>
+                  );
+                }
+
+                if (item.openHeroCardSelf) {
+                  return (
+                    <button
+                      key={item.testid}
+                      type="button"
+                      className={styles.item}
+                      data-testid={item.testid}
+                      onClick={() => {
+                        if (user?.user_id) openHeroCard(user.user_id);
+                        onClose?.();
+                      }}
                     >
                       {inner}
                     </button>

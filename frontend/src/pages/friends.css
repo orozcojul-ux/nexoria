@@ -169,6 +169,10 @@
   overflow: visible;
   background: rgba(10,8,22,0.6);
   border: 1px solid rgba(215,168,76,0.3);
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
 }
 .friend-card-status {
   position: absolute;
@@ -190,6 +194,14 @@
 
 .friend-card-body { flex: 1; min-width: 0; }
 .friend-card-name {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
   font-size: 0.92rem;
   font-weight: 700;
   color: #f6f0df;

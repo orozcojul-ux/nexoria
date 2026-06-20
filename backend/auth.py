@@ -58,13 +58,20 @@ def clear_session_cookie(response):
     response.delete_cookie(key="session_token", path="/")
 
 
+def _extract_session_token(request: Request) -> str | None:
+    """Prefer explicit Bearer token (per-tab sessionStorage) over httponly cookie."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        bearer = auth_header[7:].strip()
+        if bearer:
+            return bearer
+    cookie = request.cookies.get("session_token")
+    return cookie or None
+
+
 async def get_current_user(request: Request, db) -> dict:
-    """Resolve user via session_token cookie or Authorization header."""
-    token = request.cookies.get("session_token")
-    if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
+    """Resolve user via Authorization header (preferred) or session_token cookie."""
+    token = _extract_session_token(request)
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 

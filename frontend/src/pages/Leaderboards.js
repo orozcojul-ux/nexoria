@@ -2,11 +2,11 @@
  * NEXORIA — Hall des Légendes (classements).
  */
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Crown, Zap, Shield, Coins, Flame } from "lucide-react";
 import api from "@/lib/api";
 import HeroName from "@/components/HeroName";
+import HeroCardOpener from "@/components/HeroCardOpener";
 import StarField from "@/components/StarField";
 import { PageShell } from "@/components/ui-premium";
 import { usePageBanner } from "@/lib/page-banners";
@@ -149,8 +149,9 @@ export default function Leaderboards() {
                       <div className="w-9 text-center font-mono-stat font-bold text-sm text-zinc-500 group-hover:text-zinc-300">
                         #{rank}
                       </div>
-                      <Link
-                        to={`/profile/${u.username}`}
+                      <HeroCardOpener
+                        userId={u.user_id}
+                        username={u.username}
                         className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center font-display font-bold shrink-0 text-sm"
                       >
                         {u.avatar_url ? (
@@ -158,13 +159,13 @@ export default function Leaderboards() {
                         ) : (
                           u.username?.[0]?.toUpperCase()
                         )}
-                      </Link>
-                      <Link to={`/profile/${u.username}`} className="flex-1 min-w-0">
+                      </HeroCardOpener>
+                      <HeroCardOpener userId={u.user_id} username={u.username} className="flex-1 min-w-0 text-left">
                         <HeroName user={u} size="sm" />
                         <div className="text-[9px] uppercase tracking-wider text-zinc-500 truncate">
                           {u.class_name || "—"} · {u.rank || `Niv. ${u.level || 1}`}
                         </div>
-                      </Link>
+                      </HeroCardOpener>
                       <div className="text-right font-mono-stat shrink-0">
                         <div className="text-base font-bold" style={{ color: activeCat.color }}>
                           {valueOf(u).toLocaleString()}
@@ -197,7 +198,7 @@ function PodiumCard({ user, rank, color, metric, raised }) {
         <div className="font-display font-black text-2xl w-10 text-center" style={{ color }}>
           {rank === 1 ? <Crown className="w-7 h-7 mx-auto" /> : `#${rank}`}
         </div>
-        <Link to={`/profile/${user.username}`} className="shrink-0">
+        <HeroCardOpener userId={user.user_id} username={user.username} className="shrink-0">
           <div
             className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center font-bold text-lg"
             style={{ boxShadow: `0 0 16px ${color}55` }}
@@ -208,7 +209,7 @@ function PodiumCard({ user, rank, color, metric, raised }) {
               user.username?.[0]?.toUpperCase()
             )}
           </div>
-        </Link>
+        </HeroCardOpener>
         <div className="flex-1 min-w-0">
           <HeroName user={user} size="sm" />
           <div className="text-[9px] uppercase tracking-wider text-zinc-500 truncate mt-0.5">

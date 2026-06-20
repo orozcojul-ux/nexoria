@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Flame, Crown, Sparkles } from "lucide-react";
 import api from "@/lib/api";
 import HeroName from "@/components/HeroName";
+import HeroCardOpener from "@/components/HeroCardOpener";
 import { usePageBanner } from "@/lib/page-banners";
 
 export default function HallOfLegends() {
@@ -37,9 +37,9 @@ export default function HallOfLegends() {
                   </div>
                 )}
                 <div className="text-[10px] uppercase tracking-[0.4em] text-zinc-500 font-bold mb-2">#{i + 1}</div>
-                <Link to={`/profile/${u.username}`} className="block">
+                <HeroCardOpener userId={u.user_id} username={u.username} className="block text-left w-full">
                   <HeroName user={u} size="lg" showIcon={false} />
-                </Link>
+                </HeroCardOpener>
                 <div className="text-sm text-violet-300 mt-1">{u.class_name}</div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-mono-stat">
                   <div><span className="text-zinc-500">Niveau</span> <span className="text-cyan-300 font-bold">{u.level}</span></div>

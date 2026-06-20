@@ -6,15 +6,15 @@ from libretranslate_client import protect_text, restore_text
 
 
 def test_protect_restore_preserves_nexoria_and_urls():
-    text = "Flux sur NEXORIA — voir https://nexoria.gg\n\n**Éclats**"
+    text = "Flux sur NEXORIA — voir https://nexoria.gg\n\n**Écus**"
     protected, tokens = protect_text(text)
     assert "NEXORIA" not in protected
     assert "https://nexoria.gg" not in protected
-    assert "Éclats" not in protected  # terme protégé → jeton
+    assert "Écus" not in protected  # terme protégé → jeton
     restored = restore_text(protected, tokens)
     assert "NEXORIA" in restored
     assert "https://nexoria.gg" in restored
-    assert "Éclats" in restored
+    assert "Écus" in restored
 
 
 def test_i18n_chroniques_nexus_english():

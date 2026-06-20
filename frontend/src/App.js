@@ -18,7 +18,6 @@ import ResetPassword from "@/pages/ResetPassword";
 import Register from "@/pages/Register";
 import AuthCallback from "@/pages/AuthCallback";
 import DiscordCallback from "@/pages/DiscordCallback";
-import Hero from "@/pages/Hero";
 import Feed from "@/pages/Feed";
 import NewsArticle from "@/pages/NewsArticle";
 import SkillTree from "@/pages/SkillTree";
@@ -29,7 +28,8 @@ import Oracle from "@/pages/Oracle";
 import Leaderboards from "@/pages/Leaderboards";
 import HallOfLegends from "@/pages/HallOfLegends";
 import Admin from "@/pages/Admin";
-import Profile from "@/pages/Profile";
+import ProfileCardRedirect from "@/pages/ProfileCardRedirect";
+import HeroCardSelfRedirect from "@/pages/HeroCardSelfRedirect";
 import Shop from "@/pages/Shop";
 import Settings from "@/pages/Settings";
 import Maintenance from "@/pages/Maintenance";
@@ -51,6 +51,7 @@ import NexusOverlay from "@/components/NexusOverlay";
 import NexusFAB from "@/components/NexusFAB";
 import AetherTicker from "@/components/AetherTicker";
 import MaintenanceBootShell from "@/components/maintenance/MaintenanceBootShell";
+import { HeroCardProvider } from "@/contexts/HeroCardContext";
 
 /**
  * Bloque visuellement le site pendant la maintenance (backend soft = APIs ouvertes).
@@ -113,7 +114,7 @@ function AppRouter() {
         <Route path="/auth/discord/callback" element={<DiscordCallback />} />
         <Route path="/feed" element={<ProtectedRoute><Layout><Feed /></Layout></ProtectedRoute>} />
         <Route path="/news/:newsId" element={<ProtectedRoute><Layout><NewsArticle /></Layout></ProtectedRoute>} />
-        <Route path="/hero" element={<ProtectedRoute><Layout><Hero /></Layout></ProtectedRoute>} />
+        <Route path="/hero" element={<ProtectedRoute><HeroCardSelfRedirect /></ProtectedRoute>} />
         <Route path="/skills" element={<ProtectedRoute><Layout><SkillTree /></Layout></ProtectedRoute>} />
         <Route path="/kingdom" element={<ProtectedRoute><Layout><Kingdom /></Layout></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><Layout><Inventory /></Layout></ProtectedRoute>} />
@@ -134,7 +135,7 @@ function AppRouter() {
         <Route path="/nexus" element={<ProtectedRoute><Layout><Nexus /></Layout></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><Layout><Admin /></Layout></ProtectedRoute>} />
-        <Route path="/profile/:username" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
+        <Route path="/profile/:username" element={<ProtectedRoute><ProfileCardRedirect /></ProtectedRoute>} />
         <Route path="/communaute" element={<ProtectedRoute><Layout><Community /></Layout></ProtectedRoute>} />
         <Route path="/conditions" element={<ProtectedRoute><Layout><UnderConstruction title="Conditions d'utilisation" /></Layout></ProtectedRoute>} />
         <Route path="/confidentialite" element={<ProtectedRoute><Layout><UnderConstruction title="Politique de confidentialité" /></Layout></ProtectedRoute>} />
@@ -152,14 +153,16 @@ function App() {
           <ThemeProvider>
             <AuthProvider>
               <MaintenanceProvider>
-                <UserPrefsSync>
-                  <NexusSocketProvider>
-                    <AppRouter />
-                    <Toaster theme="dark" position="top-right" toastOptions={{
-                      style: { background: "var(--nx-surface)", border: "1px solid var(--nx-border)", color: "var(--nx-fg)" },
-                    }} />
-                  </NexusSocketProvider>
-                </UserPrefsSync>
+                <HeroCardProvider>
+                  <UserPrefsSync>
+                    <NexusSocketProvider>
+                      <AppRouter />
+                      <Toaster theme="dark" position="top-right" toastOptions={{
+                        style: { background: "var(--nx-surface)", border: "1px solid var(--nx-border)", color: "var(--nx-fg)" },
+                      }} />
+                    </NexusSocketProvider>
+                  </UserPrefsSync>
+                </HeroCardProvider>
               </MaintenanceProvider>
             </AuthProvider>
           </ThemeProvider>

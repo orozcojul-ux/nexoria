@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import { useI18n } from "@/contexts/I18nContext";
 import HeroName from "@/components/HeroName";
+import HeroCardOpener from "@/components/HeroCardOpener";
 import { OnlinePlayersPanel } from "@/components/cms/DashboardPanels";
 import { useRealmPulseStats } from "@/hooks/useRealmPulseStats";
 import "./feed.css";
@@ -412,9 +413,10 @@ export default function Feed() {
                   </div>
                 ) : (
                   leaderboard.map((u, i) => (
-                    <Link
+                    <HeroCardOpener
                       key={u.user_id}
-                      to={`/profile/${u.username}`}
+                      userId={u.user_id}
+                      username={u.username}
                       className="feed-lb-row"
                       data-testid={`mini-lb-${i}`}
                     >
@@ -423,7 +425,7 @@ export default function Feed() {
                         <HeroName user={u} size="sm" showIcon={false} />
                       </span>
                       <span className="feed-lb-score">{fmtScore(u.xp)} XP</span>
-                    </Link>
+                    </HeroCardOpener>
                   ))
                 )}
                 <Link to="/leaderboards" className="feed-widget-more" style={{ color: "#f5c95b" }}>
@@ -486,9 +488,9 @@ export default function Feed() {
                 <button type="button" className="feed-nexus-btn" onClick={enterNexus}>
                   <Map className="w-3.5 h-3.5" /> Entrer dans le Nexus
                 </button>
-                <Link to="/hero" className="feed-hero-link">
+                <HeroCardOpener userId={user?.user_id} username={username} className="feed-hero-link">
                   Voir ma fiche <ChevronRight className="w-3 h-3 inline" />
-                </Link>
+                </HeroCardOpener>
               </div>
             </motion.div>
 

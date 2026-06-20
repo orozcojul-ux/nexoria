@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { Save, Eye, Palette, Link2, User, BookOpen, Settings2, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
+import { useHeroCard } from "@/contexts/HeroCardContext";
+import HeroCardOpener from "@/components/HeroCardOpener";
 import { PremiumButton } from "@/components/ui-premium";
 
 const ACCENT_PRESETS = ["#7B2FF7", "#00E5FF", "#FCD34D", "#10B981", "#F97316", "#EC4899", "#6366F1"];
@@ -17,6 +18,7 @@ function emptySocial(links) {
 }
 
 export default function ProfileCustomizeForm({ user, refresh, t }) {
+  const { openHeroCard } = useHeroCard();
   const [form, setForm] = useState({
     status_message: user.status_message || "",
     location: user.location || "",
@@ -132,12 +134,20 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
             Personnaliser mon profil
           </h2>
           <p className="text-xs text-zinc-500 mt-1">
-            Page publique — distincte de la <Link to="/hero" className="text-violet-400 underline">carte héros</Link>.
+            Personnalisation du profil public —{" "}
+            <button
+              type="button"
+              onClick={() => openHeroCard(user.user_id)}
+              className="text-violet-400 underline hover:text-violet-300"
+            >
+              voir la carte héros
+            </button>
+            .
           </p>
         </div>
-        <Link to={`/profile/${user.username}`} className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
-          <Eye className="w-3.5 h-3.5" /> Voir le rendu
-        </Link>
+        <HeroCardOpener userId={user.user_id} username={user.username} className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
+          <Eye className="w-3.5 h-3.5" /> Voir la carte héros
+        </HeroCardOpener>
       </div>
 
       {/* Aperçu */}

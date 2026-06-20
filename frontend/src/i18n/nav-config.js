@@ -31,7 +31,7 @@ export function buildPlayerNav() {
     {
       titleKey: "sidebar.section.customize",
       items: [
-        { to: "/hero", labelKey: "nav.profile", icon: UserCheck, testid: "nav-hero" },
+        { openHeroCardSelf: true, labelKey: "nav.profile", icon: UserCheck, testid: "nav-hero" },
         { to: "/inventory", labelKey: "nav.inventory", icon: Gem, testid: "nav-inventory" },
         { to: "/quests", labelKey: "nav.quests", icon: Sparkles, testid: "nav-quests" },
       ],
@@ -50,9 +50,13 @@ export function buildPublicNav(isLoggedIn) {
   const main = [
     { to: "/", labelKey: "pub.nav.home", icon: LayoutDashboard, public: true },
     { to: isLoggedIn ? "/nexus" : "/login", labelKey: "pub.nav.nexus", icon: Eye, openNexus: isLoggedIn },
-    { to: isLoggedIn ? "/hero" : "/login", labelKey: "pub.nav.profile", icon: UserCheck },
+    isLoggedIn
+      ? { openHeroCardSelf: true, labelKey: "pub.nav.profile", icon: UserCheck }
+      : { to: "/login", labelKey: "pub.nav.profile", icon: UserCheck },
     { to: isLoggedIn ? "/inventory" : "/login", labelKey: "pub.nav.inventory", icon: Gem },
-    { to: isLoggedIn ? "/hero" : "/login", labelKey: "pub.nav.badges", icon: Trophy },
+    isLoggedIn
+      ? { openHeroCardSelf: true, labelKey: "pub.nav.badges", icon: Trophy }
+      : { to: "/login", labelKey: "pub.nav.badges", icon: Trophy },
     { to: "/classes", labelKey: "pub.nav.classes", icon: Sword },
     { to: "/guilds", labelKey: "pub.nav.guilds", icon: Castle },
     { to: "/shop", labelKey: "pub.nav.shop", icon: ShoppingBag },

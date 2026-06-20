@@ -518,8 +518,14 @@
   gap: 0.65rem;
   padding: 0.5rem 0.65rem;
   border-radius: 0.5rem;
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
   text-decoration: none;
   color: inherit;
+  text-align: left;
+  font: inherit;
   transition: background 0.18s;
 }
 .feed-lb-row:hover { background: rgba(255,255,255,0.04); }
@@ -675,6 +681,10 @@
   text-transform: uppercase;
   color: #67e8f9;
   text-decoration: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
   transition: color 0.2s;
 }
 .feed-hero-link:hover { color: #a5f3fc; }

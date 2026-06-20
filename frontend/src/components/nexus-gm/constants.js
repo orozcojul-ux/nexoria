@@ -11,6 +11,7 @@ export const WEATHER_LABEL = {
 export const GM_TABS = [
   { id: "player", label: "Joueur" },
   { id: "world", label: "Monde" },
+  { id: "chatmod", label: "Tchat" },
   { id: "broadcast", label: "Annonces" },
   { id: "logs", label: "Logs" },
 ];

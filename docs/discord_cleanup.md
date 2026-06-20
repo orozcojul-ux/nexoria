@@ -13,7 +13,7 @@ Ce guide décrit comment nettoyer **uniquement les messages de test** sur le ser
 - Membres
 - Messages **épinglés** (sauf avec `--include-pinned`)
 - Salons de présentation (bienvenue, règlement, annonces épinglées, FAQ, inscriptions-beta)
-- Comptes joueurs, paiements, Éclats, profils (MongoDB joueurs intact)
+- Comptes joueurs, paiements, Écus, profils (MongoDB joueurs intact)
 
 ## Salons nettoyés par défaut
 

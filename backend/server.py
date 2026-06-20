@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field, EmailStr
 from auth import (
     hash_password, verify_password, create_session_token, session_expiry,
     set_session_cookie, clear_session_cookie, get_current_user, generate_user_id,
+    _extract_session_token,
 )
 from game_data import (
     CLASSES, SKILLS, KINGDOM_BUILDINGS, RARITIES, TITLES, BADGES, SHOP_ONLY_TITLES,
@@ -1459,11 +1460,7 @@ async def login(req: LoginReq, response: Response):
 
 @api.post("/auth/logout")
 async def logout(request: Request, response: Response):
-    token = request.cookies.get("session_token")
-    if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
+    token = _extract_session_token(request)
     user_doc = None
     user_id = None
     if token:
@@ -1563,11 +1560,7 @@ async def auth_heartbeat(request: Request, user: dict = Depends(get_user_dep)):
     Stamps `last_heartbeat_at` on the session — this is what drives the idle
     timeout (so background polls don't keep an idle session alive)."""
     await touch_user_last_seen(user["user_id"], min_interval_seconds=60)
-    token = request.cookies.get("session_token")
-    if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
+    token = _extract_session_token(request)
     if token:
         await db.user_sessions.update_one(
             {"session_token": token},
@@ -1720,11 +1713,7 @@ async def google_session(req: SessionExchangeReq, response: Response):
 
 # ---------- Profile ----------
 async def _resolve_viewer(request: Request):
-    token = request.cookies.get("session_token")
-    if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
+    token = _extract_session_token(request)
     if not token:
         return None
     session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
@@ -1908,9 +1897,10 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
     if ops:
         await db.users.update_one({"user_id": user["user_id"]}, ops)
 
-    # Real-time profile sync (Nexus cosmetics / title / aura)
+    # Real-time profile sync (Nexus cosmetics / title / aura / class)
     cosmetic_fields = {k: update[k] for k in (
         "active_banner", "active_frame", "active_aura_sku", "active_mount", "active_title", "avatar_url",
+        "class_id", "class_name",
     ) if k in update}
     if "active_banner" in unset_fields:
         cosmetic_fields["active_banner"] = None
@@ -2275,7 +2265,7 @@ async def economy_send_ecus(req: SendEcusReq, user: dict = Depends(get_user_dep)
     await add_chronicle(target["user_id"], f"A reçu {amount} Écus de {user['username']}", "economy")
     try:
         discord_rewards.schedule_custom(
-            f"💸 **{user['username']}** a envoyé **{amount} Éclats** à **{target['username']}**"
+            f"💸 **{user['username']}** a envoyé **{amount} Écus** à **{target['username']}**"
         )
     except Exception:
         pass
@@ -2553,7 +2543,7 @@ async def accept_trade(trade_id: str, req: AcceptTradeReq, user: dict = Depends(
     def _goods_str(items, ecus):
         parts = [f"{it['name']}{'×' + str(it['quantity']) if it.get('quantity', 1) > 1 else ''}" for it in (items or [])]
         if ecus:
-            parts.append(f"{ecus} Éclats")
+            parts.append(f"{ecus} Écus")
         return ", ".join(parts) or "rien"
     try:
         discord_rewards.schedule_to_channel(
@@ -3792,6 +3782,100 @@ async def upload_avatar(request: Request, file: UploadFile = File(...), user: di
     return {"url": url, "avatar_url": url}
 
 
+class StaffProfileUpdateReq(BaseModel):
+    bio: Optional[str] = Field(None, max_length=500)
+    status_message: Optional[str] = Field(None, max_length=140)
+    avatar_url: Optional[str] = Field(None, max_length=512)
+    banner_url: Optional[str] = Field(None, max_length=512)
+    profile_accent: Optional[str] = Field(None, max_length=7)
+    active_frame: Optional[str] = None
+    active_title: Optional[str] = None
+
+
+@api.put("/admin/users/{user_id}/profile")
+async def staff_update_user_profile(user_id: str, req: StaffProfileUpdateReq, user: dict = Depends(get_staff_dep)):
+    """Staff: mise à jour cosmétique du profil d'un héros (carte héros)."""
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    if user.get("role") == "moderator" and target.get("role") == "admin":
+        raise HTTPException(403, "Un modérateur ne peut pas modifier le profil d'un Sage")
+
+    raw = req.model_dump(exclude_unset=True)
+    update = {k: v for k, v in raw.items() if v is not None}
+    unset_fields = []
+    if "active_frame" in raw and raw["active_frame"] in (None, ""):
+        unset_fields.append("active_frame")
+        update.pop("active_frame", None)
+    if "profile_accent" in update:
+        accent = update["profile_accent"]
+        if accent and not re.match(r"^#[0-9A-Fa-f]{6}$", accent):
+            raise HTTPException(400, "Couleur d'accent invalide (format #RRGGBB)")
+    if "active_frame" in update and update["active_frame"]:
+        owned = await db.user_cosmetics.find_one({"user_id": user_id, "sku": update["active_frame"]})
+        if not owned:
+            raise HTTPException(400, "Ce cadre n'a pas été acquis par ce héros")
+    if "active_title" in update:
+        title_ids = {t["id"] for t in TITLES}
+        if update["active_title"] not in title_ids:
+            raise HTTPException(400, "Titre invalide")
+
+    ops = {}
+    if update:
+        ops["$set"] = update
+    if unset_fields:
+        ops["$unset"] = {f: "" for f in unset_fields}
+    if ops:
+        await db.users.update_one({"user_id": user_id}, ops)
+        await add_chronicle(user_id, f"Profil mis à jour par le staff ({user.get('username')})", "admin")
+
+    cosmetic_fields = {k: update[k] for k in ("active_frame", "active_title", "avatar_url") if k in update}
+    if "active_frame" in unset_fields:
+        cosmetic_fields["active_frame"] = None
+    if cosmetic_fields:
+        try:
+            await nexus_world.push_profile_updated(user_id, cosmetic_fields)
+        except Exception:
+            pass
+
+    fresh = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0, "email": 0})
+    return {"ok": True, "user": public_user(fresh)}
+
+
+@api.post("/admin/users/{user_id}/avatar/upload")
+async def staff_upload_avatar(
+    user_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    user: dict = Depends(get_staff_dep),
+):
+    """Staff: importer une photo de profil pour un héros."""
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    if user.get("role") == "moderator" and target.get("role") == "admin":
+        raise HTTPException(403, "Un modérateur ne peut pas modifier l'avatar d'un Sage")
+
+    content_type = (file.content_type or "").lower()
+    if content_type not in MAINTENANCE_IMAGE_TYPES:
+        raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
+    data = await file.read()
+    if len(data) > 15 * 1024 * 1024:
+        raise HTTPException(400, "Image trop lourde (max 15 Mo)")
+    filename = f"{user_id}_{uuid.uuid4().hex[:8]}{MAINTENANCE_IMAGE_TYPES[content_type]}"
+    dest = AVATAR_UPLOAD_DIR / filename
+    dest.write_bytes(data)
+    base = str(request.base_url).rstrip("/")
+    url = f"{base}/uploads/avatars/{filename}"
+    await db.users.update_one({"user_id": user_id}, {"$set": {"avatar_url": url}})
+    await add_chronicle(user_id, f"Avatar mis à jour par le staff ({user.get('username')})", "admin")
+    try:
+        await nexus_world.push_profile_updated(user_id, {"avatar_url": url})
+    except Exception:
+        pass
+    return {"url": url, "avatar_url": url}
+
+
 @api.post("/admin/maintenance/upload")
 async def maintenance_upload_image(request: Request, file: UploadFile = File(...), user: dict = Depends(get_admin_dep)):
     """Upload image pour les éditeurs HTML de la page maintenance."""
@@ -4207,7 +4291,7 @@ async def _credit_ecu_order(session_id: str, *, user_id: str = None, ecus: int =
         username = (buyer or {}).get("username") or "Un héros"
         amount_str = f"{res.get('amount_eur') or '?'}€" if res.get("amount_eur") else ""
         discord_rewards.schedule_custom(
-            f"💳 **{username}** a rechargé **{int(res['ecus'])} Éclats**"
+            f"💳 **{username}** a rechargé **{int(res['ecus'])} Écus**"
             + (f" ({amount_str})" if amount_str else "")
             + f" — pack `{res.get('pack_id') or 'custom'}` 🎉"
         )
@@ -7249,6 +7333,17 @@ async def list_nexus_rooms(user: dict = Depends(get_user_dep)):
     return out
 
 
+@api.get("/nexus/rooms/{room_id}/messages")
+async def get_nexus_room_messages(room_id: str, user: dict = Depends(get_user_dep)):
+    """50 derniers messages du tchat d'une salle Nexus Online."""
+    from nexus_rooms import ROOMS
+    import nexus_room_chat as room_chat
+    if room_id not in ROOMS:
+        raise HTTPException(status_code=404, detail="Salle inconnue.")
+    messages = await room_chat.fetch_room_history(db, room_id, limit=room_chat.ROOM_CHAT_HISTORY_LIMIT)
+    return {"room_id": room_id, "messages": messages}
+
+
 @api.get("/nexus/rooms-public")
 async def list_nexus_rooms_public():
     """Public lobby endpoint — exposes minimal room info (no access flags).
@@ -7450,6 +7545,7 @@ async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
         for t in TITLES
     ]
     quests_completed = await db.user_quests.count_documents({"user_id": user_id, "completed": True})
+    can_edit_profile = viewer["user_id"] == user_id or is_staff_user(viewer)
     return {
         "hidden": False,
         "user": {**u, "quests_completed": quests_completed},
@@ -7465,6 +7561,7 @@ async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
         "friend_request_pending": friend_request_pending,
         "incoming_friend_request": incoming_friend_request,
         "is_self": viewer["user_id"] == user_id,
+        "can_edit_profile": can_edit_profile,
         "equipped_cosmetics": equipped_cosmetics,
         "active_aura": active_aura,
         "titles_progress": titles_progress,
@@ -7622,6 +7719,8 @@ async def startup():
     await db.posts.create_index("created_at")
     await db.user_badges.create_index([("user_id", 1), ("badge_id", 1)], unique=True)
     await db.nexus_messages.create_index([("user_id", 1), ("created_at", -1)])
+    await db.nexus_room_chat.create_index([("room_id", 1), ("created_at", -1)])
+    await db.nexus_room_chat.create_index("message_id", unique=True)
     await db.chronicles.create_index([("user_id", 1), ("created_at", -1)])
     await db.user_quests.create_index("user_id_quest_id", unique=True, sparse=True)
     await db.gm_audit_log.create_index([("created_at", -1)])

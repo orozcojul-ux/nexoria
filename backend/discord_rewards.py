@@ -26,12 +26,12 @@ ACTION_LABELS = {
     "forum_thread": "Sujet créé sur la Tribune",
     "forum_reply": "Réponse sur la Tribune",
     "report_validated": "Signalement validé",
-    "gain_aether": "Gain d'Éclats",
+    "gain_aether": "Gain d'Écus",
     "gain_reputation": "Gain de réputation",
     "gain_xp": "Gain d'expérience",
     "Inscription via Discord": "Inscription via Discord",
     "Récompense": "Récompense",
-    "Écus passifs quotidiens": "Éclats passifs quotidiens",
+    "Écus passifs quotidiens": "Écus passifs quotidiens",
     "Don du Conseil": "Don du Conseil",
     "Retrait du Conseil": "Retrait du Conseil",
     "Récompense de saison": "Récompense de saison",
@@ -110,7 +110,7 @@ def _format_deltas(
     if xp != 0:
         parts.append(_fmt_delta(xp, "XP"))
     if aether != 0:
-        parts.append(_fmt_delta(aether, "Éclats"))
+        parts.append(_fmt_delta(aether, "Écus"))
     if reputation != 0:
         parts.append(_fmt_delta(reputation, "Réputation"))
     if skill_points != 0:
