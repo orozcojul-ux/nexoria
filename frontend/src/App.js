@@ -3,7 +3,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { MaintenanceProvider, useMaintenance, isMaintenancePublicRoute } from "@/contexts/MaintenanceContext";
+import { MaintenanceProvider, useMaintenance, isMaintenanceBypassRoute } from "@/contexts/MaintenanceContext";
 import { I18nProvider } from "@/contexts/I18nContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { UserPrefsSync } from "@/components/AppProviders";
@@ -50,46 +50,35 @@ import StaffAlertOverlay from "@/components/StaffAlertOverlay";
 import NexusOverlay from "@/components/NexusOverlay";
 import NexusFAB from "@/components/NexusFAB";
 import AetherTicker from "@/components/AetherTicker";
-import MaintenanceSoftBanner from "@/components/maintenance/MaintenanceSoftBanner";
 import MaintenanceBootShell from "@/components/maintenance/MaintenanceBootShell";
 
+/**
+ * Bloque visuellement le site pendant la maintenance (backend soft = APIs ouvertes).
+ * Visiteurs → page /maintenance plein écran. Staff/beta → accès normal.
+ */
 function MaintenanceGate({ children }) {
   const { user, loading: authLoading } = useAuth();
   const maint = useMaintenance();
   const location = useLocation();
 
-  const isPublicRoute = isMaintenancePublicRoute(location.pathname);
+  const isBypass = isMaintenanceBypassRoute(location.pathname);
   const isStaff = user?.role === "admin" || user?.role === "moderator";
-  const softMode = maint.soft_mode !== false;
-  const locked = maint.enabled && !isStaff && !maint.beta_access;
-  const showBanner = locked && softMode;
+  const canAccessSite = !maint.enabled || isStaff || maint.beta_access;
 
-  // Auth & public routes: always render immediately (no blank screen on Safari).
-  if (isPublicRoute) {
-    return (
-      <div className={showBanner ? "maint-app-with-banner" : undefined}>
-        {showBanner && <MaintenanceSoftBanner />}
-        {children}
-      </div>
-    );
+  // Callback Discord OAuth : monter immédiatement (Safari mobile).
+  if (isBypass) {
+    return children;
   }
 
   if (maint.loading || authLoading) {
     return <MaintenanceBootShell />;
   }
 
-  // Hard maintenance: redirect protected routes to the maintenance page.
-  if (locked && !softMode) {
-    window.location.replace("/maintenance");
-    return <MaintenanceBootShell label="Redirection vers la maintenance…" />;
+  if (!canAccessSite) {
+    return <Navigate to="/maintenance" replace />;
   }
 
-  return (
-    <div className={showBanner ? "maint-app-with-banner" : undefined}>
-      {showBanner && <MaintenanceSoftBanner />}
-      {children}
-    </div>
-  );
+  return children;
 }
 
 /** Racine : les héros connectés vont au feed, les visiteurs voient la landing. */

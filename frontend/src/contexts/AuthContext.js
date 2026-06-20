@@ -243,9 +243,8 @@ export function AuthProvider({ children }) {
     setBanInfo(null);
 
     try {
-      const { data } = await api.get("/system/maintenance");
-      const softMode = data.soft_mode !== false;
-      if (data.enabled && !data.beta_access && !softMode) {
+      const { data } = await api.get("/maintenance/status");
+      if (data.enabled && !data.beta_access) {
         window.location.replace("/maintenance");
         return "/maintenance";
       }

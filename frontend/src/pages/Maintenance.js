@@ -79,8 +79,11 @@ export default function Maintenance() {
     try {
       const { data } = await api.get("/maintenance/status");
       setStatusData(data);
-      if (!data.enabled) navigate("/feed");
-      else if (data.beta_access) navigate("/");
+      if (!data.enabled) {
+        navigate("/feed", { replace: true });
+      } else if (data.beta_access) {
+        navigate("/feed", { replace: true });
+      }
     } catch {
       setStatusData({ enabled: true, html: {}, systems: DEFAULT_SYSTEMS });
     }

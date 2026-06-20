@@ -1,14 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import api from "@/lib/api";
 
-/** Routes always reachable during maintenance (auth + landing + maintenance page). */
-export const MAINTENANCE_PUBLIC_ROUTES = new Set([
-  "/",
+/** Routes reachable during maintenance (auth + maintenance page only — not landing/feed). */
+export const MAINTENANCE_BYPASS_ROUTES = new Set([
+  "/maintenance",
   "/login",
   "/register",
   "/forgot-password",
   "/reset-password",
-  "/maintenance",
   "/auth/discord/callback",
 ]);
 
@@ -28,7 +27,7 @@ export function MaintenanceProvider({ children }) {
   useEffect(() => {
     const load = async () => {
       try {
-        const { data } = await api.get("/system/maintenance");
+        const { data } = await api.get("/maintenance/status");
         setState({
           loading: false,
           enabled: Boolean(data.enabled),
@@ -37,6 +36,7 @@ export function MaintenanceProvider({ children }) {
           beta_access: Boolean(data.beta_access),
         });
       } catch {
+        // API indisponible — ne pas bloquer le site (évite écran blanc / lock total).
         setState((prev) => ({ ...prev, loading: false, enabled: false }));
       }
     };
@@ -56,6 +56,11 @@ export function useMaintenance() {
   return useContext(MaintenanceContext);
 }
 
+export function isMaintenanceBypassRoute(pathname) {
+  return MAINTENANCE_BYPASS_ROUTES.has(pathname);
+}
+
+/** @deprecated use isMaintenanceBypassRoute */
 export function isMaintenancePublicRoute(pathname) {
-  return MAINTENANCE_PUBLIC_ROUTES.has(pathname);
+  return isMaintenanceBypassRoute(pathname);
 }
