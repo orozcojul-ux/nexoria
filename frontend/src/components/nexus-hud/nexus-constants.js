@@ -1,5 +1,5 @@
 import {
-  Globe2, Hash, Shield, UserPlus, Briefcase, Zap,
+  Globe2, Hash, Shield, Briefcase, Zap,
   Sun, CloudRain, CloudLightning, Cloud, Sparkles,
 } from "lucide-react";
 
@@ -15,7 +15,6 @@ export const CHANNEL_CONFIG = {
   global: { fr: "Global", icon: Globe2, tone: "cyan" },
   room: { fr: "Salle", icon: Hash, tone: "violet" },
   guild: { fr: "Guilde", icon: Shield, tone: "emerald" },
-  whisper: { fr: "Chuchotement", icon: UserPlus, tone: "pink" },
   trade: { fr: "Commerce", icon: Briefcase, tone: "gold" },
   event: { fr: "Événement", icon: Zap, tone: "violet" },
 };

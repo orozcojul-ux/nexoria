@@ -103,8 +103,12 @@ def build_message_doc(p: dict, room_id: str, room_name: str, content: str) -> di
         "user_id": p["user_id"],
         "username": p["username"],
         "role": p.get("role", "user"),
+        "is_nexus_supreme": bool(p.get("is_nexus_supreme")),
         "class_name": p.get("class_name"),
         "level": p.get("level", 1),
+        "rank": p.get("rank"),
+        "is_vip": bool(p.get("is_vip")),
+        "chat_color": p.get("nexus_chat_color"),
         "content": content,
         "created_at": now_iso(),
         "ts": time.time(),
@@ -113,6 +117,25 @@ def build_message_doc(p: dict, room_id: str, room_name: str, content: str) -> di
         "deleted_at": None,
         "delete_reason": None,
     }
+
+
+async def clear_room_messages(db, room_id: str, moderator: dict | None = None) -> int:
+    """Soft-delete tous les messages actifs d'une salle."""
+    if db is None:
+        return 0
+    patch = {
+        "deleted": True,
+        "deleted_at": now_iso(),
+        "delete_reason": "cleared_by_command",
+    }
+    if moderator:
+        patch["deleted_by"] = moderator.get("user_id")
+        patch["deleted_by_username"] = moderator.get("username")
+    result = await db.nexus_room_chat.update_many(
+        {"room_id": room_id, "deleted": {"$ne": True}},
+        {"$set": patch},
+    )
+    return int(result.modified_count)
 
 
 async def persist_message(db, doc: dict) -> dict:

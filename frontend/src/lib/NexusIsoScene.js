@@ -28,6 +28,7 @@ import {
   computeWalkBoundsFromImage,
   clampPoint,
 } from "./nexusOnlineVisuals";
+import { getStaffVisuals } from "./staff-roles";
 
 /* Re-export for consumers */
 export { TILE_W, TILE_H, CLASS_HEX, CLASS_COLOR_INT, RARITY_HEX, PLAYER_SPRITE_HEIGHT };
@@ -1173,7 +1174,7 @@ export class NexusIsoScene extends Phaser.Scene {
     }
     const nameText = this.add.text(0, this.playerNameOffsetY(), "", {
       fontFamily: "Cinzel, serif", fontSize: "12px",
-      color: p.role === "admin" ? "#FFD700" : p.role === "moderator" ? "#F97316" : "#FFFFFF",
+      color: getStaffVisuals(p)?.color || "#FFFFFF",
       fontStyle: "bold", stroke: "#000", strokeThickness: 3,
     }).setOrigin(0.5);
     const subText = this.add.text(0, this.playerSubOffsetY(), "", {
@@ -1217,16 +1218,20 @@ export class NexusIsoScene extends Phaser.Scene {
   updateNameTag(container) {
     const p = container.profile;
     if (!p) return;
-    const crown = p.role === "admin" ? "👑 " : p.role === "moderator" ? "🛡️ " : "";
+    const staff = getStaffVisuals(p);
+    const prefix = staff?.prefix || "";
     const vip = p.is_vip ? "💎 " : "";
     const mute = p.muted ? " 🔇" : "";
     const freeze = p.frozen ? " ❄" : "";
-    container.nameText.setText(`${vip}${crown}${p.username}${mute}${freeze}`);
-    // VIP gilds the name (unless overridden by staff colors) and adds a golden aura.
+    container.nameText.setText(`${vip}${prefix}${p.username}${mute}${freeze}`);
+    if (staff) {
+      container.nameText.setColor(staff.color);
+    } else if (p.is_vip) {
+      container.nameText.setColor("#FBBF24");
+    } else {
+      container.nameText.setColor("#FFFFFF");
+    }
     if (p.is_vip) {
-      if (p.role !== "admin" && p.role !== "moderator") {
-        container.nameText.setColor("#FBBF24");
-      }
       if (container.nameText.setStroke) container.nameText.setStroke("#3B1D6E", 3);
       if (!container.vipAura) this.addVipAura(container);
     }
@@ -1279,6 +1284,7 @@ export class NexusIsoScene extends Phaser.Scene {
       if (dir === "W" || dir === "NW" || dir === "SW") c.sprite?.setFlipX(true);
       else if (dir === "E" || dir === "NE" || dir === "SE") c.sprite?.setFlipX(false);
     }
+    if (c.chatBubble) c.bringToTop(c.chatBubble);
     this.sortDepth();
   }
 
@@ -1333,22 +1339,21 @@ export class NexusIsoScene extends Phaser.Scene {
     if (!c) return;
     this.dismissChatBubble(c);
 
-    const isAdmin = role === "admin";
-    const isMod = role === "moderator";
-    const borderColor = isAdmin ? 0xFFD700 : isMod ? 0xFB923C : 0xC9A565;
-    const glowColor = isAdmin ? 0xFFD700 : isMod ? 0xFB923C : 0x7C3AED;
-    const fillColor = isAdmin ? 0x1a1408 : isMod ? 0x1a1008 : 0x0f0a18;
-    const textColor = isAdmin ? "#FFF4CC" : isMod ? "#FFEDD5" : "#F5E6C8";
+    const staff = getStaffVisuals({ ...c.profile, role: role || c.profile?.role });
+    const borderColor = staff?.phaser ?? 0xC9A565;
+    const glowColor = staff?.phaser ?? 0x7C3AED;
+    const fillColor = staff?.id === "moderator" ? 0x1a1008 : staff ? 0x120a18 : 0x0f0a18;
+    const textColor = staff?.textLight || "#F5E6C8";
 
     const displayText = String(text || "").slice(0, 90);
     const t = this.add.text(0, -2, displayText, {
-      fontFamily: "ui-sans-serif, system-ui, sans-serif",
-      fontSize: "12px",
+      fontFamily: "Segoe UI, Roboto, Helvetica, Arial, sans-serif",
+      fontSize: "13px",
       color: textColor,
       wordWrap: { width: 200 },
       align: "center",
       stroke: "#1a1008",
-      strokeThickness: 2,
+      strokeThickness: 1,
     }).setOrigin(0.5);
     const padX = 14;
     const padY = 8;
@@ -1371,17 +1376,18 @@ export class NexusIsoScene extends Phaser.Scene {
     bg.lineStyle(1, borderColor, 0.5);
     bg.strokeTriangle(-7, h / 2, 7, h / 2, 0, h / 2 + 9);
 
-    const bubbleY = c.y - this.bubbleOffsetY();
-    const bubble = this.add.container(c.x, bubbleY, [glow, bg, t]);
-    bubble.setDepth(9000);
+    const localY = -this.bubbleOffsetY();
+    const bubble = this.add.container(0, localY, [glow, bg, t]);
     bubble.setAlpha(0);
     bubble.setScale(0.85);
+    c.add(bubble);
+    c.bringToTop(bubble);
     c.chatBubble = bubble;
     this.tweens.add({
       targets: bubble,
       alpha: 1,
       scale: 1,
-      y: bubbleY - 10,
+      y: localY - 10,
       duration: 220,
       ease: "Back.easeOut",
     });
@@ -1390,7 +1396,7 @@ export class NexusIsoScene extends Phaser.Scene {
       this.tweens.add({
         targets: bubble,
         alpha: 0,
-        y: bubble.y - 14,
+        y: localY - 24,
         scale: 0.92,
         duration: 350,
         onComplete: () => {

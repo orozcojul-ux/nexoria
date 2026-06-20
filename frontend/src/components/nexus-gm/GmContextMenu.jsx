@@ -1,12 +1,12 @@
 import React, { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
-  Ban, Eye, Footprints, Map, MessageCircle, Search, Shield, Snowflake, VolumeX, X,
+  Ban, Eye, Footprints, Map, Search, Shield, Snowflake, VolumeX, X,
 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function GmContextMenu({
-  menu, onClose, gmApi, openHeroCard, openGmPanel, startWhisper,
+  menu, onClose, gmApi, openHeroCard, openGmPanel,
   requestTeleport, teleportToHere, openBan, inspectPlayer,
 }) {
   const openedAtRef = useRef(0);
@@ -39,7 +39,6 @@ export default function GmContextMenu({
   const actions = [
     { id: "card", label: "Carte Héros", icon: Eye, color: "#67e8f9", run: () => openHeroCard(p.user_id) },
     { id: "panel", label: "Panel Gardien", icon: Shield, color: "#e8c97a", run: () => openGmPanel(p) },
-    { id: "whisper", label: "Chuchoter", icon: MessageCircle, color: "#f472b6", run: () => startWhisper(p) },
     { id: "follow", label: "Suivre", icon: Footprints, color: "#34d399", run: () => {
       gmApi.tpToPlayer?.(p.user_id);
       toast.success(`Suivi de ${p.username}`);

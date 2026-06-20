@@ -520,9 +520,7 @@ async def check_hall_of_legends(user_id: str):
 
 
 async def on_nexus_chat_message(user_id: str, channel: str):
-    """Persist Nexus chat and evaluate chatter badges (whispers excluded)."""
-    if channel == "whisper":
-        return
+    """Persist Nexus chat and evaluate chatter badges."""
     await db.nexus_messages.insert_one({
         "user_id": user_id,
         "channel": channel,
@@ -1774,6 +1772,7 @@ class ProfileUpdateReq(BaseModel):
     staff_nexus_auto_connect: Optional[bool] = None  # Staff: auto-join Nexus socket on login (legacy)
     nexus_auto_connect: Optional[bool] = None  # All users: auto-join Nexus ONLINE on login
     appear_offline: Optional[bool] = None  # Hide online presence (site + Nexus) for all users
+    nexus_chat_color: Optional[str] = Field(None, max_length=7)  # VIP: couleur tchat Nexus
 
 
 @api.get("/users/search")
@@ -1802,6 +1801,24 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         accent = update["profile_accent"]
         if accent and not re.match(r"^#[0-9A-Fa-f]{6}$", accent):
             raise HTTPException(400, "Couleur d'accent invalide (format #RRGGBB)")
+    if "nexus_chat_color" in update:
+        from nexus_chat_commands import resolve_vip_color
+        if not is_vip_active(user):
+            raise HTTPException(403, "Couleur de tchat réservée aux membres VIP.")
+        raw = update.get("nexus_chat_color")
+        if raw in (None, ""):
+            unset_fields.append("nexus_chat_color")
+            update.pop("nexus_chat_color", None)
+        else:
+            try:
+                resolved = resolve_vip_color(str(raw))
+            except ValueError as e:
+                raise HTTPException(400, str(e))
+            if resolved is None:
+                unset_fields.append("nexus_chat_color")
+                update.pop("nexus_chat_color", None)
+            else:
+                update["nexus_chat_color"] = resolved
     if "profile_visibility" in update:
         if update["profile_visibility"] not in ("public", "friends", "private"):
             raise HTTPException(400, "Visibilité invalide")
@@ -1900,10 +1917,12 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
     # Real-time profile sync (Nexus cosmetics / title / aura / class)
     cosmetic_fields = {k: update[k] for k in (
         "active_banner", "active_frame", "active_aura_sku", "active_mount", "active_title", "avatar_url",
-        "class_id", "class_name",
+        "class_id", "class_name", "nexus_chat_color",
     ) if k in update}
     if "active_banner" in unset_fields:
         cosmetic_fields["active_banner"] = None
+    if "nexus_chat_color" in unset_fields:
+        cosmetic_fields["nexus_chat_color"] = None
     if cosmetic_fields:
         try:
             await nexus_world.push_profile_updated(user["user_id"], cosmetic_fields)

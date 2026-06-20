@@ -1,5 +1,5 @@
 import React from "react";
-import { Users, Crown, UserPlus, VolumeX, Snowflake, EyeOff, MessageCircle } from "lucide-react";
+import { Users, Crown, VolumeX, Snowflake, EyeOff, MessageCircle } from "lucide-react";
 import HeroName from "@/components/HeroName";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
 import ClassImage from "@/components/ClassImage";
@@ -10,7 +10,6 @@ export default function NexusSocialDock({
   isStaff,
   friendIds = [],
   onSelectHero,
-  onWhisper,
   onFriendMessage,
   onGmTarget,
 }) {
@@ -59,9 +58,6 @@ export default function NexusSocialDock({
                           <MessageCircle className="w-3 h-3 text-cyan-300" />
                         </button>
                       )}
-                      <button type="button" className="nexus-hero-action" title="Chuchoter" onClick={() => onWhisper(p)} data-testid={`whisper-${p.user_id}`}>
-                        <UserPlus className="w-3 h-3 text-pink-400" />
-                      </button>
                     </>
                   )}
                   {isStaff && (

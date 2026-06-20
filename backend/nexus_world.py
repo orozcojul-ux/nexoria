@@ -16,6 +16,7 @@ and re-check on every privileged event.
 """
 import asyncio
 import logging
+import os
 import time
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -25,9 +26,16 @@ import socketio
 from auth import get_user_by_token
 import online_gate
 import nexus_room_chat as room_chat
+import nexus_chat_commands as chat_cmds
 from nexus_rooms import ROOMS, can_access, get_portal_links  # noqa: F401
 
 logger = logging.getLogger("nexoria.nexus")
+
+OWNER_USERNAME = os.environ.get("OWNER_USERNAME", "SmouzYi")
+
+
+def _is_nexus_supreme(user: dict) -> bool:
+    return (user.get("username") or "").lower() == OWNER_USERNAME.lower()
 
 
 def _vip_active(user: dict) -> bool:
@@ -49,10 +57,10 @@ DEFAULT_ROOM = "place_centrale"
 NEXUS_PRESENCE_TTL_SEC = 4 * 3600  # restore last room/position within 4h
 
 STAFF_ROLES = {"admin", "moderator"}
-STAFF_ROLE_LABELS = {"admin": "Sage", "moderator": "Modérateur"}
+STAFF_ROLE_LABELS = {"admin": "Sage", "moderator": "Sentinelle"}
 STAFF_ROLE_ORDER = ("admin", "moderator")
 WEATHERS = {"clear", "rain", "storm", "eclipse", "aurora"}
-CHAT_CHANNELS = {"global", "room", "guild", "whisper", "trade", "event"}
+CHAT_CHANNELS = {"global", "room", "guild", "trade", "event"}
 
 # In-memory state (initialized lazily once ROOMS is loaded)
 _players = {}
@@ -186,6 +194,7 @@ async def _room_chat_history_for(room_id: str) -> list[dict]:
             "user_id": m.get("user_id"),
             "username": m.get("username"),
             "role": m.get("role", "user"),
+            "is_nexus_supreme": bool(m.get("is_nexus_supreme")),
             "class_name": m.get("class_name"),
             "level": m.get("level", 1),
             "content": m.get("text", ""),
@@ -215,7 +224,8 @@ def _lite(p: dict, viewer_role: str = "user") -> dict:
     out = {
         "sid": p["sid"], "user_id": p["user_id"], "username": p["username"],
         "class_id": p["class_id"], "class_name": p["class_name"],
-        "level": p["level"], "role": p["role"],
+        "level": p["level"],         "role": p["role"],
+        "is_nexus_supreme": bool(p.get("is_nexus_supreme")),
         "active_title": p.get("active_title"),
         "rank": p.get("rank"),
         "guild_id": p.get("guild_id"),
@@ -225,6 +235,7 @@ def _lite(p: dict, viewer_role: str = "user") -> dict:
         "active_aura_sku": p.get("active_aura_sku"),
         "active_mount": p.get("active_mount"),
         "is_vip": bool(p.get("is_vip")),
+        "nexus_chat_color": p.get("nexus_chat_color"),
         "tx": p["tx"], "ty": p["ty"], "room": p["room"],
         "muted": bool(p.get("muted")),
         "frozen": bool(p.get("frozen")),
@@ -455,6 +466,7 @@ def build_socketio_app(db, hooks=None):
             "class_name": user.get("class_name", "Explorateur"),
             "level": user.get("level", 1),
             "role": user.get("role", "user"),
+            "is_nexus_supreme": _is_nexus_supreme(user),
             "active_title": user.get("active_title", "novice"),
             "rank": user.get("rank", "Novice"),
             "avatar_url": user.get("avatar_url"),
@@ -463,6 +475,7 @@ def build_socketio_app(db, hooks=None):
             "active_aura_sku": user.get("active_aura_sku"),
             "active_mount": user.get("active_mount"),
             "is_vip": _vip_active(user),
+            "nexus_chat_color": user.get("nexus_chat_color"),
             "guild_id": guild_id,
             "tx": tx, "ty": ty,
             "room": room,
@@ -563,7 +576,6 @@ def build_socketio_app(db, hooks=None):
         channel = (data or {}).get("channel", "room")
         if channel not in CHAT_CHANNELS:
             channel = "room"
-        target_user_id = (data or {}).get("target_user_id")
 
         # Event channel is staff-only (server-wide live event announcements)
         if channel == "event" and p["role"] not in STAFF_ROLES:
@@ -576,27 +588,14 @@ def build_socketio_app(db, hooks=None):
             "user_id": p["user_id"],
             "username": p["username"],
             "role": p["role"],
+            "is_nexus_supreme": bool(p.get("is_nexus_supreme")),
             "class_name": p["class_name"],
             "level": p["level"],
             "rank": p.get("rank"),
             "is_vip": bool(p.get("is_vip")),
+            "chat_color": p.get("nexus_chat_color"),
             "text": text,
         }
-        if channel == "whisper":
-            if not target_user_id:
-                return
-            target_sids = list(_user_sids.get(target_user_id, set()))
-            if not target_sids:
-                await sio.emit("system_msg", {"kind": "error", "text": "Destinataire hors-ligne."}, to=sid)
-                return
-            target_p = next((_players[ts] for ts in target_sids if ts in _players), None)
-            msg["target_user_id"] = target_user_id
-            msg["target_username"] = target_p["username"] if target_p else target_user_id
-            # Echo to sender + send to all of target's sids
-            await sio.emit("chat", msg, to=sid)
-            for ts in target_sids:
-                await sio.emit("chat", msg, to=ts)
-            return
         if channel == "guild":
             if not p.get("guild_id"):
                 await sio.emit("system_msg", {"kind": "error", "text": "Vous n'avez pas de guilde."}, to=sid)
@@ -613,6 +612,44 @@ def build_socketio_app(db, hooks=None):
             # Default: room channel (local)
             room = p["room"]
             room_name = ROOMS.get(room, {}).get("name", room)
+
+            if text.startswith("/"):
+                def _find_by_username(username: str, room_filter: str | None = None):
+                    un = username.lower().lstrip("@")
+                    for _, pl in _players.items():
+                        if pl["username"].lower() == un:
+                            if room_filter and pl["room"] != room_filter:
+                                continue
+                            return pl
+                    return None
+
+                async def _kick_from_chat(target: dict, reason: str, gm: dict):
+                    target_sid = target["sid"]
+                    await sio.emit("kicked", {"reason": reason or "Expulsé du Nexus."}, to=target_sid)
+
+                    async def _later_disconnect(s):
+                        await asyncio.sleep(1.5)
+                        await sio.disconnect(s)
+
+                    asyncio.create_task(_later_disconnect(target_sid))
+
+                handled = await chat_cmds.handle_slash_command(
+                    sid=sid,
+                    player=p,
+                    text=text,
+                    sio=sio,
+                    db=_db_ref,
+                    players=_players,
+                    chat_buffer=_chat_buffer,
+                    rooms=ROOMS,
+                    find_by_username=_find_by_username,
+                    kick_player=_kick_from_chat,
+                    audit=_audit,
+                    vip_active=lambda pl: bool(pl.get("is_vip")),
+                )
+                if handled:
+                    return
+
             content, err = room_chat.validate_message(text, sid)
             if err:
                 await sio.emit("system_msg", {"kind": "warn", "text": err}, to=sid)
@@ -626,6 +663,8 @@ def build_socketio_app(db, hooks=None):
             msg["message_id"] = doc["message_id"]
             msg["room_id"] = room
             msg["content"] = content
+            msg["chat_color"] = doc.get("chat_color") or p.get("nexus_chat_color")
+            msg["is_vip"] = bool(doc.get("is_vip", p.get("is_vip")))
             buf = _chat_buffer[room]
             buf.append(msg)
             del buf[:-room_chat.ROOM_CHAT_BUFFER_MAX]
@@ -670,6 +709,7 @@ def build_socketio_app(db, hooks=None):
         legacy = {
             "ts": doc["ts"], "channel": "room", "user_id": doc["user_id"],
             "username": doc["username"], "role": doc["role"],
+            "is_nexus_supreme": bool(doc.get("is_nexus_supreme")),
             "class_name": doc.get("class_name"), "level": doc.get("level"), "text": content,
         }
         buf.append(legacy)
@@ -1606,6 +1646,8 @@ async def push_profile_updated(user_id: str, fields: dict):
     if not fields:
         return
     payload = {"user_id": user_id, "ts": _now_iso(), **fields}
+    if "nexus_chat_color" in fields:
+        payload["chat_color"] = fields["nexus_chat_color"]
     await push_to_user(user_id, "profile:updated", payload)
     if _sio_ref is None:
         return

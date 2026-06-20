@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Crown, Shield, Package, Award, History, Users, BarChart3,
   MessageCircle, UserPlus, Sword, Trophy, Compass, Flame, Star, Frame, Flag, Gem,
-  Settings2, Pencil,
+  Settings2, Pencil, Repeat,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -17,6 +17,7 @@ import { getHeroAvatarDataURL } from "@/lib/NexusPixelArt";
 import { getTitleLabel } from "@/lib/title-labels";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
 import ClassImage from "@/components/ClassImage";
+import ClassChangeModal from "@/components/ClassChangeModal";
 import HeroCardCustomizeTab from "@/components/HeroCardCustomizeTab";
 import styles from "./HeroCard.module.css";
 
@@ -155,13 +156,18 @@ function badgeGlowClass(rarity) {
   return styles.badgeGlowDefault;
 }
 
-export default function HeroCard({ userId, open, onClose, onWhisper }) {
+export default function HeroCard({ userId, open, onClose }) {
   const { user: me, refresh: refreshAuth, loading: authLoading, checkAuth } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("overview");
+  const [classModalOpen, setClassModalOpen] = useState(false);
   const openedAtRef = useRef(0);
+
+  useEffect(() => {
+    if (!open) setClassModalOpen(false);
+  }, [open]);
 
   const isStaff = me?.role === "admin" || me?.role === "moderator";
   const canEditProfile = Boolean(data?.can_edit_profile);
@@ -264,12 +270,7 @@ export default function HeroCard({ userId, open, onClose, onWhisper }) {
       onClose?.();
       return;
     }
-    if (onWhisper && u) {
-      onWhisper({ user_id: u.user_id, username: u.username });
-      onClose?.();
-      return;
-    }
-    toast.info("Message privé : liez-vous en amis ou utilisez Chuchoter dans le Nexus");
+    toast.info("Message privé : ajoutez cet aventurier en ami pour lui écrire.");
   };
 
   const frameCosmetic = data?.equipped_cosmetics?.frame;
@@ -411,6 +412,7 @@ export default function HeroCard({ userId, open, onClose, onWhisper }) {
                         justifyContent: "center",
                         gap: 10,
                         margin: "10px 0 4px",
+                        flexWrap: "wrap",
                       }}
                     >
                       <ClassImage
@@ -430,6 +432,30 @@ export default function HeroCard({ userId, open, onClose, onWhisper }) {
                       >
                         {u.class_name}
                       </span>
+                      {data?.is_self && (
+                        <button
+                          type="button"
+                          onClick={() => setClassModalOpen(true)}
+                          data-testid="hero-card-change-class-btn"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            padding: "4px 10px",
+                            borderRadius: 8,
+                            border: "1px solid rgba(167,139,250,0.45)",
+                            background: "rgba(124,58,237,0.12)",
+                            color: "#c4b5fd",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            letterSpacing: "0.08em",
+                            textTransform: "uppercase",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <Repeat className="w-3 h-3" /> Changer
+                        </button>
+                      )}
                     </div>
                   )}
                   <p className={styles.levelLine}>
@@ -577,6 +603,17 @@ export default function HeroCard({ userId, open, onClose, onWhisper }) {
           </motion.div>
         </motion.div>
       )}
+      <ClassChangeModal
+        open={classModalOpen}
+        onClose={() => setClassModalOpen(false)}
+        user={u || me}
+        onChanged={async () => {
+          await loadCard();
+          if (data?.is_self) {
+            try { await refreshAuth(); } catch { /* silent */ }
+          }
+        }}
+      />
     </AnimatePresence>
   );
 }

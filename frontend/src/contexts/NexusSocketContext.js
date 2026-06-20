@@ -19,7 +19,7 @@ import { isStaffRole } from "@/lib/staff-roles";
 const NexusSocketContext = createContext(null);
 export const useNexusSocket = () => useContext(NexusSocketContext);
 
-const CHANNELS = ["global", "room", "guild", "whisper", "trade", "event"];
+const CHANNELS = ["global", "room", "guild", "trade", "event"];
 
 export function NexusSocketProvider({ children }) {
   const { user } = useAuth();
@@ -37,7 +37,6 @@ export function NexusSocketProvider({ children }) {
   const [chat, setChat] = useState([]); // legacy multi-channel (conservé pour compat)
   const lastRoomChatSendRef = useRef(0);
   const [activeChannel, setActiveChannel] = useState("room");
-  const [whisperTarget, setWhisperTarget] = useState(null); // {user_id, username}
   const [unreadByChannel, setUnreadByChannel] = useState({});
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [popup, setPopup] = useState(null); // {title, body, kind, by_username}
@@ -47,6 +46,7 @@ export function NexusSocketProvider({ children }) {
   const [presence, setPresence] = useState({ total: 0, by_room: {}, active_rooms: 0, staff_online: { total: 0, by_role: {}, members: [] } });
   const [gmLogs, setGmLogs] = useState([]);
   const [nexusGate, setNexusGate] = useState({ open: true, html: {} });
+  const [chatHelpOpen, setChatHelpOpen] = useState(false);
 
   const userStaff = isStaffRole(user);
   // « Connexion automatique » (tous les utilisateurs) : rejoindre le Nexus ONLINE
@@ -99,7 +99,6 @@ export function NexusSocketProvider({ children }) {
       setPlayers([]);
       setRoomChatMessages([]);
       setFriendMessage(null);
-      setWhisperTarget(null);
       setOverlayOpen(false);
       return undefined;
     }
@@ -224,6 +223,14 @@ export function NexusSocketProvider({ children }) {
     socket.on("room_chat_message_deleted", ({ message_id }) => {
       setRoomChatMessages((prev) => prev.filter((m) => m.message_id !== message_id));
     });
+    socket.on("room_chat_cleared", ({ room_id }) => {
+      if (!room_id || roomRef.current?.id === room_id) {
+        setRoomChatMessages([]);
+      }
+    });
+    socket.on("nexus_chat_help", () => {
+      setChatHelpOpen(true);
+    });
     socket.on("room_chat_user_muted", ({ user_id }) => {
       setPlayers((prev) => prev.map((p) => (p.user_id === user_id ? { ...p, muted: true } : p)));
       setYou((prev) => (prev?.user_id === user_id ? { ...prev, muted: true } : prev));
@@ -241,10 +248,12 @@ export function NexusSocketProvider({ children }) {
           user_id: msg.user_id,
           username: msg.username,
           role: msg.role,
+          is_nexus_supreme: msg.is_nexus_supreme,
           class_name: msg.class_name,
           level: msg.level,
           rank: msg.rank,
           is_vip: msg.is_vip,
+          chat_color: msg.chat_color || msg.nexus_chat_color,
           content: msg.text || msg.content,
           ts: msg.ts,
         };
@@ -361,14 +370,19 @@ export function NexusSocketProvider({ children }) {
       try {
         window.dispatchEvent(new CustomEvent("nexoria:profile:updated", { detail: data }));
       } catch {}
-      setYou((prev) => (prev && data?.user_id === prev.user_id ? { ...prev, ...data } : prev));
-      setPlayers((prev) => prev.map((p) => (p.user_id === data?.user_id ? { ...p, ...data } : p)));
-      sceneApiRef.current?.onPlayerProfile?.(data);
+      const patch = {
+        ...data,
+        nexus_chat_color: data.nexus_chat_color ?? data.chat_color,
+      };
+      setYou((prev) => (prev && data?.user_id === prev.user_id ? { ...prev, ...patch } : prev));
+      setPlayers((prev) => prev.map((p) => (p.user_id === data?.user_id ? { ...p, ...patch } : p)));
+      sceneApiRef.current?.onPlayerProfile?.(patch);
     });
 
     socket.on("player_profile", (patch) => {
       if (!patch?.sid) return;
       setPlayers((prev) => prev.map((p) => (p.sid === patch.sid ? { ...p, ...patch } : p)));
+      setYou((prev) => (prev?.sid === patch.sid ? { ...prev, ...patch } : prev));
       sceneApiRef.current?.onPlayerProfile?.(patch);
     });
 
@@ -407,36 +421,44 @@ export function NexusSocketProvider({ children }) {
     }
     lastRoomChatSendRef.current = now;
 
+    if (/^\/(help|aide|\?)$/i.test(content)) {
+      setChatHelpOpen(true);
+      return true;
+    }
+
+    const isCommand = content.startsWith("/");
     const roomId = roomRef.current?.id;
-    setRoomChatMessages((prev) => [...prev, {
-      message_id: `local_${now}`,
-      room_id: roomId,
-      user_id: youNow.user_id,
-      username: youNow.username || "Vous",
-      role: youNow.role || "user",
-      level: youNow.level,
-      rank: youNow.rank,
-      is_vip: youNow.is_vip,
-      content,
-      ts: now / 1000,
-      pending: true,
-    }].slice(-50));
+
+    if (!isCommand) {
+      setRoomChatMessages((prev) => [...prev, {
+        message_id: `local_${now}`,
+        room_id: roomId,
+        user_id: youNow.user_id,
+        username: youNow.username || "Vous",
+        role: youNow.role || "user",
+        level: youNow.level,
+        rank: youNow.rank,
+        is_vip: youNow.is_vip,
+        chat_color: youNow.nexus_chat_color,
+        content,
+        ts: now / 1000,
+        pending: true,
+      }].slice(-50));
+    }
 
     socket.emit("chat", { text: content, channel: "room" });
-    if (youNow.sid) {
+    if (!isCommand && youNow.sid) {
       sceneApiRef.current?.onChatBubble?.(youNow.sid, content, youNow.role);
     }
     return true;
   }, []);
 
-  const sendChat = useCallback((text, channel = "room", targetUserId = null) => {
+  const sendChat = useCallback((text, channel = "room") => {
     if (channel === "room" || !channel) {
       return sendRoomChat(text);
     }
     if (!text?.trim() || !socketRef.current) return;
-    const payload = { text: text.trim(), channel };
-    if (channel === "whisper" && targetUserId) payload.target_user_id = targetUserId;
-    socketRef.current.emit("chat", payload);
+    socketRef.current.emit("chat", { text: text.trim(), channel });
   }, [sendRoomChat]);
 
   const move = useCallback((tx, ty, facing) => {
@@ -500,6 +522,17 @@ export function NexusSocketProvider({ children }) {
   const consumePushNotif = useCallback(() => setPushNotif(null), []);
   const consumeFriendMessage = useCallback(() => setFriendMessage(null), []);
 
+  const openChatHelp = useCallback(() => setChatHelpOpen(true), []);
+  const closeChatHelp = useCallback(() => setChatHelpOpen(false), []);
+
+  const patchYou = useCallback((patch) => {
+    setYou((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      youRef.current = next;
+      return next;
+    });
+  }, []);
   const openNexus = useCallback(() => setOverlayOpen(true), []);
   const closeNexus = useCallback(() => setOverlayOpen(false), []);
 
@@ -532,8 +565,9 @@ export function NexusSocketProvider({ children }) {
     status, room, you, players, weather, items, isStaff,
     roomChatMessages, sendRoomChat,
     chat, channels: CHANNELS, activeChannel, setActiveChannel,
-    whisperTarget, setWhisperTarget, unreadByChannel, markChannelRead,
+    unreadByChannel, markChannelRead,
     overlayOpen, setOverlayOpen, openNexus, closeNexus, reconnectNexus,
+    chatHelpOpen, openChatHelp, closeChatHelp, patchYou,
     nexusGate,
     popup, dismissPopup, globalAnnounce,
     pushNotif, consumePushNotif,
@@ -545,8 +579,9 @@ export function NexusSocketProvider({ children }) {
     attachScene, detachScene,
   }), [
     status, room, you, players, weather, items, isStaff, roomChatMessages, chat, activeChannel,
-    whisperTarget, unreadByChannel, overlayOpen, popup, globalAnnounce, pushNotif, friendMessage, presence, gmLogs, nexusGate,
+    unreadByChannel, overlayOpen, popup, globalAnnounce, pushNotif, friendMessage, presence, gmLogs, nexusGate, chatHelpOpen,
     sendChat, sendRoomChat, move, changeRoom, pickupItem, bossAttack, gm, onInspectResult, attachScene,
+    openChatHelp, closeChatHelp, patchYou,
     detachScene, markChannelRead, dismissPopup, consumePushNotif, consumeFriendMessage, openNexus, closeNexus, reconnectNexus,
   ]);
 

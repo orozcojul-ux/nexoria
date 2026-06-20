@@ -24,6 +24,7 @@ import {
   NexusBootClosed,
   NexusFriendsPanel,
 } from "@/components/nexus-hud";
+import NexusChatHelpPanel from "@/components/nexus-hud/NexusChatHelpPanel";
 import "@/components/nexus-hud/NexusHud.css";
 
 export default function NexusOverlay() {
@@ -70,29 +71,21 @@ export default function NexusOverlay() {
     status = "idle", room = null, you = null,
     players = [], items = [], weather = "clear", isStaff = false,
     chat = [], roomChatMessages = [], sendRoomChat = () => {},
-    activeChannel = "room", setActiveChannel = () => {},
-    whisperTarget = null, setWhisperTarget = () => {},
-    unreadByChannel = {}, markChannelRead = () => {},
-    sendChat = () => {}, move = () => {}, changeRoom = () => {}, pickupItem = () => {}, bossAttack = () => {},
+    move = () => {}, changeRoom = () => {}, pickupItem = () => {}, bossAttack = () => {},
     gm: gmApi = {}, onInspectResult = () => () => {},
     attachScene = () => {}, detachScene = () => {},
     popup = null, dismissPopup = () => {}, globalAnnounce = null,
     presence = { total: 0, by_room: {}, active_rooms: 0 },
     gmLogs = [],
+    chatHelpOpen = false, openChatHelp = () => {}, closeChatHelp = () => {}, patchYou = () => {},
   } = ns || {};
 
   const { openHeroCard } = useHeroCard();
 
   const openPlayerHeroCard = useCallback((uid) => {
     if (!uid) return;
-    openHeroCard(uid, {
-      onWhisper: (p) => {
-        setWhisperTarget(p);
-        setActiveChannel("whisper");
-        toast.info(`Chuchotement avec ${p.username}`);
-      },
-    });
-  }, [openHeroCard, setWhisperTarget, setActiveChannel]);
+    openHeroCard(uid);
+  }, [openHeroCard]);
 
   useEffect(() => {
     if (!isStaff || !gmApi?.godmode) return;
@@ -326,9 +319,30 @@ export default function NexusOverlay() {
 
   const submitChat = (e) => {
     e?.preventDefault();
-    if (!text.trim()) return;
-    if (sendRoomChat(text)) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    if (/^\/(help|aide|\?)$/i.test(trimmed)) {
+      openChatHelp();
       setText("");
+      return;
+    }
+    if (sendRoomChat(trimmed)) {
+      setText("");
+    }
+  };
+
+  const handleSetChatColor = async (hex) => {
+    if (!you?.is_vip) {
+      toast.error("Couleur de tchat réservée aux VIP.");
+      return;
+    }
+    try {
+      patchYou({ nexus_chat_color: hex || null, chat_color: hex || null });
+      await api.put("/profile", { nexus_chat_color: hex });
+      toast.success(hex ? "Couleur de tchat mise à jour." : "Couleur par défaut restaurée.");
+    } catch (err) {
+      patchYou({ nexus_chat_color: you?.nexus_chat_color, chat_color: you?.nexus_chat_color });
+      toast.error(err.response?.data?.detail || "Impossible de changer la couleur.");
     }
   };
 
@@ -375,11 +389,6 @@ export default function NexusOverlay() {
     setBanReason("");
     setBanHours(24);
     setGmOpen(false);
-  };
-
-  const onWhisper = (p) => {
-    setWhisperTarget(p);
-    setActiveChannel("whisper");
   };
 
   useEffect(() => {
@@ -478,7 +487,6 @@ export default function NexusOverlay() {
                 isStaff={isStaff}
                 friendIds={friendIds}
                 onSelectHero={openPlayerHeroCard}
-                onWhisper={onWhisper}
                 onFriendMessage={(p) => {
                   setFriendsChatId(p.user_id);
                   setFriendsTab("chat");
@@ -494,6 +502,7 @@ export default function NexusOverlay() {
                 open={chatOpen}
                 onOpen={() => setChatOpen(true)}
                 onClose={() => setChatOpen(false)}
+                onOpenHelp={openChatHelp}
                 roomName={room?.name || "Salle"}
                 messages={roomChatMessages}
                 text={text}
@@ -501,8 +510,18 @@ export default function NexusOverlay() {
                 onSubmit={submitChat}
                 onInsertEmoji={(e) => setText((t) => (t.length < 300 ? t + e : t))}
                 chatEndRef={chatEndRef}
-                isStaff={isStaff}
+                viewerRole={you?.role || "user"}
+                isVip={!!you?.is_vip}
+                chatColor={you?.nexus_chat_color || you?.chat_color || null}
+                onSetChatColor={handleSetChatColor}
                 onDeleteMessage={(messageId) => gmApi.deleteRoomChatMessage?.(messageId)}
+              />
+
+              <NexusChatHelpPanel
+                open={chatHelpOpen}
+                onClose={closeChatHelp}
+                role={you?.role || "user"}
+                isVip={!!you?.is_vip}
               />
             </>
           )}
@@ -591,7 +610,6 @@ export default function NexusOverlay() {
             gmApi={gmApi}
             openHeroCard={(uid) => { setAdminMenu(null); openPlayerHeroCard(uid); }}
             openGmPanel={(p) => { setAdminMenu(null); setSelectedTarget(p); setGmOpen(true); }}
-            startWhisper={(p) => { setAdminMenu(null); setWhisperTarget(p); setActiveChannel("whisper"); }}
             requestTeleport={(p) => { setAdminMenu(null); requestTilePickFor("teleport", p); }}
             teleportToHere={(p) => {
               setAdminMenu(null);

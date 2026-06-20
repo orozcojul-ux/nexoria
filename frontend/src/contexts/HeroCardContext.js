@@ -8,33 +8,23 @@ const HeroCardContext = createContext(null);
 export function HeroCardProvider({ children }) {
   const [userId, setUserId] = useState(null);
   const [open, setOpen] = useState(false);
-  const [onWhisper, setOnWhisper] = useState(null);
 
   const closeHeroCard = useCallback(() => {
     setOpen(false);
     setUserId(null);
-    setOnWhisper(null);
   }, []);
 
-  const openHeroCard = useCallback((id, options) => {
+  const openHeroCard = useCallback((id) => {
     if (!id) return;
     if (!getToken()) {
       toast.error("Connectez-vous pour voir les cartes héros");
       return;
     }
     setUserId(String(id));
-    const whisperFn = options?.onWhisper;
-    // React traite les fonctions passées à setState comme des updaters —
-    // il faut renvoyer la callback via une fonction updater pour la stocker.
-    if (typeof whisperFn === "function") {
-      setOnWhisper(() => whisperFn);
-    } else {
-      setOnWhisper(null);
-    }
     setOpen(true);
   }, []);
 
-  const openHeroCardByUsername = useCallback(async (username, options) => {
+  const openHeroCardByUsername = useCallback(async (username) => {
     const name = (username || "").trim();
     if (!name) return;
     if (!getToken()) {
@@ -52,7 +42,7 @@ export function HeroCardProvider({ children }) {
         toast.error("Héros introuvable");
         return;
       }
-      openHeroCard(uid, options);
+      openHeroCard(uid);
     } catch {
       toast.error("Héros introuvable");
     }
@@ -66,7 +56,7 @@ export function HeroCardProvider({ children }) {
   return (
     <HeroCardContext.Provider value={value}>
       {children}
-      <HeroCard userId={userId} open={open} onClose={closeHeroCard} onWhisper={onWhisper} />
+      <HeroCard userId={userId} open={open} onClose={closeHeroCard} />
     </HeroCardContext.Provider>
   );
 }

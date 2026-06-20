@@ -45,7 +45,7 @@ export default function ClassChangeModal({ open, onClose, user, onChanged }) {
       {open && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          className="fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
           onClick={onClose}
           data-testid="class-change-modal"
         >

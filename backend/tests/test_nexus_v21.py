@@ -1,7 +1,7 @@
 """NEXORIA Nexus Online V2.1 — multi-channel chat, new GM actions, push notifications.
 
 Covers:
-- Multi-channel chat (global/room/guild/whisper/trade/event) routing
+- Multi-channel chat (global/room/guild/trade/event) routing
 - Event channel staff-only enforcement
 - gm_tp_to_player, gm_tp_player_to_me (same-room + cross-room)
 - gm_inspect returns user (no password_hash), inventory, history, sanctions, purchases
@@ -153,33 +153,6 @@ class TestMultiChannelChat:
         finally:
             await admin_sio.disconnect()
             await user_sio.disconnect()
-
-    async def test_whisper_sends_only_to_target_and_sender(self):
-        admin_tok, admin_uid = _login(ADMIN_EMAIL, ADMIN_PASSWORD)
-        u1_tok, u1_uid, _, _ = _register_user()
-        u2_tok, _, _, _ = _register_user()
-        admin_sio, admin_bag = await _connect(admin_tok)
-        u1_sio, u1_bag = await _connect(u1_tok)
-        u2_sio, u2_bag = await _connect(u2_tok)
-        try:
-            tag = f"WHISPER_{uuid.uuid4().hex[:5]}"
-            admin_bag.events.clear()
-            u1_bag.events.clear()
-            u2_bag.events.clear()
-            # u1 whispers to admin
-            await u1_sio.emit("chat", {"channel": "whisper", "text": tag, "target_user_id": admin_uid})
-            await asyncio.sleep(1.0)
-            # admin should receive
-            assert any(c.get("text") == tag and c.get("channel") == "whisper" for c in admin_bag.by("chat")), \
-                f"admin missed whisper: {admin_bag.by('chat')}"
-            # sender should receive echo
-            assert any(c.get("text") == tag for c in u1_bag.by("chat")), "sender missed echo"
-            # u2 must NOT receive
-            assert not any(c.get("text") == tag for c in u2_bag.by("chat")), "whisper leaked to u2"
-        finally:
-            await admin_sio.disconnect()
-            await u1_sio.disconnect()
-            await u2_sio.disconnect()
 
     async def test_guild_chat_rejects_when_no_guild(self):
         user_tok, _, _, _ = _register_user()
