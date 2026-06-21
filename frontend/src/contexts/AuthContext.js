@@ -3,8 +3,7 @@ import { toast } from "sonner";
 import api, { setToken, getToken, API_URL } from "@/lib/api";
 
 const AUTH_CLOSE_FLAG = "nexoria_tab_closing"; // sessionStorage key
-// Inactivité avant déconnexion automatique (doit rester ≤ au SESSION_IDLE_MINUTES backend).
-const IDLE_MINUTES = 30;
+const IDLE_MINUTES = 15;
 const IDLE_MS = IDLE_MINUTES * 60 * 1000;
 
 const AuthContext = createContext(null);
@@ -141,22 +140,23 @@ export function AuthProvider({ children }) {
 
     const ping = () => {
       if (document.visibilityState === "hidden") return;
-      if (Date.now() - lastActivityRef.current > IDLE_MS) return; // idle → let session expire
+      if (Date.now() - lastActivityRef.current > IDLE_MS) return;
       api.post("/auth/heartbeat").catch(() => {});
     };
     ping();
-    const pingId = setInterval(ping, 60000);
+    const pingId = setInterval(ping, 45000);
 
     const idleId = setInterval(async () => {
-      if (Date.now() - lastActivityRef.current < IDLE_MS) return;
+      const idleFor = Date.now() - lastActivityRef.current;
+      if (idleFor < IDLE_MS) return;
       clearInterval(pingId);
       clearInterval(idleId);
       try { await api.post("/auth/logout"); } catch { /* session may already be gone */ }
       setToken(null);
       setUserState(null);
-      toast.info("Session fermée pour cause d'inactivité.");
+      toast.info(`Session fermée après ${IDLE_MINUTES} min d'inactivité.`);
       window.location.href = "/login";
-    }, 30000);
+    }, 15000);
 
     return () => {
       events.forEach((ev) => window.removeEventListener(ev, markActivity));

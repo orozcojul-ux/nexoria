@@ -17,6 +17,7 @@ import BuyEcusSection from "@/components/shop/BuyEcusSection";
 import { drawPixelBanner } from "@/lib/pixelArtUi";
 import { usePageBanner } from "@/lib/page-banners";
 import { useI18n } from "@/contexts/I18nContext";
+import { itemActivationInfo } from "@/lib/itemUsageHelp";
 
 const CAT_KEYS = [
   { id: "all", key: "shop.cat.all", icon: ShoppingBag },
@@ -30,32 +31,6 @@ const CAT_KEYS = [
   { id: "pass", key: "shop.cat.pass", icon: Ticket },
   { id: "kingdom", key: "shop.cat.kingdom", icon: Shield },
 ];
-
-// Aide « comment activer / où retrouver » par article (bouton info "i").
-function itemActivationInfo(item) {
-  const sku = item.sku || "";
-  const cat = item.category;
-  if (sku === "scroll_rename") return "Confère un parchemin. Utilisez-le dans Paramètres › Compte › Pseudo pour changer de nom.";
-  if (sku === "scroll_class_change") return "Crédite 3 changements de classe. Utilisez-les depuis votre Carte de Héros › bouton « Changer ».";
-  if (sku === "key_chest_cosmic") return "Ouvre immédiatement un coffre garanti Épique+. Les reliques partent dans votre Inventaire.";
-  if (sku === "summon_rift") return "Fait apparaître une faille dimensionnelle. Récupérez-la depuis votre page Héros / le Fil.";
-  if (sku === "kingdom_inventory_slot") return "+10 emplacements ajoutés immédiatement à votre Inventaire.";
-  if (sku === "kingdom_aether_mine" || sku === "kingdom_treasury") return "Génère des Écus passivement chaque jour, crédités automatiquement à la connexion.";
-  if (sku === "kingdom_throne_room") return "Trône affiché sur votre profil + badge royal. Visible sur votre page Héros.";
-  if (cat === "boost") return "Effet actif immédiatement après l'achat. Suivez le compte à rebours dans « Effets actifs » en haut de la boutique.";
-  if (cat === "chest") return "Ouvre immédiatement un coffre. Les reliques obtenues partent dans votre Inventaire.";
-  if (cat === "mount") return "Monture équipée automatiquement. Visible dans le Nexus (monde) et sur votre profil.";
-  if (cat === "aura") return "Aura équipée automatiquement. Visible autour de votre avatar dans le Nexus.";
-  if (cat === "title") return "Titre équipé automatiquement. Modifiable dans Paramètres › Profil.";
-  if (cat === "pass") return "Réservé pendant une saison active. Récompense immédiate + récompenses de fin de saison doublées.";
-  if (cat === "kingdom") return "Avantage permanent appliqué à votre compte. Retrouvez-le sur la page Royaume.";
-  if (cat === "cosmetic") {
-    if (sku.startsWith("frame_")) return "Cadre équipé automatiquement. Modifiable dans Paramètres › Profil (cadre).";
-    if (sku.startsWith("banner_")) return "Bannière débloquée. À équiper depuis Paramètres › Profil (bannière).";
-    return "Cosmétique débloqué. À équiper depuis votre profil.";
-  }
-  return "Article débloqué pour votre compte après l'achat.";
-}
 
 // Bannières pixel art — style Dofus/WoW (plus d'images IA)
 const FEATURED_VISUALS = [

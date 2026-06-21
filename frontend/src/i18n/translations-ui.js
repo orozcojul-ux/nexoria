@@ -1,4 +1,4 @@
-import { T } from "./translations";
+import { T } from "./translations.js";
 
 /** UI strings for pages, widgets, shop, quests, dashboard — merged into I18nContext */
 export const TRANSLATIONS_UI = {
@@ -35,6 +35,33 @@ export const TRANSLATIONS_UI = {
   "shop.featured": T("À la une", "Featured"),
 
   // ─── Feed widgets ───
+  "feed.dashboard_kicker": T("Tableau de Bord — NEXORIA", "Dashboard — NEXORIA"),
+  "feed.greeting_full": T("Bonjour, {{username}} !", "Hello, {{username}}!"),
+  "feed.live_badge": T("En direct", "Live"),
+  "feed.realm_pulse": T("Pulsation du Royaume", "Realm Pulse"),
+  "feed.signups_short": T("Inscriptions", "Signups"),
+  "feed.quests_empty": T("Aucune quête active aujourd'hui.", "No active quests today."),
+  "feed.top_heroes": T("Top Héros", "Top Heroes"),
+  "feed.leaderboard_loading": T("Chargement du classement…", "Loading rankings…"),
+  "feed.challenges_title": T("Défis du Royaume", "Realm Challenges"),
+  "feed.challenge_tag": T("Défi communautaire", "Community challenge"),
+  "feed.challenges_empty": T("Aucun défi communautaire en cours.", "No community challenges active."),
+  "feed.all_challenges": T("Tous les défis", "All challenges"),
+  "feed.view_profile": T("Voir ma fiche", "View my profile"),
+  "feed.default_hero": T("Héros", "Hero"),
+  "feed.wheel.kicker": T("Récompense quotidienne", "Daily reward"),
+  "feed.wheel.title": T("Roue du Nexus", "Nexus Wheel"),
+  "feed.wheel.desc": T("Écus, XP, coffres et trésors cosmiques — un tour gratuit chaque jour.", "Écus, XP, chests and cosmic treasures — one free spin each day."),
+  "feed.wheel.desc_vip": T("Écus, XP, coffres et trésors cosmiques — 3 tours VIP par jour.", "Écus, XP, chests and cosmic treasures — 3 VIP spins per day."),
+  "feed.wheel.tag_ecus": T("Écus", "Écus"),
+  "feed.wheel.tag_xp": T("XP", "XP"),
+  "feed.wheel.tag_chests": T("Coffres", "Chests"),
+  "feed.wheel.tag_badges": T("Badges", "Badges"),
+  "feed.wheel.spins_available": T("{{count}} tours disponibles", "{{count}} spins available"),
+  "feed.wheel.spin_ready": T("Tour disponible !", "Spin available!"),
+  "feed.wheel.vip_pass": T("Pass Ascendant", "Ascendant Pass"),
+  "feed.wheel.spin_cta": T("Lancer la roue", "Spin the wheel"),
+  "feed.wheel.view_cta": T("Voir la roue", "View the wheel"),
   "feed.quick_access": T("Accès rapide", "Quick access"),
   "feed.daily_quests": T("Quêtes du jour", "Daily quests"),
   "feed.all_quests": T("Toutes les quêtes", "All quests"),
@@ -98,6 +125,33 @@ export const TRANSLATIONS_UI = {
   "class.architect": T("Architecte", "Architect"),
   "class.chronomancer": T("Chronomancien", "Chronomancer"),
   "class.inventor": T("Inventeur", "Inventor"),
+
+  // ─── Common status / actions ───
+  "status.online": T("En ligne", "Online"),
+  "status.offline": T("Hors ligne", "Offline"),
+  "status.locked": T("Verrouillé", "Locked"),
+  "status.unlocked": T("Débloqué", "Unlocked"),
+  "status.available": T("Disponible", "Available"),
+  "status.completed": T("Terminé", "Completed"),
+  "status.in_progress": T("En cours", "In progress"),
+  "rarity.common": T("Commun", "Common"),
+  "rarity.rare": T("Rare", "Rare"),
+  "rarity.epic": T("Épique", "Epic"),
+  "rarity.legendary": T("Légendaire", "Legendary"),
+  "action.validate": T("Valider", "Confirm"),
+  "action.equip": T("Équiper", "Equip"),
+  "action.use": T("Utiliser", "Use"),
+  "action.claim": T("Réclamer", "Claim"),
+  "action.send": T("Envoyer", "Send"),
+  "action.forge": T("Forger", "Forge"),
+  "action.fight": T("Combattre", "Fight"),
+  "action.accept": T("Accepter", "Accept"),
+  "action.buy": T("Acheter", "Buy"),
+  "placeholder.search": T("Rechercher...", "Search..."),
+  "placeholder.message": T("Message...", "Message..."),
+  "placeholder.reply": T("Écrire une réponse...", "Write a reply..."),
+  "placeholder.guild_name": T("Nom de guilde...", "Guild name..."),
+  "placeholder.enter_code": T("Entrer un code...", "Enter a code..."),
 
   // ─── Landing status ───
   "landing.status.web_ok": T("Opérationnel", "Operational"),

@@ -2,8 +2,8 @@ import { isStaffRole } from "@/lib/staff-roles";
 
 /** Contenu du panneau d'aide tchat Nexus Online. */
 
-export function getNexusChatHelpSections({ role = "user", isVip = false } = {}) {
-  const isStaff = isStaffRole(role);
+export function getNexusChatHelpSections({ role = "user", isVip = false, isNexusSupreme = false } = {}) {
+  const isStaff = isStaffRole(role) || isNexusSupreme;
   const sections = [
     {
       id: "general",
@@ -15,7 +15,19 @@ export function getNexusChatHelpSections({ role = "user", isVip = false } = {}) 
     },
   ];
 
-  if (isVip) {
+  if (isStaff) {
+    sections.push({
+      id: "staff-color",
+      title: "Couleur de tchat · Gardien",
+      icon: "🎨",
+      commands: [
+        {
+          cmd: "/color",
+          desc: "Désactivé pour le staff — Sage (#9D4CDD), Sentinelle (#F97316) et Gardien Suprême (#FBBF24) utilisent la couleur de leur grade.",
+        },
+      ],
+    });
+  } else if (isVip) {
     sections.push({
       id: "vip",
       title: "Pass Ascendant · VIP",

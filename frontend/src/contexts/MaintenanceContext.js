@@ -9,6 +9,8 @@ export const MAINTENANCE_BYPASS_ROUTES = new Set([
   "/forgot-password",
   "/reset-password",
   "/auth/discord/callback",
+  "/conditions",
+  "/confidentialite",
 ]);
 
 const DEFAULT_STATE = {

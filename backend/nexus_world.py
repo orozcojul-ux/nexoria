@@ -27,6 +27,7 @@ from auth import get_user_by_token
 import online_gate
 import nexus_room_chat as room_chat
 import nexus_chat_commands as chat_cmds
+import nexus_combat
 from nexus_rooms import ROOMS, can_access, get_portal_links  # noqa: F401
 
 logger = logging.getLogger("nexoria.nexus")
@@ -70,6 +71,7 @@ _room_weather = {r: "clear" for r in ROOMS}
 _room_items = {r: [] for r in ROOMS}
 _room_world_state = {r: {"boss": None, "rift": None} for r in ROOMS}
 _user_sids = {}
+_presence_listeners: dict[str, str] = {}  # sid -> user_id (presence-only, no world join)
 _global_state = {"started_at": time.time()}
 
 _db_ref = None
@@ -160,6 +162,7 @@ def _presence_payload():
         "by_room": by_room,
         "active_rooms": active,
         "staff_online": _staff_online_payload(),
+        "online_heroes": online_heroes_summary(),
     }
 
 
@@ -177,6 +180,10 @@ def _room_payload(room_id: str) -> dict:
     ws = _room_world_state.get(room_id, {})
     base["world_boss"] = ws.get("boss")
     base["active_rift"] = ws.get("rift")
+    if nexus_combat.is_combat_room(room_id):
+        nexus_combat.ensure_room_enemies(room_id)
+        base["combat_active"] = True
+        base["combat_enemies"] = nexus_combat.get_room_enemies_public(room_id)
     return base
 
 
@@ -245,37 +252,59 @@ def _lite(p: dict, viewer_role: str = "user") -> dict:
     return out
 
 
+async def build_room_access_user(user: dict) -> dict:
+    """Merge guild membership for room access checks (REST + spawn restore)."""
+    return await _room_access_user(user)
+
+
+async def _room_access_user(user: dict) -> dict:
+    """Merge guild membership + VIP fields for room access checks."""
+    ctx = dict(user)
+    if _db_ref is None:
+        return ctx
+    try:
+        membership = await _db_ref.guild_members.find_one(
+            {"user_id": user["user_id"]}, {"guild_id": 1},
+        )
+        if membership:
+            ctx["guild_id"] = membership.get("guild_id")
+    except Exception:
+        pass
+    return ctx
+
+
 def _resolve_spawn(user: dict) -> tuple[str, int, int, str]:
     """Return (room_id, tx, ty, facing) — restore saved presence when recent."""
     room = DEFAULT_ROOM
     spawn = ROOMS[room]["spawn"]
     tx, ty, facing = spawn["tx"], spawn["ty"], "SE"
     pres = user.get("nexus_presence") or {}
-    if not pres:
-        return room, tx, ty, facing
-    try:
-        updated = pres.get("updated_at")
-        if updated:
-            updated_dt = datetime.fromisoformat(str(updated).replace("Z", "+00:00"))
-            if updated_dt.tzinfo is None:
-                updated_dt = updated_dt.replace(tzinfo=timezone.utc)
-            age = (datetime.now(timezone.utc) - updated_dt).total_seconds()
-            if age > NEXUS_PRESENCE_TTL_SEC:
-                return room, tx, ty, facing
-        saved_room = pres.get("room")
-        if not saved_room or saved_room not in ROOMS:
-            return room, tx, ty, facing
-        allowed, _ = can_access(user, saved_room)
-        if not allowed:
-            return room, tx, ty, facing
-        room = saved_room
-        cfg = ROOMS[room]
-        spawn = cfg["spawn"]
-        tx = max(0, min(cfg["tiles_x"] - 1, int(pres.get("tx", spawn["tx"]))))
-        ty = max(0, min(cfg["tiles_y"] - 1, int(pres.get("ty", spawn["ty"]))))
-        facing = pres.get("facing") or "SE"
-    except Exception as e:
-        logger.warning(f"[nexus] restore presence failed: {e}")
+    if pres:
+        try:
+            updated = pres.get("updated_at")
+            if updated:
+                updated_dt = datetime.fromisoformat(str(updated).replace("Z", "+00:00"))
+                if updated_dt.tzinfo is None:
+                    updated_dt = updated_dt.replace(tzinfo=timezone.utc)
+                age = (datetime.now(timezone.utc) - updated_dt).total_seconds()
+                if age <= NEXUS_PRESENCE_TTL_SEC:
+                    saved_room = pres.get("room")
+                    if saved_room and saved_room in ROOMS:
+                        allowed, _ = can_access(user, saved_room)
+                        if allowed:
+                            room = saved_room
+                            cfg = ROOMS[room]
+                            spawn = cfg["spawn"]
+                            tx = max(0, min(cfg["tiles_x"] - 1, int(pres.get("tx", spawn["tx"]))))
+                            ty = max(0, min(cfg["tiles_y"] - 1, int(pres.get("ty", spawn["ty"]))))
+                            facing = pres.get("facing") or "SE"
+        except Exception as e:
+            logger.warning(f"[nexus] restore presence failed: {e}")
+    import nexus_collisions as nx_col
+    cfg = ROOMS[room]
+    tx, ty = nx_col.snap_to_walkable_tile(
+        room, tx, ty, cfg["tiles_x"], cfg["tiles_y"],
+    )
     return room, tx, ty, facing
 
 
@@ -322,6 +351,7 @@ async def _remove_player_sid(sid, sio=None):
     p = _players.pop(sid, None)
     if not p:
         return None
+    nexus_combat.on_player_leave_combat(p["user_id"])
     room = p["room"]
     _rooms_state[room].pop(sid, None)
     s = _user_sids.get(p["user_id"])
@@ -369,6 +399,13 @@ async def disconnect_user(user_id: str):
     """Force-disconnect all Nexus sockets for a user (logout, ban, session purge)."""
     if _sio_ref is None or not user_id:
         return
+    for sid, uid in list(_presence_listeners.items()):
+        if uid == user_id:
+            _presence_listeners.pop(sid, None)
+            try:
+                await _sio_ref.disconnect(sid)
+            except Exception as e:
+                logger.warning(f"[nexus] disconnect_user listener sid={sid} failed: {e}")
     sids = list(_user_sids.get(user_id, set()))
     for sid in sids:
         try:
@@ -434,6 +471,12 @@ def build_socketio_app(db, hooks=None):
         if not allowed:
             logger.info(f"[nexus] reject {sid}: nexus online gate closed")
             return False
+        presence_only = bool(isinstance(auth, dict) and auth.get("presence_only"))
+        if presence_only:
+            _presence_listeners[sid] = user["user_id"]
+            await sio.emit("presence:update", _presence_payload(), to=sid)
+            logger.info(f"[nexus] presence listener {user['username']} ({sid})")
+            return True
         # Ban check
         bu = user.get("banned_until")
         if bu:
@@ -449,15 +492,16 @@ def build_socketio_app(db, hooks=None):
         # Look up guild membership
         guild_id = None
         try:
-            guild = await db.guilds.find_one({"members.user_id": user["user_id"]}, {"guild_id": 1})
-            if guild:
-                guild_id = guild.get("guild_id")
+            membership = await db.guild_members.find_one(
+                {"user_id": user["user_id"]}, {"guild_id": 1},
+            )
+            if membership:
+                guild_id = membership.get("guild_id")
         except Exception:
             pass
 
-        room = DEFAULT_ROOM
-        spawn = ROOMS[room]["spawn"]
-        room, tx, ty, facing = _resolve_spawn(user)
+        access_user = await _room_access_user(user)
+        room, tx, ty, facing = _resolve_spawn(access_user)
         player = {
             "sid": sid,
             "user_id": user["user_id"],
@@ -493,7 +537,9 @@ def build_socketio_app(db, hooks=None):
 
         # Send room snapshot to the new player
         room_history = await _room_chat_history_for(room)
-        await sio.emit("room_joined", {
+        if nexus_combat.is_combat_room(room):
+            await nexus_combat.on_player_enter_combat(user, sid, room)
+        join_payload = {
             "room": _room_payload(room),
             "players": _visible_players_for(player),
             "chat_history": _chat_buffer[room][-40:],
@@ -503,7 +549,10 @@ def build_socketio_app(db, hooks=None):
             "you": _lite(player),
             "is_staff": player["role"] in STAFF_ROLES,
             "presence": _presence_payload(),
-        }, to=sid)
+        }
+        if nexus_combat.is_combat_room(room):
+            join_payload["combat"] = nexus_combat.get_combat_state_payload(room, user["user_id"])
+        await sio.emit("room_joined", join_payload, to=sid)
 
         # Broadcast arrival (skip if invisible)
         if not player["invisible"]:
@@ -523,6 +572,9 @@ def build_socketio_app(db, hooks=None):
 
     @sio.event
     async def disconnect(sid):
+        if sid in _presence_listeners:
+            _presence_listeners.pop(sid, None)
+            return
         p = await _remove_player_sid(sid, sio)
         if p:
             logger.info(f"[nexus] {p.get('username')} left {p.get('room')}")
@@ -544,6 +596,26 @@ def build_socketio_app(db, hooks=None):
         ty = max(0, min(room_cfg["tiles_y"] - 1, ty))
         # Prevent jumping more than 2 tiles per emit
         if abs(tx - p["tx"]) > 2 or abs(ty - p["ty"]) > 2:
+            return
+        import nexus_collisions as nx_col
+        if not nx_col.is_tile_walkable(
+            p["room"], tx, ty, room_cfg["tiles_x"], room_cfg["tiles_y"],
+        ):
+            await sio.emit(
+                "player_move",
+                _move_payload(p, tx=p["tx"], ty=p["ty"], teleport=True),
+                to=sid,
+            )
+            return
+        if not nx_col.is_movement_allowed(
+            p["room"], p["tx"], p["ty"], tx, ty,
+            room_cfg["tiles_x"], room_cfg["tiles_y"],
+        ):
+            await sio.emit(
+                "player_move",
+                _move_payload(p, tx=p["tx"], ty=p["ty"], teleport=True),
+                to=sid,
+            )
             return
         facing = data.get("facing")
         if facing in ("N", "S", "E", "W", "NE", "NW", "SE", "SW"):
@@ -593,7 +665,9 @@ def build_socketio_app(db, hooks=None):
             "level": p["level"],
             "rank": p.get("rank"),
             "is_vip": bool(p.get("is_vip")),
-            "chat_color": p.get("nexus_chat_color"),
+            "chat_color": None if (
+                p.get("role") in STAFF_ROLES or p.get("is_nexus_supreme")
+            ) else p.get("nexus_chat_color"),
             "text": text,
         }
         if channel == "guild":
@@ -663,12 +737,17 @@ def build_socketio_app(db, hooks=None):
             msg["message_id"] = doc["message_id"]
             msg["room_id"] = room
             msg["content"] = content
-            msg["chat_color"] = doc.get("chat_color") or p.get("nexus_chat_color")
+            msg["chat_color"] = doc.get("chat_color")
             msg["is_vip"] = bool(doc.get("is_vip", p.get("is_vip")))
             buf = _chat_buffer[room]
             buf.append(msg)
             del buf[:-room_chat.ROOM_CHAT_BUFFER_MAX]
             await sio.emit("chat", msg, to=room)
+            await sio.emit(
+                "player_typing",
+                {"sid": sid, "user_id": p["user_id"], "typing": False},
+                to=room,
+            )
 
         hook = _hooks.get("on_chat_message")
         if hook:
@@ -715,12 +794,31 @@ def build_socketio_app(db, hooks=None):
         buf.append(legacy)
         del buf[:-room_chat.ROOM_CHAT_BUFFER_MAX]
         await sio.emit("room_chat_message", doc, to=room_id)
+        await sio.emit(
+            "player_typing",
+            {"sid": sid, "user_id": p["user_id"], "typing": False},
+            to=room_id,
+        )
         hook = _hooks.get("on_room_chat_message") or _hooks.get("on_chat_message")
         if hook:
             try:
                 await hook(p["user_id"], "room")
             except Exception as e:
                 logger.warning(f"on_room_chat_message hook failed: {e}")
+
+    @sio.event
+    async def room_chat_typing(sid, data):
+        """Indicate that a player is composing a room chat message."""
+        p = _players.get(sid)
+        if not p or p.get("muted"):
+            return
+        typing = bool((data or {}).get("typing"))
+        await sio.emit(
+            "player_typing",
+            {"sid": sid, "user_id": p["user_id"], "typing": typing},
+            to=p["room"],
+            skip_sid=sid,
+        )
 
     @sio.event
     async def room_chat_history(sid, data):
@@ -858,11 +956,12 @@ def build_socketio_app(db, hooks=None):
         # Access check (rank/role restricted rooms)
         try:
             user_doc = await db.users.find_one({"user_id": p["user_id"]}, {
-                "_id": 0, "role": 1, "active_title": 1, "rank": 1,
+                "_id": 0, "role": 1, "active_title": 1, "rank": 1, "vip_until": 1,
             })
         except Exception:
             user_doc = None
-        ok, reason = can_access(user_doc or p, new_room)
+        access_user = await _room_access_user({**(user_doc or {}), **p})
+        ok, reason = can_access(access_user, new_room)
         if not ok:
             await sio.emit("system_msg", {"kind": "error", "text": reason}, to=sid)
             return
@@ -873,11 +972,25 @@ def build_socketio_app(db, hooks=None):
 
         spawn = ROOMS[new_room]["spawn"]
         p["room"] = new_room
-        p["tx"], p["ty"] = spawn["tx"], spawn["ty"]
+        import nexus_collisions as nx_col
+        p["tx"], p["ty"] = nx_col.snap_to_walkable_tile(
+            new_room,
+            spawn["tx"],
+            spawn["ty"],
+            ROOMS[new_room]["tiles_x"],
+            ROOMS[new_room]["tiles_y"],
+        )
         _rooms_state[new_room][sid] = _lite(p)
         await sio.enter_room(sid, new_room)
         new_history = await _room_chat_history_for(new_room)
-        await sio.emit("room_joined", {
+        if nexus_combat.is_combat_room(old_room):
+            nexus_combat.on_player_leave_combat(p["user_id"])
+        user_doc = await db.users.find_one({"user_id": p["user_id"]}, {
+            "_id": 0, "user_id": 1, "username": 1, "level": 1, "class_id": 1,
+        })
+        if nexus_combat.is_combat_room(new_room):
+            await nexus_combat.on_player_enter_combat(user_doc or p, sid, new_room)
+        change_payload = {
             "room": _room_payload(new_room),
             "players": _visible_players_for(p),
             "chat_history": _chat_buffer[new_room][-40:],
@@ -887,7 +1000,10 @@ def build_socketio_app(db, hooks=None):
             "you": _lite(p),
             "is_staff": p["role"] in STAFF_ROLES,
             "presence": _presence_payload(),
-        }, to=sid)
+        }
+        if nexus_combat.is_combat_room(new_room):
+            change_payload["combat"] = nexus_combat.get_combat_state_payload(new_room, p["user_id"])
+        await sio.emit("room_joined", change_payload, to=sid)
         if not p.get("invisible"):
             await sio.emit("player_join", _lite(p), to=new_room, skip_sid=sid)
         await _broadcast_presence(sio)
@@ -1628,6 +1744,22 @@ def build_socketio_app(db, hooks=None):
         await _send_ok(sid, f"Mode dieu {'activé' if enabled else 'désactivé'}.")
         await _audit("godmode", gm, None, {"enabled": enabled})
 
+    def _combat_get_player(sid):
+        return _players.get(sid)
+
+    def _combat_players_in_room(room_id):
+        return list(_rooms_state.get(room_id, {}).keys())
+
+    combat_hooks = {
+        "grant_xp": _hooks.get("grant_xp"),
+        "grant_aether": _hooks.get("grant_aether"),
+        "_give_relic": _hooks.get("_give_relic"),
+        "progress_quests": _hooks.get("progress_quests"),
+    }
+    nexus_combat.register_socket_handlers(
+        sio, db, combat_hooks, _combat_get_player, _combat_players_in_room,
+    )
+
     return socketio.ASGIApp(sio, socketio_path="api/nexus/socket.io")
 
 
@@ -1690,6 +1822,41 @@ def get_online_user_ids():
                 visible.add(uid)
                 break
     return visible
+
+
+def online_heroes_summary():
+    """All visible Nexus heroes deduped by user_id (for dashboard / accueil)."""
+    seen = set()
+    members = []
+    for p in _players.values():
+        uid = p.get("user_id")
+        if not uid or uid in seen or p.get("invisible"):
+            continue
+        seen.add(uid)
+        members.append({
+            "user_id": uid,
+            "username": p.get("username"),
+            "role": p.get("role", "user"),
+            "is_nexus_supreme": bool(p.get("is_nexus_supreme")),
+            "is_vip": bool(p.get("is_vip")),
+            "rank": p.get("rank"),
+            "level": p.get("level", 1),
+            "class_name": p.get("class_name"),
+            "room": p.get("room"),
+        })
+
+    def _sort_key(m):
+        if m.get("is_nexus_supreme"):
+            return (0, m.get("username") or "")
+        role = m.get("role")
+        if role == "admin":
+            return (1, m.get("username") or "")
+        if role == "moderator":
+            return (2, m.get("username") or "")
+        return (3, m.get("username") or "")
+
+    members.sort(key=_sort_key)
+    return {"total": len(members), "members": members}
 
 
 def staff_online_summary():

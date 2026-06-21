@@ -5,6 +5,7 @@ import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
 import { useHeroCard } from "@/contexts/HeroCardContext";
 import HeroCardOpener from "@/components/HeroCardOpener";
+import { resolveMediaUrl } from "@/lib/user-avatar";
 import { PremiumButton } from "@/components/ui-premium";
 
 const ACCENT_PRESETS = ["#7B2FF7", "#00E5FF", "#FCD34D", "#10B981", "#F97316", "#EC4899", "#6366F1"];
@@ -162,7 +163,7 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
         <div className="p-4 flex gap-3 -mt-8 relative">
           <div className="w-14 h-14 rounded-xl border-2 overflow-hidden shrink-0 bg-zinc-900" style={{ borderColor: form.profile_accent }}>
             {form.avatar_url ? (
-              <img src={form.avatar_url} alt="" className="w-full h-full object-cover" />
+              <img src={resolveMediaUrl(form.avatar_url)} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center font-bold text-lg">{user.username?.[0]}</div>
             )}

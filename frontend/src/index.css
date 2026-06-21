@@ -188,6 +188,20 @@ html {
   background: transparent;
 }
 
+html.nexus-online-open,
+body.nexus-online-open {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  scrollbar-width: none;
+}
+
+html.nexus-online-open::-webkit-scrollbar,
+body.nexus-online-open::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .nx-scrollbar,
 .nexoria-sidebar-scroll {
   scrollbar-width: thin;

@@ -931,17 +931,11 @@ function StatCell({ icon: Icon, label, value, sub, color }) {
 
 function prettyRoom(r) {
   const map = {
-    place_centrale: "Place Centrale", taverne_etoilee: "Taverne Étoilée",
-    marche_astral: "Marché Astral", quartier_guildes: "Quartier des Guildes",
-    arene: "Arène Cosmique", vallee_boss: "Vallée des Boss",
-    hall_legendes: "Hall des Légendes", bibliotheque_infinie: "Bibliothèque Infinie",
-    archives: "Archives", sanctuaire_oracle: "Sanctuaire de l'Oracle",
-    sanctuaire_failles: "Sanctuaire des Failles",
-    laboratoire_alchimistes: "Laboratoire", atelier_inventeurs: "Atelier",
-    temple_temps: "Temple du Temps", necropole: "Nécropole",
-    jardin_songes: "Jardin des Songes", observatoire: "Observatoire",
-    camp_aventuriers: "Camp des Aventuriers", chambre_reliques: "Chambre des Reliques",
-    pantheon: "Panthéon", nexus_cosmique: "Nexus Cosmique", salle_conseil: "Salle du Conseil",
+    place_centrale: "Place Centrale",
+    quartier_guildes: "Quartier des Guildes",
+    arene: "Arène du Nexus",
+    salle_conseil: "Salle du Conseil",
+    salon_vip: "Salon des Ascendants",
   };
   return map[r] || r;
 }

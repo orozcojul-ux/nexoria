@@ -7,14 +7,13 @@
   z-index: 900;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   padding-left: 72px; /* dégage le bouton du drawer (fixe à gauche) */
   background: transparent;
   border: none;
   box-shadow: none;
 }
 
-/* Cluster de contrôles globaux (recherche + thème + langue + notifications) */
 .controls {
   position: absolute;
   right: 16px;
@@ -34,41 +33,6 @@
   .search { display: none; }
 }
 
-.brand {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.crest {
-  filter: drop-shadow(0 0 6px rgba(0, 212, 255, 0.5));
-}
-
-.word {
-  font-family: "Cinzel Decorative", serif;
-  font-weight: 700;
-  font-size: 24px;
-  letter-spacing: 8px;
-  padding-left: 8px;
-  background: linear-gradient(180deg, #fff5cf 0%, #e9c977 46%, #b8860b 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 0 14px rgba(200, 150, 10, 0.45)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
-}
-
-.rule {
-  display: block;
-  width: clamp(40px, 12vw, 180px);
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #8a6a1a 30%, #c8960a 50%, #8a6a1a 70%, transparent);
-  box-shadow: 0 0 8px rgba(200, 150, 10, 0.4);
-}
-
 @media (max-width: 640px) {
-  .word { font-size: 18px; letter-spacing: 4px; }
-  .rule { width: 28px; }
   .header { padding-left: 64px; }
 }

@@ -503,12 +503,14 @@
 }
 .forum-topic-line-sub {
   font-size: 0.68rem;
-  color: #8b7a55;
   margin-top: 0.2rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+.forum-meta-muted {
+  color: #8b7a55;
 }
 .forum-topic-line-meta {
   display: flex;

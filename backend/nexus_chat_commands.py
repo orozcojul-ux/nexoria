@@ -9,6 +9,12 @@ import nexus_room_chat as room_chat
 
 STAFF_ROLES = {"admin", "moderator"}
 
+
+def is_nexus_staff(player: dict | None) -> bool:
+    if not player:
+        return False
+    return player.get("role") in STAFF_ROLES or bool(player.get("is_nexus_supreme"))
+
 # Couleurs VIP autorisées (hex lowercase)
 NEXUS_VIP_CHAT_COLORS = {
     "#f472b6", "#a78bfa", "#34d399", "#60a5fa", "#fbbf24",
@@ -92,6 +98,12 @@ async def handle_slash_command(
 
     # ---- /color (VIP) ----
     if cmd in ("color", "couleur"):
+        if is_nexus_staff(player):
+            await err(
+                "Gardien du Nexus : votre couleur de tchat est fixée à celle de votre grade "
+                "(Sage, Sentinelle ou Gardien Suprême). La personnalisation VIP (/color) est impossible pour le staff."
+            )
+            return True
         if not vip_active(player):
             await err("Couleur de tchat réservée aux membres VIP.")
             return True

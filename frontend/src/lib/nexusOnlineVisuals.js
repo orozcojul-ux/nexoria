@@ -5,7 +5,7 @@ import { normalizeClassKey, CLASS_IMAGE_FILES } from "./badge-assets";
 
 // Taille visuelle des personnages Nexus Online.
 // Augmenter cette valeur pour rendre les avatars plus grands (essayer 120, 140, 160).
-export const PLAYER_SPRITE_HEIGHT = 140;
+export const PLAYER_SPRITE_HEIGHT = 188;
 
 /**
  * Correction verticale pieds ↔ ombre (frames AutoSprite 256×256 avec transparence).

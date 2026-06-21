@@ -1,9 +1,9 @@
-"""NEXORIA Nexus Online Phase A.2 — 22 themed rooms + decor manifest + access control.
+"""NEXORIA Nexus Online Phase A.2 — 5 themed rooms + decor manifest + access control.
 
 Covers:
-- GET /api/nexus/rooms returns exactly 22 rooms with required fields
+- GET /api/nexus/rooms returns exactly 5 rooms with required fields
 - Access control surfaced via restricted_for_user + restricted_reason
-  (admin → unrestricted; regular user → blocked on salle_conseil + nexus_cosmique)
+  (admin → unrestricted on staff rooms; guild/VIP gates on social rooms)
 - Socket.IO change_room rejects restricted rooms for non-eligible users with system_msg error
 - Eligible users (admin) can teleport to restricted rooms
 - Each ROOMS catalog entry exposes valid landmarks + optional npcs (forwarded
@@ -25,12 +25,7 @@ ADMIN_EMAIL = "admin@nexoria.com"
 ADMIN_PASSWORD = "NexoriaAdmin2026!"
 
 EXPECTED_ROOM_IDS = {
-    "place_centrale", "taverne_etoilee", "marche_astral", "quartier_guildes",
-    "arene", "vallee_boss", "hall_legendes", "bibliotheque_infinie", "archives",
-    "sanctuaire_oracle", "sanctuaire_failles", "laboratoire_alchimistes",
-    "atelier_inventeurs", "temple_temps", "necropole", "jardin_songes",
-    "observatoire", "camp_aventuriers", "chambre_reliques", "pantheon",
-    "nexus_cosmique", "salle_conseil",
+    "place_centrale", "quartier_guildes", "arene", "salle_conseil", "salon_vip",
 }
 
 VALID_LANDMARK_KINDS = {
@@ -105,7 +100,7 @@ class TestRoomsCatalog:
         assert r.status_code == 200, f"GET /nexus/rooms {r.status_code}: {r.text[:200]}"
         data = r.json()
         rooms = data if isinstance(data, list) else data.get("rooms", [])
-        assert len(rooms) == 22, f"expected 22 rooms, got {len(rooms)}"
+        assert len(rooms) == 5, f"expected 5 rooms, got {len(rooms)}"
 
         ids = {room["id"] for room in rooms}
         assert ids == EXPECTED_ROOM_IDS, (
@@ -129,9 +124,8 @@ class TestRoomsCatalog:
         data = r.json()
         rooms = data if isinstance(data, list) else data.get("rooms", [])
         by_id = {room["id"]: room for room in rooms}
-        # admin (staff_bypass) → both restricted rooms must be unrestricted
+        # admin (staff_bypass) → restricted room must be unrestricted
         assert by_id["salle_conseil"]["restricted_for_user"] is False
-        assert by_id["nexus_cosmique"]["restricted_for_user"] is False
 
     def test_regular_user_blocked_on_restricted_rooms(self):
         token, _, _, _ = _register_user()
@@ -147,13 +141,6 @@ class TestRoomsCatalog:
             f"unexpected reason: {sc.get('restricted_reason')}"
         )
 
-        nc = by_id["nexus_cosmique"]
-        assert nc["restricted_for_user"] is True, "nexus_cosmique should be restricted for regular user"
-        reason = nc.get("restricted_reason") or ""
-        assert "Élus" in reason or "Elus" in reason or "élus" in reason.lower(), (
-            f"unexpected reason: {reason}"
-        )
-
     def test_open_rooms_unrestricted_for_regular_user(self):
         token, _, _, _ = _register_user()
         r = requests.get(f"{BASE_URL}/api/nexus/rooms", cookies={"session_token": token}, timeout=15)
@@ -161,10 +148,14 @@ class TestRoomsCatalog:
         data = r.json()
         rooms = data if isinstance(data, list) else data.get("rooms", [])
         by_id = {room["id"]: room for room in rooms}
-        for rid in ["place_centrale", "taverne_etoilee", "arene", "bibliotheque_infinie"]:
+        for rid in ["place_centrale", "arene"]:
             assert by_id[rid]["restricted_for_user"] is False, (
                 f"{rid} should be open, got restricted"
             )
+        assert by_id["quartier_guildes"]["restricted_for_user"] is True
+        assert "Ordre" in (by_id["quartier_guildes"].get("restricted_reason") or "")
+        assert by_id["salon_vip"]["restricted_for_user"] is True
+        assert "Ascendant" in (by_id["salon_vip"].get("restricted_reason") or "")
 
 
 # -------- ROOMS catalog data integrity (via Python module) --------
@@ -198,8 +189,6 @@ class TestRoomsModule:
         admin = {"role": "admin"}
         ok, _ = can_access(admin, "salle_conseil")
         assert ok is True
-        ok, _ = can_access(admin, "nexus_cosmique")
-        assert ok is True
 
     def test_can_access_regular_user_blocked(self):
         from backend.nexus_rooms import can_access
@@ -207,14 +196,26 @@ class TestRoomsModule:
         ok, reason = can_access(user, "salle_conseil")
         assert ok is False
         assert "Conseil" in reason
-        ok, reason = can_access(user, "nexus_cosmique")
-        assert ok is False
-        assert "Élus" in reason or "élus" in reason.lower()
 
-    def test_can_access_elu_title_passes(self):
+
+    def test_can_access_guild_room(self):
         from backend.nexus_rooms import can_access
-        elu = {"role": "user", "active_title": "elu_cosmique"}
-        ok, _ = can_access(elu, "nexus_cosmique")
+        ok, reason = can_access({"role": "user", "guild_id": None}, "quartier_guildes")
+        assert ok is False
+        assert "Ordre" in reason
+        ok, _ = can_access({"role": "user", "guild_id": "guild_test123"}, "quartier_guildes")
+        assert ok is True
+
+    def test_can_access_vip_room(self):
+        from backend.nexus_rooms import can_access
+        from datetime import datetime, timedelta, timezone
+        future = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+        ok, reason = can_access({"role": "user", "vip_until": None}, "salon_vip")
+        assert ok is False
+        assert "Ascendant" in reason
+        ok, _ = can_access({"role": "user", "vip_until": future}, "salon_vip")
+        assert ok is True
+        ok, _ = can_access({"role": "admin"}, "salon_vip")
         assert ok is True
 
 
@@ -269,22 +270,22 @@ class TestChangeRoomAccess:
         token, _ = _login(ADMIN_EMAIL, ADMIN_PASSWORD)
         sio, bag = await _connect_socket(token)
 
-        await sio.emit("change_room", {"room": "taverne_etoilee"})
+        await sio.emit("change_room", {"room": "quartier_guildes"})
         await asyncio.sleep(2.5)
         await sio.disconnect()
 
-        tav = None
+        guild_room = None
         for k, d in bag["events"]:
             if k == "room_joined":
                 room = d.get("room", {}) if isinstance(d, dict) else {}
-                if room.get("id") == "taverne_etoilee":
-                    tav = room
+                if room.get("id") == "quartier_guildes":
+                    guild_room = room
                     break
-        assert tav is not None, f"taverne_etoilee not joined. joined={bag['rooms_joined']}"
-        kinds = {lm["kind"] for lm in tav.get("landmarks", [])}
-        assert "fireplace" in kinds, f"taverne missing fireplace. kinds={kinds}"
-        npcs = tav.get("npcs") or []
-        assert len(npcs) >= 1, "taverne should have NPCs in payload"
+        assert guild_room is not None, f"quartier_guildes not joined. joined={bag['rooms_joined']}"
+        kinds = {lm["kind"] for lm in guild_room.get("landmarks", [])}
+        assert "building" in kinds, f"quartier_guildes missing building. kinds={kinds}"
+        npcs = guild_room.get("npcs") or []
+        assert len(npcs) >= 1, "quartier_guildes should have NPCs in payload"
 
 
 # -------- Regression: notifications strip _id --------

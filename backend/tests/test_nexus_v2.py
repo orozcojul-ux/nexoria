@@ -134,7 +134,7 @@ class TestRestEndpoints:
         data = r.json()
         assert isinstance(data, list) and len(data) >= 3
         ids = {x["id"] for x in data}
-        assert ids == {"place_centrale", "taverne_etoilee", "arene"}
+        assert ids == {"place_centrale", "quartier_guildes", "arene", "salle_conseil", "salon_vip"}
         for room in data:
             assert "weather" in room
             assert "online" in room

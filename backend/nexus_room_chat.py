@@ -96,6 +96,9 @@ def validate_message(text: str, sid: str) -> tuple[str | None, str | None]:
 
 
 def build_message_doc(p: dict, room_id: str, room_name: str, content: str) -> dict:
+    role = p.get("role", "user")
+    is_staff = role in {"admin", "moderator"} or bool(p.get("is_nexus_supreme"))
+    chat_color = None if is_staff else p.get("nexus_chat_color")
     return {
         "message_id": f"rc_{uuid.uuid4().hex[:12]}",
         "room_id": room_id,
@@ -108,7 +111,7 @@ def build_message_doc(p: dict, room_id: str, room_name: str, content: str) -> di
         "level": p.get("level", 1),
         "rank": p.get("rank"),
         "is_vip": bool(p.get("is_vip")),
-        "chat_color": p.get("nexus_chat_color"),
+        "chat_color": chat_color,
         "content": content,
         "created_at": now_iso(),
         "ts": time.time(),

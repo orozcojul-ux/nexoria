@@ -6,5 +6,6 @@ export { default as NexusMapModal } from "./NexusMapModal";
 export { default as NexusEventRibbon } from "./NexusEventRibbon";
 export { default as NexusRealmPulse } from "./NexusRealmPulse";
 export { default as NexusFriendsPanel } from "./NexusFriendsPanel";
+export { default as NexusCombatHud } from "./NexusCombatHud";
 export { NexusBootLoading, NexusBootError, NexusBootRenderError, NexusBootWaiting, NexusBootClosed } from "./NexusBootScreen";
 export * from "./nexus-constants";

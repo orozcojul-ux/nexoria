@@ -15,7 +15,7 @@ import ForumRichContent from "@/components/forum/ForumRichContent";
 import { ReportButton } from "@/components/ReportContentModal";
 import ForumBannedView from "@/components/forum/ForumBannedView";
 import ForumModPanel from "@/components/forum/ForumModPanel";
-import HeroName from "@/components/HeroName";
+import ForumAuthorName from "@/components/forum/ForumAuthorName";
 import { sfx } from "@/lib/sfx";
 import { stripHtml } from "@/lib/stripHtml";
 import { usePageBanner } from "@/lib/page-banners";
@@ -484,9 +484,10 @@ function ThreadList({ category, forumMute, onBack, onOpen }) {
                           {isNew && !t.pinned && <span className="forum-badge forum-badge--new">Nouveau</span>}
                         </span>
                         <span className="forum-topic-line-sub">
-                          <HeroName user={t.author} size="sm" />
-                          <span className="forum-crumb-sep">·</span>
-                          <Clock className="w-3 h-3" /> {fmtDate(t.created_at)}
+                          <ForumAuthorName author={t.author} size="sm" />
+                          <span className="forum-meta-muted forum-crumb-sep">·</span>
+                          <Clock className="w-3 h-3 forum-meta-muted" />
+                          <span className="forum-meta-muted">{fmtDate(t.created_at)}</span>
                         </span>
                       </span>
                       <span className="forum-topic-line-meta">
@@ -790,9 +791,9 @@ function ThreadView({ threadId, category, forumMute, onBack, onDeleted }) {
             )}
           </div>
         </div>
-        <div className="text-xs text-zinc-500 mb-3 flex flex-wrap gap-3 items-center">
-          <span><HeroName user={t.author} size="sm" /></span>
-          <span>· {fmtDate(t.created_at)}</span>
+        <div className="text-xs mb-3 flex flex-wrap gap-3 items-center">
+          <ForumAuthorName author={t.author} size="sm" />
+          <span className="forum-meta-muted">· {fmtDate(t.created_at)}</span>
           <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {t.views} vues</span>
           <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {t.replies_count} réponses</span>
         </div>
@@ -808,7 +809,10 @@ function ThreadView({ threadId, category, forumMute, onBack, onDeleted }) {
         {data.replies.map((r) => (
           <PremiumCard key={r.reply_id} tone="cyan" testid={`reply-${r.reply_id}`}>
             <div className="flex justify-between items-start gap-2 mb-1.5">
-              <div className="text-xs text-zinc-500"><HeroName user={r.author} size="sm" /> · {fmtDate(r.created_at)}</div>
+              <div className="text-xs flex flex-wrap items-center gap-1">
+                <ForumAuthorName author={r.author} size="sm" />
+                <span className="forum-meta-muted">· {fmtDate(r.created_at)}</span>
+              </div>
               <div className="flex gap-1 items-center">
                 {user?.user_id && user.user_id !== r.user_id && (
                   <ReportButton

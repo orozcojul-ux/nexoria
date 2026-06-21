@@ -288,7 +288,7 @@ async def test_gm_observe(admin_creds, user_creds):
     a_sio, a_ev = await _connect(a_tok)
     try:
         # Move user to another room first
-        await u_sio.emit("change_room", {"room": "taverne_etoilee"})
+        await u_sio.emit("change_room", {"room": "quartier_guildes"})
         await asyncio.sleep(0.6)
         a_ev["system_msg"].clear()
         await a_sio.emit("gm_observe", {"target_user_id": u_user["user_id"]})

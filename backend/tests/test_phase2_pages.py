@@ -86,12 +86,12 @@ class TestGuilds:
 
 # ── Regression ─────────────────────────────────────────────────────────────
 class TestRegression:
-    def test_nexus_rooms_public_22(self):
+    def test_nexus_rooms_public_5(self):
         r = requests.get(f"{BASE_URL}/api/nexus/rooms-public", timeout=10)
         assert r.status_code == 200
         rooms = r.json()
         assert isinstance(rooms, list)
-        assert len(rooms) == 22, f"expected 22 rooms, got {len(rooms)}"
+        assert len(rooms) == 5, f"expected 5 rooms, got {len(rooms)}"
 
     def test_admin_login_works(self):
         r = requests.post(f"{BASE_URL}/api/auth/login",

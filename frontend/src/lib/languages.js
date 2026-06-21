@@ -23,4 +23,5 @@ export const LOCALE_MAP = {
   ja: "ja-JP",
 };
 
-export const STORAGE_KEY = "nexoria_lang";
+export const STORAGE_KEY = "nexoria_language";
+export const LEGACY_STORAGE_KEY = "nexoria_lang";

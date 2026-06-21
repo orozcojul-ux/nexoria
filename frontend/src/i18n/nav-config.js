@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Castle, Trophy, UserCheck, Calendar,
   Sword, Gem, ShoppingBag, Eye, Sparkles,
-  ScrollText, UserPlus, Settings, Headphones, BookOpen, Gift,
+  ScrollText, UserPlus, Settings, Headphones, BookOpen, Gift, CircleDot, Hammer,
 } from "lucide-react";
 
 /** Player sidebar — labels resolved via i18n labelKey */
@@ -33,6 +33,7 @@ export function buildPlayerNav() {
       items: [
         { openHeroCardSelf: true, labelKey: "nav.profile", icon: UserCheck, testid: "nav-hero" },
         { to: "/inventory", labelKey: "nav.inventory", icon: Gem, testid: "nav-inventory" },
+        { to: "/craft", labelKey: "nav.craft", icon: Hammer, testid: "nav-craft" },
         { to: "/quests", labelKey: "nav.quests", icon: Sparkles, testid: "nav-quests" },
       ],
     },
@@ -40,6 +41,7 @@ export function buildPlayerNav() {
       titleKey: "sidebar.section.shop",
       items: [
         { to: "/shop", labelKey: "nav.shop", icon: ShoppingBag, testid: "nav-shop" },
+        { to: "/nexus-wheel", labelKey: "nav.nexusWheel", icon: CircleDot, testid: "nav-nexus-wheel" },
       ],
     },
   ];

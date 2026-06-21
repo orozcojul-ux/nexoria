@@ -5,6 +5,19 @@ export function isStaffRole(userOrRole) {
   return role === "admin" || role === "moderator";
 }
 
+/** Sage, Sentinelle ou Gardien Suprême — couleur tchat fixée au grade. */
+export function isNexusStaff(userOrRole) {
+  if (typeof userOrRole === "string") {
+    return userOrRole === "admin" || userOrRole === "moderator";
+  }
+  if (!userOrRole) return false;
+  return (
+    userOrRole.role === "admin"
+    || userOrRole.role === "moderator"
+    || !!userOrRole.is_nexus_supreme
+  );
+}
+
 export const NEXUS_SUPREME = {
   id: "supreme",
   label: "Gardien Suprême",
@@ -72,6 +85,54 @@ export function groupStaffByGrade(members = [], t = null) {
     count: (groups[grade.id] || []).length,
   }));
 }
+
+/** Groupe les héros Nexus Online : Gardien Suprême → Sages → Sentinelles → Héros. */
+export function groupOnlineHeroes(members = [], t = null) {
+  const supreme = [];
+  const byRole = { admin: [], moderator: [], heroes: [] };
+
+  for (const m of members) {
+    if (m.is_nexus_supreme) supreme.push(m);
+    else if (m.role === "admin") byRole.admin.push(m);
+    else if (m.role === "moderator") byRole.moderator.push(m);
+    else byRole.heroes.push(m);
+  }
+
+  const groups = [];
+  if (supreme.length) {
+    groups.push({
+      id: "supreme",
+      label: NEXUS_SUPREME.label,
+      color: NEXUS_SUPREME.color,
+      glow: NEXUS_SUPREME.glow,
+      members: supreme,
+      count: supreme.length,
+    });
+  }
+  for (const grade of STAFF_GRADES) {
+    const list = byRole[grade.id] || [];
+    if (!list.length) continue;
+    groups.push({
+      ...grade,
+      label: t && grade.labelKey ? t(grade.labelKey) : grade.label,
+      members: list,
+      count: list.length,
+    });
+  }
+  if (byRole.heroes.length) {
+    groups.push({
+      id: "heroes",
+      label: "Héros du Royaume",
+      color: "#38E8FF",
+      glow: "rgba(56,232,255,0.35)",
+      members: byRole.heroes,
+      count: byRole.heroes.length,
+    });
+  }
+  return { total: members.length, groups };
+}
+
+export const EMPTY_ONLINE_HEROES = { total: 0, members: [] };
 
 export const EMPTY_STAFF_ONLINE = {
   total: 0,

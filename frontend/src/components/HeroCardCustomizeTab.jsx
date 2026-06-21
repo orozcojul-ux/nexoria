@@ -3,6 +3,7 @@ import { Upload, Loader2, Save, Palette, User } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
+import { resolveMediaUrl } from "@/lib/user-avatar";
 import styles from "./HeroCard.module.css";
 
 const ACCENT_PRESETS = ["#7B2FF7", "#00E5FF", "#FCD34D", "#10B981", "#F97316", "#EC4899", "#6366F1"];
@@ -140,7 +141,7 @@ export default function HeroCardCustomizeTab({
             style={{ borderColor: form.profile_accent }}
           >
             {form.avatar_url ? (
-              <img src={form.avatar_url} alt="" className={styles.customizeAvatarImg} />
+              <img src={resolveMediaUrl(form.avatar_url)} alt="" className={styles.customizeAvatarImg} />
             ) : (
               <span>{user.username?.[0]?.toUpperCase()}</span>
             )}

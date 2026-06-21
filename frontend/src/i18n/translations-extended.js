@@ -1,4 +1,4 @@
-import { T } from "./translations";
+import { T } from "./translations.js";
 
 /** Auth, gate, page banners, admin UI — merged into I18nContext */
 export const TRANSLATIONS_EXTENDED = {
@@ -123,12 +123,21 @@ export const TRANSLATIONS_EXTENDED = {
     "{count} trésor(s) arraché(s) aux brumes oubliées.",
     "{count} treasure(s) torn from forgotten mists."
   ),
+  "page.craft.kicker": T("Atelier des forgerons", "Smiths' workshop"),
+  "page.craft.title": T("Forge du Nexus", "Nexus Forge"),
+  "page.craft.subtitle": T(
+    "Combinez vos ressources et forgez des reliques légendaires.",
+    "Combine your resources and forge legendary relics."
+  ),
   "page.quests.kicker": T("Avis aux braves", "Call to the brave"),
   "page.quests.title": T("Tableau de Chasse", "Hunting Board"),
   "page.quests.subtitle": T("Accomplis tes objectifs et récolte XP et Écus.", "Complete objectives and earn XP and Écus."),
   "page.oracle.kicker": T("Salle des Murmures", "Hall of Whispers"),
   "page.oracle.title": T("Le Sanctuaire", "The Sanctuary"),
   "page.oracle.subtitle": T("Une conscience ancienne lit dans la trame des âmes.", "An ancient consciousness reads the weave of souls."),
+  "page.nexusWheel.kicker": T("Fortune du Royaume", "Realm Fortune"),
+  "page.nexusWheel.title": T("Roue du Nexus", "Nexus Wheel"),
+  "page.nexusWheel.subtitle": T("Une chance quotidienne offerte par les runes cosmiques.", "A daily chance granted by the cosmic runes."),
   "page.guilds.kicker": T("Ordres mystiques", "Mystic orders"),
   "page.guilds.title": T("Les Guildes", "Guilds"),
   "page.guilds.subtitle": T("Unissez-vous et fondez un ordre dont le nom résonnera dans l'éternité.", "Unite and found an order whose name will echo through eternity."),

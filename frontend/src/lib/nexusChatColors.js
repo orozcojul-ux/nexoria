@@ -1,4 +1,4 @@
-import { getStaffChatColors } from "@/lib/staff-roles";
+import { getStaffChatColors, isNexusStaff } from "@/lib/staff-roles";
 
 /** Couleurs tchat Nexus Online par rôle / grade / VIP personnalisé. */
 
@@ -52,8 +52,10 @@ export function colorsFromChatHex(hex) {
 }
 
 export function nexusChatColors(role = "user", opts = {}) {
-  const staffColors = getStaffChatColors({ role, is_nexus_supreme: opts.is_nexus_supreme });
-  if (staffColors) return staffColors;
+  const staffCtx = { role, is_nexus_supreme: opts.is_nexus_supreme };
+  if (isNexusStaff(staffCtx)) {
+    return getStaffChatColors(staffCtx);
+  }
 
   const customHex = opts.chat_color || opts.nexus_chat_color;
   if (customHex) {

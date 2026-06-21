@@ -3,10 +3,10 @@ import { motion } from "framer-motion";
 import { X, ScrollText, Crown, Shield } from "lucide-react";
 import { getNexusChatHelpSections } from "@/lib/nexusChatHelp";
 
-export default function NexusChatHelpPanel({ open, onClose, role = "user", isVip = false }) {
+export default function NexusChatHelpPanel({ open, onClose, role = "user", isVip = false, isNexusSupreme = false }) {
   if (!open) return null;
 
-  const sections = getNexusChatHelpSections({ role, isVip });
+  const sections = getNexusChatHelpSections({ role, isVip, isNexusSupreme });
 
   return (
     <motion.div

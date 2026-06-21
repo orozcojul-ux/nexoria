@@ -67,7 +67,9 @@
   "scripts": {
     "start": "craco start",
     "build": "craco build",
-    "test": "craco test"
+    "test": "craco test",
+    "i18n:sync": "node scripts/sync-i18n-json.mjs",
+    "i18n:check": "node scripts/check-i18n-keys.mjs"
   },
   "browserslist": {
     "production": [

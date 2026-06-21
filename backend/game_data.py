@@ -246,6 +246,24 @@ BADGES = [
     # Guilds & Forum & Seasons
     {"id": "founder_guild", "name": "Fondateur d'Ordre", "category": "social", "icon": "Castle", "rarity": "epic", "description": "Fondateur d'un Ordre mystique", "color": "#A855F7"},
     {"id": "scholar", "name": "Érudit", "category": "creation", "icon": "BookOpen", "rarity": "rare", "description": "Premier sujet ouvert sur la Tribune", "color": "#3B82F6"},
+    {"id": "nexus_blessed", "name": "Béni du Nexus", "category": "secrets", "icon": "Crown", "rarity": "legendary", "description": "Touché par la Roue du Nexus", "color": "#FBBF24"},
+    {"id": "wheel_first_spin", "name": "Tour de Fortune", "category": "participation", "icon": "CircleDot", "rarity": "common", "description": "Premier tour à la Roue du Nexus", "color": "#9CA3AF"},
+    {"id": "wheel_spinner_7", "name": "Fidèle du Nexus", "category": "participation", "icon": "RotateCw", "rarity": "rare", "description": "7 tours cumulés à la Roue du Nexus", "color": "#38E8FF"},
+    {"id": "wheel_spinner_30", "name": "Devin du Nexus", "category": "participation", "icon": "Sparkles", "rarity": "epic", "description": "30 tours cumulés à la Roue du Nexus", "color": "#7B3FF2"},
+    {"id": "wheel_spinner_100", "name": "Maître de la Roue", "category": "participation", "icon": "Trophy", "rarity": "legendary", "description": "100 tours cumulés à la Roue du Nexus", "color": "#FBBF24"},
+    {"id": "wheel_lucky", "name": "Faveur Cosmique", "category": "secrets", "icon": "Gem", "rarity": "epic", "description": "Récompense légendaire gagnée à la Roue du Nexus", "color": "#FBBF24"},
+    # Forge du Nexus
+    {"id": "craft_apprentice", "name": "Apprenti Forgeron", "category": "collection", "icon": "Hammer", "rarity": "common", "description": "Première tentative à la Forge du Nexus", "color": "#9CA3AF"},
+    {"id": "craft_first_success", "name": "Première Relique", "category": "collection", "icon": "Sparkles", "rarity": "rare", "description": "Première forge réussie", "color": "#38E8FF"},
+    {"id": "craft_forger_10", "name": "Forgeron", "category": "collection", "icon": "Anvil", "rarity": "rare", "description": "10 tentatives à la Forge", "color": "#3B82F6"},
+    {"id": "craft_forger_50", "name": "Artisan du Nexus", "category": "collection", "icon": "Wrench", "rarity": "epic", "description": "50 tentatives à la Forge", "color": "#7B3FF2"},
+    {"id": "craft_master", "name": "Maître Forgeron", "category": "collection", "icon": "Award", "rarity": "epic", "description": "25 forges réussies", "color": "#A855F7"},
+    {"id": "craft_grandmaster", "name": "Grand Maître du Nexus", "category": "collection", "icon": "Trophy", "rarity": "legendary", "description": "100 forges réussies", "color": "#FBBF24"},
+    {"id": "craft_epic_smith", "name": "Forgeron Épique", "category": "collection", "icon": "Gem", "rarity": "epic", "description": "A forgé une relique épique ou supérieure", "color": "#9D4CDD"},
+    {"id": "craft_legend_smith", "name": "Forge Légendaire", "category": "collection", "icon": "Crown", "rarity": "legendary", "description": "A forgé une relique légendaire", "color": "#F97316"},
+    {"id": "craft_obsidian", "name": "Lame des Ombres", "category": "secrets", "icon": "Sword", "rarity": "legendary", "description": "A forgé la Lame d'Obsidienne", "color": "#EF4444"},
+    {"id": "craft_hoarder", "name": "Collecteur Cosmique", "category": "collection", "icon": "Layers", "rarity": "rare", "description": "Possède les 6 matériaux de forge en même temps", "color": "#38E8FF"},
+    {"id": "craft_resilient", "name": "Endurci par l'Échec", "category": "secrets", "icon": "Shield", "rarity": "rare", "description": "A surmonté 5 échecs de forge", "color": "#6B7280"},
     {"id": "season_champion", "name": "Champion de la Saison", "category": "secrets", "icon": "Trophy", "rarity": "mythic", "description": "1ᵉʳ d'une saison clôturée", "color": "#EF4444"},
     {"id": "season_elite", "name": "Élite de la Saison", "category": "secrets", "icon": "Star", "rarity": "legendary", "description": "Top 10 d'une saison clôturée", "color": "#EAB308"},
     # Secrets / Events
@@ -274,16 +292,28 @@ QUEST_TEMPLATES = [
     {"id": "weekly_friends", "type": "weekly", "name": "Liens d'Amitié", "description": "Envoie 5 messages privés à un ami (onglet Amis › ouvre une discussion).", "target": 5, "action": "friend_message", "xp": 180, "aether": 90},
     # ── Quotidiennes supplémentaires ──
     {"id": "daily_chest", "type": "daily", "name": "Briseur de Sceau", "description": "Ouvre 1 coffre (Inventaire › Ouvrir le coffre — coûte 50 Écus, remboursés par la récompense).", "target": 1, "action": "chest_open", "xp": 80, "aether": 50},
+    {"id": "daily_nexus_wheel", "type": "daily", "name": "Fortune du Nexus", "description": "Tourne la Roue du Nexus une fois (Accueil ou Boutique › Roue du Nexus).", "target": 1, "action": "nexus_wheel_spin", "xp": 60, "aether": 35},
+    {"id": "daily_combat", "type": "daily", "name": "Chasseur de l'Arène", "description": "Vaincs 3 créatures dans l'Arène du Nexus (Nexus Online › Arène du Nexus).", "target": 3, "action": "combat_kill", "xp": 90, "aether": 45},
+    {"id": "daily_craft", "type": "daily", "name": "Étincelle du Forge", "description": "Tente 1 forge à la Forge du Nexus (Inventaire › Forge du Nexus).", "target": 1, "action": "craft", "xp": 70, "aether": 40},
+    {"id": "daily_craft_success", "type": "daily", "name": "Relique Forgée", "description": "Réussis 1 forge aujourd'hui à la Forge du Nexus.", "target": 1, "action": "craft_success", "xp": 120, "aether": 60},
     # ── Hebdomadaires supplémentaires ──
     {"id": "weekly_parrainage", "type": "weekly", "name": "Messager du Royaume", "description": "Parraine 1 nouvel héros cette semaine (Settings › Parrainage › partage ton lien).", "target": 1, "action": "referral", "xp": 350, "aether": 175},
     {"id": "weekly_shop", "type": "weekly", "name": "Mécène de la Boutique", "description": "Effectue 1 achat à la Boutique cette semaine (l'article le moins cher coûte 50 Écus — remboursés par la récompense).", "target": 1, "action": "shop_purchase", "xp": 200, "aether": 50},
+    {"id": "weekly_nexus_wheel", "type": "weekly", "name": "Habitant de la Roue", "description": "Tourne la Roue du Nexus 5 fois cette semaine.", "target": 5, "action": "nexus_wheel_spin", "xp": 280, "aether": 140},
+    {"id": "weekly_craft", "type": "weekly", "name": "Semaine à l'Enclume", "description": "Forge 5 fois cette semaine (réussite ou échec).", "target": 5, "action": "craft", "xp": 300, "aether": 150},
+    {"id": "weekly_craft_success", "type": "weekly", "name": "Artisan du Royaume", "description": "Réussis 3 forges cette semaine.", "target": 3, "action": "craft_success", "xp": 400, "aether": 200},
     # ── Mensuelle supplémentaire ──
     {"id": "monthly_grind", "type": "monthly", "name": "Marathonien", "description": "Gagne 5000 XP ce mois (en publiant, réagissant et participant partout sur le site).", "target": 5000, "action": "xp", "xp": 1500, "aether": 800},
     {"id": "monthly_parrainage", "type": "monthly", "name": "Seigneur des Alliances", "description": "Parraine 3 nouveaux héros ce mois (Settings › Parrainage › partage ton lien).", "target": 3, "action": "referral", "xp": 1000, "aether": 500},
     {"id": "monthly_vip", "type": "monthly", "name": "Ascension Royale", "description": "Active le Pass Ascendant ce mois (Boutique › Pass Ascendant).", "target": 1, "action": "vip_purchase", "xp": 2000, "aether": 1000},
+    {"id": "monthly_nexus_wheel", "type": "monthly", "name": "Légende de la Roue", "description": "Tourne la Roue du Nexus 20 fois ce mois.", "target": 20, "action": "nexus_wheel_spin", "xp": 1200, "aether": 600},
+    {"id": "monthly_craft", "type": "monthly", "name": "Légende de la Forge", "description": "Forge 20 fois ce mois à la Forge du Nexus.", "target": 20, "action": "craft", "xp": 1000, "aether": 500},
+    {"id": "monthly_craft_epic", "type": "monthly", "name": "Maître des Runes", "description": "Réussis 2 forges épiques ou supérieures ce mois.", "target": 2, "action": "craft_epic_success", "xp": 1500, "aether": 750},
     # ── Quêtes EXCLUSIVES VIP (vip_only : visibles uniquement par les détenteurs du Pass Ascendant) ──
     {"id": "vip_daily_oracle", "type": "daily", "name": "Faveur de l'Ascendant", "description": "VIP : consulte l'Oracle aujourd'hui pour une récompense renforcée.", "target": 1, "action": "oracle", "xp": 120, "aether": 80, "vip_only": True},
     {"id": "vip_daily_chest", "type": "daily", "name": "Trésor de l'Ascendant", "description": "VIP : ouvre 2 coffres aujourd'hui.", "target": 2, "action": "chest_open", "xp": 200, "aether": 120, "vip_only": True},
+    {"id": "vip_daily_wheel", "type": "daily", "name": "Triple Fortune Ascendante", "description": "VIP : tourne la Roue du Nexus 3 fois aujourd'hui.", "target": 3, "action": "nexus_wheel_spin", "xp": 180, "aether": 100, "vip_only": True},
+    {"id": "vip_daily_craft", "type": "daily", "name": "Forge Ascendante", "description": "VIP : réussis 2 forges aujourd'hui.", "target": 2, "action": "craft_success", "xp": 200, "aether": 120, "vip_only": True},
     {"id": "vip_weekly_forum", "type": "weekly", "name": "Voix Souveraine", "description": "VIP : poste 20 réponses sur la Tribune cette semaine.", "target": 20, "action": "forum_reply", "xp": 600, "aether": 350, "vip_only": True},
     {"id": "vip_weekly_referral", "type": "weekly", "name": "Ambassade de l'Ascendant", "description": "VIP : parraine 2 nouveaux héros cette semaine.", "target": 2, "action": "referral", "xp": 800, "aether": 500, "vip_only": True},
     {"id": "vip_monthly_grind", "type": "monthly", "name": "Légende Ascendante", "description": "VIP : gagne 12000 XP ce mois.", "target": 12000, "action": "xp", "xp": 4000, "aether": 2500, "vip_only": True},
@@ -366,6 +396,21 @@ COMMUNITY_CHALLENGES = [
         "reward_aether": 100,
         "reward_label": "+200 XP · +100 Écus pour tous les héros",
     },
+    {
+        "challenge_id": "forge_awakening",
+        "sort_order": 6,
+        "name": "Éveil des Forgerons",
+        "description": "500 forges collectives pour réveiller l'enclume cosmique du royaume.",
+        "target": 500,
+        "action": "craft",
+        "action_label": "Forges réalisées",
+        "link": "/craft",
+        "tone": "amber",
+        "icon": "Hammer",
+        "reward_xp": 250,
+        "reward_aether": 125,
+        "reward_label": "+250 XP · +125 Écus pour tous les héros",
+    },
 ]
 
 # Inventory item templates — Reliques
@@ -417,6 +462,10 @@ ITEM_TEMPLATES = [
     {"id": "star_seed", "name": "Graine d'Étoile", "rarity": "cosmic", "type": "relic", "icon": "Star"},
     {"id": "infinity_loop", "name": "Boucle d'Infini", "rarity": "cosmic", "type": "relic", "icon": "Infinity"},
 ]
+
+from craft_data import CRAFT_ITEM_TEMPLATES  # noqa: E402
+
+ITEM_TEMPLATES = ITEM_TEMPLATES + CRAFT_ITEM_TEMPLATES
 
 
 def xp_for_level(level: int) -> int:

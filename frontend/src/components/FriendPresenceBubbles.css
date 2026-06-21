@@ -1,0 +1,127 @@
+/* Bulles de présence amis — droite du site */
+
+.friend-presence-stack {
+  position: fixed;
+  right: 1rem;
+  top: 5.25rem;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: min(18rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.friend-presence-bubble {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.72rem 0.85rem 0.78rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(123, 63, 242, 0.28);
+  background: rgba(14, 13, 26, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 0 0 1px rgba(56, 232, 255, 0.05) inset,
+    0 8px 28px rgba(0, 0, 0, 0.45),
+    0 0 20px rgba(123, 63, 242, 0.1);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.friend-presence-bubble--on {
+  border-color: rgba(60, 255, 158, 0.35);
+  box-shadow:
+    0 0 0 1px rgba(60, 255, 158, 0.08) inset,
+    0 8px 28px rgba(0, 0, 0, 0.45),
+    0 0 18px rgba(60, 255, 158, 0.12);
+}
+
+.friend-presence-bubble--off {
+  border-color: rgba(169, 163, 199, 0.22);
+  opacity: 0.92;
+}
+
+.friend-presence-bubble-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(123, 63, 242, 0.14);
+  color: #b794f6;
+}
+
+.friend-presence-bubble--on .friend-presence-bubble-icon {
+  background: rgba(60, 255, 158, 0.12);
+  color: #3cff9e;
+}
+
+.friend-presence-bubble--off .friend-presence-bubble-icon {
+  background: rgba(169, 163, 199, 0.1);
+  color: #a9a3c7;
+}
+
+.friend-presence-bubble-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.friend-presence-bubble-msg {
+  font-size: 0.68rem;
+  color: #a9a3c7;
+  letter-spacing: 0.02em;
+}
+
+.friend-presence-bubble--on .friend-presence-bubble-msg {
+  color: rgba(60, 255, 158, 0.85);
+}
+
+.friend-presence-bubble-close {
+  border: none;
+  background: none;
+  color: #6b6585;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.15rem;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.friend-presence-bubble-close:hover {
+  color: #f4f1ff;
+}
+
+.friend-presence-bubble-timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  transform-origin: left center;
+  background: linear-gradient(90deg, #7b3ff2, #38e8ff);
+}
+
+.friend-presence-bubble--on .friend-presence-bubble-timer {
+  background: linear-gradient(90deg, #3cff9e, #38e8ff);
+}
+
+.friend-presence-bubble--off .friend-presence-bubble-timer {
+  background: linear-gradient(90deg, #6b6585, #a9a3c7);
+}
+
+@media (max-width: 640px) {
+  .friend-presence-stack {
+    top: auto;
+    bottom: 5.5rem;
+    right: 0.75rem;
+  }
+}

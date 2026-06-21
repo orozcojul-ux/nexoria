@@ -9,7 +9,7 @@ import { X } from "lucide-react";
 import { SECTION_TONE, RARITY } from "@/lib/design-tokens";
 import PixelBanner from "@/components/PixelBanner";
 import PageBanner from "@/components/PageBanner";
-import { getRarityBadgeSrc } from "@/lib/badge-assets";
+import { getAchievementBadgeSrc, getRarityBadgeSrc } from "@/lib/badge-assets";
 
 export { PageBanner };
 
@@ -181,20 +181,31 @@ export function PremiumBadge({ badge, size = "md", testid }) {
   const r = RARITY[safe.rarity] || RARITY.common;
   const sz = size === "sm" ? "w-12 h-12" : size === "lg" ? "w-20 h-20" : "w-16 h-16";
   const name = safe.name || "Badge Mystérieux";
-  const src = getRarityBadgeSrc(safe.rarity || "common");
+  const badgeId = safe.badge_id || safe.id;
+  const achievementSrc = getAchievementBadgeSrc(badgeId);
+  const fallbackSrc = getRarityBadgeSrc(safe.rarity || "common");
+  const [imgSrc, setImgSrc] = React.useState(achievementSrc || fallbackSrc);
+  const hasCustomArt = imgSrc === achievementSrc && !!achievementSrc;
+
+  React.useEffect(() => {
+    setImgSrc(achievementSrc || fallbackSrc);
+  }, [achievementSrc, fallbackSrc]);
 
   return (
     <div
       title={`${name}${safe.description ? ` — ${safe.description}` : ""} · ${r.fr}`}
-      data-testid={testid || `badge-${safe.badge_id || safe.id || name.toLowerCase().replace(/\s+/g, "-")}`}
+      data-testid={testid || `badge-${badgeId || name.toLowerCase().replace(/\s+/g, "-")}`}
       className={`relative ${sz} rounded-lg cursor-pointer group transition-all hover:scale-110`}
       style={{ boxShadow: `0 0 14px ${r.glow}` }}
     >
       <img
-        src={src}
+        src={imgSrc}
         alt=""
-        className="w-full h-full rounded-lg object-cover"
+        className={`w-full h-full rounded-lg ${hasCustomArt ? "object-contain" : "object-cover"}`}
         draggable={false}
+        onError={() => {
+          if (imgSrc !== fallbackSrc) setImgSrc(fallbackSrc);
+        }}
       />
       {safe.rarity === "cosmic" && (
         <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">

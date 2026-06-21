@@ -17,6 +17,7 @@ export const PAGE_BANNERS = {
   events:       { theme: "emerald", image: "/assets/banners/events.webp",       position: "50% 6%" },
 
   oracle:       { theme: "cyan",    image: "/assets/banners/oracle.webp",       position: "50% 30%" },
+  nexusWheel:   { theme: "violet",  image: "/assets/banners/shop.webp",         position: "50% 22%" },
 
   forum:        { theme: "gold",    image: "/assets/banners/forum.webp",        position: "50% 6%" },
 

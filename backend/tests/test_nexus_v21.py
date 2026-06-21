@@ -246,18 +246,18 @@ class TestGMTeleportSwap:
         admin_sio, admin_bag = await _connect(admin_tok)
         user_sio, user_bag = await _connect(user_tok)
         try:
-            # User moves to taverne
+            # User moves to quartier des guildes
             user_bag.events.clear()
-            await user_sio.emit("change_room", {"room": "taverne_etoilee"})
+            await user_sio.emit("change_room", {"room": "quartier_guildes"})
             await asyncio.sleep(1.0)
             # Now admin TPs to user (cross-room)
             admin_bag.events.clear()
             await admin_sio.emit("gm_tp_to_player", {"target_user_id": user_uid})
             await asyncio.sleep(1.5)
-            # Admin should receive a new room_joined for taverne
+            # Admin should receive a new room_joined for quartier_guildes
             rjs = [d for k, d in admin_bag.events if k == "room_joined"]
-            assert any(d.get("room", {}).get("id") == "taverne_etoilee" for d in rjs), \
-                f"admin not re-joined to taverne: {[d.get('room', {}).get('id') for d in rjs]}"
+            assert any(d.get("room", {}).get("id") == "quartier_guildes" for d in rjs), \
+                f"admin not re-joined to quartier_guildes: {[d.get('room', {}).get('id') for d in rjs]}"
         finally:
             await admin_sio.disconnect()
             await user_sio.disconnect()

@@ -65,6 +65,11 @@ import discord_translate
 import online_gate
 import asyncio
 import nexus_world
+import nexus_wheel as nexus_wheel_service
+import nexus_combat
+import craft as craft_service
+from craft_data import CRAFT_RESOURCES, resource_id_from_name
+from nexus_combat_data import ENEMY_TEMPLATES, COMBAT_ROOMS
 
 # ---------- DB ----------
 mongo_url = os.environ["MONGO_URL"]
@@ -325,6 +330,7 @@ def public_user(user: dict) -> dict:
     user["vip_until"] = iso(user.get("vip_until")) if user.get("vip_until") else None
     user["vip_plan"] = user.get("vip_plan")
     user["vip_total_days_purchased"] = int(user.get("vip_total_days_purchased", 0) or 0)
+    user["is_nexus_supreme"] = (user.get("username") or "").lower() == OWNER_USERNAME.lower()
 
     return user
 
@@ -892,6 +898,18 @@ def pick_random_item():
     return _secure_choice(ITEM_TEMPLATES)
 
 
+def _is_craft_material_template(tmpl: dict) -> bool:
+    return bool(tmpl.get("craft_resource_id"))
+
+
+def _chest_template_eligible(tmpl: dict, owned_set: set, rarity_ids: list) -> bool:
+    if tmpl.get("rarity") not in rarity_ids:
+        return False
+    if _is_craft_material_template(tmpl):
+        return True
+    return (tmpl["name"], tmpl["rarity"]) not in owned_set
+
+
 async def open_chest(user_id: str, min_rarity: str = None, luck_boost: float = 1.0):
     """Generate 1-3 random items. Respects inventory slot limit and luck boosts.
 
@@ -933,14 +951,39 @@ async def open_chest(user_id: str, min_rarity: str = None, luck_boost: float = 1
     while len(items) < count and attempts < count * 6:
         attempts += 1
         rarity = _secure_weighted_choice(rarity_ids, weights)
-        # Filter templates NOT already owned, of this rarity
-        candidates = [t for t in ITEM_TEMPLATES if t["rarity"] == rarity and (t["name"], t["rarity"]) not in owned_set]
+        # Matériaux craft : toujours éligibles (stackables). Reliques : pas de doublon.
+        candidates = [
+            t for t in ITEM_TEMPLATES
+            if _chest_template_eligible(t, owned_set, rarity_ids)
+        ]
         if not candidates:
-            # try any allowed rarity not owned (respect the rarity floor when set)
-            candidates = [t for t in ITEM_TEMPLATES if t["rarity"] in rarity_ids and (t["name"], t["rarity"]) not in owned_set]
-            if not candidates:
-                break  # User owns everything in range — stop, return what we have
+            break
         tmpl = _secure_choice(candidates)
+
+        if _is_craft_material_template(tmpl):
+            qty = 1
+            await grant_craft_resource(user_id, tmpl["name"], qty)
+            item = {
+                "item_id": f"res_{uuid.uuid4().hex[:10]}",
+                "user_id": user_id,
+                "name": tmpl["name"],
+                "type": "material",
+                "rarity": tmpl["rarity"],
+                "icon": tmpl.get("icon", "Sparkles"),
+                "craft_resource_id": tmpl["craft_resource_id"],
+                "quantity": qty,
+                "obtained_at": now_utc().isoformat(),
+                "last_obtained_at": now_utc().isoformat(),
+                "duplicate": False,
+                "from_chest": True,
+            }
+            items.append(item)
+            await add_chronicle(
+                user_id,
+                f"A trouvé {qty}× {tmpl['name']} ({RARITIES[tmpl['rarity']]['name']}) dans un coffre",
+                "item",
+            )
+            continue
 
         item = {
             "item_id": f"item_{uuid.uuid4().hex[:12]}",
@@ -1451,6 +1494,7 @@ async def login(req: LoginReq, response: Response):
     set_session_cookie(response, token)
     await touch_user_last_seen(user["user_id"])
     discord_auth_forum.schedule_auth_event("login", user, method="email")
+    asyncio.create_task(_notify_friends_presence(user["user_id"], True))
     result = public_user(user)
     result["session_token"] = token
     return result
@@ -1478,6 +1522,7 @@ async def logout(request: Request, response: Response):
             logger.warning("nexus disconnect on logout failed: %s", e)
     if user_doc:
         discord_auth_forum.schedule_auth_event("logout", user_doc)
+        asyncio.create_task(_notify_friends_presence(user_id, False))
     return {"ok": True}
 
 
@@ -1594,15 +1639,14 @@ async def _session_from_body_token(request: Request):
 
 @api.post("/auth/tab-close")
 async def tab_close(request: Request):
-    """Mark the session as 'tab closing'. Called by sendBeacon on beforeunload.
-    The session is NOT deleted immediately — a 5-second grace period lets the
-    frontend call /auth/tab-reactivate if it was just a page refresh (F5).
-    """
+    """Marque la fin d'activité (fermeture d'onglet). La session expire après
+    SESSION_IDLE_MINUTES sans heartbeat — pas de déconnexion instantanée."""
     session = await _session_from_body_token(request)
     if session:
+        now_iso = now_utc().isoformat()
         await db.user_sessions.update_one(
             {"session_token": session["session_token"]},
-            {"$set": {"tab_closed_at": now_utc().isoformat()}},
+            {"$set": {"last_heartbeat_at": now_iso}, "$unset": {"tab_closed_at": ""}},
         )
     return {"ok": True}
 
@@ -1802,7 +1846,13 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         if accent and not re.match(r"^#[0-9A-Fa-f]{6}$", accent):
             raise HTTPException(400, "Couleur d'accent invalide (format #RRGGBB)")
     if "nexus_chat_color" in update:
-        from nexus_chat_commands import resolve_vip_color
+        from nexus_chat_commands import resolve_vip_color, is_nexus_staff
+        if is_nexus_staff(user):
+            raise HTTPException(
+                403,
+                "La couleur de tchat est fixée à celle de votre grade de Gardien. "
+                "La personnalisation VIP est impossible pour le staff.",
+            )
         if not is_vip_active(user):
             raise HTTPException(403, "Couleur de tchat réservée aux membres VIP.")
         raw = update.get("nexus_chat_color")
@@ -2222,6 +2272,61 @@ async def _give_relic(user_id: str, snapshot: dict):
         "obtained_at": now_utc().isoformat(),
         "last_obtained_at": now_utc().isoformat(),
     })
+
+
+async def _take_material_by_name(user_id: str, name: str, quantity: int) -> None:
+    """Retire des matériaux de l'inventaire par nom (best-effort, sans bloquer le craft)."""
+    if quantity <= 0:
+        return
+    names = {name}
+    rid = resource_id_from_name(name)
+    if rid:
+        meta = CRAFT_RESOURCES.get(rid, {})
+        names.add(meta.get("name", name))
+        names.update(meta.get("aliases", []))
+    remaining = int(quantity)
+    rows = await db.inventory.find(
+        {"user_id": user_id, "type": "material", "name": {"$in": list(names)}},
+        {"_id": 1, "quantity": 1},
+    ).to_list(50)
+    for row in rows:
+        if remaining <= 0:
+            break
+        owned = int(row.get("quantity") or 1)
+        take = min(owned, remaining)
+        if take >= owned:
+            await db.inventory.delete_one({"_id": row["_id"]})
+        else:
+            await db.inventory.update_one({"_id": row["_id"]}, {"$inc": {"quantity": -take}})
+        remaining -= take
+
+
+async def grant_craft_resource(user_id: str, name: str, quantity: int = 1) -> None:
+    """Crédite une ressource de forge (player_resources + inventaire matériau)."""
+    await craft_service.grant_player_resource_by_name(db, user_id, name, quantity)
+
+
+async def _push_craft_notification(user_id: str, label: str) -> None:
+    await push_notification(
+        db, user_id, "craft_milestone",
+        "Palier Forge débloqué", label, "craft", "Hammer", link="/craft",
+    )
+
+
+def _craft_helpers():
+    return {
+        "spend_aether": spend_aether,
+        "refund_aether": refund_aether,
+        "_give_relic": _give_relic,
+        "_take_material_by_name": _take_material_by_name,
+        "add_chronicle": add_chronicle,
+        "push_inventory_updated": nexus_world.push_inventory_updated,
+        "progress_quests": progress_quests,
+        "grant_badge": grant_badge,
+        "grant_aether": grant_aether,
+        "grant_xp": grant_xp,
+        "push_craft_notification": _push_craft_notification,
+    }
 
 
 async def _transfer_ecus_atomic(from_id: str, to_id: str, amount: int) -> bool:
@@ -2960,6 +3065,128 @@ async def user_chronicle(username: str):
     return entries
 
 
+# ---------- Roue du Nexus ----------
+def _nexus_wheel_helpers():
+    return {
+        "grant_aether": grant_aether,
+        "grant_xp": grant_xp,
+        "open_chest": open_chest,
+        "_give_relic": _give_relic,
+        "grant_badge": grant_badge,
+        "add_chronicle": add_chronicle,
+        "push_wallet_updated": push_wallet_updated,
+        "push_inventory_updated": nexus_world.push_inventory_updated,
+        "nexus_world": nexus_world,
+        "is_vip_active": is_vip_active,
+        "progress_quests": progress_quests,
+        "grant_craft_resource": grant_craft_resource,
+    }
+
+
+@api.get("/nexus-wheel/status")
+async def nexus_wheel_status(user: dict = Depends(get_user_dep)):
+    full = await db.users.find_one({"user_id": user["user_id"]}, {"vip_until": 1, "_id": 0})
+    vip = is_vip_active({**user, **(full or {})})
+    return await nexus_wheel_service.get_wheel_status(db, user["user_id"], is_vip=vip)
+
+
+@api.post("/nexus-wheel/spin")
+async def nexus_wheel_spin(user: dict = Depends(get_user_dep)):
+    full = await db.users.find_one({"user_id": user["user_id"]}, {"vip_until": 1, "_id": 0})
+    spin_user = {**user, **(full or {})}
+    try:
+        return await nexus_wheel_service.spin_wheel(db, spin_user, _nexus_wheel_helpers())
+    except ValueError as exc:
+        if str(exc) == "COOLDOWN":
+            timing = await nexus_wheel_service.get_wheel_status(
+                db, user["user_id"], is_vip=is_vip_active(spin_user),
+            )
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "cooldown",
+                    "message": "La Roue du Nexus se régénère.",
+                    **timing,
+                },
+            )
+        raise HTTPException(400, str(exc))
+
+
+@api.get("/nexus-wheel/history")
+async def nexus_wheel_history(user: dict = Depends(get_user_dep)):
+    return await nexus_wheel_service.get_wheel_history(db, user["user_id"])
+
+
+# ---------- Combat Nexus Online ----------
+@api.get("/combat/player-state")
+async def combat_player_state(user: dict = Depends(get_user_dep)):
+    return await nexus_combat.get_player_state(db, user["user_id"])
+
+
+@api.get("/combat/history")
+async def combat_history(user: dict = Depends(get_user_dep)):
+    rows = await db.combat_kills.find(
+        {"user_id": user["user_id"]}, {"_id": 0},
+    ).sort("created_at", -1).limit(30).to_list(30)
+    return rows
+
+
+@api.get("/combat/enemies")
+async def combat_enemies_catalog():
+    return {"enemies": list(ENEMY_TEMPLATES.values()), "combatRooms": list(COMBAT_ROOMS)}
+
+
+# ---------- Forge du Nexus (Craft) ----------
+class CraftReq(BaseModel):
+    recipeId: str
+
+
+@api.get("/craft/resources")
+async def craft_resources(user: dict = Depends(get_user_dep)):
+    resources = await craft_service.get_player_resources(db, user["user_id"])
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"aether": 1, "_id": 0})
+    return {
+        "resources": resources,
+        "ecus": int((fresh or {}).get("aether") or 0),
+    }
+
+
+@api.get("/craft/recipes")
+async def craft_recipes_list(user: dict = Depends(get_user_dep)):
+    recipes = await craft_service.get_recipes_public(db)
+    resources = await craft_service.get_player_resources(db, user["user_id"])
+    owned = {r["id"]: r["quantity"] for r in resources}
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"aether": 1, "_id": 0})
+    ecus = int((fresh or {}).get("aether") or 0)
+    enriched = []
+    for rec in recipes:
+        req = rec.get("requiredResources") or {}
+        missing = any(int(owned.get(rid, 0)) < int(qty) for rid, qty in req.items())
+        enriched.append({
+            **rec,
+            "canCraft": not missing and ecus >= int(rec.get("costEcus") or 0),
+            "missingResources": missing,
+            "insufficientEcus": ecus < int(rec.get("costEcus") or 0),
+        })
+    return {"recipes": enriched, "ecus": ecus}
+
+
+@api.post("/craft/craft")
+async def craft_execute(req: CraftReq, user: dict = Depends(get_user_dep)):
+    return await craft_service.execute_craft(db, user["user_id"], req.recipeId)
+
+
+@api.get("/craft/history")
+async def craft_history(user: dict = Depends(get_user_dep)):
+    rows = await craft_service.get_craft_history(db, user["user_id"], limit=30)
+    return {"history": rows}
+
+
+@api.get("/craft/progress")
+async def craft_progress(user: dict = Depends(get_user_dep)):
+    return await craft_service.get_craft_progress(db, user["user_id"])
+
+
 # ---------- Badges ----------
 @api.get("/badges/mine")
 async def my_badges(user: dict = Depends(get_user_dep)):
@@ -2984,7 +3211,7 @@ async def leaderboard(category: str):
         {},
         {"_id": 0, "password_hash": 0, "email": 0},
     ).sort(sort_field, -1).limit(50).to_list(50)
-    return users
+    return [public_user(u) for u in users]
 
 
 @api.get("/hall-of-legends")
@@ -3070,6 +3297,8 @@ async def _community_challenge_progress(action: str) -> int:
         return await db.guild_chat.count_documents({})
     if action == "friend_message":
         return await db.friend_messages.count_documents({})
+    if action == "craft":
+        return await db.craft_history.count_documents({})
     return 0
 
 
@@ -3394,10 +3623,25 @@ MAINTENANCE_HTML_LIMITS = {
 
 MAINTENANCE_IMAGE_TYPES = {
     "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
     "image/png": ".png",
     "image/gif": ".gif",
     "image/webp": ".webp",
+    "image/pjpeg": ".jpg",
+    "image/x-png": ".png",
 }
+
+_EXT_TO_MIME = {v: k for k, v in MAINTENANCE_IMAGE_TYPES.items() if k not in ("image/jpg", "image/pjpeg", "image/x-png")}
+
+
+def _resolve_upload_image_type(content_type: str, filename: str | None) -> str:
+    """Accept browser/content-type quirks (octet-stream, empty) via filename extension."""
+    ct = (content_type or "").lower().split(";")[0].strip()
+    if ct in MAINTENANCE_IMAGE_TYPES:
+        return ct
+    ext = (filename or "").lower().rsplit(".", 1)[-1] if filename and "." in filename else ""
+    ext_map = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}
+    return ext_map.get(ext, ct)
 
 
 def _maintenance_html(doc: dict) -> dict:
@@ -3781,7 +4025,7 @@ async def content_upload_image(request: Request, file: UploadFile = File(...), u
 @api.post("/profile/avatar/upload")
 async def upload_avatar(request: Request, file: UploadFile = File(...), user: dict = Depends(get_user_dep)):
     """Upload a profile picture from the user's device and set it as their avatar."""
-    content_type = (file.content_type or "").lower()
+    content_type = _resolve_upload_image_type(file.content_type or "", file.filename)
     if content_type not in MAINTENANCE_IMAGE_TYPES:
         raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
     data = await file.read()
@@ -3790,8 +4034,7 @@ async def upload_avatar(request: Request, file: UploadFile = File(...), user: di
     filename = f"{user['user_id']}_{uuid.uuid4().hex[:8]}{MAINTENANCE_IMAGE_TYPES[content_type]}"
     dest = AVATAR_UPLOAD_DIR / filename
     dest.write_bytes(data)
-    base = str(request.base_url).rstrip("/")
-    url = f"{base}/uploads/avatars/{filename}"
+    url = f"/uploads/avatars/{filename}"
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"avatar_url": url}})
     await grant_badge(user["user_id"], "shapeshifter")
     try:
@@ -3875,7 +4118,7 @@ async def staff_upload_avatar(
     if user.get("role") == "moderator" and target.get("role") == "admin":
         raise HTTPException(403, "Un modérateur ne peut pas modifier l'avatar d'un Sage")
 
-    content_type = (file.content_type or "").lower()
+    content_type = _resolve_upload_image_type(file.content_type or "", file.filename)
     if content_type not in MAINTENANCE_IMAGE_TYPES:
         raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
     data = await file.read()
@@ -3884,8 +4127,7 @@ async def staff_upload_avatar(
     filename = f"{user_id}_{uuid.uuid4().hex[:8]}{MAINTENANCE_IMAGE_TYPES[content_type]}"
     dest = AVATAR_UPLOAD_DIR / filename
     dest.write_bytes(data)
-    base = str(request.base_url).rstrip("/")
-    url = f"{base}/uploads/avatars/{filename}"
+    url = f"/uploads/avatars/{filename}"
     await db.users.update_one({"user_id": user_id}, {"$set": {"avatar_url": url}})
     await add_chronicle(user_id, f"Avatar mis à jour par le staff ({user.get('username')})", "admin")
     try:
@@ -6044,6 +6286,20 @@ class ForumThreadReq(BaseModel):
     content_html: Optional[str] = None
 
 
+FORUM_AUTHOR_FIELDS = {
+    "_id": 0, "user_id": 1, "username": 1, "role": 1, "level": 1,
+    "class_name": 1, "rank": 1, "is_vip": 1,
+}
+
+
+def _enrich_forum_author(u: dict | None) -> dict:
+    if not u:
+        return {}
+    out = dict(u)
+    out["is_nexus_supreme"] = (out.get("username") or "").lower() == OWNER_USERNAME.lower()
+    return out
+
+
 @api.get("/forum/access-status")
 async def forum_access_status(user: dict = Depends(get_user_dep)):
     """État d'accès forum — distinct du ban site global."""
@@ -6075,9 +6331,8 @@ async def list_forum_threads(category: str, user: dict = Depends(get_user_dep)):
     threads = await db.forum_threads.find({"category": category}, {"_id": 0}) \
         .sort([("pinned", -1), ("last_activity_at", -1)]).limit(50).to_list(50)
     user_ids = list({t["user_id"] for t in threads})
-    udocs = await db.users.find({"user_id": {"$in": user_ids}},
-        {"_id": 0, "user_id": 1, "username": 1, "role": 1, "level": 1, "class_name": 1}).to_list(100)
-    umap = {u["user_id"]: u for u in udocs}
+    udocs = await db.users.find({"user_id": {"$in": user_ids}}, FORUM_AUTHOR_FIELDS).to_list(100)
+    umap = {u["user_id"]: _enrich_forum_author(u) for u in udocs}
     for t in threads:
         t["author"] = umap.get(t["user_id"], {})
     return threads
@@ -6125,9 +6380,8 @@ async def get_forum_thread(thread_id: str, user: dict = Depends(get_user_dep)):
     replies = await db.forum_replies.find({"thread_id": thread_id}, {"_id": 0}) \
         .sort("created_at", 1).to_list(500)
     user_ids = list({thread["user_id"]} | {r["user_id"] for r in replies})
-    udocs = await db.users.find({"user_id": {"$in": list(user_ids)}},
-        {"_id": 0, "user_id": 1, "username": 1, "role": 1, "level": 1, "class_name": 1}).to_list(500)
-    umap = {u["user_id"]: u for u in udocs}
+    udocs = await db.users.find({"user_id": {"$in": list(user_ids)}}, FORUM_AUTHOR_FIELDS).to_list(500)
+    umap = {u["user_id"]: _enrich_forum_author(u) for u in udocs}
     thread["author"] = umap.get(thread["user_id"], {})
     for r in replies:
         r["author"] = umap.get(r["user_id"], {})
@@ -6309,9 +6563,9 @@ async def admin_forum_threads(user: dict = Depends(get_staff_dep)):
     user_ids = list({t["user_id"] for t in threads})
     udocs = await db.users.find(
         {"user_id": {"$in": user_ids}},
-        {"_id": 0, "user_id": 1, "username": 1, "role": 1, "level": 1, "forum_muted_until": 1, "forum_banned_until": 1},
+        {**FORUM_AUTHOR_FIELDS, "forum_muted_until": 1, "forum_banned_until": 1},
     ).to_list(100)
-    umap = {u["user_id"]: u for u in udocs}
+    umap = {u["user_id"]: _enrich_forum_author(u) for u in udocs}
     cat_map = {c["id"]: c["name"] for c in FORUM_CATEGORIES}
     for t in threads:
         t["author"] = umap.get(t["user_id"], {})
@@ -6802,7 +7056,46 @@ async def _enrich_friends_online_async(friends: list) -> list:
     for f in friends:
         uid = f.get("user_id")
         f["online"] = (uid in active_sessions) and (uid not in hidden_users)
+        f["is_nexus_supreme"] = (f.get("username") or "").lower() == OWNER_USERNAME.lower()
     return friends
+
+
+async def _get_friend_ids(user_id: str) -> list[str]:
+    links = await db.friendships.find(
+        {"$or": [{"user_a": user_id}, {"user_b": user_id}]}, {"_id": 0}
+    ).to_list(500)
+    return [
+        link["user_b"] if link["user_a"] == user_id else link["user_a"]
+        for link in links
+    ]
+
+
+async def _notify_friends_presence(user_id: str, online: bool):
+    """Push friend:presence to online friends (Socket.IO, best-effort)."""
+    if not user_id:
+        return
+    user = await db.users.find_one(
+        {"user_id": user_id},
+        {"username": 1, "appear_offline": 1, "role": 1, "rank": 1, "level": 1, "_id": 0},
+    )
+    if not user:
+        return
+    if online and user.get("appear_offline"):
+        return
+    payload = {
+        "user_id": user_id,
+        "username": user.get("username") or "Héros",
+        "role": user.get("role", "user"),
+        "rank": user.get("rank"),
+        "level": user.get("level"),
+        "is_nexus_supreme": (user.get("username") or "").lower() == OWNER_USERNAME.lower(),
+        "online": online,
+    }
+    for fid in await _get_friend_ids(user_id):
+        try:
+            await nexus_world.push_to_user(fid, "friend:presence", payload)
+        except Exception:
+            pass
 
 
 @api.get("/friends")
@@ -7339,10 +7632,11 @@ async def discord_status():
 async def list_nexus_rooms(user: dict = Depends(get_user_dep)):
     """Lobby endpoint: returns rooms + current online count + access flags + art."""
     from nexus_rooms import can_access, get_room_scene
+    access_user = await nexus_world.build_room_access_user(user)
     rooms = nexus_world.online_summary()
     out = []
     for r in rooms:
-        ok, reason = can_access(user, r["id"])
+        ok, reason = can_access(access_user, r["id"])
         out.append({
             **r,
             **get_room_scene(r["id"]),
@@ -7408,8 +7702,10 @@ async def public_stats(request: Request):
             heroes_online = 0
         try:
             staff_online = nexus_world.staff_online_summary()
+            online_heroes = nexus_world.online_heroes_summary()
         except Exception:
             staff_online = {"total": 0, "by_role": {"admin": 0, "moderator": 0}, "members": []}
+            online_heroes = {"total": 0, "members": []}
         # New signups in the last 24h
         try:
             yesterday_iso = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
@@ -7447,6 +7743,7 @@ async def public_stats(request: Request):
             "heroes_online": heroes_online,
             "site_online": site_online,
             "staff_online": staff_online,
+            "online_heroes": online_heroes,
             "guilds": guilds,
             "events": events_active,
             "new_signups": new_signups,
@@ -7646,6 +7943,11 @@ _nexus_asgi = nexus_world.build_socketio_app(db, hooks={
     "on_chat_message": on_nexus_chat_message,
     "on_boss_defeated": on_boss_defeated,
     "on_nexus_join": on_nexus_join,
+    "grant_xp": grant_xp,
+    "grant_aether": grant_aether,
+    "_give_relic": _give_relic,
+    "grant_craft_resource": grant_craft_resource,
+    "progress_quests": progress_quests,
 })
 app.mount("/api/nexus", _nexus_asgi)
 
@@ -7741,7 +8043,16 @@ async def startup():
     await db.nexus_room_chat.create_index([("room_id", 1), ("created_at", -1)])
     await db.nexus_room_chat.create_index("message_id", unique=True)
     await db.chronicles.create_index([("user_id", 1), ("created_at", -1)])
-    await db.user_quests.create_index("user_id_quest_id", unique=True, sparse=True)
+    await db.nexus_wheel_spins.create_index([("user_id", 1), ("created_at", -1)])
+    await db.nexus_wheel_spins.create_index("spin_id", unique=True)
+    await db.combat_kills.create_index([("user_id", 1), ("created_at", -1)])
+    await db.combat_kills.create_index("kill_id", unique=True)
+    await db.craft_recipes.create_index("id", unique=True)
+    await db.player_resources.create_index("user_id", unique=True)
+    await db.craft_history.create_index([("user_id", 1), ("created_at", -1)])
+    await db.craft_history.create_index("craft_id", unique=True)
+    await db.inventory.create_index([("user_id", 1), ("type", 1)])
+    await db.inventory.create_index([("user_id", 1), ("name", 1), ("rarity", 1)])
     await db.gm_audit_log.create_index([("created_at", -1)])
     await db.friend_requests.create_index([("to_user", 1), ("status", 1)])
     await db.friend_messages.create_index([("pair_key", 1), ("created_at", -1)])
@@ -7753,6 +8064,12 @@ async def startup():
     await db.beta_applications.create_index("email")
     await db.beta_applications.create_index("discord_username")
     await db.beta_applications.create_index([("status", 1), ("created_at", -1)])
+    craft_service.register_craft_hooks(_craft_helpers())
+    try:
+        seeded = await craft_service.seed_craft_recipes(db)
+        logger.info("NEXORIA: craft recipes seeded/updated (%s)", seeded)
+    except Exception as e:
+        logger.warning("NEXORIA: craft recipe seed skipped — %s", e)
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@nexoria.com").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")

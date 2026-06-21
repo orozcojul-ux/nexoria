@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Megaphone, Ban, MapPin, X } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { isNexusStaff } from "@/lib/staff-roles";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import { useHeroCard } from "@/contexts/HeroCardContext";
 import { NexusIsoScene } from "@/lib/NexusIsoScene";
@@ -23,6 +24,7 @@ import {
   NexusBootWaiting,
   NexusBootClosed,
   NexusFriendsPanel,
+  NexusCombatHud,
 } from "@/components/nexus-hud";
 import NexusChatHelpPanel from "@/components/nexus-hud/NexusChatHelpPanel";
 import "@/components/nexus-hud/NexusHud.css";
@@ -35,7 +37,7 @@ export default function NexusOverlay() {
   const chatEndRef = useRef(null);
 
   const [text, setText] = useState("");
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatLogOpen, setChatLogOpen] = useState(false);
   const [gmOpen, setGmOpen] = useState(false);
   const [gmPickerMode, setGmPickerMode] = useState(false);
   const [pendingGm, setPendingGm] = useState(null);
@@ -70,7 +72,7 @@ export default function NexusOverlay() {
     nexusGate = { open: true, html: {} },
     status = "idle", room = null, you = null,
     players = [], items = [], weather = "clear", isStaff = false,
-    chat = [], roomChatMessages = [], sendRoomChat = () => {},
+    chat = [], roomChatMessages = [], sendRoomChat = () => {}, emitRoomTyping = () => {},
     move = () => {}, changeRoom = () => {}, pickupItem = () => {}, bossAttack = () => {},
     gm: gmApi = {}, onInspectResult = () => () => {},
     attachScene = () => {}, detachScene = () => {},
@@ -78,6 +80,8 @@ export default function NexusOverlay() {
     presence = { total: 0, by_room: {}, active_rooms: 0 },
     gmLogs = [],
     chatHelpOpen = false, openChatHelp = () => {}, closeChatHelp = () => {}, patchYou = () => {},
+    combat = null, combatTarget = () => {}, combatAttack = () => {}, combatRespawn = () => {},
+    attackCooldown = false, combatDead = false, combatRespawnIn = 0, lastCombatReward = null,
   } = ns || {};
 
   const { openHeroCard } = useHeroCard();
@@ -86,6 +90,24 @@ export default function NexusOverlay() {
     if (!uid) return;
     openHeroCard(uid);
   }, [openHeroCard]);
+
+  useEffect(() => {
+    if (!overlayOpen) return undefined;
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    html.classList.add("nexus-online-open");
+    body.classList.add("nexus-online-open");
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      html.classList.remove("nexus-online-open");
+      body.classList.remove("nexus-online-open");
+    };
+  }, [overlayOpen]);
 
   useEffect(() => {
     if (!isStaff || !gmApi?.godmode) return;
@@ -115,6 +137,7 @@ export default function NexusOverlay() {
       onPlayerMove: (m) => sceneRef.current?.movePlayer(m.sid, m.tx, m.ty, m.facing, !!m.teleport, m),
       onPlayerStatus: (sid, patch) => sceneRef.current?.setPlayerStatus(sid, patch),
       onChatBubble: (sid, t, role) => sceneRef.current?.showBubble(sid, t, role),
+      onPlayerTyping: (sid, typing) => sceneRef.current?.setPlayerTyping?.(sid, typing),
       onWeather: (w) => sceneRef.current?.applyWeather(w),
       onItemSpawned: (item) => sceneRef.current?.spawnItem(item),
       onItemRemoved: (id) => sceneRef.current?.removeItem(id),
@@ -126,6 +149,13 @@ export default function NexusOverlay() {
         const sid = patch?.sid || scene.findPlayerSidByUserId?.(patch?.user_id);
         if (sid) scene.setPlayerProfile?.(sid, patch);
       },
+      syncCombatEnemies: (enemies) => sceneRef.current?.syncCombatEnemies?.(enemies),
+      clearCombatEnemies: () => sceneRef.current?.clearCombatEnemies?.(),
+      upsertCombatEnemy: (e) => sceneRef.current?.upsertCombatEnemy?.(e),
+      removeCombatEnemy: (id) => sceneRef.current?.removeCombatEnemy?.(id),
+      showCombatDamage: (tx, ty, dmg, crit) => sceneRef.current?.showCombatDamage?.(tx, ty, dmg, crit),
+      flashPlayerDamage: () => sceneRef.current?.flashPlayerDamage?.(),
+      setCombatTarget: (id) => sceneRef.current?.setCombatTarget?.(id),
     });
     return () => detachScene();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,6 +225,7 @@ export default function NexusOverlay() {
     }
 
     if (gameRef.current) {
+      sceneRef.current = null;
       try {
         gameRef.current.scene.stop("NexusIsoScene");
         gameRef.current.scene.start("NexusIsoScene", sceneData);
@@ -243,12 +274,38 @@ export default function NexusOverlay() {
       sceneRef.current = scene;
       scene.onPickup = (id) => pickupItem(id);
       scene.onBossAttack = () => bossAttack();
+      scene.onCombatEnemyClick = (id) => combatTarget(id);
+      scene.onCombatAttack = (id) => combatAttack(id);
       scene.gmPickerMode = false;
+      if (payload.combat?.enemies?.length) {
+        scene.syncCombatEnemies?.(payload.combat.enemies);
+      } else if (!payload.room?.combat_active) {
+        scene.clearCombatEnemies?.();
+      }
       if (payload.room?.world_boss) scene.setWorldBoss?.(payload.room.world_boss);
       if (payload.room?.active_rift) scene.setActiveRift?.(payload.room.active_rift);
     };
     tryReady();
-  }, [gmApi, move, pickupItem, changeRoom, bossAttack, openPlayerHeroCard]);
+  }, [gmApi, move, pickupItem, changeRoom, bossAttack, combatTarget, combatAttack, openPlayerHeroCard]);
+
+  useEffect(() => {
+    if (!overlayOpen || combatDead) return undefined;
+    const onKey = (e) => {
+      if (e.code === "Space" && !e.repeat) {
+        const tag = e.target?.tagName?.toLowerCase();
+        if (tag === "input" || tag === "textarea") return;
+        e.preventDefault();
+        const targetId = combat?.player?.targetId || sceneRef.current?.combatTargetId;
+        if (targetId) combatAttack(targetId);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [overlayOpen, combatDead, combat, combatAttack]);
+
+  const targetEnemy = combat?.enemies?.find(
+    (e) => e.instanceId === (combat?.player?.targetId || sceneRef.current?.combatTargetId),
+  );
 
   useEffect(() => { pendingGmRef.current = pendingGm; }, [pendingGm]);
   useEffect(() => { spawnFormRef.current = spawnForm; }, [spawnForm]);
@@ -311,9 +368,9 @@ export default function NexusOverlay() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [roomChatMessages]);
 
   useEffect(() => {
-    const blocked = mapOpen || gmOpen || friendsOpen || chatOpen;
+    const blocked = mapOpen || gmOpen || friendsOpen;
     if (sceneRef.current) sceneRef.current.movementBlocked = blocked;
-  }, [mapOpen, gmOpen, friendsOpen, chatOpen]);
+  }, [mapOpen, gmOpen, friendsOpen]);
 
   useEffect(() => {
     if (!overlayOpen) return;
@@ -334,11 +391,20 @@ export default function NexusOverlay() {
       return;
     }
     if (sendRoomChat(trimmed)) {
+      emitRoomTyping(false);
       setText("");
     }
   };
 
+  const handleChatTyping = (value) => {
+    emitRoomTyping(!!value?.trim());
+  };
+
   const handleSetChatColor = async (hex) => {
+    if (isNexusStaff(you)) {
+      toast.info("La couleur de tchat est fixée à celle de votre grade de Gardien.");
+      return;
+    }
     if (!you?.is_vip) {
       toast.error("Couleur de tchat réservée aux VIP.");
       return;
@@ -502,22 +568,39 @@ export default function NexusOverlay() {
                 onGmTarget={(p) => { setSelectedTarget(p); setGmOpen(true); }}
               />
 
+              {(combat?.combatActive || room?.combat_active) && (
+                <NexusCombatHud
+                  combat={combat}
+                  targetEnemy={targetEnemy}
+                  onAttack={() => {
+                    const id = combat?.player?.targetId || sceneRef.current?.combatTargetId;
+                    if (id) combatAttack(id);
+                  }}
+                  attackCooldown={attackCooldown}
+                  dead={combatDead}
+                  respawnIn={combatRespawnIn}
+                  onRespawn={combatRespawn}
+                  lastReward={lastCombatReward}
+                />
+              )}
+
               <NexusEventRibbon room={room} />
               <NexusRealmPulse presence={presence} playersCount={players.length} />
 
               <NexusChatDock
-                open={chatOpen}
-                onOpen={() => setChatOpen(true)}
-                onClose={() => setChatOpen(false)}
+                logOpen={chatLogOpen}
+                onToggleLog={() => setChatLogOpen((v) => !v)}
                 onOpenHelp={openChatHelp}
                 roomName={room?.name || "Salle"}
                 messages={roomChatMessages}
                 text={text}
                 onTextChange={setText}
+                onTypingActivity={handleChatTyping}
                 onSubmit={submitChat}
                 onInsertEmoji={(e) => setText((t) => (t.length < 300 ? t + e : t))}
                 chatEndRef={chatEndRef}
                 viewerRole={you?.role || "user"}
+                viewerIsNexusSupreme={!!you?.is_nexus_supreme}
                 chatMuted={!!you?.muted}
                 chatMutedUntil={you?.chat_muted_until || null}
                 isVip={!!you?.is_vip}
@@ -531,6 +614,7 @@ export default function NexusOverlay() {
                 onClose={closeChatHelp}
                 role={you?.role || "user"}
                 isVip={!!you?.is_vip}
+                isNexusSupreme={!!you?.is_nexus_supreme}
               />
             </>
           )}

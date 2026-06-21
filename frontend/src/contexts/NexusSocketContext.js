@@ -43,10 +43,19 @@ export function NexusSocketProvider({ children }) {
   const [globalAnnounce, setGlobalAnnounce] = useState(null);
   const [pushNotif, setPushNotif] = useState(null); // last notif:new doc — bell consumes
   const [friendMessage, setFriendMessage] = useState(null);
-  const [presence, setPresence] = useState({ total: 0, by_room: {}, active_rooms: 0, staff_online: { total: 0, by_role: {}, members: [] } });
+  const [presence, setPresence] = useState({
+    total: 0, by_room: {}, active_rooms: 0,
+    staff_online: { total: 0, by_role: {}, members: [] },
+    online_heroes: { total: 0, members: [] },
+  });
   const [gmLogs, setGmLogs] = useState([]);
   const [nexusGate, setNexusGate] = useState({ open: true, html: {} });
   const [chatHelpOpen, setChatHelpOpen] = useState(false);
+  const [combat, setCombat] = useState(null);
+  const [attackCooldown, setAttackCooldown] = useState(false);
+  const [combatDead, setCombatDead] = useState(false);
+  const [combatRespawnIn, setCombatRespawnIn] = useState(0);
+  const [lastCombatReward, setLastCombatReward] = useState(null);
 
   const userStaff = isStaffRole(user);
   // « Connexion automatique » (tous les utilisateurs) : rejoindre le Nexus ONLINE
@@ -56,7 +65,9 @@ export function NexusSocketProvider({ children }) {
   const nexusGateOpen = nexusGate.open !== false;
   const mayConnectNexus = nexusGateOpen || userStaff;
   const autoConnectSocket = mayConnectNexus && autoConnect;
-  const shouldEstablishSocket = mayConnectNexus && (autoConnectSocket || overlayOpen);
+  const wantWorldPresence = autoConnectSocket || overlayOpen;
+  const shouldEstablishSocket = mayConnectNexus;
+  const presenceOnlySocket = shouldEstablishSocket && !wantWorldPresence;
 
   // Refs for movement/scene callbacks
   const sceneApiRef = useRef(null); // scene attaches itself here for player_move / item_spawned etc.
@@ -66,6 +77,15 @@ export function NexusSocketProvider({ children }) {
   useEffect(() => { playersRef.current = players; }, [players]);
   useEffect(() => { roomRef.current = room; }, [room]);
   useEffect(() => { youRef.current = you; }, [you]);
+
+  useEffect(() => {
+    if (!combatDead || combatRespawnIn <= 0) return undefined;
+    const timer = setTimeout(() => setCombatRespawnIn((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [combatDead, combatRespawnIn]);
+
+  const typingEmitTimerRef = useRef(null);
+  const typingActiveRef = useRef(false);
 
   const attachScene = useCallback((api) => { sceneApiRef.current = api; }, []);
   const detachScene = useCallback(() => { sceneApiRef.current = null; }, []);
@@ -127,7 +147,7 @@ export function NexusSocketProvider({ children }) {
     setStatus("connecting");
     const socket = io(BACKEND, {
       path: "/api/nexus/socket.io",
-      auth: { token },
+      auth: { token, presence_only: presenceOnlySocket },
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionDelay: 1500,
@@ -169,7 +189,19 @@ export function NexusSocketProvider({ children }) {
       setItems(payload.items || []);
       setIsStaff(!!payload.is_staff);
       if (payload.presence) setPresence(payload.presence);
+      if (payload.combat) {
+        setCombat(payload.combat);
+        setCombatDead(!!payload.combat.player?.isDead);
+      } else {
+        setCombat(null);
+        setCombatDead(false);
+      }
       sceneApiRef.current?.onRoomJoined?.(payload);
+      if (payload.combat?.enemies?.length) {
+        sceneApiRef.current?.syncCombatEnemies?.(payload.combat.enemies);
+      } else {
+        sceneApiRef.current?.clearCombatEnemies?.();
+      }
     });
 
     socket.on("player_join", (p) => {
@@ -194,6 +226,10 @@ export function NexusSocketProvider({ children }) {
       sceneApiRef.current?.onPlayerStatus?.(sid, patch);
       setPlayers((prev) => prev.map((p) => p.sid === sid ? { ...p, ...patch } : p));
     });
+    socket.on("player_typing", ({ sid, typing }) => {
+      if (!sid) return;
+      sceneApiRef.current?.onPlayerTyping?.(sid, !!typing);
+    });
     socket.on("room_chat_message", (msg) => {
       setRoomChatMessages((prev) => {
         const currentRoomId = roomRef.current?.id;
@@ -213,8 +249,11 @@ export function NexusSocketProvider({ children }) {
         return [...prev.filter((m) => !m.pending || m.content !== (msg.content || msg.text)), msg].slice(-50);
       });
       const sender = playersRef.current.find((p) => p.user_id === msg.user_id);
-      if (sender && msg.user_id !== youRef.current?.user_id) {
-        sceneApiRef.current?.onChatBubble?.(sender.sid, msg.content || msg.text, msg.role);
+      if (sender) {
+        sceneApiRef.current?.onPlayerTyping?.(sender.sid, false);
+        if (msg.user_id !== youRef.current?.user_id) {
+          sceneApiRef.current?.onChatBubble?.(sender.sid, msg.content || msg.text, msg.role);
+        }
       }
     });
     socket.on("room_chat_history", ({ messages }) => {
@@ -297,8 +336,11 @@ export function NexusSocketProvider({ children }) {
           return [...withoutPending, normalized].slice(-50);
         });
         const sender = playersRef.current.find((p) => p.user_id === msg.user_id);
-        if (sender && msg.user_id !== youRef.current?.user_id) {
-          sceneApiRef.current?.onChatBubble?.(sender.sid, normalized.content, msg.role);
+        if (sender) {
+          sceneApiRef.current?.onPlayerTyping?.(sender.sid, false);
+          if (msg.user_id !== youRef.current?.user_id) {
+            sceneApiRef.current?.onChatBubble?.(sender.sid, normalized.content, msg.role);
+          }
         }
       }
       setChat((prev) => [...prev.slice(-300), { ...msg, channel: ch }]);
@@ -365,8 +407,103 @@ export function NexusSocketProvider({ children }) {
       try { sfx.click(); } catch {}
     });
 
+    socket.on("friend:presence", (payload) => {
+      if (!payload?.user_id) return;
+      window.dispatchEvent(new CustomEvent("nexoria:friend-presence", { detail: payload }));
+    });
+
+    // Combat — room-scoped realtime
+    socket.on("combat:state", (st) => {
+      setCombat(st);
+      if (st?.player) setCombatDead(!!st.player.isDead);
+      if (st?.enemies) sceneApiRef.current?.syncCombatEnemies?.(st.enemies);
+    });
+    socket.on("combat:enemy_spawned", (enemy) => {
+      sceneApiRef.current?.upsertCombatEnemy?.(enemy);
+      setCombat((prev) => {
+        if (!prev) return prev;
+        const enemies = [...(prev.enemies || []).filter((e) => e.instanceId !== enemy.instanceId), enemy];
+        return { ...prev, enemies };
+      });
+    });
+    socket.on("combat:enemy_updated", (enemy) => {
+      sceneApiRef.current?.upsertCombatEnemy?.(enemy);
+      setCombat((prev) => {
+        if (!prev) return prev;
+        const enemies = (prev.enemies || []).map((e) => (e.instanceId === enemy.instanceId ? enemy : e));
+        return { ...prev, enemies };
+      });
+    });
+    socket.on("combat:enemy_damaged", (data) => {
+      sceneApiRef.current?.showCombatDamage?.(data.tx, data.ty, data.damage, data.critical);
+      setCombat((prev) => {
+        if (!prev) return prev;
+        const enemies = (prev.enemies || []).map((e) => (
+          e.instanceId === data.instanceId
+            ? { ...e, currentHp: data.currentHp, maxHp: data.maxHp }
+            : e
+        ));
+        return { ...prev, enemies };
+      });
+    });
+    socket.on("combat:enemy_dead", ({ instanceId }) => {
+      sceneApiRef.current?.removeCombatEnemy?.(instanceId);
+      setCombat((prev) => {
+        if (!prev) return prev;
+        return { ...prev, enemies: (prev.enemies || []).filter((e) => e.instanceId !== instanceId) };
+      });
+    });
+    socket.on("combat:player_damaged", (data) => {
+      sceneApiRef.current?.flashPlayerDamage?.();
+      setCombat((prev) => {
+        if (!prev?.player) return prev;
+        return { ...prev, player: { ...prev.player, hp: data.hp, maxHp: data.maxHp } };
+      });
+      if (data.damage) toast.error(`-${data.damage} PV (${data.enemyName || "ennemi"})`);
+    });
+    socket.on("combat:player_dead", (data) => {
+      setCombatDead(true);
+      setCombatRespawnIn(data.respawnIn || 5);
+      toast.error("Vous êtes tombé au combat.");
+    });
+    socket.on("combat:player_respawned", (data) => {
+      setCombatDead(false);
+      setCombatRespawnIn(0);
+      setCombat((prev) => {
+        if (!prev?.player) return prev;
+        return {
+          ...prev,
+          player: {
+            ...prev.player,
+            hp: data?.hp ?? prev.player.hp,
+            maxHp: data?.maxHp ?? prev.player.maxHp,
+            isDead: false,
+            targetId: null,
+          },
+        };
+      });
+      if (data?.sid != null) {
+        sceneApiRef.current?.onPlayerMove?.({
+          sid: data.sid,
+          tx: data.tx,
+          ty: data.ty,
+          teleport: true,
+        });
+      }
+    });
+    socket.on("combat:reward", ({ enemyName, reward }) => {
+      setLastCombatReward(reward);
+      setTimeout(() => setLastCombatReward(null), 5000);
+      toast.success(`Victoire : ${enemyName} — +${reward?.xp} XP, +${reward?.aether} Écus`);
+    });
+
     // Presence update — global hero counter
-    socket.on("presence:update", (p) => setPresence(p));
+    socket.on("presence:update", (p) => {
+      setPresence(p);
+      try {
+        window.dispatchEvent(new CustomEvent("nexoria:presence-updated", { detail: p }));
+      } catch {}
+    });
 
     // World events
     socket.on("world_boss_spawn", (boss) => {
@@ -430,9 +567,46 @@ export function NexusSocketProvider({ children }) {
       try { socket.disconnect(); } catch {}
       socketRef.current = null;
     };
-  }, [userId, shouldEstablishSocket, userStaff, nexusGateOpen]);
+  }, [userId, shouldEstablishSocket, presenceOnlySocket, userStaff, nexusGateOpen]);
 
   // ---- API exposed to consumers ----
+  const notifyPlayerTyping = useCallback((sid, typing) => {
+    if (!sid) return;
+    sceneApiRef.current?.onPlayerTyping?.(sid, typing);
+  }, []);
+
+  const stopRoomTyping = useCallback(() => {
+    clearTimeout(typingEmitTimerRef.current);
+    typingEmitTimerRef.current = null;
+    if (!typingActiveRef.current) return;
+    typingActiveRef.current = false;
+    const sid = youRef.current?.sid;
+    socketRef.current?.emit("room_chat_typing", { typing: false });
+    notifyPlayerTyping(sid, false);
+  }, [notifyPlayerTyping]);
+
+  const emitRoomTyping = useCallback((active) => {
+    const socket = socketRef.current;
+    const sid = youRef.current?.sid;
+    if (!socket || !sid) return;
+
+    clearTimeout(typingEmitTimerRef.current);
+    typingEmitTimerRef.current = null;
+
+    if (active) {
+      if (!typingActiveRef.current) {
+        typingActiveRef.current = true;
+        socket.emit("room_chat_typing", { typing: true });
+        notifyPlayerTyping(sid, true);
+      }
+      typingEmitTimerRef.current = setTimeout(() => {
+        stopRoomTyping();
+      }, 3000);
+      return;
+    }
+    stopRoomTyping();
+  }, [stopRoomTyping, notifyPlayerTyping]);
+
   const sendRoomChat = useCallback((text) => {
     const content = text?.trim();
     if (!content) return false;
@@ -485,11 +659,12 @@ export function NexusSocketProvider({ children }) {
     }
 
     socket.emit("chat", { text: content, channel: "room" });
+    stopRoomTyping();
     if (!isCommand && youNow.sid) {
       sceneApiRef.current?.onChatBubble?.(youNow.sid, content, youNow.role);
     }
     return true;
-  }, []);
+  }, [stopRoomTyping]);
 
   const sendChat = useCallback((text, channel = "room") => {
     if (channel === "room" || !channel) {
@@ -513,6 +688,26 @@ export function NexusSocketProvider({ children }) {
 
   const bossAttack = useCallback((damage) => {
     socketRef.current?.emit("boss_attack", { damage });
+  }, []);
+
+  const combatTarget = useCallback((targetId) => {
+    socketRef.current?.emit("combat:target", { targetId });
+    sceneApiRef.current?.setCombatTarget?.(targetId);
+  }, []);
+
+  const combatAttack = useCallback((targetId) => {
+    if (attackCooldown) return;
+    socketRef.current?.emit("combat:attack", { targetId });
+    setAttackCooldown(true);
+    setTimeout(() => setAttackCooldown(false), 1000);
+  }, [attackCooldown]);
+
+  const combatRespawn = useCallback(() => {
+    socketRef.current?.emit("combat:respawn");
+  }, []);
+
+  const combatRequestState = useCallback(() => {
+    socketRef.current?.emit("combat:request_state");
   }, []);
 
   const gm = useMemo(() => ({
@@ -628,7 +823,7 @@ export function NexusSocketProvider({ children }) {
   const value = useMemo(() => ({
     socket: socketRef.current,
     status, room, you, players, weather, items, isStaff,
-    roomChatMessages, sendRoomChat,
+    roomChatMessages, sendRoomChat, emitRoomTyping,
     chat, channels: CHANNELS, activeChannel, setActiveChannel,
     unreadByChannel, markChannelRead,
     overlayOpen, setOverlayOpen, openNexus, closeNexus, reconnectNexus,
@@ -639,15 +834,19 @@ export function NexusSocketProvider({ children }) {
     friendMessage, consumeFriendMessage,
     presence,
     gmLogs,
-    sendChat, move, changeRoom, pickupItem, bossAttack,
+    sendChat, emitRoomTyping, move, changeRoom, pickupItem, bossAttack,
     gm, onInspectResult,
     attachScene, detachScene,
+    combat, combatTarget, combatAttack, combatRespawn, combatRequestState,
+    attackCooldown, combatDead, combatRespawnIn, lastCombatReward,
   }), [
     status, room, you, players, weather, items, isStaff, roomChatMessages, chat, activeChannel,
     unreadByChannel, overlayOpen, popup, globalAnnounce, pushNotif, friendMessage, presence, gmLogs, nexusGate, chatHelpOpen,
-    sendChat, sendRoomChat, move, changeRoom, pickupItem, bossAttack, gm, onInspectResult, attachScene,
+    combat, attackCooldown, combatDead, combatRespawnIn, lastCombatReward,
+    sendChat, sendRoomChat, emitRoomTyping, move, changeRoom, pickupItem, bossAttack, gm, onInspectResult, attachScene,
     openChatHelp, closeChatHelp, patchYou,
     detachScene, markChannelRead, dismissPopup, consumePushNotif, consumeFriendMessage, openNexus, closeNexus, reconnectNexus,
+    combatTarget, combatAttack, combatRespawn, combatRequestState,
   ]);
 
   return <NexusSocketContext.Provider value={value}>{children}</NexusSocketContext.Provider>;

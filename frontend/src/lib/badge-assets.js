@@ -102,6 +102,12 @@ export function getRarityBadgeSrc(rarity) {
   return assetUrl("rarities", file);
 }
 
+/** Achievement badges — fichier PNG nommé {badge_id}.png dans achievements/ */
+export function getAchievementBadgeSrc(badgeId) {
+  if (!badgeId) return null;
+  return assetUrl("achievements", badgeId);
+}
+
 export function resolveRank(userOrRank, level) {
   if (typeof userOrRank === "string") return userOrRank;
   if (userOrRank?.rank) return userOrRank.rank;

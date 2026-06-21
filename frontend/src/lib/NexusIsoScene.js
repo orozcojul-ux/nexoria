@@ -9,6 +9,7 @@ import {
   PLAYER_NAME_OFFSET_Y,
   PLAYER_SUB_OFFSET_Y,
   PLAYER_BUBBLE_OFFSET_Y,
+  preloadNexusOnlineClassAssets,
   NEXUS_ONLINE_TEXTURE_KEYS,
   NEXUS_ONLINE_DEFAULT_ASSET_KEY,
   isNexusOnlineTestRoom,
@@ -29,6 +30,31 @@ import {
   clampPoint,
 } from "./nexusOnlineVisuals";
 import { getStaffVisuals } from "./staff-roles";
+import {
+  DEBUG_COLLISIONS,
+  isTileBlocked,
+  isTileWalkable,
+  isMovementAllowed,
+  findWalkPath,
+  drawCollisionDebug,
+  snapToWalkableTile,
+  setTiledWalkabilityChecker,
+  clearTiledWalkabilityChecker,
+} from "@/nexusOnline/rooms/roomCollisions";
+import {
+  DEBUG_COLLISIONS as TILED_DEBUG_COLLISIONS,
+  usesTiledCollisions,
+  getTiledRoomMapConfig,
+  preloadTiledRoomMap,
+  makeTilemapFromRoomAssets,
+  computeMapToWorldTransform,
+  tiledRectToWorld,
+  parseTiledCollisionObjects,
+  findTiledSpawn,
+  spawnTiledToWorld,
+  isCircleBlocked,
+  PLAYER_COLLIDER_RADIUS,
+} from "@/nexusOnline/rooms/tiledCollisions";
 
 /* Re-export for consumers */
 export { TILE_W, TILE_H, CLASS_HEX, CLASS_COLOR_INT, RARITY_HEX, PLAYER_SPRITE_HEIGHT };
@@ -100,12 +126,17 @@ export class NexusIsoScene extends Phaser.Scene {
 
   preload() {
     this.testVisuals = isNexusOnlineTestRoom(this.room);
+    const players = [this.you, ...(this.initialPlayers || [])].filter(Boolean);
     if (this.testVisuals) {
-      const players = [this.you, ...(this.initialPlayers || [])].filter(Boolean);
       preloadNexusOnlineTestAssets(this, players);
+    } else {
+      preloadNexusOnlineClassAssets(this, collectAssetKeysForPreload(players));
     }
     preloadLandmarkSprites(this);
     preloadClassSprites(this);
+    if (usesTiledCollisions(this.room?.id)) {
+      preloadTiledRoomMap(this, this.room.id);
+    }
     if (this.sceneUrl && !this.testVisuals) {
       const key = `room_scene_${this.room?.id || "default"}`;
       if (!this.textures.exists(key)) {
@@ -127,6 +158,7 @@ export class NexusIsoScene extends Phaser.Scene {
 
     if (this.testVisuals) {
       this.setupTestRoomBackground();
+      this.setupTiledCollisions();
     } else {
       this.drawDefaultBackdrop();
     }
@@ -158,10 +190,17 @@ export class NexusIsoScene extends Phaser.Scene {
             ]),
             Phaser.Geom.Polygon.Contains,
           );
-          tile.on("pointerover", () => tile.setTint(0x67e8f9));
+          tile.on("pointerover", () => {
+            if (isTileBlocked(this.room.id, tx, ty, this.room.tiles_x, this.room.tiles_y)) {
+              tile.setTint(0xff4444);
+            } else {
+              tile.setTint(0x67e8f9);
+            }
+          });
           tile.on("pointerout", () => tile.clearTint());
           tile.on("pointerdown", () => {
             if (this.gmPickerMode) { this.onTileClick && this.onTileClick({ tx, ty }); return; }
+            if (isTileBlocked(this.room.id, tx, ty, this.room.tiles_x, this.room.tiles_y)) return;
             this.requestMoveTo(tx, ty);
           });
         } else {
@@ -184,12 +223,11 @@ export class NexusIsoScene extends Phaser.Scene {
     }
     this.applyWeather(this.initialWeather);
 
+    const assetKeys = collectAssetKeysForPreload([this.you, ...(this.initialPlayers || [])]);
+    this.nexusAutospriteReady = setupNexusOnlineAutospriteAnimations(this, assetKeys);
+
     if (this.testVisuals) {
       this.setupTestRoomInput();
-      const assetKeys = collectAssetKeysForPreload([this.you, ...(this.initialPlayers || [])]);
-      this.nexusAutospriteReady = setupNexusOnlineAutospriteAnimations(this, assetKeys);
-    } else {
-      this.nexusAutospriteReady = new Set();
     }
 
     this.cameras.main.setBounds(0, 0, this.worldW, this.worldH);
@@ -202,6 +240,24 @@ export class NexusIsoScene extends Phaser.Scene {
     this.spawnPortals();
     if (room.world_boss) this.setWorldBoss(room.world_boss);
     if (room.active_rift) this.setActiveRift(room.active_rift);
+
+    this.combatEnemies = {};
+    this.combatTargetId = null;
+    if (room.combat_active && room.combat_enemies?.length) {
+      this.syncCombatEnemies(room.combat_enemies);
+    }
+
+    this.collisionDebugVisible = this.tiledCollisionRects
+      ? TILED_DEBUG_COLLISIONS
+      : DEBUG_COLLISIONS;
+    this.refreshCollisionDebug();
+    if (this.input.keyboard) {
+      this.input.keyboard.on("keydown-C", () => {
+        if (process.env.NODE_ENV !== "development") return;
+        this.collisionDebugVisible = !this.collisionDebugVisible;
+        this.refreshCollisionDebug();
+      });
+    }
 
     this.time.delayedCall(50, () => {
       const me = this.players[this.you.sid];
@@ -266,6 +322,110 @@ export class NexusIsoScene extends Phaser.Scene {
     }
   }
 
+  setupTiledCollisions() {
+    const cfg = getTiledRoomMapConfig(this.room?.id);
+    if (!cfg) return;
+
+    const map = makeTilemapFromRoomAssets(this, cfg);
+    if (!map) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[Nexus] Tiled map not loaded:", cfg.url);
+      }
+      return;
+    }
+
+    this.tiledMap = map;
+    const transform = computeMapToWorldTransform(this.roomBgImage, cfg.mapWidth, cfg.mapHeight);
+    if (!transform) return;
+    this.tiledMapTransform = transform;
+
+    const collisionLayer = map.getObjectLayer(cfg.collisionLayer);
+    this.tiledCollisionRects = parseTiledCollisionObjects(
+      map,
+      cfg.collisionLayer,
+      transform,
+      cfg.minObjectSize,
+    );
+
+    this.collisionGroup = this.physics.add.staticGroup();
+    this.collisionDebugShapes = [];
+
+    (collisionLayer?.objects || []).forEach((obj) => {
+      if ((obj.width || 0) < cfg.minObjectSize || (obj.height || 0) < cfg.minObjectSize) return;
+      const world = tiledRectToWorld(transform, obj);
+      const cx = world.x + world.width / 2;
+      const cy = world.y + world.height / 2;
+      const rect = this.add.rectangle(cx, cy, world.width, world.height, 0xff0000, 0.25);
+      this.physics.add.existing(rect, true);
+      rect.body.setSize(world.width, world.height);
+      rect.setDepth(8500);
+      rect.disableInteractive();
+      const visible = this.collisionDebugVisible && TILED_DEBUG_COLLISIONS;
+      rect.setVisible(visible);
+      if (!visible) rect.setAlpha(0);
+      this.collisionGroup.add(rect);
+      this.collisionDebugShapes.push(rect);
+    });
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("Tiled collisions loaded:", this.tiledCollisionRects.length);
+    }
+
+    const spawnTiled = findTiledSpawn(map, cfg.spawnLayers, cfg.spawnObjectName);
+    if (spawnTiled) {
+      this.tiledSpawnWorld = spawnTiledToWorld(transform, spawnTiled);
+      if (this.tiledSpawnWorld) {
+        this.tiledSpawnTile = this.screenToTile(this.tiledSpawnWorld.x, this.tiledSpawnWorld.y);
+        if (process.env.NODE_ENV === "development") {
+          console.log("Player spawn loaded:", {
+            tiled: spawnTiled,
+            world: this.tiledSpawnWorld,
+            tile: this.tiledSpawnTile,
+          });
+        }
+      }
+    }
+
+    setTiledWalkabilityChecker((tx, ty) => this.isRoomWalkable(tx, ty));
+    this.events.once("shutdown", () => clearTiledWalkabilityChecker());
+  }
+
+  isRoomWalkable(tx, ty) {
+    const { x, y } = this.screenFromTile(tx, ty);
+    return !this.isWorldPointBlocked(x, y);
+  }
+
+  isWorldPointBlocked(x, y) {
+    if (this.tiledCollisionRects?.length) {
+      return isCircleBlocked(x, y, PLAYER_COLLIDER_RADIUS, this.tiledCollisionRects);
+    }
+    const { tx, ty } = this.screenToTile(x, y);
+    return isTileBlocked(this.room.id, tx, ty, this.room.tiles_x, this.room.tiles_y);
+  }
+
+  ensurePlayerCollider(container) {
+    if (!this.collisionGroup || container.playerCollider) return;
+    const body = this.add.circle(0, 0, PLAYER_COLLIDER_RADIUS, 0x000000, 0);
+    body.setVisible(false);
+    this.physics.add.existing(body);
+    body.body.setCircle(PLAYER_COLLIDER_RADIUS);
+    container.add(body);
+    container.playerCollider = body;
+    this.physics.add.collider(body, this.collisionGroup);
+  }
+
+  syncPlayerCollider(container) {
+    if (!container?.playerCollider?.body) return;
+    container.playerCollider.x = container.x;
+    container.playerCollider.y = container.y;
+    container.playerCollider.body.reset(container.x, container.y);
+  }
+
+  applyTiledSpawnToPlayer(p) {
+    if (!this.tiledSpawnTile || !this.you || p.sid !== this.you.sid) return p;
+    return { ...p, tx: this.tiledSpawnTile.tx, ty: this.tiledSpawnTile.ty };
+  }
+
   setupTestRoomInput() {
     this._testPointerHandler = (pointer, objects) => {
       if (this.gmPickerMode || this.movementBlocked || !this.you) return;
@@ -284,6 +444,8 @@ export class NexusIsoScene extends Phaser.Scene {
       if (process.env.NODE_ENV === "development") {
         console.log("nexus click → tile", tx, ty, "world", Math.round(wx), Math.round(wy));
       }
+      if (this.isWorldPointBlocked(wx, wy)) return;
+      if (isTileBlocked(this.room.id, tx, ty, this.room.tiles_x, this.room.tiles_y)) return;
       this.requestMoveTo(tx, ty);
     };
     this.input.on("pointerdown", this._testPointerHandler);
@@ -310,16 +472,16 @@ export class NexusIsoScene extends Phaser.Scene {
     };
   }
 
-  playerNameOffsetY() {
-    return this.testVisuals ? PLAYER_NAME_OFFSET_Y : -56;
+  playerNameOffsetY(usesAutosprite = this.testVisuals) {
+    return usesAutosprite ? PLAYER_NAME_OFFSET_Y : -56;
   }
 
-  playerSubOffsetY() {
-    return this.testVisuals ? PLAYER_SUB_OFFSET_Y : -42;
+  playerSubOffsetY(usesAutosprite = this.testVisuals) {
+    return usesAutosprite ? PLAYER_SUB_OFFSET_Y : -42;
   }
 
-  bubbleOffsetY() {
-    return this.testVisuals ? PLAYER_BUBBLE_OFFSET_Y : 72;
+  bubbleOffsetY(usesAutosprite = this.testVisuals) {
+    return usesAutosprite ? PLAYER_BUBBLE_OFFSET_Y : 72;
   }
 
   clampPlayerPosition(x, y) {
@@ -367,10 +529,9 @@ export class NexusIsoScene extends Phaser.Scene {
   }
 
   createPlayerSprite(container, p) {
-    if (this.testVisuals) {
-      const testSprite = this.createTestPlayerSprite(container, p);
-      if (testSprite) return testSprite;
-    }
+    const autosprite = this.createTestPlayerSprite(container, p);
+    if (autosprite) return autosprite;
+
     const { key, scale } = resolvePlayerTexture(this, p.class_id, p.role);
     const ring = this.add.ellipse(0, 4, 30, 12, CLASS_COLOR_INT[p.class_id] || 0x9CA3AF, 0.45);
     ring.setStrokeStyle(1, 0xFFFFFF, 0.45);
@@ -450,26 +611,52 @@ export class NexusIsoScene extends Phaser.Scene {
     return null;
   }
 
+  refreshCollisionDebug() {
+    if (!this.room) return;
+    if (this.tiledCollisionRects) {
+      const visible = this.collisionDebugVisible && TILED_DEBUG_COLLISIONS;
+      (this.collisionDebugShapes || []).forEach((rect) => {
+        rect.setVisible(visible);
+        rect.setFillStyle(0xff0000, visible ? 0.25 : 0);
+        rect.setAlpha(visible ? 1 : 0);
+      });
+      return;
+    }
+    drawCollisionDebug(
+      this,
+      this.room.id,
+      this.originX,
+      this.originY,
+      this.room.tiles_x,
+      this.room.tiles_y,
+      this.collisionDebugVisible,
+    );
+  }
+
   /* --- movement --- */
   requestMoveTo(tx, ty) {
     if (!this.you || this.movementBlocked) return;
     const me = this.players[this.you.sid];
     if (!me) return;
     if (me.profile?.frozen) return;
-    tx = Phaser.Math.Clamp(tx, 0, this.room.tiles_x - 1);
-    ty = Phaser.Math.Clamp(ty, 0, this.room.tiles_y - 1);
+    const { tiles_x, tiles_y } = this.room;
+    tx = Phaser.Math.Clamp(tx, 0, tiles_x - 1);
+    ty = Phaser.Math.Clamp(ty, 0, tiles_y - 1);
+    if (!isTileWalkable(this.room.id, tx, ty, tiles_x, tiles_y)) return;
+    if (!isTileWalkable(this.room.id, me.tile.tx, me.tile.ty, tiles_x, tiles_y)) {
+      const snapped = snapToWalkableTile(
+        this.room.id, me.tile.tx, me.tile.ty, tiles_x, tiles_y,
+      );
+      this.movePlayer(this.you.sid, snapped.tx, snapped.ty, me.lastFacing || "SE", true);
+      this.onMoveEmit && this.onMoveEmit(snapped.tx, snapped.ty, me.lastFacing || "SE");
+    }
     this.targetTile = { tx, ty };
-    this.path = this.computePath(me.tile.tx, me.tile.ty, tx, ty);
+    const path = findWalkPath(this.room.id, me.tile.tx, me.tile.ty, tx, ty, tiles_x, tiles_y);
+    this.path = path || [];
   }
   computePath(sx, sy, ex, ey) {
-    const path = [];
-    let cx = sx, cy = sy, g = 0;
-    while ((cx !== ex || cy !== ey) && g++ < 100) {
-      if (cx < ex) cx++; else if (cx > ex) cx--;
-      if (cy < ey) cy++; else if (cy > ey) cy--;
-      path.push({ tx: cx, ty: cy });
-    }
-    return path;
+    const { tiles_x, tiles_y } = this.room;
+    return findWalkPath(this.room.id, sx, sy, ex, ey, tiles_x, tiles_y) || [];
   }
   computeFacing(dx, dy) {
     if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "E" : "W";
@@ -1176,6 +1363,17 @@ export class NexusIsoScene extends Phaser.Scene {
 
   upsertPlayer(p) {
     if (!p) return;
+    p = this.applyTiledSpawnToPlayer(p);
+    let teleported = false;
+    if (this.room) {
+      const snapped = snapToWalkableTile(
+        this.room.id, p.tx, p.ty, this.room.tiles_x, this.room.tiles_y,
+      );
+      if (snapped.tx !== p.tx || snapped.ty !== p.ty) {
+        p = { ...p, tx: snapped.tx, ty: snapped.ty };
+        teleported = true;
+      }
+    }
     const existing = this.players[p.sid];
     if (existing) {
       const prevClass = existing.profile?.class_id;
@@ -1184,7 +1382,9 @@ export class NexusIsoScene extends Phaser.Scene {
       if (prevClass !== p.class_id) {
         this.applyPlayerClassVisual(existing, existing.profile);
       }
-      this.movePlayer(p.sid, p.tx, p.ty, p.facing, false);
+      this.movePlayer(p.sid, p.tx, p.ty, p.facing, teleported);
+      this.ensurePlayerCollider(existing);
+      this.syncPlayerCollider(existing);
       return;
     }
     const screen = tileToScreen(p.tx, p.ty, this.originX, this.originY);
@@ -1202,12 +1402,12 @@ export class NexusIsoScene extends Phaser.Scene {
     } else {
       this.tweens.add({ targets: ring, scaleX: 1.06, scaleY: 1.06, alpha: 0.22, yoyo: true, repeat: -1, duration: 1400 });
     }
-    const nameText = this.add.text(0, this.playerNameOffsetY(), "", {
+    const nameText = this.add.text(0, this.playerNameOffsetY(usesClassAutosprite), "", {
       fontFamily: "Cinzel, serif", fontSize: "12px",
       color: getStaffVisuals(p)?.color || "#FFFFFF",
       fontStyle: "bold", stroke: "#000", strokeThickness: 3,
     }).setOrigin(0.5);
-    const subText = this.add.text(0, this.playerSubOffsetY(), "", {
+    const subText = this.add.text(0, this.playerSubOffsetY(usesClassAutosprite), "", {
       fontFamily: "ui-monospace, monospace", fontSize: "9px",
       color: CLASS_HEX[p.class_id] || "#A1A1AA", stroke: "#000", strokeThickness: 3,
     }).setOrigin(0.5);
@@ -1228,6 +1428,9 @@ export class NexusIsoScene extends Phaser.Scene {
     const auraCfg = this.resolveAura(p);
     if (auraCfg) this.addRankAura(playerContainer, auraCfg);
     if (p.is_vip) this.addVipAura(playerContainer);
+
+    this.ensurePlayerCollider(playerContainer);
+    this.syncPlayerCollider(playerContainer);
 
     sprite.setInteractive({ useHandCursor: true });
     sprite.on("pointerdown", (pointer, lx, ly, event) => {
@@ -1315,6 +1518,8 @@ export class NexusIsoScene extends Phaser.Scene {
       else if (dir === "E" || dir === "NE" || dir === "SE") c.sprite?.setFlipX(false);
     }
     if (c.chatBubble) c.bringToTop(c.chatBubble);
+    if (c.typingBubble) c.bringToTop(c.typingBubble);
+    this.syncPlayerCollider(c);
     this.sortDepth();
   }
 
@@ -1322,6 +1527,7 @@ export class NexusIsoScene extends Phaser.Scene {
     const c = this.players[sid];
     if (!c) return;
     this.dismissChatBubble(c);
+    this.dismissTypingBubble(c);
     this.tweens.add({ targets: c, alpha: 0, duration: 200, onComplete: () => { c.destroy(); delete this.players[sid]; } });
   }
 
@@ -1364,9 +1570,120 @@ export class NexusIsoScene extends Phaser.Scene {
     c.chatBubble = null;
   }
 
+  dismissTypingBubble(c) {
+    if (!c?.typingBubble) return;
+    const bubble = c.typingBubble;
+    this.tweens.killTweensOf(bubble);
+    bubble.list?.forEach((child) => this.tweens.killTweensOf(child));
+    if (c.typingBubbleTimer) {
+      c.typingBubbleTimer.remove(false);
+      c.typingBubbleTimer = null;
+    }
+    bubble.destroy();
+    c.typingBubble = null;
+  }
+
+  typingBubbleOffsetY(c) {
+    const base = -this.bubbleOffsetY(c.usesClassAutosprite);
+    return c.chatBubble ? base - 34 : base;
+  }
+
+  refreshTypingBubblePosition(c) {
+    if (!c?.typingBubble) return;
+    c.typingBubble.y = this.typingBubbleOffsetY(c);
+  }
+
+  setPlayerTyping(sid, typing) {
+    if (typing) this.showTypingBubble(sid);
+    else this.hideTypingBubble(sid);
+  }
+
+  showTypingBubble(sid) {
+    const c = this.players[sid];
+    if (!c) return;
+    if (c.typingBubble) {
+      if (c.typingBubbleTimer) {
+        c.typingBubbleTimer.remove(false);
+        c.typingBubbleTimer = this.time.delayedCall(8000, () => this.hideTypingBubble(sid));
+      }
+      return;
+    }
+
+    const w = 46;
+    const h = 24;
+    const fillColor = 0x0f0a18;
+    const borderColor = 0xc9a565;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(fillColor, 0.94);
+    bg.lineStyle(1.5, borderColor, 0.88);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 8);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 8);
+    bg.fillStyle(borderColor, 0.9);
+    bg.fillTriangle(-5, h / 2, 5, h / 2, 0, h / 2 + 7);
+
+    const dots = [];
+    for (let i = 0; i < 3; i += 1) {
+      const dot = this.add.circle(-8 + i * 8, 0, 2.4, 0xe8c97a, 0.45);
+      dots.push(dot);
+      this.tweens.add({
+        targets: dot,
+        alpha: { from: 0.35, to: 1 },
+        y: -2,
+        yoyo: true,
+        repeat: -1,
+        duration: 380,
+        delay: i * 130,
+        ease: "Sine.easeInOut",
+      });
+    }
+
+    const localY = this.typingBubbleOffsetY(c);
+    const bubble = this.add.container(0, localY, [bg, ...dots]);
+    bubble.setAlpha(0);
+    bubble.setScale(0.88);
+    c.add(bubble);
+    c.bringToTop(bubble);
+    if (c.chatBubble) c.bringToTop(c.chatBubble);
+    c.typingBubble = bubble;
+    this.tweens.add({
+      targets: bubble,
+      alpha: 1,
+      scale: 1,
+      y: localY - 6,
+      duration: 180,
+      ease: "Back.easeOut",
+    });
+    c.typingBubbleTimer = this.time.delayedCall(8000, () => this.hideTypingBubble(sid));
+  }
+
+  hideTypingBubble(sid) {
+    const c = this.players[sid];
+    if (!c?.typingBubble) return;
+    const bubble = c.typingBubble;
+    const localY = bubble.y;
+    if (c.typingBubbleTimer) {
+      c.typingBubbleTimer.remove(false);
+      c.typingBubbleTimer = null;
+    }
+    this.tweens.add({
+      targets: bubble,
+      alpha: 0,
+      y: localY - 10,
+      scale: 0.9,
+      duration: 160,
+      onComplete: () => {
+        if (c.typingBubble === bubble) {
+          this.dismissTypingBubble(c);
+        }
+      },
+    });
+  }
+
   showBubble(sid, text, role = "user") {
     const c = this.players[sid];
     if (!c) return;
+    this.hideTypingBubble(sid);
     this.dismissChatBubble(c);
 
     const staff = getStaffVisuals({ ...c.profile, role: role || c.profile?.role });
@@ -1406,7 +1723,7 @@ export class NexusIsoScene extends Phaser.Scene {
     bg.lineStyle(1, borderColor, 0.5);
     bg.strokeTriangle(-7, h / 2, 7, h / 2, 0, h / 2 + 9);
 
-    const localY = -this.bubbleOffsetY();
+    const localY = -this.bubbleOffsetY(c.usesClassAutosprite);
     const bubble = this.add.container(0, localY, [glow, bg, t]);
     bubble.setAlpha(0);
     bubble.setScale(0.85);
@@ -1558,9 +1875,15 @@ export class NexusIsoScene extends Phaser.Scene {
     const dx = sx - me.x, dy = sy - me.y;
     const dist = Math.hypot(dx, dy);
     if (dist < 2) {
+      if (!isTileWalkable(this.room.id, next.tx, next.ty, this.room.tiles_x, this.room.tiles_y)) {
+        this.path = [];
+        this.targetTile = null;
+        return;
+      }
       me.x = sx; me.y = sy;
       me.tile = { tx: next.tx, ty: next.ty };
       if (me.profile) { me.profile.tx = next.tx; me.profile.ty = next.ty; }
+      this.syncPlayerCollider(me);
       this.path.shift();
       const facing = this.computeFacing(dx, dy);
       if (!me.usesClassAutosprite && me.sprite) {
@@ -1578,15 +1901,166 @@ export class NexusIsoScene extends Phaser.Scene {
       let nx = me.x + (dx / dist) * step;
       let ny = me.y + (dy / dist) * step;
       ({ x: nx, y: ny } = this.clampPlayerPosition(nx, ny));
+      if (this.tiledCollisionRects?.length
+        && isCircleBlocked(nx, ny, PLAYER_COLLIDER_RADIUS, this.tiledCollisionRects)) {
+        this.path = [];
+        this.targetTile = null;
+        this.syncPlayerCollider(me);
+        return;
+      }
       if (this.testVisuals && process.env.NODE_ENV === "development") {
         console.log("moving player", Math.round(nx), Math.round(ny));
       }
       me.x = nx;
       me.y = ny;
+      this.syncPlayerCollider(me);
       if (me.usesClassAutosprite) {
         this.applyClassAutospriteAnim(me, true, dx, dy);
       }
       this.sortDepth();
     }
+  }
+
+  // ─── Combat MVP ─────────────────────────────────────────────
+  _enemyColorInt(hex) {
+    try {
+      return parseInt(String(hex || "#7B3FF2").replace("#", ""), 16);
+    } catch {
+      return 0x7b3ff2;
+    }
+  }
+
+  clearCombatEnemies() {
+    Object.values(this.combatEnemies || {}).forEach((c) => c?.destroy?.());
+    this.combatEnemies = {};
+    this.combatTargetId = null;
+  }
+
+  syncCombatEnemies(enemies = []) {
+    const ids = new Set(enemies.map((e) => e.instanceId));
+    Object.keys(this.combatEnemies || {}).forEach((id) => {
+      if (!ids.has(id)) {
+        this.combatEnemies[id]?.destroy?.();
+        delete this.combatEnemies[id];
+      }
+    });
+    enemies.forEach((e) => this.upsertCombatEnemy(e));
+  }
+
+  upsertCombatEnemy(enemy) {
+    if (!enemy?.instanceId || enemy.isDead) return;
+    const existing = this.combatEnemies?.[enemy.instanceId];
+    if (existing) {
+      this._updateCombatEnemyVisual(existing, enemy);
+      return;
+    }
+    const screen = tileToScreen(enemy.tx, enemy.ty, this.originX, this.originY);
+    const x = screen.x + TILE_W / 2;
+    const y = screen.y + TILE_H / 2 - 16;
+    const container = this.add.container(x, y);
+    const tint = this._enemyColorInt(enemy.color);
+    const shadow = this.add.ellipse(0, 22, 40, 12, 0x000000, 0.5);
+    const body = this.add.ellipse(0, 0, 36, 44, tint, 0.95);
+    body.setStrokeStyle(2, 0x38e8ff, 0.8);
+    const eyeL = this.add.circle(-8, -6, 4, 0xff4444, 1);
+    const eyeR = this.add.circle(8, -6, 4, 0xff4444, 1);
+    const ring = this.add.circle(0, 0, 28, 0x000000, 0);
+    ring.setStrokeStyle(2, 0x7b3ff2, 0);
+    ring.name = "targetRing";
+    const name = this.add.text(0, -48, `${enemy.name} · Niv.${enemy.level}`, {
+      fontFamily: "Cinzel, serif", fontSize: "10px", color: "#E9D5FF",
+      stroke: "#000", strokeThickness: 3,
+    }).setOrigin(0.5);
+    const hpPct = Math.max(0, Math.min(1, (enemy.currentHp || 0) / (enemy.maxHp || 1)));
+    const hpBg = this.add.rectangle(0, -58, 72, 7, 0x000000, 0.85);
+    const hpFill = this.add.rectangle(-36 + hpPct * 36, -58, hpPct * 72, 5, 0xef4444, 1);
+    hpFill.setOrigin(0, 0.5);
+    container.add([shadow, body, eyeL, eyeR, ring, name, hpBg, hpFill]);
+    container.hpFill = hpFill;
+    container.enemyData = { ...enemy };
+    container.bodyShape = body;
+    body.setInteractive({ useHandCursor: true });
+    body.on("pointerdown", (pointer) => {
+      if (pointer.rightButtonDown()) {
+        this.onCombatAttack && this.onCombatAttack(enemy.instanceId);
+        return;
+      }
+      this.setCombatTarget(enemy.instanceId);
+      this.onCombatEnemyClick && this.onCombatEnemyClick(enemy.instanceId);
+    });
+    this.combatEnemies[enemy.instanceId] = container;
+    this.entityLayer.add(container);
+    this.sortDepth();
+  }
+
+  _updateCombatEnemyVisual(container, enemy) {
+    container.enemyData = { ...enemy };
+    const screen = tileToScreen(enemy.tx, enemy.ty, this.originX, this.originY);
+    container.x = screen.x + TILE_W / 2;
+    container.y = screen.y + TILE_H / 2 - 16;
+    const hpPct = Math.max(0, Math.min(1, (enemy.currentHp || 0) / (enemy.maxHp || 1)));
+    if (container.hpFill) {
+      container.hpFill.width = hpPct * 72;
+      container.hpFill.x = -36 + hpPct * 36;
+    }
+    if (this.combatTargetId === enemy.instanceId) {
+      const ring = container.list.find((o) => o.name === "targetRing");
+      if (ring) ring.setStrokeStyle(2, 0x38e8ff, 1);
+    }
+    this.sortDepth();
+  }
+
+  setCombatTarget(instanceId) {
+    this.combatTargetId = instanceId;
+    Object.entries(this.combatEnemies || {}).forEach(([id, c]) => {
+      const ring = c.list?.find((o) => o.name === "targetRing");
+      if (ring) ring.setStrokeStyle(2, id === instanceId ? 0x38e8ff : 0x7b3ff2, id === instanceId ? 1 : 0);
+    });
+  }
+
+  removeCombatEnemy(instanceId) {
+    const c = this.combatEnemies?.[instanceId];
+    if (c) {
+      c.destroy();
+      delete this.combatEnemies[instanceId];
+    }
+    if (this.combatTargetId === instanceId) this.combatTargetId = null;
+  }
+
+  showCombatDamage(tx, ty, amount, critical = false) {
+    const screen = tileToScreen(tx, ty, this.originX, this.originY);
+    const x = screen.x + TILE_W / 2;
+    const y = screen.y + TILE_H / 2 - 40;
+    const color = critical ? "#FBBF24" : "#FCA5A5";
+    const txt = this.add.text(x, y, `-${amount}`, {
+      fontFamily: "Cinzel, serif", fontSize: critical ? "16px" : "14px", color,
+      stroke: "#000", strokeThickness: 4, fontStyle: "bold",
+    }).setOrigin(0.5).setDepth(9999);
+    const target = this.combatEnemies?.[this.combatTargetId];
+    if (target?.bodyShape) {
+      this.tweens.add({
+        targets: target.bodyShape,
+        alpha: 0.4,
+        yoyo: true,
+        duration: 80,
+        repeat: 2,
+        onComplete: () => { target.bodyShape.alpha = 1; },
+      });
+    }
+    this.tweens.add({
+      targets: txt,
+      y: y - 36,
+      alpha: 0,
+      duration: 900,
+      ease: "Cubic.easeOut",
+      onComplete: () => txt.destroy(),
+    });
+  }
+
+  flashPlayerDamage() {
+    const me = this.players[this.you?.sid];
+    if (!me?.sprite && !me?.container) return;
+    const target = me.sprite || me.container;
+    this.tweens.add({ targets: target, alpha: 0.35, yoyo: true, duration: 90, repeat: 2 });
   }
 }

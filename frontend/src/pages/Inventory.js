@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import * as Lucide from "lucide-react";
-import { Gem, Sparkles, Coins, Package, Wand2, Flag, Zap, Scroll, Castle, Gift, ArrowLeftRight, Send, X, Check } from "lucide-react";
+import { Gem, Sparkles, Coins, Package, Wand2, Flag, Zap, Scroll, Castle, Gift, ArrowLeftRight, Send, X, Check, Info, Hammer } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,9 +14,17 @@ import { RARITY } from "@/lib/design-tokens";
 import { PremiumButton, PremiumCard, PageShell, PremiumModal } from "@/components/ui-premium";
 
 import { usePageBanner } from "@/lib/page-banners";
+import {
+  INVENTORY_TAB_GUIDE,
+  INVENTORY_ACTIONS_GUIDE,
+  INVENTORY_SOURCES_GUIDE,
+  relicUsageInfo,
+  shopOwnedUsageInfo,
+} from "@/lib/itemUsageHelp";
 
 export default function Inventory() {
   const { user, refresh } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [shopInv, setShopInv] = useState({ cosmetics: [], boosts: [], consumables: [], perks: [], mounts: [], auras: [], titles: [], passes: [] });
   const [shopItems, setShopItems] = useState([]);
@@ -30,6 +39,7 @@ export default function Inventory() {
   const [sendOpen, setSendOpen] = useState(false);
   const [tradesOpen, setTradesOpen] = useState(false);
   const [itemAction, setItemAction] = useState(null); // relic selected for gift/trade
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const loadTrades = useCallback(async () => {
     try {
@@ -136,6 +146,7 @@ export default function Inventory() {
   const filtered = filter === "all" ? items : items.filter((i) => i.rarity === filter);
   const banner = usePageBanner("inventory", { count: items.length });
   const incomingCount = trades.incoming?.length || 0;
+  const tabGuide = INVENTORY_TAB_GUIDE[tab];
 
   return (
     <PageShell
@@ -150,6 +161,9 @@ export default function Inventory() {
         </PremiumButton>
         <PremiumButton variant="violet" size="md" icon={Wand2} onClick={dedupe} testid="dedupe-chest-btn">
           Compacter
+        </PremiumButton>
+        <PremiumButton variant="gold" size="md" icon={Hammer} onClick={() => navigate("/craft")} testid="inventory-forge-btn">
+          Forge du Nexus
         </PremiumButton>
         <div className="flex-1" />
         <PremiumButton variant="cyan" size="md" icon={Send} onClick={() => setSendOpen(true)} testid="send-ecus-btn">
@@ -171,7 +185,7 @@ export default function Inventory() {
       </div>
 
       {/* Tabs — switch between asset types */}
-      <div className="flex flex-wrap gap-2 mb-4 justify-center" data-testid="inventory-tabs">
+      <div className="flex flex-wrap items-center gap-2 mb-4 justify-center" data-testid="inventory-tabs">
         {[
           { id: "relics", label: "Reliques", icon: Gem, count: items.length },
           { id: "cosmetics", label: "Cosmétiques", icon: Flag, count: shopInv.cosmetics.length },
@@ -187,7 +201,26 @@ export default function Inventory() {
             {t.label} <span className="font-mono-stat text-[10px] opacity-70">({t.count})</span>
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setGuideOpen(true)}
+          data-testid="inventory-guide-btn"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-bold font-display tracking-wide border border-violet-500/40 text-violet-200 bg-violet-500/10 hover:bg-violet-500/20 transition-colors"
+          title="Guide de l'inventaire"
+        >
+          <Info className="w-3.5 h-3.5" /> Guide
+        </button>
       </div>
+
+      {tabGuide && (
+        <div className="mb-4 max-w-3xl mx-auto rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-sm text-zinc-300" data-testid="inventory-tab-hint">
+          <span className="text-cyan-300 font-bold">{tabGuide.title} — </span>
+          {tabGuide.summary}
+          <button type="button" onClick={() => setGuideOpen(true)} className="ml-2 text-cyan-400 underline underline-offset-2 hover:text-cyan-200 text-xs">
+            En savoir plus
+          </button>
+        </div>
+      )}
 
       {/* Rarity filters — small medallions */}
       {tab === "relics" && (
@@ -226,18 +259,22 @@ export default function Inventory() {
               transition={{ delay: Math.min(i * 0.02, 0.5) }}
               whileHover={{ scale: 1.05, rotate: 1 }}
               onClick={() => setItemAction(item)}
-              className={`aspect-square relative rounded-xl border-2 ${tok.border} bg-gradient-to-br ${tok.bg} p-3 flex flex-col items-center justify-center text-center group cursor-pointer overflow-hidden`}
+              className={`aspect-square relative rounded-xl border-2 ${tok.border} bg-gradient-to-br ${tok.bg} p-3 flex flex-col items-center justify-center text-center group cursor-pointer overflow-visible`}
               style={{ boxShadow: `0 0 12px ${tok.glow}` }}
               data-testid={`item-${item.item_id}`}
-              title="Cliquez pour offrir ou échanger"
             >
+              <InventoryInfoButton
+                text={relicUsageInfo(item)}
+                testId={`item-info-${item.item_id}`}
+                className="top-1 left-1"
+              />
               <I className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform" style={{ color: tok.color, filter: `drop-shadow(0 0 8px ${tok.glow})` }} />
               <div className="text-xs font-display font-bold text-white leading-tight">{item.name}</div>
               <div className={`text-[8px] uppercase tracking-[0.2em] font-bold mt-1 ${tok.text}`}>{tok.fr}</div>
               {item.quantity > 1 && (
                 <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-violet-500/30 text-violet-200 text-[9px] font-mono-stat font-bold">x{item.quantity}</div>
               )}
-              <div className="absolute inset-x-0 bottom-0 py-1 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 text-[8px] uppercase tracking-widest font-bold text-amber-200">
+              <div className="absolute inset-x-0 bottom-0 py-1 bg-black/70 opacity-0 group-hover:opacity-100 group-has-[data-info-open]:opacity-0 group-has-[data-info-open]:pointer-events-none transition-opacity flex items-center justify-center gap-1 text-[8px] uppercase tracking-widest font-bold text-amber-200 rounded-b-xl">
                 <Gift className="w-2.5 h-2.5" /> Offrir / Échanger
               </div>
             </motion.div>
@@ -296,7 +333,174 @@ export default function Inventory() {
         relics={items}
         onDone={afterEconomy}
       />
+      <InventoryGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} activeTab={tab} />
     </PageShell>
+  );
+}
+
+/* ─── Bouton info « i » + popover (portal, au-dessus de la carte) ─ */
+function InventoryInfoButton({ text, testId, className = "" }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  const [pos, setPos] = useState({ top: 0, left: 0, flip: false });
+
+  const updatePos = useCallback(() => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const popH = popRef.current?.offsetHeight || 120;
+    const spaceAbove = r.top;
+    const flip = spaceAbove < popH + 12;
+    setPos({
+      top: flip ? r.bottom + 8 : r.top - 8,
+      left: Math.min(Math.max(8, r.left), window.innerWidth - 272),
+      flip,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePos();
+    const id = requestAnimationFrame(updatePos);
+    return () => cancelAnimationFrame(id);
+  }, [open, updatePos, text]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    window.addEventListener("scroll", updatePos, true);
+    window.addEventListener("resize", updatePos);
+    return () => {
+      window.removeEventListener("scroll", updatePos, true);
+      window.removeEventListener("resize", updatePos);
+    };
+  }, [open, updatePos]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (e) => {
+      if (btnRef.current?.contains(e.target)) return;
+      if (popRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  if (!text) return null;
+
+  const popover = open && createPortal(
+    <div
+      ref={popRef}
+      data-inv-info-popover
+      data-testid={testId ? `${testId}-popover` : undefined}
+      className="fixed z-[9999] w-64 max-w-[calc(100vw-16px)] p-3 rounded-lg border border-cyan-400/50 bg-[#0A0613]/98 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.85)] text-left"
+      style={{
+        top: pos.top,
+        left: pos.left,
+        transform: pos.flip ? "none" : "translateY(-100%)",
+      }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="text-[10px] uppercase tracking-widest text-cyan-300 font-bold mb-1.5">Comment l'utiliser</div>
+      <p className="text-[11px] text-zinc-200 leading-relaxed">{text}</p>
+    </div>,
+    document.body,
+  );
+
+  return (
+    <>
+      <div
+        className={`absolute z-20 ${className}`}
+        data-info-open={open ? "true" : undefined}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <button
+          ref={btnRef}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((v) => !v);
+          }}
+          data-testid={testId}
+          aria-label="Informations sur l'objet"
+          aria-expanded={open}
+          className={`w-5 h-5 rounded-full border text-[11px] font-black flex items-center justify-center transition-colors shadow-md ${
+            open
+              ? "border-cyan-300 bg-cyan-500/40 text-white"
+              : "border-cyan-400/50 bg-[#0A0613]/90 text-cyan-200 hover:bg-cyan-500/30"
+          }`}
+        >
+          i
+        </button>
+      </div>
+      {popover}
+    </>
+  );
+}
+
+/* ─── Modal guide complet ─────────────────────────────────── */
+function InventoryGuideModal({ open, onClose, activeTab }) {
+  const tabGuide = INVENTORY_TAB_GUIDE[activeTab];
+  return (
+    <PremiumModal open={open} onClose={onClose} title="Guide de l'inventaire" icon={Info} maxWidth="max-w-2xl" testid="inventory-guide-modal">
+      <div className="p-5 space-y-6 max-h-[70vh] overflow-y-auto text-sm text-zinc-300">
+        {tabGuide && (
+          <section>
+            <h3 className="text-[10px] uppercase tracking-[0.25em] text-cyan-300 font-bold mb-2">
+              Onglet actuel — {tabGuide.title}
+            </h3>
+            <p className="text-zinc-400 mb-2">{tabGuide.summary}</p>
+            <ul className="space-y-1.5 list-disc list-inside text-zinc-300">
+              {tabGuide.steps.map((step) => (
+                <li key={step} className="leading-relaxed">{step}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <section>
+          <h3 className="text-[10px] uppercase tracking-[0.25em] text-amber-300 font-bold mb-2">Boutons de la page</h3>
+          <div className="space-y-2">
+            {INVENTORY_ACTIONS_GUIDE.map((row) => (
+              <div key={row.title} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <div className="font-bold text-white text-xs">{row.title}</div>
+                <div className="text-[11px] text-zinc-400 mt-0.5 leading-relaxed">{row.text}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h3 className="text-[10px] uppercase tracking-[0.25em] text-violet-300 font-bold mb-2">Tous les onglets</h3>
+          <div className="space-y-3">
+            {Object.values(INVENTORY_TAB_GUIDE).map((g) => (
+              <div key={g.title} className="rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2">
+                <div className="font-bold text-violet-200 text-xs">{g.title}</div>
+                <div className="text-[11px] text-zinc-400 mt-0.5">{g.summary}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h3 className="text-[10px] uppercase tracking-[0.25em] text-emerald-300 font-bold mb-2">Où obtenir des objets</h3>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {INVENTORY_SOURCES_GUIDE.map((row) => (
+              <div key={row.title} className="rounded-lg border border-emerald-500/15 bg-emerald-500/5 px-3 py-2">
+                <div className="font-bold text-emerald-200 text-xs">{row.title}</div>
+                <div className="text-[11px] text-zinc-400 mt-0.5">{row.text}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <p className="text-[11px] text-zinc-500 italic border-t border-white/10 pt-4">
+          Sur chaque carte d'objet, le petit « i » explique comment utiliser cet objet précis sur le site.
+        </p>
+      </div>
+    </PremiumModal>
   );
 }
 
@@ -424,6 +628,9 @@ function ItemActionModal({ item, onClose, onDone }) {
             <div className={`text-[10px] uppercase tracking-widest font-bold ${tok.text}`}>{tok.fr} · x{maxQty}</div>
           </div>
         </div>
+        <p className="text-[11px] text-zinc-400 leading-relaxed border border-cyan-500/15 bg-cyan-500/5 rounded-lg px-3 py-2">
+          {relicUsageInfo(item)}
+        </p>
 
         {mode === "menu" && (
           <div className="grid grid-cols-2 gap-3 pt-1">
@@ -670,9 +877,14 @@ function ShopOwnedGrid({ tab, owned, shopItems, user, onEquipFrame, onEquipBanne
           || tab === "auras" && user?.active_aura_sku === sku
           || tab === "mounts" && user?.active_mount === sku;
         return (
-          <PremiumCard key={`${sku}-${i}`} tone="violet" className={`border-2 ${tok.border}`}
+          <PremiumCard key={`${sku}-${i}`} tone="violet" className={`border-2 relative ${tok.border}`}
             style={{ boxShadow: `0 0 12px ${tok.glow}` }}
             testid={`inv-row-${tab}-${sku}`}>
+            <InventoryInfoButton
+              text={shopOwnedUsageInfo(tab, sku, meta)}
+              testId={`inv-info-${tab}-${sku}`}
+              className="top-2 left-2 z-10"
+            />
             {row.quantity > 1 && (
               <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full border border-violet-500/40 bg-violet-500/15 text-violet-200 text-[10px] font-mono-stat font-bold">x{row.quantity}</span>
             )}

@@ -4,7 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { MaintenanceProvider, useMaintenance, isMaintenanceBypassRoute } from "@/contexts/MaintenanceContext";
-import { I18nProvider } from "@/contexts/I18nContext";
+import { LanguageProvider } from "@/i18n/LanguageProvider";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { UserPrefsSync } from "@/components/AppProviders";
 import { NexusSocketProvider } from "@/contexts/NexusSocketContext";
@@ -23,6 +23,7 @@ import NewsArticle from "@/pages/NewsArticle";
 import SkillTree from "@/pages/SkillTree";
 import Kingdom from "@/pages/Kingdom";
 import Inventory from "@/pages/Inventory";
+import Craft from "@/pages/Craft";
 import Quests from "@/pages/Quests";
 import Oracle from "@/pages/Oracle";
 import Leaderboards from "@/pages/Leaderboards";
@@ -40,12 +41,17 @@ import Forum from "@/pages/Forum";
 import Friends from "@/pages/Friends";
 import Tickets from "@/pages/Tickets";
 import Nexus from "@/pages/Nexus";
+import NexusWheel from "@/pages/NexusWheel";
 import Classes from "@/pages/Classes";
 import Events from "@/pages/Events";
+import TermsPage from "@/pages/TermsPage";
+import PrivacyPage from "@/pages/PrivacyPage";
+import LegalRoute from "@/components/legal/LegalRoute";
 import UnderConstruction from "@/pages/UnderConstruction";
 import Referral from "@/pages/Referral";
 import Community from "@/pages/Community";
 import BroadcastOverlay from "@/components/BroadcastOverlay";
+import FriendPresenceBubbles from "@/components/FriendPresenceBubbles";
 import StaffAlertOverlay from "@/components/StaffAlertOverlay";
 import NexusOverlay from "@/components/NexusOverlay";
 import NexusFAB from "@/components/NexusFAB";
@@ -100,6 +106,7 @@ function AppRouter() {
   return (
     <MaintenanceGate>
       <BroadcastOverlay />
+      <FriendPresenceBubbles />
       <StaffAlertOverlay />
       <NexusOverlay />
       <NexusFAB />
@@ -118,6 +125,7 @@ function AppRouter() {
         <Route path="/skills" element={<ProtectedRoute><Layout><SkillTree /></Layout></ProtectedRoute>} />
         <Route path="/kingdom" element={<ProtectedRoute><Layout><Kingdom /></Layout></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><Layout><Inventory /></Layout></ProtectedRoute>} />
+        <Route path="/craft" element={<ProtectedRoute><Layout><Craft /></Layout></ProtectedRoute>} />
         <Route path="/quests" element={<ProtectedRoute><Layout><Quests /></Layout></ProtectedRoute>} />
         <Route path="/oracle" element={<ProtectedRoute><Layout><Oracle /></Layout></ProtectedRoute>} />
         <Route path="/leaderboards" element={<ProtectedRoute><Layout><Leaderboards /></Layout></ProtectedRoute>} />
@@ -126,6 +134,7 @@ function AppRouter() {
         <Route path="/classes" element={<ProtectedRoute><Layout><Classes /></Layout></ProtectedRoute>} />
         <Route path="/events" element={<ProtectedRoute><Layout><Events /></Layout></ProtectedRoute>} />
         <Route path="/shop" element={<ProtectedRoute><Layout><Shop /></Layout></ProtectedRoute>} />
+        <Route path="/nexus-wheel" element={<ProtectedRoute><Layout><NexusWheel /></Layout></ProtectedRoute>} />
         <Route path="/world" element={<ProtectedRoute><Layout><WorldMap /></Layout></ProtectedRoute>} />
         <Route path="/guilds" element={<ProtectedRoute><Layout><Guilds /></Layout></ProtectedRoute>} />
         <Route path="/forum" element={<ProtectedRoute><Layout><Forum /></Layout></ProtectedRoute>} />
@@ -137,8 +146,8 @@ function AppRouter() {
         <Route path="/admin" element={<ProtectedRoute><Layout><Admin /></Layout></ProtectedRoute>} />
         <Route path="/profile/:username" element={<ProtectedRoute><ProfileCardRedirect /></ProtectedRoute>} />
         <Route path="/communaute" element={<ProtectedRoute><Layout><Community /></Layout></ProtectedRoute>} />
-        <Route path="/conditions" element={<ProtectedRoute><Layout><UnderConstruction title="Conditions d'utilisation" /></Layout></ProtectedRoute>} />
-        <Route path="/confidentialite" element={<ProtectedRoute><Layout><UnderConstruction title="Politique de confidentialité" /></Layout></ProtectedRoute>} />
+        <Route path="/conditions" element={<LegalRoute><TermsPage /></LegalRoute>} />
+        <Route path="/confidentialite" element={<LegalRoute><PrivacyPage /></LegalRoute>} />
         <Route path="*" element={<ProtectedRoute><Layout><UnderConstruction /></Layout></ProtectedRoute>} />
       </Routes>
     </MaintenanceGate>
@@ -149,7 +158,7 @@ function App() {
   return (
     <div className="App">
       <BrowserRouter>
-        <I18nProvider>
+        <LanguageProvider>
           <ThemeProvider>
             <AuthProvider>
               <MaintenanceProvider>
@@ -166,7 +175,7 @@ function App() {
               </MaintenanceProvider>
             </AuthProvider>
           </ThemeProvider>
-        </I18nProvider>
+        </LanguageProvider>
       </BrowserRouter>
     </div>
   );

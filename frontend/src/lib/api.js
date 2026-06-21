@@ -27,6 +27,11 @@ api.interceptors.request.use((config) => {
     config.headers = config.headers || {};
     config.headers["X-Beta-Key"] = beta;
   }
+  // FormData : laisser le navigateur définir le boundary multipart
+  if (config.data instanceof FormData) {
+    if (config.headers.delete) config.headers.delete("Content-Type");
+    else delete config.headers["Content-Type"];
+  }
   return config;
 });
 

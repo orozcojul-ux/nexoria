@@ -292,7 +292,7 @@ export function preloadClassSprites(scene) {
 
 /** Avatar procédural unique — même rendu que les cartes héros */
 export function resolvePlayerTexture(scene, classId, role) {
-  return { key: ensureCharTexture(scene, classId, role), scale: 2.05, fromPack: false };
+  return { key: ensureCharTexture(scene, classId, role), scale: 2.55, fromPack: false };
 }
 
 export function ensureTileTexture(scene, theme, variant = "base") {

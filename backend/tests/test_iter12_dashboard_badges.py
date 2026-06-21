@@ -105,13 +105,13 @@ class TestEnrichedBadges:
 
 # ---------- Regression ----------
 class TestRegression:
-    def test_nexus_rooms_public_22(self):
+    def test_nexus_rooms_public_5(self):
         r = requests.get(f"{BASE_URL}/api/nexus/rooms-public", timeout=15)
         assert r.status_code == 200
         j = r.json()
         rooms = j if isinstance(j, list) else j.get("rooms", j)
         assert isinstance(rooms, list)
-        assert len(rooms) == 22, f"expected 22 rooms, got {len(rooms)}"
+        assert len(rooms) == 5, f"expected 5 rooms, got {len(rooms)}"
 
     def test_leaderboard_xp(self):
         r = requests.get(f"{BASE_URL}/api/leaderboard/xp", timeout=15)

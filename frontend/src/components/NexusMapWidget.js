@@ -11,40 +11,19 @@ import { useNexusSocket } from "@/contexts/NexusSocketContext";
 
 // Fixed positions (in % of map container) for known rooms
 const ROOM_POSITIONS = {
-  place_centrale:        { x: 50, y: 50, color: "#9D4CDD", emoji: "🏰", short: "Place\nCentrale" },
-  hall_legendes:         { x: 50, y: 18, color: "#EAB308", emoji: "🏛", short: "Hall des\nLégendes" },
-  bibliotheque_infinie:  { x: 22, y: 22, color: "#3B82F6", emoji: "📚", short: "Bibliothèque" },
-  quartier_guildes:      { x: 78, y: 28, color: "#A855F7", emoji: "🏰", short: "Quartier\nGuildes" },
-  laboratoire:           { x: 14, y: 50, color: "#10B981", emoji: "⚗️", short: "Laboratoire" },
-  taverne_etoilee:       { x: 28, y: 78, color: "#F59E0B", emoji: "🍺", short: "Taverne" },
-  sanctuaire_oracle:     { x: 28, y: 62, color: "#06B6D4", emoji: "🧙", short: "Sanctuaire\nOracle" },
-  arene:                 { x: 50, y: 80, color: "#EF4444", emoji: "⚔️", short: "Arène\nCosmique" },
-  marche_astral:         { x: 86, y: 50, color: "#EAB308", emoji: "💎", short: "Marché\nAstral" },
-  sanctuaire_failles:    { x: 72, y: 70, color: "#EC4899", emoji: "🌀", short: "Sanctuaire\nFailles" },
-  vallee_boss:           { x: 14, y: 82, color: "#7C2D12", emoji: "🐉", short: "Vallée\ndes Boss" },
-  atelier_inventeurs:    { x: 84, y: 82, color: "#8B5CF6", emoji: "🛠", short: "Atelier" },
-  jardin_celeste:        { x: 62, y: 32, color: "#22C55E", emoji: "🌿", short: "Jardin\nCéleste" },
-  forge_eternelle:       { x: 38, y: 32, color: "#F97316", emoji: "🔥", short: "Forge\nÉternelle" },
+  place_centrale:   { x: 50, y: 50, color: "#9D4CDD", emoji: "🏰", short: "Place\nCentrale" },
+  quartier_guildes: { x: 78, y: 38, color: "#A855F7", emoji: "🛡", short: "Quartier\nGuildes" },
+  arene:            { x: 50, y: 78, color: "#EF4444", emoji: "⚔️", short: "Arène\ndu Nexus" },
+  salle_conseil:    { x: 22, y: 38, color: "#FCD34D", emoji: "👑", short: "Salle\ndu Conseil" },
+  salon_vip:        { x: 72, y: 62, color: "#FBBF24", emoji: "💎", short: "Salon\nVIP" },
 };
 
-// Edges to draw — gives a "world map" feel
 const EDGES = [
-  ["place_centrale", "hall_legendes"],
-  ["place_centrale", "bibliotheque_infinie"],
   ["place_centrale", "quartier_guildes"],
-  ["place_centrale", "laboratoire"],
-  ["place_centrale", "marche_astral"],
   ["place_centrale", "arene"],
-  ["place_centrale", "sanctuaire_oracle"],
-  ["place_centrale", "sanctuaire_failles"],
-  ["place_centrale", "forge_eternelle"],
-  ["place_centrale", "jardin_celeste"],
-  ["laboratoire", "bibliotheque_infinie"],
-  ["arene", "vallee_boss"],
-  ["arene", "sanctuaire_failles"],
-  ["sanctuaire_failles", "atelier_inventeurs"],
-  ["sanctuaire_oracle", "taverne_etoilee"],
-  ["quartier_guildes", "hall_legendes"],
+  ["place_centrale", "salle_conseil"],
+  ["place_centrale", "salon_vip"],
+  ["quartier_guildes", "arene"],
 ];
 
 export default function NexusMapWidget() {
