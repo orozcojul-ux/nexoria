@@ -21,6 +21,7 @@ import ClassChangeModal from "@/components/ClassChangeModal";
 import HeroCardCustomizeTab from "@/components/HeroCardCustomizeTab";
 import LastConnection from "@/components/LastConnection";
 import VipPassStatus from "@/components/VipPassStatus";
+import { formatStaffMembership, getStaffVisuals } from "@/lib/staff-roles";
 import styles from "./HeroCard.module.css";
 
 /** @deprecated Use PremiumBadge — kept for backward compatibility */
@@ -386,15 +387,6 @@ export default function HeroCard({ userId, open, onClose }) {
                     {u.username}
                   </h2>
                   <p className={styles.heroSubtitle}>{getTitleLabel(u)}</p>
-                  <div className={styles.heroVipPassLine} data-testid="hero-vip-pass">
-                    <VipPassStatus
-                      user={u}
-                      stacked
-                      labelClassName={styles.sidebarLastSeenDate}
-                      yesClassName={styles.vipPassYes}
-                      noClassName={styles.vipPassNo}
-                    />
-                  </div>
                   {(u.class_id || u.class_name) && (
                     <div
                       style={{
@@ -468,7 +460,11 @@ export default function HeroCard({ userId, open, onClose }) {
                   <div className={styles.sidebarInfo}>
                     <SidebarRow label="Pseudo" value={u.username} />
                     <SidebarRow label="Classe" value={u.class_name} color={classColor} />
-                    <SidebarRow label="Faction" value="NEXORIA" />
+                    <SidebarRow
+                      label="Membre du staff"
+                      value={formatStaffMembership(u)}
+                      color={getStaffVisuals(u)?.color || "#8892a0"}
+                    />
                     <SidebarRow
                       label="Guilde"
                       value={data.guild?.name ? `${data.guild.name}${data.guild.rank ? ` · ${data.guild.rank}` : ""}` : "—"}
@@ -742,7 +738,11 @@ function OverviewTab({ data, u, classColor, onViewBadges }) {
           <div className={styles.infoCol}>
             <InfoEntry label="Pseudo" value={u.username} />
             <InfoEntry label="Classe" value={u.class_name} color={classColor} />
-            <InfoEntry label="Serveur" value="NEXORIA" bold />
+            <InfoEntry
+              label="Membre du staff"
+              value={formatStaffMembership(u)}
+              color={getStaffVisuals(u)?.color || "#8892a0"}
+            />
             <InfoEntry label="Guilde" value={data.guild?.name || "—"} muted={!data.guild?.name} />
           </div>
           <div className={styles.infoDivider} aria-hidden>
@@ -802,7 +802,7 @@ function InfoTab({ u, guild, location }) {
         <InfoBlock label="Titre actif" value={getTitleLabel(u)} />
         <InfoBlock label="Classe" value={u.class_name} />
         <InfoBlock label="Classe secondaire" value={u.secondary_class_id || "—"} />
-        <InfoBlock label="Faction" value="NEXORIA" />
+        <InfoBlock label="Membre du staff" value={formatStaffMembership(u)} />
         <InfoBlock label="Guilde" value={guild?.name ? `${guild.name}${guild.tag ? ` [${guild.tag}]` : ""}` : "Sans guilde"} />
         <InfoBlock label="Niveau" value={u.level} />
         <InfoBlock label="XP totale" value={u.xp || 0} />

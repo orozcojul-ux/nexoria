@@ -34,7 +34,8 @@ from auth import (
     hash_password, verify_password, create_session_token, session_expiry,
     set_session_cookie, clear_session_cookie, get_current_user, generate_user_id,
     _extract_session_token, session_idle_cutoff_iso, session_is_idle,
-    terminate_session, run_session_end_side_effects,
+    terminate_session, run_session_end_side_effects, end_session_with_side_effects,
+    record_user_connection,
     TAB_CLOSE_GRACE_SECONDS, SESSION_IDLE_MINUTES,
 )
 from game_data import (
@@ -549,38 +550,12 @@ async def on_nexus_join(user_id: str):
     await progress_quests(user_id, "nexus_enter", 1)
 
 
-async def touch_user_last_seen(user_id: str, min_interval_seconds: int = 300, *, force: bool = False):
-    """Throttled visit heartbeat (default max once per 5 minutes per user)."""
-    now = now_utc()
-    if not force:
-        user = await db.users.find_one({"user_id": user_id}, {"last_seen": 1})
-        if not user:
-            return
-        last = user.get("last_seen")
-        if last:
-            try:
-                last_dt = datetime.fromisoformat(last) if isinstance(last, str) else last
-                if last_dt.tzinfo is None:
-                    last_dt = last_dt.replace(tzinfo=timezone.utc)
-                if (now - last_dt).total_seconds() < min_interval_seconds:
-                    return
-            except Exception:
-                pass
-    await db.users.update_one(
-        {"user_id": user_id},
-        {"$set": {"last_seen": now.isoformat()}},
-    )
-
-
 _pending_tab_close_tasks: dict[str, asyncio.Task] = {}
 
 
 async def _end_user_session(token: str):
     """Terminate one session and propagate offline side-effects."""
-    user_id = await terminate_session(db, token)
-    if not user_id:
-        return
-    await run_session_end_side_effects(db, user_id)
+    await end_session_with_side_effects(db, token)
 
 
 def _schedule_tab_close_termination(token: str):
@@ -1571,7 +1546,7 @@ async def register(req: RegisterReq, response: Response):
     })
     set_session_cookie(response, token)
 
-    await touch_user_last_seen(user_id, force=True)
+    await record_user_connection(db, user_id)
     await add_chronicle(user_id, f"Le héros {username} ({cls['name']}) a rejoint NEXORIA", "creation")
     discord_auth_forum.schedule_auth_event("register", user_doc, method="email")
 
@@ -1635,7 +1610,7 @@ async def login(req: LoginReq, response: Response):
         **_session_bootstrap_fields(),
     })
     set_session_cookie(response, token)
-    await touch_user_last_seen(user["user_id"], force=True)
+    await record_user_connection(db, user["user_id"])
     discord_auth_forum.schedule_auth_event("login", user, method="email")
     asyncio.create_task(_notify_friends_presence(user["user_id"], True))
     fresh = await db.users.find_one({"user_id": user["user_id"]})
@@ -1718,7 +1693,6 @@ async def reset_password(req: ResetPasswordReq):
 
 @api.get("/auth/me")
 async def me(user: dict = Depends(get_user_dep)):
-    await touch_user_last_seen(user["user_id"])
     await maybe_process_daily_login(user["user_id"])
     await reconcile_user_progress(user["user_id"])
     fresh = await db.users.find_one({"user_id": user["user_id"]})
@@ -1730,7 +1704,6 @@ async def auth_heartbeat(request: Request, user: dict = Depends(get_user_dep)):
     """Activity ping fired by the client ONLY while the user is genuinely active.
     Stamps `last_heartbeat_at` on the session — this is what drives the idle
     timeout (so background polls don't keep an idle session alive)."""
-    await touch_user_last_seen(user["user_id"], min_interval_seconds=60)
     token = _extract_session_token(request)
     if token:
         await db.user_sessions.update_one(
@@ -1864,7 +1837,7 @@ async def google_session(req: SessionExchangeReq, response: Response):
         **_session_bootstrap_fields(),
     })
     set_session_cookie(response, emergent_token)
-    await touch_user_last_seen(user["user_id"], force=True)
+    await record_user_connection(db, user["user_id"])
     await maybe_process_daily_login(user["user_id"])
     if is_new_google_account:
         discord_auth_forum.schedule_auth_event("register", user, method="google")
@@ -4136,7 +4109,7 @@ async def staff_maintenance_login(req: LoginReq, response: Response):
         "last_activity_at": now_utc().isoformat(),
     })
     set_session_cookie(response, token)
-    await touch_user_last_seen(user["user_id"])
+    await record_user_connection(db, user["user_id"])
     discord_auth_forum.schedule_auth_event("login", user, method="email")
     result = public_user(user)
     result["session_token"] = token
@@ -4179,7 +4152,7 @@ async def staff_maintenance_discord_callback(req: MaintenanceDiscordCallbackReq,
         **_session_bootstrap_fields(),
     })
     set_session_cookie(response, session_token)
-    await touch_user_last_seen(user["user_id"], force=True)
+    await record_user_connection(db, user["user_id"])
     discord_auth_forum.schedule_auth_event("login", user, method="discord")
     result = public_user(user)
     result["session_token"] = session_token
@@ -5642,7 +5615,7 @@ async def discord_exchange(req: DiscordExchangeReq, response: Response):
         **_session_bootstrap_fields(),
     })
     set_session_cookie(response, token)
-    await touch_user_last_seen(user["user_id"], force=True)
+    await record_user_connection(db, user["user_id"])
     await maybe_process_daily_login(user["user_id"])
     discord_sync.schedule_sync(db, user["user_id"])
     discord_beta.schedule_maybe_grant_beta_on_link(db, user["user_id"], email)
@@ -7894,9 +7867,6 @@ async def list_nexus_rooms_public():
 @api.get("/stats/public")
 async def public_stats(request: Request):
     """Lightweight public counters for the Landing/Dashboard pages."""
-    viewer = await get_optional_user_dep(request)
-    if viewer:
-        await touch_user_last_seen(viewer["user_id"], min_interval_seconds=60)
     try:
         heroes = await db.users.count_documents({})
         guilds = await db.guilds.count_documents({})
@@ -8077,6 +8047,7 @@ async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
     u["is_vip"] = is_vip_active(u)
     u["vip_until"] = iso(u.get("vip_until")) if u.get("vip_until") else None
     u["vip_plan"] = u.get("vip_plan")
+    u["is_nexus_supreme"] = (u.get("username") or "").lower() == OWNER_USERNAME.lower()
     titles_progress = [
         {
             "id": t["id"], "name": t["name"], "unlock_level": t["unlock_level"],

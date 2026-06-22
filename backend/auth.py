@@ -60,6 +60,27 @@ def session_is_idle(session: dict) -> bool:
         return False
 
 
+async def record_user_connection(db, user_id: str) -> None:
+    """Horodate une nouvelle connexion (ouverture de session uniquement)."""
+    if not user_id:
+        return
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"last_seen": datetime.now(timezone.utc).isoformat()}},
+    )
+
+
+async def finalize_last_seen_on_session_end(db, user_id: str, session: dict | None) -> None:
+    """À la fermeture propre de session, fige la dernière connexion sur l'heure d'ouverture."""
+    if not user_id or not session:
+        return
+    connected_at = session.get("created_at")
+    if not connected_at:
+        return
+    ts = connected_at if isinstance(connected_at, str) else connected_at.isoformat()
+    await db.users.update_one({"user_id": user_id}, {"$set": {"last_seen": ts}})
+
+
 async def terminate_session(db, token: str) -> str | None:
     """Delete a session row. Returns user_id if a session was removed."""
     session = await db.user_sessions.find_one({"session_token": token}, {"user_id": 1})
@@ -67,6 +88,20 @@ async def terminate_session(db, token: str) -> str | None:
         return None
     user_id = session.get("user_id")
     await db.user_sessions.delete_one({"session_token": token})
+    return user_id
+
+
+async def end_session_with_side_effects(db, token: str) -> str | None:
+    """Termine une session, fige last_seen, puis déclenche les effets de déconnexion."""
+    session = await db.user_sessions.find_one(
+        {"session_token": token},
+        {"user_id": 1, "created_at": 1},
+    )
+    user_id = await terminate_session(db, token)
+    if not user_id:
+        return None
+    await finalize_last_seen_on_session_end(db, user_id, session)
+    await run_session_end_side_effects(db, user_id)
     return user_id
 
 
@@ -163,6 +198,7 @@ async def get_current_user(request: Request, db) -> dict:
             idle_seconds = (datetime.now(timezone.utc) - ref_dt).total_seconds()
             if idle_seconds > SESSION_IDLE_MINUTES * 60:
                 user_id = session.get("user_id")
+                await finalize_last_seen_on_session_end(db, user_id, session)
                 await db.user_sessions.delete_one({"session_token": token})
                 if user_id:
                     await run_session_end_side_effects(db, user_id)
@@ -181,6 +217,7 @@ async def get_current_user(request: Request, db) -> dict:
                 closed_dt = closed_dt.replace(tzinfo=timezone.utc)
             if (datetime.now(timezone.utc) - closed_dt).total_seconds() > TAB_CLOSE_GRACE_SECONDS:
                 user_id = session.get("user_id")
+                await finalize_last_seen_on_session_end(db, user_id, session)
                 await db.user_sessions.delete_one({"session_token": token})
                 if user_id:
                     await run_session_end_side_effects(db, user_id)

@@ -73,6 +73,14 @@ export function getStaffVisuals(userOrPlayer) {
   return { ...grade, role };
 }
 
+/** Carte héros — « Oui (Sage) » / « Non » */
+export function formatStaffMembership(user, t = null) {
+  const visuals = getStaffVisuals(user);
+  if (!visuals) return "Non";
+  const label = t && visuals.labelKey ? t(visuals.labelKey) : visuals.label;
+  return `Oui (${label})`;
+}
+
 export function groupStaffByGrade(members = [], t = null) {
   const groups = Object.fromEntries(STAFF_GRADES.map((g) => [g.id, []]));
   for (const m of members) {
