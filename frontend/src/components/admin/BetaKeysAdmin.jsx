@@ -164,11 +164,11 @@ export default function BetaKeysAdmin() {
               return (
                 <div key={a.application_id} className="rounded-lg border border-white/10 bg-black/30 p-3 text-sm" data-testid={`beta-app-${a.application_id}`}>
                   <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <span className="font-bold text-violet-100">{a.pseudo}</span>
+                    <span className="font-bold text-violet-100">{a.discord_username || a.pseudo || a.email}</span>
                     <span className={`text-[10px] uppercase tracking-widest font-bold ${st.cls}`}>{st.label}</span>
                     {a.slot_number && <span className="text-[10px] text-zinc-500">#{a.slot_number}</span>}
                   </div>
-                  <p className="text-xs text-zinc-400">{a.discord_username} · {a.email}</p>
+                  <p className="text-xs text-zinc-400">{a.email}</p>
                   {a.motivation && <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{a.motivation}</p>}
                   {a.status === "pending" && (
                     <div className="flex gap-2 mt-2">

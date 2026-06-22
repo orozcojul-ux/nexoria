@@ -3969,14 +3969,10 @@ async def beta_application_stats():
 @api.post("/maintenance/beta/apply")
 async def submit_beta_application(payload: dict, request: Request):
     """Formulaire public — candidature beta testeur (max 100)."""
-    pseudo = str(payload.get("pseudo", "")).strip()[:32]
     email = str(payload.get("email", "")).strip().lower()[:120]
     discord_username = str(payload.get("discord_username", "")).strip()[:64]
     motivation = str(payload.get("motivation", "")).strip()[:600]
-    experience = str(payload.get("experience", "")).strip()[:400]
 
-    if not pseudo or len(pseudo) < 2:
-        raise HTTPException(400, "Pseudo requis (2 caractères minimum)")
     if not email or "@" not in email:
         raise HTTPException(400, "E-mail invalide")
     if not discord_username:
@@ -3996,11 +3992,9 @@ async def submit_beta_application(payload: dict, request: Request):
     app_id = str(uuid.uuid4())
     doc = {
         "application_id": app_id,
-        "pseudo": pseudo,
         "email": email,
         "discord_username": discord_username,
         "motivation": motivation,
-        "experience": experience,
         "status": "pending",
         "slot_number": count + 1,
         "created_at": now_utc().isoformat(),

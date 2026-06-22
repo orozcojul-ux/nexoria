@@ -6,7 +6,7 @@ import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { sfx } from "@/lib/sfx";
 import { resolveMediaUrl } from "@/lib/user-avatar";
-import { IMAGE_UPLOAD_ACCEPT, isAllowedImageFile, imageUploadErrorMessage, uploadProfileAvatar } from "@/lib/image-upload";
+import { IMAGE_UPLOAD_ACCEPT, IMAGE_UPLOAD_MAX_RAW_BYTES, isAllowedImageFile, imageUploadErrorMessage, uploadProfileAvatar } from "@/lib/image-upload";
 import HeroCard from "@/components/HeroCard";
 import { getTitleLabel } from "@/lib/title-labels";
 import { ReportButton } from "@/components/ReportContentModal";
@@ -170,7 +170,7 @@ function AvatarForm({ current, onClose, onSave }) {
       toast.error("Fichier image uniquement (JPG, PNG, GIF, WebP)");
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
+    if (file.size > IMAGE_UPLOAD_MAX_RAW_BYTES) {
       toast.error("Image max 15 Mo");
       return;
     }
@@ -203,7 +203,7 @@ function AvatarForm({ current, onClose, onSave }) {
   };
   return (
     <form onSubmit={submit} className="p-5 space-y-4">
-      <div className="text-xs text-zinc-500">URL ou upload depuis votre PC (256×256 conseillé).</div>
+      <div className="text-xs text-zinc-500">Import depuis votre PC (redimensionné automatiquement) ou collez une URL.</div>
       {url && (
         <div className="flex justify-center">
           <div className="w-24 h-24 rounded-2xl overflow-hidden border border-cyan-500/30 bg-zinc-900">

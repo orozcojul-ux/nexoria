@@ -111,23 +111,19 @@ async def notify_beta_application(app: dict) -> bool:
         logger.warning("Discord beta application skipped: channel or token missing")
         return False
 
-    pseudo = app.get("pseudo") or "?"
-    email = app.get("email") or "—"
     discord_user = app.get("discord_username") or "—"
+    email = app.get("email") or "—"
     motivation = (app.get("motivation") or "—")[:900]
-    experience = (app.get("experience") or "—")[:400]
     slot = app.get("slot_number")
     total = app.get("total_slots", 100)
 
     embed = {
-        "title": f"📝 Nouvelle candidature beta — {pseudo}",
+        "title": f"📝 Nouvelle candidature beta — {discord_user}",
         "color": 0xA78BFA,
         "fields": [
-            {"name": "Pseudo NEXORIA", "value": pseudo, "inline": True},
             {"name": "Discord", "value": discord_user, "inline": True},
             {"name": "E-mail", "value": email, "inline": False},
             {"name": "Motivation", "value": motivation, "inline": False},
-            {"name": "Expérience RPG / MMO", "value": experience, "inline": False},
         ],
         "footer": {"text": f"Candidature n°{slot or '?'} / {total} places"},
     }

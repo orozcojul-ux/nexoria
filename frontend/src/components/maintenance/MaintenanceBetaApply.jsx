@@ -6,11 +6,9 @@ const BETA_SLOTS = 100;
 
 export default function MaintenanceBetaApply() {
   const [stats, setStats] = useState({ count: 0, max: BETA_SLOTS, open: true });
-  const [pseudo, setPseudo] = useState("");
   const [email, setEmail] = useState("");
   const [discordUsername, setDiscordUsername] = useState("");
   const [motivation, setMotivation] = useState("");
-  const [experience, setExperience] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -30,11 +28,9 @@ export default function MaintenanceBetaApply() {
     setError("");
     try {
       await api.post("/maintenance/beta/apply", {
-        pseudo: pseudo.trim(),
         email: email.trim(),
         discord_username: discordUsername.trim(),
         motivation: motivation.trim(),
-        experience: experience.trim(),
       });
       setSuccess(true);
       setStats((s) => ({ ...s, count: Math.min(s.max, s.count + 1), open: s.count + 1 < s.max }));
@@ -80,27 +76,16 @@ export default function MaintenanceBetaApply() {
         </div>
       ) : stats.open ? (
         <form className="maint-beta-apply-form" onSubmit={submit} data-testid="beta-apply-form">
-          <div className="maint-beta-apply-grid">
-            <input
-              value={pseudo}
-              onChange={(e) => setPseudo(e.target.value)}
-              placeholder="Pseudo souhaité"
-              className="maint-beta-apply-input"
-              required
-              maxLength={32}
-              data-testid="beta-apply-pseudo"
-            />
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="E-mail"
-              className="maint-beta-apply-input"
-              required
-              maxLength={120}
-              data-testid="beta-apply-email"
-            />
-          </div>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="E-mail"
+            className="maint-beta-apply-input"
+            required
+            maxLength={120}
+            data-testid="beta-apply-email"
+          />
           <input
             value={discordUsername}
             onChange={(e) => setDiscordUsername(e.target.value)}
@@ -118,15 +103,6 @@ export default function MaintenanceBetaApply() {
             rows={3}
             maxLength={600}
             data-testid="beta-apply-motivation"
-          />
-          <textarea
-            value={experience}
-            onChange={(e) => setExperience(e.target.value)}
-            placeholder="Expérience RPG / MMO (optionnel)"
-            className="maint-beta-apply-textarea"
-            rows={3}
-            maxLength={400}
-            data-testid="beta-apply-experience"
           />
           {error && <p className="maint-beta-apply-error" data-testid="beta-apply-error">{error}</p>}
           <div className="maint-beta-apply-actions">

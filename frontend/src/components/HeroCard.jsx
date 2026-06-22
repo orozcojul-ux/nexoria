@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  X, Crown, Shield, Package, Award, History, Users, BarChart3,
+  X, Crown, Shield, Package, Award, History, Users,
   MessageCircle, UserPlus, Sword, Trophy, Compass, Flame, Star, Frame, Flag,
   Settings2, Pencil, Repeat,
 } from "lucide-react";
@@ -31,7 +31,6 @@ export function BadgeCard({ badge, size = "md" }) {
 
 const BASE_TABS = [
   { id: "overview", label: "Aperçu", icon: Crown },
-  { id: "info", label: "Infos", icon: BarChart3 },
   { id: "inventory", label: "Inventaire", icon: Package },
   { id: "badges", label: "Badges", icon: Award },
   { id: "history", label: "Historique", icon: History },
@@ -583,7 +582,6 @@ export default function HeroCard({ userId, open, onClose }) {
                     {tab === "overview" && (
                       <OverviewTab data={data} u={u} classColor={classColor} onViewBadges={() => setTab("badges")} />
                     )}
-                    {tab === "info" && <InfoTab u={u} guild={data.guild} location={data.location} />}
                     {tab === "inventory" && <InventoryTab inv={data.inventory} />}
                     {tab === "badges" && <BadgesTab badges={data.badges} />}
                     {tab === "history" && <HistoryTab chronicles={data.chronicles} />}
@@ -794,37 +792,6 @@ function InfoEntry({ label, value, color, bold, muted, children }) {
   );
 }
 
-function InfoTab({ u, guild, location }) {
-  return (
-    <Section title="Fiche détaillée">
-      <div className={styles.grid2}>
-        <InfoBlock label="Pseudo" value={u.username} />
-        <InfoBlock label="Titre actif" value={getTitleLabel(u)} />
-        <InfoBlock label="Classe" value={u.class_name} />
-        <InfoBlock label="Classe secondaire" value={u.secondary_class_id || "—"} />
-        <InfoBlock label="Membre du staff" value={formatStaffMembership(u)} />
-        <InfoBlock label="Guilde" value={guild?.name ? `${guild.name}${guild.tag ? ` [${guild.tag}]` : ""}` : "Sans guilde"} />
-        <InfoBlock label="Niveau" value={u.level} />
-        <InfoBlock label="XP totale" value={u.xp || 0} />
-        <InfoBlock label="Écus" value={`${u.aether || 0} ⟡`} />
-        <InfoBlock label="Réputation" value={u.reputation || 0} />
-        <InfoBlock label="Inscription" value={u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"} />
-        <div className={styles.infoBlock}>
-          <div className={styles.infoBlockLabel}>Dernière connexion</div>
-          <div className={styles.infoBlockValue}>
-            <LastConnection user={u} includePrefix={false} />
-          </div>
-        </div>
-        <InfoBlock label="Localisation" value={location ? prettyRoom(location.room) : "—"} />
-        <InfoBlock label="Followers" value={u.followers || 0} />
-        <InfoBlock label="Following" value={u.following || 0} />
-        <InfoBlock label="Rôle" value={u.role || "user"} />
-        <InfoBlock label="Posts" value={u.posts_count || 0} />
-      </div>
-    </Section>
-  );
-}
-
 function InventoryTab({ inv }) {
   if (!inv?.length) return <div className={styles.empty}>Inventaire vide.</div>;
   return (
@@ -929,15 +896,6 @@ function RelationsTab({ data }) {
         )}
       </Section>
     </>
-  );
-}
-
-function InfoBlock({ label, value }) {
-  return (
-    <div className={styles.infoBlock}>
-      <div className={styles.infoBlockLabel}>{label}</div>
-      <div className={styles.infoBlockValue}>{value ?? "—"}</div>
-    </div>
   );
 }
 

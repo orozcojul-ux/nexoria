@@ -6,7 +6,7 @@ import { sfx } from "@/lib/sfx";
 import { useHeroCard } from "@/contexts/HeroCardContext";
 import HeroCardOpener from "@/components/HeroCardOpener";
 import { resolveMediaUrl } from "@/lib/user-avatar";
-import { IMAGE_UPLOAD_ACCEPT, isAllowedImageFile, imageUploadErrorMessage, uploadProfileAvatar } from "@/lib/image-upload";
+import { IMAGE_UPLOAD_ACCEPT, IMAGE_UPLOAD_MAX_RAW_BYTES, isAllowedImageFile, imageUploadErrorMessage, uploadProfileAvatar } from "@/lib/image-upload";
 import { PremiumButton } from "@/components/ui-premium";
 
 const ACCENT_PRESETS = ["#7B2FF7", "#00E5FF", "#FCD34D", "#10B981", "#F97316", "#EC4899", "#6366F1"];
@@ -54,7 +54,7 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
       toast.error("Format non supporté (JPG, PNG, GIF, WebP)");
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
+    if (file.size > IMAGE_UPLOAD_MAX_RAW_BYTES) {
       toast.error("Image trop lourde (max 15 Mo)");
       return;
     }
