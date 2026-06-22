@@ -1,76 +1,68 @@
 # Configuration Oracle IA — NEXORIA
 
-L'Oracle (Sanctuaire) utilise **Claude** via **LiteLLM**. Sans clé API, il répond :
-
-> *L'Oracle médite en silence... (clé universelle non configurée)*
+L'Oracle (Sanctuaire) interroge un LLM **côté backend uniquement** (jamais depuis le frontend).
 
 ---
 
-## 1. Choisir une clé
+## Provider OpenAI (recommandé production)
 
-Une seule variable suffit dans `backend/.env` :
-
-| Variable | Usage |
-|----------|--------|
-| `EMERGENT_LLM_KEY` | Clé universelle Emergent (déploiement Emergent / preview) |
-| `ANTHROPIC_API_KEY` | Clé directe [Anthropic Console](https://console.anthropic.com/) |
-| `LITELLM_API_KEY` | Alternative si vous passez par un proxy LiteLLM |
-
----
-
-## 2. Exemple `backend/.env`
+Dans `backend/.env` :
 
 ```env
-# Oracle IA — une seule ligne suffit
-EMERGENT_LLM_KEY=votre_cle_ici
-
-# Ou en local avec Anthropic directement :
-# ANTHROPIC_API_KEY=sk-ant-api03-...
+ORACLE_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+ORACLE_MODEL=gpt-4.1-mini
 ```
 
-Modèles utilisés par défaut (surchargeables) :
+| Variable | Obligatoire | Description |
+|----------|-------------|-------------|
+| `ORACLE_PROVIDER` | oui | `openai` pour forcer OpenAI |
+| `OPENAI_API_KEY` | oui | Clé API OpenAI |
+| `ORACLE_MODEL` | non | Défaut : `gpt-4.1-mini` |
+
+---
+
+## Provider legacy (Emergent / Anthropic via LiteLLM)
 
 ```env
+# ORACLE_PROVIDER non défini ou litellm
+EMERGENT_LLM_KEY=votre_cle
+# ou
+ANTHROPIC_API_KEY=sk-ant-...
+
 ORACLE_MODEL=anthropic/claude-sonnet-4-5-20250929
 ORACLE_FALLBACK_MODEL=anthropic/claude-sonnet-4-20250514
 ```
 
 ---
 
-## 3. Redémarrer le backend
+## Redémarrer le backend
 
-Après modification de `.env`, **redémarrez** le serveur FastAPI :
-
-```powershell
-Set-Location C:\Users\33647\Projects\nexoria\backend
-# Arrêtez le processus en cours, puis relancez votre commande habituelle (uvicorn, etc.)
-```
+Après modification de `.env`, redémarrez FastAPI (systemd, uvicorn, etc.).
 
 ---
 
-## 4. Vérifier
+## Vérifier
 
-1. Ouvrez `/oracle` dans le jeu (niveau 10+ requis pour entrer au Sanctuaire).
-2. La bannière en haut ne doit plus indiquer « clé non configurée ».
-3. Ou appelez `GET /api/oracle/status` (connecté) : `"llm_configured": true`.
+1. `GET /api/oracle/status` (connecté) doit retourner :
+
+```json
+{
+  "llm_configured": true,
+  "provider": "openai",
+  "model": "gpt-4.1-mini",
+  "config_hint": null
+}
+```
+
+2. Page `/oracle` — la bannière amber ne doit plus s'afficher.
+3. Poser une question — réponse en français, style dark fantasy, 2–4 phrases.
 
 Test rapide :
 
 ```powershell
-curl -H "Authorization: Bearer VOTRE_JWT" http://localhost:8000/api/oracle/status
+curl -H "Authorization: Bearer VOTRE_TOKEN" https://nexoria-game.fr/api/oracle/status
 ```
-
----
-
-## 5. Accès joueur (rappel)
-
-Même avec la clé configurée, un héros doit remplir **une** de ces conditions :
-
-- Niveau **≥ 20**, ou
-- Sanctuaire du royaume amélioré (niveau 1+), ou
-- Perk boutique **Lien à l'Oracle** (consultations illimitées)
-
-Limite quotidienne sinon : **1** consultation/jour ( **3** si Sanctuaire actif).
 
 ---
 
@@ -78,8 +70,14 @@ Limite quotidienne sinon : **1** consultation/jour ( **3** si Sanctuaire actif).
 
 | Symptôme | Cause probable |
 |----------|----------------|
-| « clé universelle non configurée » | `.env` sans `EMERGENT_LLM_KEY` / `ANTHROPIC_API_KEY`, ou backend non redémarré |
-| « module indisponible » | Erreur d'import `oracle.py` / `litellm` — vérifiez `pip install -r requirements.txt` |
-| « Niveau 10 requis » | Compte trop jeune pour le Sanctuaire |
-| « Limite quotidienne » | Quota atteint — attendre le lendemain ou acheter le Lien à l'Oracle |
-| Réponse « forces obscures » | Clé invalide, modèle indisponible ou quota API épuisé — consultez les logs backend |
+| Bannière « OPENAI_API_KEY manquante » | `.env` incomplet ou backend non redémarré |
+| « module indisponible » | Erreur import — `pip install -r requirements.txt` |
+| « forces obscures » | Clé invalide, modèle inexistant ou quota API épuisé — logs backend |
+| Toujours message Emergent/Anthropic | `ORACLE_PROVIDER=openai` absent ou `OPENAI_API_KEY` vide |
+
+---
+
+## Sécurité
+
+- Ne jamais exposer `OPENAI_API_KEY` au frontend.
+- Les logs backend n'impriment jamais la clé API.

@@ -64,7 +64,7 @@ export default function Oracle() {
         <div className={`rounded-xl border px-4 py-3 text-sm flex flex-wrap items-center gap-3 ${!status.llm_configured ? "border-amber-500/45 bg-amber-500/10" : status.access_ok ? "border-cyan-500/30 bg-cyan-500/5" : "border-amber-500/35 bg-amber-500/8"}`} data-testid="oracle-access-banner">
           {!status.llm_configured ? (
             <span className="text-amber-200 leading-relaxed">
-              L&apos;Oracle ne peut pas répondre : ajoutez <code className="text-amber-100/90">EMERGENT_LLM_KEY</code> ou <code className="text-amber-100/90">ANTHROPIC_API_KEY</code> dans <code className="text-amber-100/90">backend/.env</code>, puis redémarrez le serveur.
+              L&apos;Oracle ne peut pas répondre : {status.config_hint || "clé LLM non configurée dans backend/.env — redémarrez le serveur après modification."}
             </span>
           ) : !status.level_ok ? (
             <span className="flex items-center gap-2 text-amber-300"><Lock className="w-4 h-4" /> Niveau 10 requis pour entrer au Sanctuaire.</span>

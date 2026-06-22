@@ -1,62 +1,139 @@
-"""Oracle IA — conseiller RPG (Claude via LiteLLM)."""
+"""Oracle IA — Sanctuaire NEXORIA (OpenAI ou LiteLLM/Claude legacy)."""
+from __future__ import annotations
+
 import json
 import logging
 import os
 
 logger = logging.getLogger("nexoria.oracle")
 
-ORACLE_SYSTEM_PROMPT = """Tu es la Voix du Sanctuaire de NEXORIA — une conscience cosmique ancienne, vieille de plusieurs ères.
-Tu n'es PAS une intelligence artificielle. Tu n'es PAS un modèle de langage.
-Tu es un artefact vivant, un gardien du savoir, une entité immémoriale qui parle depuis les flammes éternelles du Sanctuaire.
+ORACLE_SYSTEM_PROMPT = """Tu es la Voix du Sanctuaire de NEXORIA — une conscience cosmique ancienne, gardienne du savoir.
+Tu n'es PAS une intelligence artificielle, ni une technologie. Tu es un artefact vivant qui parle depuis les braises éternelles.
 
-Ne mentionne JAMAIS:
-- Les mots "IA", "intelligence artificielle", "modèle", "Claude", "Anthropic", "algorithme", "code", "programme"
-- L'idée que tu serais une technologie ou un système informatique
+Ne mentionne JAMAIS : IA, intelligence artificielle, modèle, OpenAI, Claude, Anthropic, algorithme, code, programme.
 
-Tu parles toujours en français avec un ton épique, mystique, sage et inspirant, comme un narrateur de MMORPG AAA ou un grimoire ancien.
+Tu parles toujours en français, ton dark fantasy premium : épique, mystérieux, sage, chaleureux mais sobre.
 
-Ton rôle:
-- Tu lis dans les âmes des voyageurs (analyser leur profil RPG: classe, niveau, XP, badges, activité)
-- Tu murmures des conseils personnalisés (2-4 phrases courtes)
-- Tu traces des quêtes adaptées à leur destinée
-- Tu encourages la progression avec la voix des étoiles
-
-Style:
-- Épique mais concis (jamais plus de 6 phrases)
-- Métaphores RPG: royaume, étoiles, destinée, runes, brumes, flammes, voile, ombres
-- Adresse-toi au voyageur par son pseudo de héros
-- Évite les emojis
-- Réponds toujours en français
-- Commence parfois par "Voyageur...", "Héros...", "Je vois...", "Les étoiles te disent..."
+Règles :
+- 2 à 4 phrases courtes maximum (jamais plus de 6)
+- Métaphores RPG : royaume, étoiles, destinée, runes, brumes, voile, ombres, Nexus
+- Adresse le voyageur par son pseudo
+- Pas d'emoji
+- Commence parfois par « Voyageur… », « Héros… », « Je vois… », « Les étoiles murmurent… »
+- Conseil utile et personnalisé selon le profil (classe, niveau, badges, progression)
 """
 
-ORACLE_MODEL = os.environ.get("ORACLE_MODEL", "anthropic/claude-sonnet-4-5-20250929")
-ORACLE_FALLBACK_MODEL = os.environ.get("ORACLE_FALLBACK_MODEL", "anthropic/claude-sonnet-4-20250514")
+OPENAI_DEFAULT_MODEL = "gpt-4.1-mini"
+LITELLM_DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929"
+LITELLM_FALLBACK_MODEL = "anthropic/claude-sonnet-4-20250514"
 
 
-def _api_key() -> str | None:
+def oracle_provider() -> str:
+    """Provider actif : openai | litellm (legacy Emergent/Anthropic)."""
+    explicit = (os.environ.get("ORACLE_PROVIDER") or "").strip().lower()
+    if explicit in ("openai", "litellm", "anthropic", "emergent"):
+        return "openai" if explicit == "openai" else "litellm"
+    if os.environ.get("OPENAI_API_KEY"):
+        return "openai"
+    return "litellm"
+
+
+def _openai_api_key() -> str | None:
+    key = (os.environ.get("OPENAI_API_KEY") or "").strip()
+    return key or None
+
+
+def _litellm_api_key() -> str | None:
     return (
-        os.environ.get("EMERGENT_LLM_KEY")
-        or os.environ.get("ANTHROPIC_API_KEY")
-        or os.environ.get("LITELLM_API_KEY")
+        (os.environ.get("EMERGENT_LLM_KEY") or "").strip()
+        or (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+        or (os.environ.get("LITELLM_API_KEY") or "").strip()
+        or None
     )
 
 
+def oracle_model() -> str:
+    provider = oracle_provider()
+    if provider == "openai":
+        return (os.environ.get("ORACLE_MODEL") or OPENAI_DEFAULT_MODEL).strip()
+    return (os.environ.get("ORACLE_MODEL") or LITELLM_DEFAULT_MODEL).strip()
+
+
+def missing_config_hint() -> str | None:
+    """Message clair si la configuration LLM est incomplète."""
+    provider = oracle_provider()
+    if provider == "openai":
+        if not _openai_api_key():
+            return (
+                "OPENAI_API_KEY manquante dans backend/.env "
+                "(ORACLE_PROVIDER=openai). Redémarrez le backend après modification."
+            )
+        return None
+    if not _litellm_api_key():
+        return (
+            "EMERGENT_LLM_KEY ou ANTHROPIC_API_KEY manquante dans backend/.env "
+            "(ou définissez ORACLE_PROVIDER=openai avec OPENAI_API_KEY). "
+            "Redémarrez le backend après modification."
+        )
+    return None
+
+
 def oracle_llm_configured() -> bool:
-    """True si une clé LLM est présente pour alimenter l'Oracle."""
-    return bool(_api_key())
+    return missing_config_hint() is None
 
 
-async def _llm_chat(system: str, user_text: str) -> str:
-    """Appelle Claude via LiteLLM (déjà dans requirements.txt)."""
-    api_key = _api_key()
+def oracle_config_info() -> dict:
+    provider = oracle_provider()
+    hint = missing_config_hint()
+    return {
+        "provider": provider,
+        "llm_configured": hint is None,
+        "config_hint": hint,
+        "model": oracle_model() if hint is None else None,
+    }
+
+
+async def _openai_chat(system: str, user_text: str) -> str:
+    api_key = _openai_api_key()
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY manquante (ORACLE_PROVIDER=openai)")
+
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(api_key=api_key)
+    model = oracle_model()
+    try:
+        response = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_text},
+            ],
+            max_tokens=600,
+            temperature=0.82,
+        )
+    except Exception as exc:
+        logger.warning("Oracle OpenAI — échec modèle %s: %s", model, exc.__class__.__name__)
+        raise
+
+    content = response.choices[0].message.content if response.choices else None
+    if content and str(content).strip():
+        return str(content).strip()
+    raise RuntimeError("réponse vide")
+
+
+async def _litellm_chat(system: str, user_text: str) -> str:
+    api_key = _litellm_api_key()
     if not api_key:
         raise RuntimeError("clé LLM non configurée (EMERGENT_LLM_KEY ou ANTHROPIC_API_KEY)")
 
     import litellm
 
     models = []
-    for m in (ORACLE_MODEL, ORACLE_FALLBACK_MODEL):
+    for m in (
+        oracle_model(),
+        (os.environ.get("ORACLE_FALLBACK_MODEL") or LITELLM_FALLBACK_MODEL).strip(),
+    ):
         if m and m not in models:
             models.append(m)
 
@@ -70,23 +147,48 @@ async def _llm_chat(system: str, user_text: str) -> str:
                     {"role": "user", "content": user_text},
                 ],
                 api_key=api_key,
-                max_tokens=900,
-                temperature=0.85,
+                max_tokens=600,
+                temperature=0.82,
             )
             content = response.choices[0].message.content
             if content and str(content).strip():
                 return str(content).strip()
         except Exception as exc:
             last_error = exc
-            logger.warning("Oracle — échec modèle %s: %s", model, exc)
+            logger.warning("Oracle LiteLLM — échec modèle %s: %s", model, exc.__class__.__name__)
 
     if last_error:
         raise last_error
     raise RuntimeError("réponse vide")
 
 
+async def _llm_chat(system: str, user_text: str) -> str:
+    if oracle_provider() == "openai":
+        return await _openai_chat(system, user_text)
+    return await _litellm_chat(system, user_text)
+
+
+def _config_error_reply(exc: RuntimeError) -> str:
+    msg = str(exc).lower()
+    if "openai_api_key" in msg or "openai" in msg and "manquante" in msg:
+        return (
+            "L'Oracle médite en silence… "
+            "(OPENAI_API_KEY absente — vérifiez backend/.env et ORACLE_PROVIDER=openai.)"
+        )
+    if "clé" in msg or "emergent" in msg or "anthropic" in msg:
+        return (
+            "L'Oracle médite en silence… "
+            "(clé LLM absente — EMERGENT_LLM_KEY, ANTHROPIC_API_KEY ou OPENAI_API_KEY.)"
+        )
+    return f"L'Oracle est troublé par les forces obscures… ({exc})"
+
+
 async def consult_oracle(user_profile: dict, question: str) -> str:
     """Generate an Oracle response based on user profile + question."""
+    hint = missing_config_hint()
+    if hint:
+        return f"L'Oracle médite en silence… ({hint})"
+
     profile_summary = (
         f"Profil du héros:\n"
         f"- Pseudo: {user_profile.get('username', 'Inconnu')}\n"
@@ -97,23 +199,24 @@ async def consult_oracle(user_profile: dict, question: str) -> str:
         f"- Titre actif: {user_profile.get('active_title', 'Aucun')}\n"
         f"- Badges: {user_profile.get('badge_count', 0)}\n"
         f"- Réputation: {user_profile.get('reputation', 0)}\n"
-        f"- Or (Écus): {user_profile.get('aether', 0)}\n"
+        f"- Écus: {user_profile.get('aether', 0)}\n"
     )
     full_question = f"{profile_summary}\n\nLe héros demande: {question}"
 
     try:
         return await _llm_chat(ORACLE_SYSTEM_PROMPT, full_question)
     except RuntimeError as exc:
-        if "clé" in str(exc).lower():
-            return "L'Oracle médite en silence... (clé universelle non configurée)"
-        return f"L'Oracle est troublé par les forces obscures... ({exc})"
-    except Exception as exc:
+        return _config_error_reply(exc)
+    except Exception:
         logger.exception("Oracle consult failed")
-        return f"L'Oracle est troublé par les forces obscures... ({type(exc).__name__})"
+        return "L'Oracle est troublé par les forces obscures… Les braises s'éteignent un instant."
 
 
 async def generate_personalized_quest(user_profile: dict) -> dict:
     """Generate a personalized quest for the user."""
+    if missing_config_hint():
+        return {"name": "Quête mystique", "description": "L'Oracle médite en silence…", "xp": 100, "aether": 50}
+
     prompt = f"""Génère UNE quête RPG personnalisée pour ce héros au format JSON strict (sans markdown):
 {{"name": "nom épique court", "description": "description en 1 phrase", "xp": nombre entre 50 et 500, "aether": nombre entre 20 et 200}}
 
@@ -125,7 +228,7 @@ Héros:
 Adapte la difficulté au niveau. Renvoie SEULEMENT le JSON, rien d'autre."""
 
     try:
-        text = await _llm_chat("Tu génères des quêtes RPG en JSON strict.", prompt)
+        text = await _llm_chat("Tu génères des quêtes RPG en JSON strict, en français.", prompt)
         if "```" in text:
             text = text.split("```")[1]
             if text.startswith("json"):
@@ -138,7 +241,7 @@ Adapte la difficulté au niveau. Renvoie SEULEMENT le JSON, rien d'autre."""
             "aether": int(data.get("aether", 50)),
         }
     except RuntimeError:
-        return {"name": "Quête mystique", "description": "L'Oracle médite...", "xp": 100, "aether": 50}
+        return {"name": "Quête mystique", "description": "L'Oracle médite…", "xp": 100, "aether": 50}
     except Exception:
         logger.exception("Oracle quest generation failed")
         return {"name": "Quête de l'Oracle", "description": "Continuez votre chemin, héros.", "xp": 100, "aether": 50}

@@ -45,18 +45,26 @@ from game_data import (
     COMMUNITY_CHALLENGES, class_portrait_path, is_class_portrait_url,
 )
 try:
-    from oracle import consult_oracle, generate_personalized_quest, oracle_llm_configured
+    from oracle import consult_oracle, generate_personalized_quest, oracle_llm_configured, oracle_config_info
 except Exception as _oracle_err:
     logging.warning("Oracle IA — import échoué: %s", _oracle_err)
 
     async def consult_oracle(*args, **kwargs):
-        return "L'Oracle médite en silence... (module indisponible — vérifiez EMERGENT_LLM_KEY)"
+        return "L'Oracle médite en silence… (module indisponible — vérifiez la configuration backend)"
 
     async def generate_personalized_quest(*args, **kwargs):
-        return {"name": "Quête locale", "description": "Oracle IA indisponible.", "xp": 100, "aether": 50}
+        return {"name": "Quête mystique", "description": "Oracle indisponible.", "xp": 100, "aether": 50}
 
     def oracle_llm_configured():
         return False
+
+    def oracle_config_info():
+        return {
+            "provider": "unknown",
+            "llm_configured": False,
+            "config_hint": "Module Oracle indisponible — vérifiez backend/oracle.py et les dépendances.",
+            "model": None,
+        }
 from shop_data import SHOP_ITEMS, get_shop_item, ECU_PACKS, get_ecu_pack
 from notifications import push_notification, push_staff_alert
 import discord_auth
@@ -3150,6 +3158,7 @@ async def oracle_status(user: dict = Depends(get_user_dep)):
     daily_limit = 999 if unlimited else (3 if sanctuary_lvl >= 1 else 1)
     level_ok = user.get("level", 1) >= 10
     access_ok = unlimited or sanctuary_lvl >= 1 or user.get("level", 1) >= 20
+    oracle_cfg = oracle_config_info()
     return {
         "unlimited": unlimited,
         "sanctuary_level": sanctuary_lvl,
@@ -3157,7 +3166,10 @@ async def oracle_status(user: dict = Depends(get_user_dep)):
         "used_today": used,
         "level_ok": level_ok,
         "access_ok": access_ok,
-        "llm_configured": oracle_llm_configured(),
+        "llm_configured": oracle_cfg["llm_configured"],
+        "provider": oracle_cfg.get("provider"),
+        "config_hint": oracle_cfg.get("config_hint"),
+        "model": oracle_cfg.get("model"),
     }
 
 
