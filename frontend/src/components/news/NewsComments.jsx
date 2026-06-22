@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import HeroName from "@/components/HeroName";
+import { resolveMediaUrl } from "@/lib/user-avatar";
 import { PremiumButton } from "@/components/ui-premium";
 import { sfx } from "@/lib/sfx";
 
@@ -92,7 +93,7 @@ export default function NewsComments({ newsId }) {
         {comments.map((c) => (
           <div key={c.comment_id} className="flex gap-3 p-3 rounded-xl border border-white/8 bg-white/[0.02]" data-testid={`news-comment-${c.comment_id}`}>
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-violet-600 to-cyan-600 flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
-              {c.avatar_url ? <img src={c.avatar_url} alt="" className="w-full h-full object-cover" /> : c.username?.[0]?.toUpperCase()}
+              {resolveMediaUrl(c.avatar_url) ? <img src={resolveMediaUrl(c.avatar_url)} alt="" className="w-full h-full object-cover" /> : c.username?.[0]?.toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">

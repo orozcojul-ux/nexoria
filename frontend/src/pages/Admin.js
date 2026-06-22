@@ -16,6 +16,7 @@ import MaintenancePreview from "@/components/admin/MaintenancePreview";
 import BetaKeysAdmin from "@/components/admin/BetaKeysAdmin";
 import ForumModerationAdmin from "@/components/admin/ForumModerationAdmin";
 import NewsAdmin from "@/components/admin/NewsAdmin";
+import TeamPageAdmin from "@/components/admin/TeamPageAdmin";
 import AdminEditHeroDialog from "@/components/admin/AdminEditHeroDialog";
 import ReportsAdmin from "@/components/admin/ReportsAdmin";
 import EventsAdmin from "@/components/admin/EventsAdmin";
@@ -382,6 +383,7 @@ export default function Admin() {
       {tab === "forum-mod" && <ForumModerationAdmin />}
       {tab === "shop" && <ShopAdmin />}
       {tab === "news" && <NewsAdmin />}
+      {tab === "team" && <TeamPageAdmin />}
       {tab === "events" && <EventsAdmin />}
       {tab === "seasons" && <SeasonsAdmin />}
       {tab === "tickets" && <TicketsAdmin />}
@@ -1349,6 +1351,7 @@ function AdminLegend() {
     { id: "chat", title: "Chat Staff", body: "Salon privé entre admins et modérateurs. Polling 5s. Persiste 7 jours." },
     { id: "shop", title: "Boutique", body: "[Admin] CRUD des items custom de la boutique. Les items statiques (déclarés en dur dans shop_data.py) sont verrouillés et ne peuvent être ni modifiés ni supprimés." },
     { id: "news", title: "Actualités", body: "[Admin] Publie des articles à la une sur la page d'accueil. Les articles mis en avant déclenchent une alerte sur le site pour tous les joueurs." },
+    { id: "team", title: "Page équipe", body: "[Admin] Édite la présentation publique des membres staff sur la page Communauté (rôle précis, nationalité, bio, spécialités). Ne modifie pas les grades Sage/Sentinelle." },
     { id: "seasons", title: "Saisons", body: "[Admin] Cycles de jeu compétitifs. Une saison active à la fois. À la clôture, les Top 1/10/50 reçoivent Écus + badges. L'XP gagné pendant une saison est mirroré dans season_scores." },
     { id: "tickets", title: "Doléances (Missives)", body: "Tickets d'aide soumis par les héros. Les staff peuvent répondre, changer le statut (Ouvert → En cours → Résolu → Clos). Les héros reçoivent une notification à chaque mise à jour." },
     { id: "grant", title: "Don d'Écus", body: "[Admin] Distribution manuelle d'Écus (positif = don, négatif = ponction). Une chronique est créée et le héros est notifié." },

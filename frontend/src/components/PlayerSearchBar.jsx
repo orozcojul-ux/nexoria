@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import { useHeroCard } from "@/contexts/HeroCardContext";
 import HeroName from "@/components/HeroName";
+import { getUserAvatarUrl } from "@/lib/user-avatar";
 
 export default function PlayerSearchBar() {
   const navigate = useNavigate();
@@ -156,7 +157,7 @@ export default function PlayerSearchBar() {
               data-testid={`search-result-${u.username}`}
             >
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">
-                {u.avatar_url ? <img src={u.avatar_url} alt="" className="w-full h-full object-cover" /> : u.username?.[0]?.toUpperCase()}
+                {getUserAvatarUrl(u) ? <img src={getUserAvatarUrl(u)} alt="" className="w-full h-full object-cover" /> : u.username?.[0]?.toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <HeroName user={u} size="sm" />

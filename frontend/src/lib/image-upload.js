@@ -132,5 +132,5 @@ export async function uploadProfileAvatar(file, { targetUserId, isStaffEdit } = 
     ? `/admin/users/${targetUserId}/avatar/upload`
     : "/profile/avatar/upload";
   const { data } = await api.post(endpoint, fd);
-  return data.avatar_url || data.url;
+  return data.avatar_url || data.avatarUrl || data.url;
 }

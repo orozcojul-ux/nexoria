@@ -2,7 +2,7 @@ import {
   Users, Ban, ScrollText, MessageSquare, Megaphone,
   Newspaper,
   ShoppingBag, Calendar, Coins, Plug, Hammer, BookOpen, Shield,
-  Ticket, Activity, MessagesSquare, Flag, TrendingUp,
+  Ticket, Activity, MessagesSquare, Flag, TrendingUp, UserCircle2,
 } from "lucide-react";
 
 /** Admin tab metadata — labels via i18n admin.tab.* */
@@ -19,6 +19,7 @@ export const ADMIN_TAB_KEYS = {
   "forum-mod": "admin.tab.forum_mod",
   shop: "admin.tab.shop",
   news: "admin.tab.news",
+  team: "admin.tab.team",
   events: "admin.tab.events",
   seasons: "admin.tab.seasons",
   grant: "admin.tab.grant",
@@ -80,6 +81,7 @@ export function buildAdminSidebarNav({ isAdmin }) {
         ...(isAdmin ? [
           item("shop", "admin.tab.shop", ShoppingBag, "nav-cms-shop"),
           item("news", "admin.tab.news", Newspaper, "nav-cms-news"),
+          item("team", "admin.tab.team", UserCircle2, "nav-cms-team"),
           item("events", "admin.tab.events", Calendar, "nav-cms-events"),
           item("seasons", "admin.tab.seasons", Calendar, "nav-cms-seasons"),
           item("grant", "admin.tab.grant", Coins, "nav-cms-grant"),

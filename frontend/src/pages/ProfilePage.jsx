@@ -4,6 +4,7 @@ import { PremiumBadge } from "@/components/ui-premium";
 import ClassImage from "@/components/ClassImage";
 import LastConnection from "@/components/LastConnection";
 import VipPassStatus from "@/components/VipPassStatus";
+import { getUserAvatarUrl } from "@/lib/user-avatar";
 import styles from "./ProfilePage.module.css";
 
 /* Normalise un identifiant social en URL absolue cliquable. */
@@ -238,7 +239,7 @@ export default function ProfilePage({
   const archonteLabel =
     hero.role === "admin" ? "ARCHONTE" : hero.role === "moderator" ? "SENTINELLE" : (hero.rank || "ARCHONTE").toUpperCase();
 
-  const avatarSrc = hero.avatar_url || hero.discord_avatar_url;
+  const avatarSrc = getUserAvatarUrl(hero);
   const bannerUrl = hero.banner_url;
 
   const xp = Number(hero.xp ?? 0);

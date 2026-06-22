@@ -9,6 +9,7 @@ import HeroName from "@/components/HeroName";
 import HeroCardOpener from "@/components/HeroCardOpener";
 import StarField from "@/components/StarField";
 import { PageShell } from "@/components/ui-premium";
+import { getUserAvatarUrl } from "@/lib/user-avatar";
 import { usePageBanner } from "@/lib/page-banners";
 
 const CATEGORIES = [
@@ -154,8 +155,8 @@ export default function Leaderboards() {
                         username={u.username}
                         className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center font-display font-bold shrink-0 text-sm"
                       >
-                        {u.avatar_url ? (
-                          <img src={u.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                        {getUserAvatarUrl(u) ? (
+                          <img src={getUserAvatarUrl(u)} alt="" className="w-full h-full rounded-full object-cover" />
                         ) : (
                           u.username?.[0]?.toUpperCase()
                         )}
@@ -203,8 +204,8 @@ function PodiumCard({ user, rank, color, metric, raised }) {
             className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center font-bold text-lg"
             style={{ boxShadow: `0 0 16px ${color}55` }}
           >
-            {user.avatar_url ? (
-              <img src={user.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+            {getUserAvatarUrl(user) ? (
+              <img src={getUserAvatarUrl(user)} alt="" className="w-full h-full rounded-full object-cover" />
             ) : (
               user.username?.[0]?.toUpperCase()
             )}

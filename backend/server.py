@@ -6,12 +6,12 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
-MAINTENANCE_UPLOAD_DIR = ROOT_DIR / "uploads" / "maintenance"
-MAINTENANCE_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-CONTENT_UPLOAD_DIR = ROOT_DIR / "uploads" / "content"
-CONTENT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-AVATAR_UPLOAD_DIR = ROOT_DIR / "uploads" / "avatars"
-AVATAR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+import upload_storage
+upload_storage.ensure_upload_dirs()
+MAINTENANCE_UPLOAD_DIR = upload_storage.MAINTENANCE_UPLOAD_DIR
+CONTENT_UPLOAD_DIR = upload_storage.CONTENT_UPLOAD_DIR
+PROFILE_UPLOAD_DIR = upload_storage.PROFILE_UPLOAD_DIR
 
 import os
 import re
@@ -74,6 +74,7 @@ import craft as craft_service
 from craft_data import CRAFT_RESOURCES, resource_id_from_name
 from nexus_combat_data import ENEMY_TEMPLATES, COMBAT_ROOMS
 from profile_chronicle import build_staff_edit_chronicle
+import team_page as team_page_service
 from economy_transactions import record_economy_transaction, infer_economy_source
 from economy_admin import register_economy_admin_routes
 
@@ -4172,23 +4173,22 @@ async def content_upload_image(request: Request, file: UploadFile = File(...), u
 @api.post("/profile/avatar/upload")
 async def upload_avatar(request: Request, file: UploadFile = File(...), user: dict = Depends(get_user_dep)):
     """Upload a profile picture from the user's device and set it as their avatar."""
-    content_type = _resolve_upload_image_type(file.content_type or "", file.filename)
-    if content_type not in MAINTENANCE_IMAGE_TYPES:
-        raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
+    content_type = upload_storage.resolve_profile_image_type(file.content_type or "", file.filename)
+    if not content_type:
+        raise HTTPException(400, "Format non supporté (JPG, PNG, WebP)")
     data = await file.read()
-    if len(data) > 15 * 1024 * 1024:
-        raise HTTPException(400, "Image trop lourde (max 15 Mo)")
-    filename = f"{user['user_id']}_{uuid.uuid4().hex[:8]}{MAINTENANCE_IMAGE_TYPES[content_type]}"
-    dest = AVATAR_UPLOAD_DIR / filename
-    dest.write_bytes(data)
-    url = f"/uploads/avatars/{filename}"
+    try:
+        url = upload_storage.save_profile_image(data, content_type, user["user_id"])
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    upload_storage.delete_managed_profile_file(user.get("avatar_url"))
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"avatar_url": url}})
     await grant_badge(user["user_id"], "shapeshifter")
     try:
         await nexus_world.push_profile_updated(user["user_id"], {"avatar_url": url})
     except Exception:
         pass
-    return {"url": url, "avatar_url": url}
+    return upload_storage.profile_upload_response(url)
 
 
 class StaffProfileUpdateReq(BaseModel):
@@ -4269,16 +4269,15 @@ async def staff_upload_avatar(
     if user.get("role") == "moderator" and target.get("role") == "admin":
         raise HTTPException(403, "Un modérateur ne peut pas modifier l'avatar d'un Sage")
 
-    content_type = _resolve_upload_image_type(file.content_type or "", file.filename)
-    if content_type not in MAINTENANCE_IMAGE_TYPES:
-        raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
+    content_type = upload_storage.resolve_profile_image_type(file.content_type or "", file.filename)
+    if not content_type:
+        raise HTTPException(400, "Format non supporté (JPG, PNG, WebP)")
     data = await file.read()
-    if len(data) > 15 * 1024 * 1024:
-        raise HTTPException(400, "Image trop lourde (max 15 Mo)")
-    filename = f"{user_id}_{uuid.uuid4().hex[:8]}{MAINTENANCE_IMAGE_TYPES[content_type]}"
-    dest = AVATAR_UPLOAD_DIR / filename
-    dest.write_bytes(data)
-    url = f"/uploads/avatars/{filename}"
+    try:
+        url = upload_storage.save_profile_image(data, content_type, user_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    upload_storage.delete_managed_profile_file(target.get("avatar_url"))
     await db.users.update_one({"user_id": user_id}, {"$set": {"avatar_url": url}})
     chronicle_text = build_staff_edit_chronicle(
         target, {"avatar_url": url}, staff_username=user.get("username"),
@@ -4288,7 +4287,7 @@ async def staff_upload_avatar(
         await nexus_world.push_profile_updated(user_id, {"avatar_url": url})
     except Exception:
         pass
-    return {"url": url, "avatar_url": url}
+    return upload_storage.profile_upload_response(url)
 
 
 @api.post("/admin/maintenance/upload")
@@ -5775,19 +5774,7 @@ NEWS_CATEGORIES = {"event", "update", "community", "announce"}
 @api.get("/community/overview")
 async def community_overview(user: dict = Depends(get_user_dep)):
     """Aggregated data for the Community page: team, recruiting guilds, news, stats."""
-    # ----- Team (staff) -----
-    staff_rows = await db.users.find(
-        {"role": {"$in": ["admin", "moderator"]}},
-        {"_id": 0, "user_id": 1, "username": 1, "display_name": 1, "role": 1,
-         "avatar_url": 1, "discord_avatar_url": 1, "level": 1, "rank": 1,
-         "active_title": 1, "class_name": 1, "quote": 1, "bio": 1},
-    ).sort("level", -1).to_list(50)
-    role_order = {"admin": 0, "moderator": 1}
-    staff_rows.sort(key=lambda u: (role_order.get(u.get("role"), 9), -(u.get("level") or 0)))
-    for s in staff_rows:
-        title_id = s.get("active_title") or "novice"
-        title_doc = next((t for t in TITLES if t["id"] == title_id), None)
-        s["active_title_name"] = title_doc["name"] if title_doc else title_id.replace("_", " ").title()
+    team_settings, staff_rows = await team_page_service.build_public_team(db, OWNER_USERNAME)
 
     # ----- Recruiting guilds (top by level) -----
     guilds = await db.guilds.find({}, {"_id": 0}).sort("level", -1).limit(6).to_list(6)
@@ -5807,6 +5794,7 @@ async def community_overview(user: dict = Depends(get_user_dep)):
 
     return {
         "team": staff_rows,
+        "team_page": team_settings,
         "guilds": guilds,
         "news": news,
         "stats": {
@@ -5816,6 +5804,90 @@ async def community_overview(user: dict = Depends(get_user_dep)):
             "online": online_now,
         },
     }
+
+
+class TeamPageSettingsReq(BaseModel):
+    title: Optional[str] = Field(None, max_length=80)
+    subtitle: Optional[str] = Field(None, max_length=200)
+    intro: Optional[str] = Field(None, max_length=800)
+
+
+class TeamMemberProfileReq(BaseModel):
+    visible: bool = True
+    sort_order: int = Field(100, ge=0, le=9999)
+    role_label: Optional[str] = Field("", max_length=80)
+    nationality: Optional[str] = Field("", max_length=64)
+    tagline: Optional[str] = Field("", max_length=200)
+    bio: Optional[str] = Field("", max_length=600)
+    specialties: Optional[List[str]] = Field(default_factory=list)
+
+
+@api.get("/admin/team-page")
+async def admin_get_team_page(user: dict = Depends(get_admin_dep)):
+    """Liste staff + fiches présentation (sans modifier les rangs)."""
+    settings = await team_page_service.get_team_page_settings(db)
+    profiles = await team_page_service.load_team_profiles_map(db)
+    staff_rows = await db.users.find(
+        {"role": {"$in": ["admin", "moderator"]}},
+        {"_id": 0, "user_id": 1, "username": 1, "display_name": 1, "role": 1,
+         "avatar_url": 1, "discord_avatar_url": 1, "level": 1, "class_name": 1},
+    ).to_list(100)
+    merged_rows = [
+        team_page_service.merge_team_member(u, profiles.get(u["user_id"]), OWNER_USERNAME)
+        for u in staff_rows
+    ]
+    merged_rows = team_page_service.sort_team_members(merged_rows)
+    members = [{
+        "user_id": m["user_id"],
+        "username": m.get("username"),
+        "display_name": m.get("display_name"),
+        "role": m.get("role"),
+        "avatar_url": m.get("avatar_url"),
+        "discord_avatar_url": m.get("discord_avatar_url"),
+        "level": m.get("level"),
+        "class_name": m.get("class_name"),
+        "is_nexus_supreme": m.get("is_nexus_supreme"),
+        "profile": m.get("team_profile"),
+    } for m in merged_rows]
+    return {"settings": settings, "members": members}
+
+
+@api.put("/admin/team-page/settings")
+async def admin_update_team_page_settings(req: TeamPageSettingsReq, user: dict = Depends(get_admin_dep)):
+    patch = req.model_dump(exclude_unset=True)
+    if not patch:
+        raise HTTPException(400, "Aucune modification")
+    current = await team_page_service.get_team_page_settings(db)
+    current.update({k: v for k, v in patch.items() if v is not None})
+    await db.site_settings.update_one(
+        {"_id": team_page_service.TEAM_PAGE_SETTINGS_ID},
+        {"$set": {**current, "updated_at": now_utc().isoformat(), "updated_by": user.get("username")}},
+        upsert=True,
+    )
+    return await team_page_service.get_team_page_settings(db)
+
+
+@api.put("/admin/team-page/members/{user_id}")
+async def admin_update_team_member_profile(user_id: str, req: TeamMemberProfileReq, user: dict = Depends(get_admin_dep)):
+    target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "user_id": 1, "username": 1, "role": 1})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    if not team_page_service.is_team_eligible(target, OWNER_USERNAME):
+        raise HTTPException(400, "Seuls les membres staff peuvent apparaître sur la page équipe")
+    doc = {
+        "user_id": user_id,
+        "visible": req.visible,
+        "sort_order": req.sort_order,
+        "role_label": (req.role_label or "").strip(),
+        "nationality": (req.nationality or "").strip(),
+        "tagline": (req.tagline or "").strip(),
+        "bio": (req.bio or "").strip(),
+        "specialties": team_page_service.normalize_specialties(req.specialties),
+        "updated_at": now_utc().isoformat(),
+        "updated_by": user.get("username"),
+    }
+    await db.team_page_profiles.update_one({"user_id": user_id}, {"$set": doc}, upsert=True)
+    return team_page_service.normalize_member_profile(doc)
 
 
 @api.get("/news")
@@ -8130,7 +8202,7 @@ register_economy_admin_routes(
     now_utc=now_utc,
 )
 app.include_router(api)
-app.mount("/uploads", StaticFiles(directory=str(ROOT_DIR / "uploads")), name="uploads")
+app.mount("/uploads", StaticFiles(directory=str(upload_storage.UPLOAD_ROOT)), name="uploads")
 
 # Mount the Nexus Online (Socket.IO) ASGI app.
 # Tried /api/nexus first but the Starlette Mount does not bind cleanly under the
