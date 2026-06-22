@@ -27,6 +27,7 @@ export const TRANSLATIONS = {
   "sidebar.back_feed": T("Retour au tableau de bord", "Back to dashboard"),
   "sidebar.admin_panel": T("Panel Admin", "Admin Panel"),
   "sidebar.admin_full": T("Ouvrir le panel complet", "Open full panel"),
+  "sidebar.back_to_game": T("Retour au royaume", "Back to the realm"),
   "sidebar.support": T("Soutiens le projet", "Support the project"),
   "sidebar.godmode": T("Mode Dieu", "God Mode"),
   "sidebar.godmode_on": T("Activé", "On"),

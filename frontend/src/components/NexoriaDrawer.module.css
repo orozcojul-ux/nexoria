@@ -566,6 +566,18 @@
   background: rgba(200, 150, 10, 0.06);
 }
 
+.adminBackLink {
+  margin-bottom: 0.25rem;
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  background: rgba(245, 158, 11, 0.06);
+  color: #fcd34d !important;
+}
+
+.adminBackLink:hover {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.12);
+}
+
 @media (max-width: 640px) {
   .drawer { width: min(320px, 90vw); }
   .crestTitle { font-size: 14px; letter-spacing: 0.14em; }

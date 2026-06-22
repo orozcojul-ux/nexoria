@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
-  LogOut, Settings, Menu, X, Shield,
+  LogOut, Settings, Menu, X, Shield, ArrowLeft,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHeroCard } from "@/contexts/HeroCardContext";
@@ -10,6 +10,7 @@ import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import api from "@/lib/api";
 import Logo from "@/components/Logo";
 import { buildPlayerNav } from "@/i18n/nav-config";
+import { buildAdminSidebarNav, getActiveAdminTab } from "@/lib/admin-nav";
 import styles from "./NexoriaDrawer.module.css";
 
 function CornerSVG({ className }) {
@@ -65,6 +66,7 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
   const ns = useNexusSocket();
   const [godMode, setGodMode] = useState(() => localStorage.getItem("nexoria_godmode") === "1");
   const [pendingFriends, setPendingFriends] = useState(0);
+  const [openReports, setOpenReports] = useState(0);
 
   const tr = useCallback((key, fallback) => {
     const v = t(key);
@@ -72,7 +74,11 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
   }, [t]);
 
   const isStaff = user?.role === "admin" || user?.role === "moderator";
-  const sections = buildPlayerNav();
+  const isAdmin = user?.role === "admin";
+  const isAdminPanel = isStaff && location.pathname === "/admin";
+  const sections = isAdminPanel
+    ? buildAdminSidebarNav({ isAdmin })
+    : buildPlayerNav();
 
   const loadPendingFriends = useCallback(() => {
     api.get("/friends/requests/count")
@@ -80,13 +86,29 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
       .catch(() => {});
   }, []);
 
+  const loadStaffPulse = useCallback(() => {
+    if (!isStaff) return;
+    api.get("/admin/pulse")
+      .then((r) => setOpenReports(r.data?.open_reports ?? 0))
+      .catch(() => {});
+  }, [isStaff]);
+
   useEffect(() => {
     if (!user) return undefined;
     loadPendingFriends();
+    loadStaffPulse();
     const onUpdate = () => loadPendingFriends();
+    const onStaffAlert = () => loadStaffPulse();
+    const onMetrics = () => loadStaffPulse();
     window.addEventListener("nexoria:friends-updated", onUpdate);
-    return () => window.removeEventListener("nexoria:friends-updated", onUpdate);
-  }, [user, loadPendingFriends]);
+    window.addEventListener("nexoria:staff-alert", onStaffAlert);
+    window.addEventListener("nexoria:staff-metrics-changed", onMetrics);
+    return () => {
+      window.removeEventListener("nexoria:friends-updated", onUpdate);
+      window.removeEventListener("nexoria:staff-alert", onStaffAlert);
+      window.removeEventListener("nexoria:staff-metrics-changed", onMetrics);
+    };
+  }, [user, loadPendingFriends, loadStaffPulse]);
 
   useEffect(() => {
     if (!ns?.pushNotif) return;
@@ -102,6 +124,9 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
   if (!user) return null;
 
   const isItemActive = (item) => {
+    if (item.adminTab) {
+      return location.pathname === "/admin" && getActiveAdminTab(location.search) === item.adminTab;
+    }
     if (!item.to) return false;
     if (item.end) return location.pathname === item.to;
     return location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
@@ -123,6 +148,7 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
 
   const resolveBadge = (item) => {
     if (item.dynamicBadge === "friends" || item.badgeKey === "friends") return pendingFriends;
+    if (item.dynamicBadge === "open_reports") return openReports;
     return item.badge ?? 0;
   };
 
@@ -238,7 +264,11 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
             <span className={styles.crestRule} />
           </div>
 
-          <p className={styles.crestTag}>{tr("sidebar.tagline", "L'univers t'attend")}</p>
+          <p className={styles.crestTag}>
+            {isAdminPanel
+              ? tr("admin.subtitle", "Administration du royaume")
+              : tr("sidebar.tagline", "L'univers t'attend")}
+          </p>
 
           <Diamond size={14} fill="#7c3aed" stroke="#a855f7" className={styles.headDiamond} />
 
@@ -257,6 +287,24 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
         </div>
 
         <nav className={styles.menu} id="nexoria-drawer-menu">
+          {isAdminPanel && (
+            <div className={styles.section}>
+              <NavLink
+                to="/feed"
+                className={`${styles.item} ${styles.adminBackLink}`}
+                data-testid="drawer-admin-back"
+                onClick={onClose}
+              >
+                <span className={styles.itemIconWrap}>
+                  <span className={styles.itemIcon}>
+                    <ArrowLeft className="w-full h-full" strokeWidth={1.8} />
+                  </span>
+                </span>
+                <span className={styles.itemLabel}>{tr("sidebar.back_to_game", "Retour au royaume")}</span>
+              </NavLink>
+            </div>
+          )}
+
           {sections.map((section) => (
             <div key={section.titleKey} className={styles.section}>
               <div className={styles.divider}>
@@ -272,39 +320,41 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
             </div>
           ))}
 
-          <div className={`${styles.section} ${styles.sectionLast}`}>
-            <div className={styles.divider}>
-              <span className={styles.dividerLine} />
-              <Diamond size={8} fill="#7c3aed" stroke="#a855f7" />
-              <span className={styles.dividerLabel}>{tr("nav.settings", "Paramètres")}</span>
-              <Diamond size={8} fill="#7c3aed" stroke="#a855f7" />
-              <span className={styles.dividerLine} />
-            </div>
-            <div className={styles.sectionItems}>
-              <NavLink
-                to="/settings"
-                className={`${styles.item} ${location.pathname === "/settings" ? styles.itemActive : ""}`}
-                data-testid="nav-settings"
-                onClick={onClose}
-              >
-                <span className={styles.itemIconWrap}>
-                  <span className={styles.itemIcon}>
-                    <Settings className="w-full h-full" strokeWidth={1.8} />
+          {!isAdminPanel && (
+            <div className={`${styles.section} ${styles.sectionLast}`}>
+              <div className={styles.divider}>
+                <span className={styles.dividerLine} />
+                <Diamond size={8} fill="#7c3aed" stroke="#a855f7" />
+                <span className={styles.dividerLabel}>{tr("nav.settings", "Paramètres")}</span>
+                <Diamond size={8} fill="#7c3aed" stroke="#a855f7" />
+                <span className={styles.dividerLine} />
+              </div>
+              <div className={styles.sectionItems}>
+                <NavLink
+                  to="/settings"
+                  className={`${styles.item} ${location.pathname === "/settings" ? styles.itemActive : ""}`}
+                  data-testid="nav-settings"
+                  onClick={onClose}
+                >
+                  <span className={styles.itemIconWrap}>
+                    <span className={styles.itemIcon}>
+                      <Settings className="w-full h-full" strokeWidth={1.8} />
+                    </span>
                   </span>
-                </span>
-                <span className={styles.itemLabel}>{tr("nav.settings", "Paramètres")}</span>
-                {location.pathname === "/settings" && (
-                  <Diamond size={8} fill="#00d4ff" stroke="none" className={styles.itemActiveDiamond} />
-                )}
-              </NavLink>
+                  <span className={styles.itemLabel}>{tr("nav.settings", "Paramètres")}</span>
+                  {location.pathname === "/settings" && (
+                    <Diamond size={8} fill="#00d4ff" stroke="none" className={styles.itemActiveDiamond} />
+                  )}
+                </NavLink>
+              </div>
             </div>
-          </div>
+          )}
         </nav>
 
         <div className={styles.footer}>
           <Diamond size={12} fill="#c8960a" stroke="#f5c842" className={styles.footerDiamond} />
 
-          {isStaff && (
+          {isStaff && !isAdminPanel && (
             <NavLink
               to="/admin"
               className={styles.adminLink}
