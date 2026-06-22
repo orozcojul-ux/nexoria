@@ -213,6 +213,8 @@
   "admin.tab.discord": "API & Discord",
   "admin.tab.legend": "Guide légende",
   "admin.subtitle": "Administration du royaume",
+  "profile.last_connection": "Dernière connexion",
+  "profile.last_connection_unknown": "Date inconnue",
   "pub.nav.home": "ACCUEIL",
   "pub.nav.nexus": "NEXUS ONLINE",
   "pub.nav.profile": "PROFIL",

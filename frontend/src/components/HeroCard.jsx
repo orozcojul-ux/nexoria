@@ -491,11 +491,17 @@ export default function HeroCard({ userId, open, onClose }) {
                       label="Inscription"
                       value={u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
                     />
-                    <SidebarRow
-                      label="Dernière connexion"
-                      value={data.location ? "En ligne" : "Hors-ligne"}
-                      color={data.location ? "#6ee7b7" : undefined}
-                    />
+                    <SidebarRow label="Dernière connexion">
+                      <LastConnection
+                        user={u}
+                        online={u.online}
+                        layout="stacked"
+                        datetimeClassName={styles.lastSeenDateTime}
+                        statusClassName={styles.lastSeenStatus}
+                        onlineClassName={styles.lastSeenOnline}
+                        offlineClassName={styles.lastSeenOffline}
+                      />
+                    </SidebarRow>
                     <SidebarRow
                       label="Localisation"
                       value={data.location ? prettyRoom(data.location.room) : "—"}
@@ -629,11 +635,15 @@ export default function HeroCard({ userId, open, onClose }) {
   );
 }
 
-function SidebarRow({ label, value, color }) {
+function SidebarRow({ label, value, color, children }) {
   return (
-    <div className={styles.sidebarRow}>
+    <div className={`${styles.sidebarRow}${children ? ` ${styles.sidebarRowStacked}` : ""}`}>
       <span className={styles.sidebarLabel}>{label}</span>
-      <span className={styles.sidebarValue} style={color ? { color } : undefined}>{value}</span>
+      {children ? (
+        <span className={styles.sidebarValueStack}>{children}</span>
+      ) : (
+        <span className={styles.sidebarValue} style={color ? { color } : undefined}>{value}</span>
+      )}
     </div>
   );
 }
@@ -655,7 +665,7 @@ function OverviewTab({ data, u, classColor, onViewBadges }) {
   const titles = (data.titles_progress || []).slice(-4);
   const dna = data.dna || {};
   const cosmetics = Object.values(data.equipped_cosmetics || {});
-  const isOnline = Boolean(data.location);
+  const isOnline = Boolean(u.online);
 
   return (
     <>
@@ -747,8 +757,16 @@ function OverviewTab({ data, u, classColor, onViewBadges }) {
               label="Inscription"
               value={u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
             />
-            <InfoEntry label="Statut">
-              <LastConnection user={u} online={isOnline} />
+            <InfoEntry label="Dernière connexion">
+              <LastConnection
+                user={u}
+                online={isOnline}
+                layout="stacked"
+                datetimeClassName={styles.lastSeenDateTime}
+                statusClassName={styles.lastSeenStatus}
+                onlineClassName={styles.lastSeenOnline}
+                offlineClassName={styles.lastSeenOffline}
+              />
             </InfoEntry>
             <InfoEntry
               label="Localisation"
@@ -788,7 +806,7 @@ function InfoEntry({ label, value, color, bold, muted, children }) {
 }
 
 function InfoTab({ u, guild, location }) {
-  const isOnline = Boolean(location);
+  const isOnline = Boolean(u.online);
   return (
     <Section title="Fiche détaillée">
       <div className={styles.grid2}>
@@ -806,7 +824,15 @@ function InfoTab({ u, guild, location }) {
         <div className={styles.infoBlock}>
           <div className={styles.infoBlockLabel}>Dernière connexion</div>
           <div className={styles.infoBlockValue}>
-            <LastConnection user={u} online={isOnline} />
+            <LastConnection
+              user={u}
+              online={isOnline}
+              layout="stacked"
+              datetimeClassName={styles.lastSeenDateTime}
+              statusClassName={styles.lastSeenStatus}
+              onlineClassName={styles.lastSeenOnline}
+              offlineClassName={styles.lastSeenOffline}
+            />
           </div>
         </div>
         <InfoBlock label="Localisation" value={location ? prettyRoom(location.room) : "Hors-ligne"} />
