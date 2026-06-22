@@ -32,6 +32,21 @@ function rarityClass(rarity) {
   return `nw-rarity-${rarity || "common"}`;
 }
 
+function adjustHex(hex, factor) {
+  if (!hex || !hex.startsWith("#")) return hex || "#2a1f4a";
+  const h = hex.slice(1);
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const num = parseInt(full, 16);
+  if (Number.isNaN(num)) return hex;
+  let r = (num >> 16) & 255;
+  let g = (num >> 8) & 255;
+  let b = num & 255;
+  r = Math.round(Math.min(255, Math.max(0, r * factor)));
+  g = Math.round(Math.min(255, Math.max(0, g * factor)));
+  b = Math.round(Math.min(255, Math.max(0, b * factor)));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
+
 export default function NexusWheel() {
   const banner = usePageBanner("nexusWheel");
   const { user, setUser } = useAuth();
@@ -157,11 +172,19 @@ export default function NexusWheel() {
 
   const conicGradient = useMemo(() => {
     if (!rewards.length) return "conic-gradient(#1a1030 0deg 360deg)";
-    const parts = rewards.map((r, i) => {
+    const parts = rewards.flatMap((r, i) => {
       const start = i * segmentAngle;
       const end = start + segmentAngle;
-      const color = r.color || "#2a1f4a";
-      return `${color} ${start}deg ${end}deg`;
+      const base = r.color || "#2a1f4a";
+      const edge = adjustHex(base, 0.45);
+      const shine = adjustHex(base, 1.18);
+      const mid = start + segmentAngle * 0.52;
+      return [
+        `${edge} ${start}deg ${start + 1.2}deg`,
+        `${base} ${start + 1.2}deg ${mid}deg`,
+        `${shine} ${mid}deg ${end - 1.2}deg`,
+        `${edge} ${end - 1.2}deg ${end}deg`,
+      ];
     });
     return `conic-gradient(from -90deg, ${parts.join(", ")})`;
   }, [rewards, segmentAngle]);
@@ -191,47 +214,75 @@ export default function NexusWheel() {
           </PremiumCard>
 
           <div className="nw-wheel-stage">
-            <div className="nw-wheel-glow" aria-hidden />
-            <div className="nw-wheel-ring" aria-hidden />
-            <div className="nw-wheel-pointer" aria-hidden />
+            <div className="nw-wheel-ambient" aria-hidden />
 
-            <div
-              ref={wheelRef}
-              className={`nw-wheel ${spinning ? "nw-wheel-spinning" : ""}`}
-              style={{
-                background: conicGradient,
-                transform: `rotate(${rotation}deg)`,
-                transition: spinning
-                  ? `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.15, 0.85, 0.2, 1)`
-                  : "none",
-              }}
-              data-testid="nexus-wheel-disc"
-            >
-              {rewards.map((r, i) => {
-                const angle = i * segmentAngle + segmentAngle / 2 - 90;
-                const rad = (angle * Math.PI) / 180;
-                const radius = 38;
-                const x = 50 + radius * Math.cos(rad);
-                const y = 50 + radius * Math.sin(rad);
-                return (
-                  <div
-                    key={r.id}
-                    className={`nw-segment-label ${rarityClass(r.rarity)}`}
-                    style={{
-                      left: `${x}%`,
-                      top: `${y}%`,
-                      transform: `translate(-50%, -50%) rotate(${angle + 90}deg)`,
-                    }}
-                  >
-                    <WheelIcon name={r.icon} className="w-3.5 h-3.5 shrink-0" />
-                    <span>{r.label}</span>
+            <div className="nw-wheel-frame-outer">
+              <div className="nw-wheel-frame-inner">
+                <div className="nw-wheel-rune-ring" aria-hidden />
+                <div className="nw-wheel-pointer" aria-hidden>
+                  <div className="nw-wheel-pointer-gem" />
+                  <div className="nw-wheel-pointer-blade" />
+                </div>
+
+                <div
+                  ref={wheelRef}
+                  className={`nw-wheel-rotator ${spinning ? "nw-wheel-spinning" : ""}`}
+                  style={{
+                    transform: `rotate(${rotation}deg)`,
+                    transition: spinning
+                      ? `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.15, 0.85, 0.2, 1)`
+                      : "none",
+                  }}
+                  data-testid="nexus-wheel-disc"
+                >
+                  <div className="nw-wheel-disc" style={{ background: conicGradient }} aria-hidden />
+                  <svg className="nw-wheel-spokes" viewBox="0 0 100 100" aria-hidden>
+                    {rewards.map((_, i) => {
+                      const deg = i * segmentAngle - 90;
+                      const rad = (deg * Math.PI) / 180;
+                      return (
+                        <line
+                          key={`spoke-${i}`}
+                          className={i % 2 === 0 ? "nw-spoke-gold" : undefined}
+                          x1="50"
+                          y1="50"
+                          x2={50 + 47 * Math.cos(rad)}
+                          y2={50 + 47 * Math.sin(rad)}
+                        />
+                      );
+                    })}
+                  </svg>
+                  <div className="nw-wheel-inner-ring" aria-hidden />
+                  {rewards.map((r, i) => {
+                    const angle = i * segmentAngle + segmentAngle / 2 - 90;
+                    const rad = (angle * Math.PI) / 180;
+                    const radius = 36;
+                    const x = 50 + radius * Math.cos(rad);
+                    const y = 50 + radius * Math.sin(rad);
+                    return (
+                      <div
+                        key={r.id}
+                        className={`nw-segment-label ${rarityClass(r.rarity)}`}
+                        style={{
+                          left: `${x}%`,
+                          top: `${y}%`,
+                          transform: `translate(-50%, -50%) rotate(${angle + 90}deg)`,
+                        }}
+                      >
+                        <WheelIcon name={r.icon} className="w-3.5 h-3.5 shrink-0" />
+                        <span>{r.label}</span>
+                      </div>
+                    );
+                  })}
+                  <div className="nw-wheel-hub">
+                    <div className="nw-wheel-hub-gem" aria-hidden />
+                    <Sparkles className="nw-wheel-hub-icon w-4 h-4" aria-hidden />
                   </div>
-                );
-              })}
-              <div className="nw-wheel-hub">
-                <Sparkles className="w-6 h-6 text-cyan-300" />
+                </div>
               </div>
             </div>
+
+            <div className="nw-wheel-pedestal" aria-hidden />
           </div>
 
           <div className="nw-actions">
@@ -262,9 +313,9 @@ export default function NexusWheel() {
 
         <aside className="nw-side">
           <PremiumCard className="nw-history-card" testid="nexus-wheel-history">
-            <div className="flex items-center gap-2 mb-3 text-violet-200">
+            <div className="nw-side-title">
               <History className="w-4 h-4 text-cyan-300" />
-              <h2 className="text-sm font-display font-bold uppercase tracking-wider">Derniers gains</h2>
+              <h2>Derniers gains</h2>
             </div>
             {loading ? (
               <p className="nw-muted">Chargement…</p>
@@ -298,9 +349,9 @@ export default function NexusWheel() {
           </PremiumCard>
 
           <PremiumCard className="nw-rewards-card">
-            <div className="flex items-center gap-2 mb-3 text-violet-200">
+            <div className="nw-side-title">
               <Gift className="w-4 h-4 text-amber-300" />
-              <h2 className="text-sm font-display font-bold uppercase tracking-wider">Récompenses possibles</h2>
+              <h2>Récompenses possibles</h2>
             </div>
             <ul className="nw-rewards-grid">
               {rewards.map((r) => (

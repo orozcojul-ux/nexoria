@@ -4189,7 +4189,7 @@ async def staff_maintenance_discord_callback(req: MaintenanceDiscordCallbackReq,
 @api.post("/upload/image")
 async def content_upload_image(request: Request, file: UploadFile = File(...), user: dict = Depends(get_user_dep)):
     """Upload image pour éditeurs forum / articles (utilisateurs connectés)."""
-    content_type = (file.content_type or "").lower()
+    content_type = _resolve_upload_image_type(file.content_type or "", file.filename)
     if content_type not in MAINTENANCE_IMAGE_TYPES:
         raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
     data = await file.read()
@@ -4327,7 +4327,7 @@ async def staff_upload_avatar(
 @api.post("/admin/maintenance/upload")
 async def maintenance_upload_image(request: Request, file: UploadFile = File(...), user: dict = Depends(get_admin_dep)):
     """Upload image pour les éditeurs HTML de la page maintenance."""
-    content_type = (file.content_type or "").lower()
+    content_type = _resolve_upload_image_type(file.content_type or "", file.filename)
     if content_type not in MAINTENANCE_IMAGE_TYPES:
         raise HTTPException(400, "Format non supporté (JPG, PNG, GIF, WebP)")
     data = await file.read()

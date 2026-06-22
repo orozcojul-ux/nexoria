@@ -1,7 +1,8 @@
 export { default as HomeNexusWheelBanner } from "./HomeNexusWheelBanner";
 export { default as HomeOnlineHeroes } from "./HomeOnlineHeroes";
 export { default as HomeHero } from "./HomeHero";
-export { default as HomeFeaturedCards } from "./HomeFeaturedCards";
+export { default as HomeFeaturedCards, HOME_FEATURED_NEWS_LIMIT } from "./HomeFeaturedCards";
+export { default as HomeNewsList } from "./HomeNewsList";
 export { default as HomeRealmPulse } from "./HomeRealmPulse";
 export { default as HomeQuickAccess } from "./HomeQuickAccess";
 export { default as HomeDailyQuests } from "./HomeDailyQuests";

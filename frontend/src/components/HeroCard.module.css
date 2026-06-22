@@ -292,6 +292,26 @@
   color: #6b7280;
 }
 
+.heroVipPassLine {
+  margin-top: 6px;
+  display: flex;
+  justify-content: center;
+}
+
+.vipPassYes {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #fde68a;
+}
+
+.vipPassNo {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #f87171;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

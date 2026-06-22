@@ -6,6 +6,7 @@ import { sfx } from "@/lib/sfx";
 import { useHeroCard } from "@/contexts/HeroCardContext";
 import HeroCardOpener from "@/components/HeroCardOpener";
 import { resolveMediaUrl } from "@/lib/user-avatar";
+import { IMAGE_UPLOAD_ACCEPT, isAllowedImageFile, imageUploadErrorMessage, uploadProfileAvatar } from "@/lib/image-upload";
 import { PremiumButton } from "@/components/ui-premium";
 
 const ACCENT_PRESETS = ["#7B2FF7", "#00E5FF", "#FCD34D", "#10B981", "#F97316", "#EC4899", "#6366F1"];
@@ -49,7 +50,7 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
     const file = e.target.files?.[0];
     if (e.target) e.target.value = "";
     if (!file) return;
-    if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(file.type)) {
+    if (!isAllowedImageFile(file)) {
       toast.error("Format non supporté (JPG, PNG, GIF, WebP)");
       return;
     }
@@ -59,16 +60,13 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
     }
     setUploadingAvatar(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const { data } = await api.post("/profile/avatar/upload", fd);
-      const url = data.avatar_url || data.url;
+      const url = await uploadProfileAvatar(file);
       set("avatar_url", url);
       sfx.success?.();
       toast.success("Photo de profil importée");
       await refresh();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Échec de l'import");
+      toast.error(imageUploadErrorMessage(err));
     } finally {
       setUploadingAvatar(false);
     }
@@ -206,7 +204,7 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-xl border-2 overflow-hidden shrink-0 bg-zinc-900" style={{ borderColor: form.profile_accent }}>
               {form.avatar_url ? (
-                <img src={form.avatar_url} alt="" className="w-full h-full object-cover" />
+                <img src={resolveMediaUrl(form.avatar_url)} alt="" className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center font-bold text-xl text-zinc-500">
                   {user.username?.[0]}
@@ -217,7 +215,7 @@ export default function ProfileCustomizeForm({ user, refresh, t }) {
               <input
                 ref={avatarFileRef}
                 type="file"
-                accept="image/jpeg,image/png,image/gif,image/webp"
+                accept={IMAGE_UPLOAD_ACCEPT}
                 className="hidden"
                 onChange={handleAvatarFile}
                 data-testid="avatar-file-input"

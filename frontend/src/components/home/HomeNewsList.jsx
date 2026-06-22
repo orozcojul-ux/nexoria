@@ -26,8 +26,9 @@ function NewsRow({ article, t }) {
   );
 }
 
-export default function HomeNewsList({ news = [], t }) {
-  const items = news.slice(leadOffset(news));
+export default function HomeNewsList({ news = [], t, skip }) {
+  const offset = skip ?? leadOffset(news);
+  const items = news.filter((n) => n.published !== false).slice(offset);
   if (items.length === 0) return null;
 
   return (
@@ -36,7 +37,7 @@ export default function HomeNewsList({ news = [], t }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.12 }}
     >
-      <HomePanel label="Actualités du Royaume" icon={Scroll} count={items.length}>
+      <HomePanel label={t("feed.news.section")} icon={Scroll} count={items.length}>
         <div className="feed-news-list">
           {items.map((n) => (
             <NewsRow key={n.news_id} article={n} t={t} />

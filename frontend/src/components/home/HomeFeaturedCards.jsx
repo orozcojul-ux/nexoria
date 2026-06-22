@@ -3,23 +3,13 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Newspaper } from "lucide-react";
 import HomePanel from "./HomePanel";
-import {
-  CAT_LABELS,   CAT_BANNERS, NEWS_FEATURED_FALLBACK, SHOP_FEATURED, WHEEL_FEATURED, CRAFT_FEATURED,
-} from "./home-constants";
+import { CAT_LABELS, CAT_BANNERS } from "./home-constants";
 
-function FeaturedCard({ to, category, title, description, image, testid, index }) {
-  const inner = (
-    <>
-      <div className="feed-news-card-media" style={{ backgroundImage: `url(${image})` }}>
-        <div className="feed-news-card-shade" />
-      </div>
-      <div className="feed-news-card-body feed-news-card-body--promo">
-        <span className="feed-news-badge">{category}</span>
-        <h3 className="feed-news-card-title">{title}</h3>
-        {description && <p className="feed-news-excerpt">{description}</p>}
-      </div>
-    </>
-  );
+const FEATURED_LIMIT = 4;
+
+function FeaturedCard({ article, t, index }) {
+  const cat = article.category || "announce";
+  const description = (article.content || "").trim().slice(0, 160);
 
   return (
     <motion.div
@@ -28,76 +18,57 @@ function FeaturedCard({ to, category, title, description, image, testid, index }
       transition={{ delay: index * 0.06 }}
       className="feed-featured-card-wrap"
     >
-      {to ? (
-        <Link to={to} className="feed-news-card feed-news-card--featured" data-testid={testid}>
-          {inner}
-        </Link>
-      ) : (
-        <div className="feed-news-card feed-news-card--featured feed-news-card--static" data-testid={testid}>
-          {inner}
+      <Link
+        to={`/news/${article.news_id}`}
+        className="feed-news-card feed-news-card--featured"
+        data-testid={`feed-featured-news-${article.news_id}`}
+      >
+        <div
+          className="feed-news-card-media"
+          style={{ backgroundImage: `url(${article.image_url || CAT_BANNERS[cat] || CAT_BANNERS.announce})` }}
+        >
+          <div className="feed-news-card-shade" />
         </div>
-      )}
+        <div className="feed-news-card-body feed-news-card-body--promo">
+          <span className="feed-news-badge">{t(CAT_LABELS[cat] || CAT_LABELS.announce)}</span>
+          <h3 className="feed-news-card-title">{article.title}</h3>
+          {description && <p className="feed-news-excerpt">{description}</p>}
+        </div>
+      </Link>
     </motion.div>
   );
 }
 
 export default function HomeFeaturedCards({ news = [], t }) {
-  const lead = news[0];
-  const leadCat = lead?.category || "announce";
-  const newsCard = lead
-    ? {
-        to: `/news/${lead.news_id}`,
-        category: t(CAT_LABELS[leadCat] || CAT_LABELS.announce),
-        title: lead.title,
-        description: (lead.content || "").trim().slice(0, 160),
-        image: lead.image_url || CAT_BANNERS[leadCat] || CAT_BANNERS.announce,
-        testid: `feed-featured-news-${lead.news_id}`,
-      }
-    : {
-        to: null,
-        category: NEWS_FEATURED_FALLBACK.category,
-        title: NEWS_FEATURED_FALLBACK.title,
-        description: "Aucune actualité disponible pour le moment.",
-        image: NEWS_FEATURED_FALLBACK.image,
-        testid: "feed-featured-news-empty",
-      };
+  const articles = news.filter((n) => n.published !== false).slice(0, FEATURED_LIMIT);
+  const gridClass = articles.length <= 1
+    ? "feed-featured-grid feed-featured-grid--promo"
+    : articles.length === 2
+      ? "feed-featured-grid feed-featured-grid--promo"
+      : articles.length === 3
+        ? "feed-featured-grid feed-featured-grid--promo feed-featured-grid--triple"
+        : "feed-featured-grid feed-featured-grid--promo feed-featured-grid--quad";
 
   return (
     <HomePanel
-      label="À la une — Actualités du Royaume"
+      label={`${t("feed.news.kicker")} — ${t("feed.news.section")}`}
       icon={Newspaper}
-      count={news.length > 0 ? `${news.length} article${news.length > 1 ? "s" : ""}` : undefined}
+      count={articles.length > 0 ? `${articles.length} article${articles.length > 1 ? "s" : ""}` : undefined}
+      testid="feed-news-featured"
     >
-      <div className="feed-featured-grid feed-featured-grid--promo feed-featured-grid--quad">
-        <FeaturedCard {...newsCard} index={0} />
-        <FeaturedCard
-          to={CRAFT_FEATURED.to}
-          category={CRAFT_FEATURED.category}
-          title={CRAFT_FEATURED.title}
-          description={CRAFT_FEATURED.description}
-          image={CRAFT_FEATURED.image}
-          testid="feed-featured-craft"
-          index={1}
-        />
-        <FeaturedCard
-          to={WHEEL_FEATURED.to}
-          category={WHEEL_FEATURED.category}
-          title={WHEEL_FEATURED.title}
-          description={WHEEL_FEATURED.description}
-          image={WHEEL_FEATURED.image}
-          testid="feed-featured-wheel"
-          index={2}
-        />
-        <FeaturedCard
-          to={SHOP_FEATURED.to}
-          category={SHOP_FEATURED.category}
-          title={SHOP_FEATURED.title}
-          description={SHOP_FEATURED.description}
-          image={SHOP_FEATURED.image}
-          testid="feed-featured-shop"
-          index={3}
-        />
-      </div>
+      {articles.length === 0 ? (
+        <p className="feed-news-empty" data-testid="feed-featured-news-empty">
+          {t("feed.news.empty")}
+        </p>
+      ) : (
+        <div className={gridClass}>
+          {articles.map((article, index) => (
+            <FeaturedCard key={article.news_id} article={article} t={t} index={index} />
+          ))}
+        </div>
+      )}
     </HomePanel>
   );
 }
+
+export { FEATURED_LIMIT as HOME_FEATURED_NEWS_LIMIT };

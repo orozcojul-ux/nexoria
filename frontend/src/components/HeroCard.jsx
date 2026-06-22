@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Crown, Shield, Package, Award, History, Users, BarChart3,
-  MessageCircle, UserPlus, Sword, Trophy, Compass, Flame, Star, Frame, Flag, Gem,
+  MessageCircle, UserPlus, Sword, Trophy, Compass, Flame, Star, Frame, Flag,
   Settings2, Pencil, Repeat,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import ClassImage from "@/components/ClassImage";
 import ClassChangeModal from "@/components/ClassChangeModal";
 import HeroCardCustomizeTab from "@/components/HeroCardCustomizeTab";
 import LastConnection from "@/components/LastConnection";
+import VipPassStatus from "@/components/VipPassStatus";
 import styles from "./HeroCard.module.css";
 
 /** @deprecated Use PremiumBadge — kept for backward compatibility */
@@ -385,26 +386,15 @@ export default function HeroCard({ userId, open, onClose }) {
                     {u.username}
                   </h2>
                   <p className={styles.heroSubtitle}>{getTitleLabel(u)}</p>
-                  {u.is_vip && (
-                    <div
-                      data-testid="hero-vip-banner"
-                      style={{
-                        display: "inline-flex", alignItems: "center", gap: 6,
-                        margin: "6px auto 0", padding: "4px 12px", borderRadius: 999,
-                        border: "1px solid rgba(251,191,36,0.5)",
-                        background: "linear-gradient(92deg,rgba(251,191,36,0.14),rgba(168,85,247,0.14))",
-                        color: "#fde68a", fontSize: 11, fontWeight: 800,
-                        letterSpacing: "0.08em", textTransform: "uppercase",
-                      }}
-                    >
-                      <Gem className="w-3.5 h-3.5" /> VIP Nexus
-                    </div>
-                  )}
-                  {u.is_vip && u.vip_until && (
-                    <p style={{ fontSize: 11, color: "#c4b5fd", marginTop: 4 }}>
-                      Pass ascendant actif jusqu'au {new Date(u.vip_until).toLocaleDateString("fr-FR")}
-                    </p>
-                  )}
+                  <div className={styles.heroVipPassLine} data-testid="hero-vip-pass">
+                    <VipPassStatus
+                      user={u}
+                      stacked
+                      labelClassName={styles.sidebarLastSeenDate}
+                      yesClassName={styles.vipPassYes}
+                      noClassName={styles.vipPassNo}
+                    />
+                  </div>
                   {(u.class_id || u.class_name) && (
                     <div
                       style={{
@@ -500,6 +490,14 @@ export default function HeroCard({ userId, open, onClose }) {
                         offlineClassName={styles.sidebarLastSeenOffline}
                         nexusOnlineClassName={styles.sidebarNexusOnline}
                         nexusOfflineClassName={styles.sidebarNexusOffline}
+                      />
+                    </SidebarRow>
+                    <SidebarRow label="Pass Ascendant (VIP)" stacked>
+                      <VipPassStatus
+                        user={u}
+                        valueOnly
+                        yesClassName={styles.vipPassYes}
+                        noClassName={styles.vipPassNo}
                       />
                     </SidebarRow>
                     <SidebarRow

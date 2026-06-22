@@ -9,6 +9,8 @@ import { useRealmPulseStats } from "@/hooks/useRealmPulseStats";
 import {
   HomeHero,
   HomeFeaturedCards,
+  HomeNewsList,
+  HOME_FEATURED_NEWS_LIMIT,
   HomeOnlineHeroes,
   HomeNexusWheelBanner,
   HomeRealmPulse,
@@ -62,6 +64,7 @@ export default function Feed() {
         <div className="feed-grid">
           <div className="feed-col">
             <HomeFeaturedCards news={news} t={t} />
+            <HomeNewsList news={news} t={t} skip={HOME_FEATURED_NEWS_LIMIT} />
             <HomeOnlineHeroes />
           </div>
 

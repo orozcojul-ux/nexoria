@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { sfx } from "@/lib/sfx";
+import { resolveMediaUrl } from "@/lib/user-avatar";
+import { IMAGE_UPLOAD_ACCEPT, isAllowedImageFile, imageUploadErrorMessage, uploadProfileAvatar } from "@/lib/image-upload";
 import HeroCard from "@/components/HeroCard";
 import { getTitleLabel } from "@/lib/title-labels";
 import { ReportButton } from "@/components/ReportContentModal";
@@ -169,8 +171,8 @@ function AvatarForm({ current, onClose, onSave }) {
   const fileRef = React.useRef(null);
 
   const uploadFile = async (file) => {
-    if (!file?.type?.startsWith("image/")) {
-      toast.error("Fichier image uniquement");
+    if (!isAllowedImageFile(file)) {
+      toast.error("Fichier image uniquement (JPG, PNG, GIF, WebP)");
       return;
     }
     if (file.size > 15 * 1024 * 1024) {
@@ -179,13 +181,14 @@ function AvatarForm({ current, onClose, onSave }) {
     }
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const { data } = await api.post("/upload/image", form);
-      setUrl(data.url);
-      toast.success("Image uploadée");
+      const avatarUrl = await uploadProfileAvatar(file);
+      setUrl(avatarUrl);
+      sfx.success();
+      toast.success("Photo de profil importée");
+      await onSave();
+      onClose();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Échec upload");
+      toast.error(imageUploadErrorMessage(err, "Échec upload"));
     } finally {
       setUploading(false);
     }
@@ -209,11 +212,11 @@ function AvatarForm({ current, onClose, onSave }) {
       {url && (
         <div className="flex justify-center">
           <div className="w-24 h-24 rounded-2xl overflow-hidden border border-cyan-500/30 bg-zinc-900">
-            <img src={url} alt="preview" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+            <img src={resolveMediaUrl(url)} alt="preview" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
           </div>
         </div>
       )}
-      <input type="file" ref={fileRef} accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={(e) => uploadFile(e.target.files?.[0])} />
+      <input type="file" ref={fileRef} accept={IMAGE_UPLOAD_ACCEPT} className="hidden" onChange={(e) => uploadFile(e.target.files?.[0])} />
       <button
         type="button"
         onClick={() => fileRef.current?.click()}

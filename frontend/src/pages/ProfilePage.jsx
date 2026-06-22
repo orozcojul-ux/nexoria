@@ -3,6 +3,7 @@ import { Globe, Twitter, Twitch, Youtube } from "lucide-react";
 import { PremiumBadge } from "@/components/ui-premium";
 import ClassImage from "@/components/ClassImage";
 import LastConnection from "@/components/LastConnection";
+import VipPassStatus from "@/components/VipPassStatus";
 import styles from "./ProfilePage.module.css";
 
 /* Normalise un identifiant social en URL absolue cliquable. */
@@ -303,6 +304,15 @@ export default function ProfilePage({
                 offlineClassName={styles.lastSeenOffline}
                 nexusOnlineClassName={styles.lastSeenNexusOnline}
                 nexusOfflineClassName={styles.lastSeenNexusOffline}
+              />
+            </div>
+            <div className={styles.vipPassLine} data-testid="profile-vip-pass">
+              <VipPassStatus
+                user={hero}
+                stacked
+                labelClassName={styles.lastSeenDate}
+                yesClassName={styles.vipPassYes}
+                noClassName={styles.vipPassNo}
               />
             </div>
             {statusMessage && (

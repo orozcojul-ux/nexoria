@@ -132,6 +132,9 @@ export const TRANSLATIONS_UI = {
   // ─── Profil ───
   "profile.last_connection": T("Dernière connexion", "Last seen"),
   "profile.last_connection_unknown": T("Dernière connexion inconnue", "Last seen unknown"),
+  "profile.vip_pass": T("Pass Ascendant (VIP)", "Ascendant Pass (VIP)"),
+  "common.yes": T("Oui", "Yes"),
+  "common.no": T("Non", "No"),
   "nav.admin_panel": T("Centre de contrôle", "Control center"),
   "status.offline": T("Hors ligne", "Offline"),
   "status.locked": T("Verrouillé", "Locked"),
