@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, LogOut, Settings, Menu, X, Shield,
+  LogOut, Settings, Menu, X, Shield,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHeroCard } from "@/contexts/HeroCardContext";
@@ -9,13 +9,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import api from "@/lib/api";
 import Logo from "@/components/Logo";
-import StaffAdminDock from "@/components/cms/StaffAdminDock";
 import { buildPlayerNav } from "@/i18n/nav-config";
-import {
-  buildAdminSidebarNav,
-  buildPlayerAdminShortcuts,
-  getActiveAdminTab,
-} from "@/lib/admin-nav";
 import styles from "./NexoriaDrawer.module.css";
 
 function CornerSVG({ className }) {
@@ -71,7 +65,6 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
   const ns = useNexusSocket();
   const [godMode, setGodMode] = useState(() => localStorage.getItem("nexoria_godmode") === "1");
   const [pendingFriends, setPendingFriends] = useState(0);
-  const [openReports, setOpenReports] = useState(0);
 
   const tr = useCallback((key, fallback) => {
     const v = t(key);
@@ -79,10 +72,7 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
   }, [t]);
 
   const isStaff = user?.role === "admin" || user?.role === "moderator";
-  const isAdmin = user?.role === "admin";
-  const useCmsNav = isStaff && location.pathname.startsWith("/admin");
-  const sections = useCmsNav ? buildAdminSidebarNav({ isAdmin }) : buildPlayerNav();
-  const adminShortcuts = !useCmsNav && isStaff ? buildPlayerAdminShortcuts({ isAdmin }) : [];
+  const sections = buildPlayerNav();
 
   const loadPendingFriends = useCallback(() => {
     api.get("/friends/requests/count")
@@ -90,28 +80,13 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
       .catch(() => {});
   }, []);
 
-  const loadOpenReports = useCallback(() => {
-    if (!isStaff) return;
-    api.get("/admin/pulse")
-      .then((r) => setOpenReports(r.data?.open_reports ?? 0))
-      .catch(() => {});
-  }, [isStaff]);
-
   useEffect(() => {
     if (!user) return undefined;
     loadPendingFriends();
-    loadOpenReports();
     const onUpdate = () => loadPendingFriends();
-    const onStaff = () => loadOpenReports();
     window.addEventListener("nexoria:friends-updated", onUpdate);
-    window.addEventListener("nexoria:staff-alert", onStaff);
-    window.addEventListener("nexoria:staff-metrics-changed", onStaff);
-    return () => {
-      window.removeEventListener("nexoria:friends-updated", onUpdate);
-      window.removeEventListener("nexoria:staff-alert", onStaff);
-      window.removeEventListener("nexoria:staff-metrics-changed", onStaff);
-    };
-  }, [user, loadPendingFriends, loadOpenReports]);
+    return () => window.removeEventListener("nexoria:friends-updated", onUpdate);
+  }, [user, loadPendingFriends]);
 
   useEffect(() => {
     if (!ns?.pushNotif) return;
@@ -127,9 +102,6 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
   if (!user) return null;
 
   const isItemActive = (item) => {
-    if (item.adminTab) {
-      return location.pathname === "/admin" && getActiveAdminTab(location.search) === item.adminTab;
-    }
     if (!item.to) return false;
     if (item.end) return location.pathname === item.to;
     return location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
@@ -147,14 +119,10 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
     }
   };
 
-  const handleItemClick = (item) => {
-    if (item.openLegend) window.dispatchEvent(new CustomEvent("nexoria:open-legend"));
-    onClose?.();
-  };
+  const handleItemClick = () => onClose?.();
 
   const resolveBadge = (item) => {
     if (item.dynamicBadge === "friends" || item.badgeKey === "friends") return pendingFriends;
-    if (item.dynamicBadge === "open_reports") return openReports;
     return item.badge ?? 0;
   };
 
@@ -186,7 +154,10 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
           type="button"
           className={styles.item}
           data-testid={item.testid}
-          onClick={() => handleItemClick(item)}
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent("nexoria:open-legend"));
+            onClose?.();
+          }}
         >
           {inner}
         </button>
@@ -216,7 +187,7 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
         to={item.to}
         data-testid={item.testid}
         className={`${styles.item} ${active ? styles.itemActive : ""}`}
-        onClick={() => handleItemClick(item)}
+        onClick={handleItemClick}
       >
         {inner}
       </NavLink>
@@ -262,10 +233,7 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
           <div className={styles.crestRow}>
             <span className={styles.crestRule} />
             <WingedCrest className={styles.crest} />
-            <span className={styles.crestTitle}>
-              NEXORIA
-              {useCmsNav ? <span className={styles.crestCms}>{tr("sidebar.cms_v2", " CMS")}</span> : null}
-            </span>
+            <span className={styles.crestTitle}>NEXORIA</span>
             <WingedCrest className={styles.crest} />
             <span className={styles.crestRule} />
           </div>
@@ -289,20 +257,6 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
         </div>
 
         <nav className={styles.menu} id="nexoria-drawer-menu">
-          {useCmsNav && (
-            <div className={styles.section}>
-              <NavLink
-                to="/feed"
-                className={styles.backLink}
-                data-testid="nav-cms-back-feed"
-                onClick={onClose}
-              >
-                <LayoutDashboard className="w-3.5 h-3.5" />
-                {tr("sidebar.back_feed", "Retour au tableau de bord")}
-              </NavLink>
-            </div>
-          )}
-
           {sections.map((section) => (
             <div key={section.titleKey} className={styles.section}>
               <div className={styles.divider}>
@@ -318,58 +272,49 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
             </div>
           ))}
 
-          {!useCmsNav && isStaff && adminShortcuts.length > 0 && (
-            <div className={styles.section}>
-              <div className={styles.divider}>
-                <span className={styles.dividerLine} />
-                <Shield className={styles.dividerIcon} />
-                <span className={styles.dividerLabel}>{tr("sidebar.section.staff", "Sentinelle")}</span>
-                <Shield className={styles.dividerIcon} />
-                <span className={styles.dividerLine} />
-              </div>
-              <div className={styles.staffDock}>
-                <StaffAdminDock
-                  shortcuts={adminShortcuts}
-                  role={user.role}
-                  openReports={openReports}
-                />
-              </div>
+          <div className={`${styles.section} ${styles.sectionLast}`}>
+            <div className={styles.divider}>
+              <span className={styles.dividerLine} />
+              <Diamond size={8} fill="#7c3aed" stroke="#a855f7" />
+              <span className={styles.dividerLabel}>{tr("nav.settings", "Paramètres")}</span>
+              <Diamond size={8} fill="#7c3aed" stroke="#a855f7" />
+              <span className={styles.dividerLine} />
             </div>
-          )}
-
-          {!useCmsNav && (
-            <div className={`${styles.section} ${styles.sectionLast}`}>
-              <div className={styles.divider}>
-                <span className={styles.dividerLine} />
-                <Diamond size={8} fill="#7c3aed" stroke="#a855f7" />
-                <span className={styles.dividerLabel}>{tr("nav.settings", "Paramètres")}</span>
-                <Diamond size={8} fill="#7c3aed" stroke="#a855f7" />
-                <span className={styles.dividerLine} />
-              </div>
-              <div className={styles.sectionItems}>
-                <NavLink
-                  to="/settings"
-                  className={`${styles.item} ${location.pathname === "/settings" ? styles.itemActive : ""}`}
-                  data-testid="nav-settings"
-                  onClick={onClose}
-                >
-                  <span className={styles.itemIconWrap}>
-                    <span className={styles.itemIcon}>
-                      <Settings className="w-full h-full" strokeWidth={1.8} />
-                    </span>
+            <div className={styles.sectionItems}>
+              <NavLink
+                to="/settings"
+                className={`${styles.item} ${location.pathname === "/settings" ? styles.itemActive : ""}`}
+                data-testid="nav-settings"
+                onClick={onClose}
+              >
+                <span className={styles.itemIconWrap}>
+                  <span className={styles.itemIcon}>
+                    <Settings className="w-full h-full" strokeWidth={1.8} />
                   </span>
-                  <span className={styles.itemLabel}>{tr("nav.settings", "Paramètres")}</span>
-                  {location.pathname === "/settings" && (
-                    <Diamond size={8} fill="#00d4ff" stroke="none" className={styles.itemActiveDiamond} />
-                  )}
-                </NavLink>
-              </div>
+                </span>
+                <span className={styles.itemLabel}>{tr("nav.settings", "Paramètres")}</span>
+                {location.pathname === "/settings" && (
+                  <Diamond size={8} fill="#00d4ff" stroke="none" className={styles.itemActiveDiamond} />
+                )}
+              </NavLink>
             </div>
-          )}
+          </div>
         </nav>
 
         <div className={styles.footer}>
           <Diamond size={12} fill="#c8960a" stroke="#f5c842" className={styles.footerDiamond} />
+
+          {isStaff && (
+            <NavLink
+              to="/admin"
+              className={styles.adminLink}
+              data-testid="drawer-admin-panel"
+              onClick={onClose}
+            >
+              <Shield className="w-3 h-3" />
+              {tr("nav.admin_panel", "Centre de contrôle")}
+            </NavLink>
+          )}
 
           {isStaff && (
             <div className={styles.godMode}>

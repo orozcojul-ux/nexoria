@@ -77,6 +77,7 @@ export const TRANSLATIONS = {
   "admin.tab.events": T("Événements", "Events"),
   "admin.tab.seasons": T("Saisons", "Seasons"),
   "admin.tab.grant": T("Don d'Écus", "Écus grant"),
+  "admin.tab.economy": T("Gestion économie", "Economy management"),
   "admin.tab.system": T("Maintenance", "Maintenance"),
   "admin.tab.discord": T("API & Discord", "API & Discord"),
   "admin.tab.legend": T("Guide légende", "Legend guide"),

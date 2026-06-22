@@ -2,7 +2,7 @@ import {
   Users, Ban, ScrollText, MessageSquare, Megaphone,
   Newspaper,
   ShoppingBag, Calendar, Coins, Plug, Hammer, BookOpen, Shield,
-  Ticket, Activity, MessagesSquare, Flag,
+  Ticket, Activity, MessagesSquare, Flag, TrendingUp,
 } from "lucide-react";
 
 /** Admin tab metadata — labels via i18n admin.tab.* */
@@ -22,6 +22,7 @@ export const ADMIN_TAB_KEYS = {
   events: "admin.tab.events",
   seasons: "admin.tab.seasons",
   grant: "admin.tab.grant",
+  economy: "admin.tab.economy",
   discord: "admin.tab.discord",
   system: "admin.tab.system",
   legend: "admin.tab.legend",
@@ -82,6 +83,7 @@ export function buildAdminSidebarNav({ isAdmin }) {
           item("events", "admin.tab.events", Calendar, "nav-cms-events"),
           item("seasons", "admin.tab.seasons", Calendar, "nav-cms-seasons"),
           item("grant", "admin.tab.grant", Coins, "nav-cms-grant"),
+          item("economy", "admin.tab.economy", TrendingUp, "nav-cms-economy"),
         ] : []),
       ],
     },

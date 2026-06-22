@@ -10,6 +10,7 @@ import StarField from "@/components/StarField";
 import HeroName from "@/components/HeroName";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
 import HeroCardOpener from "@/components/HeroCardOpener";
+import LastConnection from "@/components/LastConnection";
 import FriendChat from "@/components/friends/FriendChat";
 import { sfx } from "@/lib/sfx";
 import { usePageBanner } from "@/lib/page-banners";
@@ -242,9 +243,11 @@ export default function Friends() {
                   </HeroCardOpener>
                   <div className="friend-card-sub">
                     <span className="friend-card-class">{f.class_name} · Niv. {f.level}</span>
-                    <span className={`friend-online-badge ${f.online ? "friend-online-badge--on" : "friend-online-badge--off"}`}>
-                      {f.online ? "En ligne" : "Hors ligne"}
-                    </span>
+                    <LastConnection
+                      user={f}
+                      onlineClassName="friend-online-badge friend-online-badge--on"
+                      offlineClassName="friend-online-badge friend-online-badge--off"
+                    />
                   </div>
                 </div>
                 <div className="friend-card-actions">

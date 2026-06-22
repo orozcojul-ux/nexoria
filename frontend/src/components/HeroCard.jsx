@@ -19,6 +19,7 @@ import { getUserAvatarUrl } from "@/lib/user-avatar";
 import ClassImage from "@/components/ClassImage";
 import ClassChangeModal from "@/components/ClassChangeModal";
 import HeroCardCustomizeTab from "@/components/HeroCardCustomizeTab";
+import LastConnection from "@/components/LastConnection";
 import styles from "./HeroCard.module.css";
 
 /** @deprecated Use PremiumBadge — kept for backward compatibility */
@@ -746,7 +747,9 @@ function OverviewTab({ data, u, classColor, onViewBadges }) {
               label="Inscription"
               value={u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
             />
-            <InfoEntry label="Statut" value={isOnline ? "En ligne" : "Hors-ligne"} muted={!isOnline} />
+            <InfoEntry label="Statut">
+              <LastConnection user={u} online={isOnline} />
+            </InfoEntry>
             <InfoEntry
               label="Localisation"
               value={data.location ? prettyRoom(data.location.room) : "—"}
@@ -769,18 +772,23 @@ function OverviewTab({ data, u, classColor, onViewBadges }) {
   );
 }
 
-function InfoEntry({ label, value, color, bold, muted }) {
+function InfoEntry({ label, value, color, bold, muted, children }) {
   return (
     <div className={styles.infoEntry}>
       <label>{label}</label>
-      <span style={{ color: muted ? "#8892a0" : color || "#e8eaf0", fontWeight: bold ? 800 : 600 }}>
-        {value}
-      </span>
+      {children ? (
+        <span style={{ color: color || "#e8eaf0", fontWeight: bold ? 800 : 600 }}>{children}</span>
+      ) : (
+        <span style={{ color: muted ? "#8892a0" : color || "#e8eaf0", fontWeight: bold ? 800 : 600 }}>
+          {value}
+        </span>
+      )}
     </div>
   );
 }
 
 function InfoTab({ u, guild, location }) {
+  const isOnline = Boolean(location);
   return (
     <Section title="Fiche détaillée">
       <div className={styles.grid2}>
@@ -795,6 +803,12 @@ function InfoTab({ u, guild, location }) {
         <InfoBlock label="Écus" value={`${u.aether || 0} ⟡`} />
         <InfoBlock label="Réputation" value={u.reputation || 0} />
         <InfoBlock label="Inscription" value={u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"} />
+        <div className={styles.infoBlock}>
+          <div className={styles.infoBlockLabel}>Dernière connexion</div>
+          <div className={styles.infoBlockValue}>
+            <LastConnection user={u} online={isOnline} />
+          </div>
+        </div>
         <InfoBlock label="Localisation" value={location ? prettyRoom(location.room) : "Hors-ligne"} />
         <InfoBlock label="Followers" value={u.followers || 0} />
         <InfoBlock label="Following" value={u.following || 0} />
@@ -897,6 +911,9 @@ function RelationsTab({ data }) {
                     <HeroName user={f} className="text-sm truncate" />
                     <div style={{ fontSize: 10, color: "#8892a0" }}>
                       {f.class_name} · niv {f.level}{f.rank ? ` · ${f.rank}` : ""}
+                    </div>
+                    <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
+                      <LastConnection user={f} />
                     </div>
                   </div>
                 </div>

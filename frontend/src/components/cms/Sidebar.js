@@ -8,15 +8,12 @@ import {
   LayoutDashboard, Castle, Trophy, UserCheck, Calendar,
   Sword, Gem, ShoppingBag, LogOut, Eye, Sparkles,
   ScrollText, UserPlus, Settings, MessageSquare,
-  Coins,
+  Coins, Shield,
 } from "lucide-react";
 import Logo from "@/components/Logo";
-import {
-  buildAdminSidebarNav, buildPlayerAdminShortcuts, getActiveAdminTab, adminHref,
-} from "@/lib/admin-nav";
 import { buildPlayerNav } from "@/i18n/nav-config";
 import { useI18n } from "@/contexts/I18nContext";
-import StaffAdminDock from "@/components/cms/StaffAdminDock";
+import LastConnection from "@/components/LastConnection";
 import { getTitleLabel } from "@/lib/title-labels";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
 
@@ -25,7 +22,7 @@ const PURPLE_GLOW = "rgba(123, 47, 247, 0.45)";
 
 /* ─── Player sidebar built via buildPlayerNav() + i18n ─── */
 
-function CrystalLogo({ cms = false, t }) {
+function CrystalLogo({ t }) {
   return (
     <div className="flex items-center gap-3">
       <div
@@ -39,13 +36,11 @@ function CrystalLogo({ cms = false, t }) {
       </div>
       <div className="min-w-0">
         <div className="font-display font-black text-[15px] tracking-[0.12em] text-white leading-tight">
-          NEXORIA{cms ? <span className="text-violet-300/90">{t("sidebar.cms_v2")}</span> : null}
+          NEXORIA
         </div>
-        {!cms && (
-          <div className="text-[8px] uppercase tracking-[0.42em] text-violet-400/55 font-semibold mt-0.5">
-            {t("sidebar.tagline")}
-          </div>
-        )}
+        <div className="text-[8px] uppercase tracking-[0.42em] text-violet-400/55 font-semibold mt-0.5">
+          {t("sidebar.tagline")}
+        </div>
       </div>
     </div>
   );
@@ -97,8 +92,8 @@ function UserCard({ user, t }) {
             <div className="text-[11px] text-amber-400/95 font-medium truncate">
               {getTitleLabel(user)}
             </div>
-            <div className="text-[9px] uppercase tracking-wider text-emerald-400/90 font-semibold mt-0.5">
-              {t("sidebar.online")}
+            <div className="text-[9px] uppercase tracking-wider font-semibold mt-0.5">
+              <LastConnection user={user} online onlineClassName="text-emerald-400/90" offlineClassName="text-zinc-500" />
             </div>
           </div>
         </div>
@@ -184,16 +179,13 @@ function SidebarHeroCardButton({ labelKey, icon: Icon, testid }) {
   );
 }
 
-function SidebarLink({ to, label, labelKey, icon: Icon, testid, badge, dynamicBadge, end, hash, adminTab, openNexusOnClick, openHeroCardSelf }) {
+function SidebarLink({ to, label, labelKey, icon: Icon, testid, badge, end, hash, openNexusOnClick, openHeroCardSelf }) {
   const { t } = useI18n();
   const displayLabel = labelKey ? t(labelKey) : label;
   const resolvedBadge = badge;
   const dest = hash ? { pathname: to, hash } : to;
   const resolveActive = () => {
     if (openHeroCardSelf) return () => false;
-    if (adminTab) {
-      return (_, loc) => loc.pathname === "/admin" && getActiveAdminTab(loc.search) === adminTab;
-    }
     if (hash) return (_, loc) => loc.pathname === to && loc.hash === hash;
     if (end) return undefined;
     return (_, loc) => loc.pathname === to && !loc.hash;
@@ -298,14 +290,6 @@ export default function Sidebar() {
   const ns = useNexusSocket();
   const [godMode, setGodMode] = useState(() => localStorage.getItem("nexoria_godmode") === "1");
   const [pendingFriends, setPendingFriends] = useState(0);
-  const [openReports, setOpenReports] = useState(0);
-
-  const loadOpenReports = () => {
-    if (user?.role !== "admin" && user?.role !== "moderator") return;
-    api.get("/admin/pulse")
-      .then((r) => setOpenReports(r.data?.open_reports ?? 0))
-      .catch(() => {});
-  };
 
   const loadPendingFriends = () => {
     api.get("/friends/requests/count")
@@ -316,20 +300,9 @@ export default function Sidebar() {
   useEffect(() => {
     if (!user) return;
     loadPendingFriends();
-    loadOpenReports();
     const onUpdate = () => loadPendingFriends();
-    const onStaffAlert = () => loadOpenReports();
-    const onMetrics = () => loadOpenReports();
     window.addEventListener("nexoria:friends-updated", onUpdate);
-    window.addEventListener("nexoria:staff-alert", onStaffAlert);
-    window.addEventListener("nexoria:staff-metrics-changed", onMetrics);
-    const pulseId = setInterval(loadOpenReports, 30000);
-    return () => {
-      window.removeEventListener("nexoria:friends-updated", onUpdate);
-      window.removeEventListener("nexoria:staff-alert", onStaffAlert);
-      window.removeEventListener("nexoria:staff-metrics-changed", onMetrics);
-      clearInterval(pulseId);
-    };
+    return () => window.removeEventListener("nexoria:friends-updated", onUpdate);
   }, [user]);
 
   useEffect(() => {
@@ -342,10 +315,7 @@ export default function Sidebar() {
   if (!user) return null;
 
   const isStaff = user.role === "admin" || user.role === "moderator";
-  const isAdmin = user.role === "admin";
-  const useCmsNav = isStaff && location.pathname.startsWith("/admin");
-  const navSections = useCmsNav ? buildAdminSidebarNav({ isAdmin }) : buildPlayerNav();
-  const adminShortcuts = !useCmsNav && isStaff ? buildPlayerAdminShortcuts({ isAdmin }) : [];
+  const navSections = buildPlayerNav();
 
   const toggleGodMode = () => {
     const next = !godMode;
@@ -370,8 +340,8 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div className="px-4 pt-5 pb-3 border-b" style={{ borderColor: "rgba(123,47,247,0.1)" }}>
-        <NavLink to={useCmsNav ? adminHref("pulse") : "/feed"} data-testid="logo-link">
-          <CrystalLogo cms={useCmsNav} t={t} />
+        <NavLink to="/feed" data-testid="logo-link">
+          <CrystalLogo t={t} />
         </NavLink>
       </div>
 
@@ -379,19 +349,6 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto nexoria-sidebar-scroll py-2 space-y-4">
-        {useCmsNav && (
-          <div className="px-3">
-            <NavLink
-              to="/feed"
-              data-testid="nav-cms-back-feed"
-              className="flex items-center gap-2 px-2.5 py-2 rounded-[10px] text-[12px] font-medium text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.03] border border-transparent hover:border-white/5 transition-all"
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              {t("sidebar.back_feed")}
-            </NavLink>
-          </div>
-        )}
-
         {navSections.map((section) => (
           <div key={section.titleKey}>
             <div className="px-4 mb-1.5 text-[9px] font-bold uppercase tracking-[0.28em] text-zinc-600">
@@ -413,11 +370,7 @@ export default function Sidebar() {
                   <SidebarLink
                     key={`${section.titleKey}-${item.labelKey}`}
                     {...item}
-                    badge={
-                      item.dynamicBadge === "friends" ? pendingFriends
-                        : item.dynamicBadge === "open_reports" ? openReports
-                          : item.badge
-                    }
+                    badge={item.dynamicBadge === "friends" ? pendingFriends : item.badge}
                   />
                 )
               ))}
@@ -425,26 +378,25 @@ export default function Sidebar() {
           </div>
         ))}
 
-        {!useCmsNav && isStaff && (
-          <div>
-            <div className="px-4 mb-1.5 text-[9px] font-bold uppercase tracking-[0.28em] text-zinc-600">
-              {t("sidebar.section.staff")}
-            </div>
-            <StaffAdminDock shortcuts={adminShortcuts} role={user.role} openReports={openReports} />
-          </div>
-        )}
-
-        {!useCmsNav && (
-          <div className="px-2 space-y-0.5">
-            <SidebarLink to="/settings" labelKey="nav.settings" icon={Settings} testid="nav-settings" />
-          </div>
-        )}
+        <div className="px-2 space-y-0.5">
+          <SidebarLink to="/settings" labelKey="nav.settings" icon={Settings} testid="nav-settings" />
+        </div>
       </nav>
 
       {/* Footer */}
       <div className="py-3 border-t space-y-2.5" style={{ borderColor: "rgba(123,47,247,0.1)" }}>
-        {(useCmsNav || isStaff) && <GodModeToggle enabled={godMode} onToggle={toggleGodMode} t={t} />}
-        {!useCmsNav && <SupportFooter t={t} />}
+        {isStaff && (
+          <NavLink
+            to="/admin"
+            data-testid="sidebar-admin-panel"
+            className="mx-3 flex items-center justify-center gap-1.5 py-1.5 text-[9px] uppercase tracking-[0.2em] font-semibold text-zinc-600 hover:text-amber-400/90 border border-transparent hover:border-amber-500/20 rounded-lg transition-colors"
+          >
+            <Shield className="w-3 h-3" />
+            {t("nav.admin_panel")}
+          </NavLink>
+        )}
+        {isStaff && <GodModeToggle enabled={godMode} onToggle={toggleGodMode} t={t} />}
+        <SupportFooter t={t} />
         <button
           type="button"
           onClick={async () => { const dest = await logout(); if (dest !== "/maintenance") navigate(dest); }}

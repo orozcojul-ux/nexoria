@@ -19,6 +19,7 @@ import NewsAdmin from "@/components/admin/NewsAdmin";
 import AdminEditHeroDialog from "@/components/admin/AdminEditHeroDialog";
 import ReportsAdmin from "@/components/admin/ReportsAdmin";
 import EventsAdmin from "@/components/admin/EventsAdmin";
+import EconomyAdmin from "@/components/admin/EconomyAdmin";
 import TwoFAGate from "@/components/admin/TwoFAGate";
 import { MAINTENANCE_HTML_FIELDS, DEFAULT_MAINTENANCE_HTML, normalizeMaintenanceHtml, normalizeMaintenanceSystems } from "@/lib/maintenance-content";
 import { ONLINE_GATE_HTML_FIELDS, DEFAULT_ONLINE_GATE_HTML, normalizeOnlineGateHtml } from "@/lib/online-gate-content";
@@ -386,6 +387,7 @@ export default function Admin() {
       {tab === "tickets" && <TicketsAdmin />}
       {tab === "reports" && <ReportsAdmin />}
       {tab === "grant" && <AetherGrantAdmin />}
+      {tab === "economy" && <EconomyAdmin />}
       {tab === "discord" && <DiscordSyncAdmin />}
       {tab === "legend" && <AdminLegend />}
       {tab === "roles" && <RolesGuide />}

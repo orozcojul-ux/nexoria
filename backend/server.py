@@ -70,6 +70,9 @@ import nexus_combat
 import craft as craft_service
 from craft_data import CRAFT_RESOURCES, resource_id_from_name
 from nexus_combat_data import ENEMY_TEMPLATES, COMBAT_ROOMS
+from profile_chronicle import build_staff_edit_chronicle
+from economy_transactions import record_economy_transaction, infer_economy_source
+from economy_admin import register_economy_admin_routes
 
 # ---------- DB ----------
 mongo_url = os.environ["MONGO_URL"]
@@ -823,23 +826,79 @@ async def push_wallet_updated(user_id: str):
         pass
 
 
-async def grant_aether(user_id: str, amount: int, reason: str = "Récompense"):
+async def grant_aether(
+    user_id: str,
+    amount: int,
+    reason: str = "Récompense",
+    *,
+    source: str | None = None,
+    source_id: str | None = None,
+    metadata: dict | None = None,
+    created_by: str | None = None,
+):
     if amount <= 0:
         return
+    user = await db.users.find_one({"user_id": user_id}, {"aether": 1, "username": 1})
+    if not user:
+        return
+    balance_before = int(user.get("aether") or 0)
     mult = await get_active_boost_multiplier(user_id, "aether_multiplier")
-    if mult > 1:
-        amount = int(amount * mult)
-    await db.users.update_one({"user_id": user_id}, {"$inc": {"aether": amount}})
+    granted = int(amount * mult) if mult > 1 else amount
+    await db.users.update_one({"user_id": user_id}, {"$inc": {"aether": granted}})
+    balance_after = balance_before + granted
+    await record_economy_transaction(
+        db,
+        user_id=user_id,
+        username=user.get("username"),
+        amount=granted,
+        tx_type="gain",
+        source=source or infer_economy_source(reason),
+        reason=reason,
+        source_id=source_id,
+        balance_before=balance_before,
+        balance_after=balance_after,
+        created_by=created_by,
+        metadata=metadata,
+    )
     await push_wallet_updated(user_id)
-    discord_rewards.schedule_reward_notify(db, user_id, reason, aether=amount)
+    discord_rewards.schedule_reward_notify(db, user_id, reason, aether=granted)
 
 
-async def spend_aether(user_id: str, amount: int, reason: str = "Dépense"):
+async def spend_aether(
+    user_id: str,
+    amount: int,
+    reason: str = "Dépense",
+    *,
+    source: str | None = None,
+    source_id: str | None = None,
+    metadata: dict | None = None,
+    created_by: str | None = None,
+):
     if amount <= 0:
         return
-    await db.users.update_one({"user_id": user_id}, {"$inc": {"aether": -amount}})
+    user = await db.users.find_one({"user_id": user_id}, {"aether": 1, "username": 1})
+    if not user:
+        return
+    balance_before = int(user.get("aether") or 0)
+    spent = int(amount)
+    await db.users.update_one({"user_id": user_id}, {"$inc": {"aether": -spent}})
+    balance_after = max(0, balance_before - spent)
+    await record_economy_transaction(
+        db,
+        user_id=user_id,
+        username=user.get("username"),
+        amount=-spent,
+        tx_type="spend",
+        source=source or infer_economy_source(reason),
+        reason=reason,
+        source_id=source_id,
+        balance_before=balance_before,
+        balance_after=balance_after,
+        created_by=created_by,
+        metadata=metadata,
+    )
     await push_wallet_updated(user_id)
-    discord_rewards.schedule_reward_notify(db, user_id, reason, aether=-amount)
+    discord_rewards.schedule_reward_notify(db, user_id, reason, aether=-spent)
 
 
 async def grant_reputation(user_id: str, amount: int, reason: str = "gain_reputation"):
@@ -2042,6 +2101,9 @@ async def get_profile_by_username(username: str, request: Request):
 
     pub = public_user(user)
     hero_card_available = await _hero_card_visible_to(viewer, user)
+    enriched = await _enrich_friends_online_async([{**pub, "user_id": user["user_id"]}])
+    if enriched:
+        pub["online"] = enriched[0].get("online", False)
     user_badges = await db.user_badges.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(500)
     return {
         "hidden": False,
@@ -2210,11 +2272,37 @@ def _is_vip_exclusive(snap: dict) -> bool:
     return bool(snap.get("vip_only")) or snap.get("rarity") in VIP_EXCLUSIVE_RARITIES
 
 
-async def refund_aether(user_id: str, amount: int, reason: str = "Remboursement"):
+async def refund_aether(
+    user_id: str,
+    amount: int,
+    reason: str = "Remboursement",
+    *,
+    source: str | None = None,
+    source_id: str | None = None,
+    metadata: dict | None = None,
+):
     """Refund écus EXACTLY (no gain multiplier applied) + realtime wallet push."""
     if amount <= 0:
         return
+    user = await db.users.find_one({"user_id": user_id}, {"aether": 1, "username": 1})
+    if not user:
+        return
+    balance_before = int(user.get("aether") or 0)
     await db.users.update_one({"user_id": user_id}, {"$inc": {"aether": amount}})
+    balance_after = balance_before + amount
+    await record_economy_transaction(
+        db,
+        user_id=user_id,
+        username=user.get("username"),
+        amount=amount,
+        tx_type="refund",
+        source=source or infer_economy_source(reason),
+        reason=reason,
+        source_id=source_id,
+        balance_before=balance_before,
+        balance_after=balance_after,
+        metadata=metadata,
+    )
     await push_wallet_updated(user_id)
     discord_rewards.schedule_reward_notify(db, user_id, reason, aether=amount)
 
@@ -2355,6 +2443,32 @@ async def _log_economy(kind: str, from_id: str, to_id: str, ecus: int, items: li
         "created_at": now_utc().isoformat(),
         **(extra or {}),
     })
+    if ecus and from_id:
+        from_user = await db.users.find_one({"user_id": from_id}, {"username": 1, "aether": 1})
+        if from_user:
+            await record_economy_transaction(
+                db,
+                user_id=from_id,
+                username=from_user.get("username"),
+                amount=-int(ecus),
+                tx_type="spend",
+                source="p2p",
+                reason=f"Envoi P2P ({kind})",
+                metadata={"to_user": to_id, **(extra or {})},
+            )
+    if ecus and to_id:
+        to_user = await db.users.find_one({"user_id": to_id}, {"username": 1, "aether": 1})
+        if to_user:
+            await record_economy_transaction(
+                db,
+                user_id=to_id,
+                username=to_user.get("username"),
+                amount=int(ecus),
+                tx_type="gain",
+                source="p2p",
+                reason=f"Réception P2P ({kind})",
+                metadata={"from_user": from_id, **(extra or {})},
+            )
 
 
 class SendEcusReq(BaseModel):
@@ -4089,7 +4203,11 @@ async def staff_update_user_profile(user_id: str, req: StaffProfileUpdateReq, us
         ops["$unset"] = {f: "" for f in unset_fields}
     if ops:
         await db.users.update_one({"user_id": user_id}, ops)
-        await add_chronicle(user_id, f"Profil mis à jour par le staff ({user.get('username')})", "admin")
+        chronicle_text = build_staff_edit_chronicle(
+            target, update, staff_username=user.get("username"), unset_fields=unset_fields,
+        )
+        if chronicle_text:
+            await add_chronicle(user_id, chronicle_text, "admin")
 
     cosmetic_fields = {k: update[k] for k in ("active_frame", "active_title", "avatar_url") if k in update}
     if "active_frame" in unset_fields:
@@ -4129,7 +4247,10 @@ async def staff_upload_avatar(
     dest.write_bytes(data)
     url = f"/uploads/avatars/{filename}"
     await db.users.update_one({"user_id": user_id}, {"$set": {"avatar_url": url}})
-    await add_chronicle(user_id, f"Avatar mis à jour par le staff ({user.get('username')})", "admin")
+    chronicle_text = build_staff_edit_chronicle(
+        target, {"avatar_url": url}, staff_username=user.get("username"),
+    )
+    await add_chronicle(user_id, chronicle_text or f"Le Conseil ({user.get('username')}) — Avatar mis à jour", "admin")
     try:
         await nexus_world.push_profile_updated(user_id, {"avatar_url": url})
     except Exception:
@@ -5212,7 +5333,11 @@ async def admin_edit_user(user_id: str, req: UserEditReq, user: dict = Depends(g
                 "old_username": target.get("username"),
             })
         await db.users.update_one({"user_id": user_id}, {"$set": update})
-        await add_chronicle(user_id, f"Le Conseil a modifié son profil ({', '.join(update.keys())})", "admin")
+        chronicle_text = build_staff_edit_chronicle(
+            target, update, staff_username=user.get("username"),
+        )
+        if chronicle_text:
+            await add_chronicle(user_id, chronicle_text, "admin")
 
     if clear_ban:
         await db.users.update_one(
@@ -6944,7 +7069,7 @@ async def list_friend_requests(user: dict = Depends(get_user_dep)):
     ).sort("created_at", -1).to_list(50)
     from_ids = [r["from_user"] for r in reqs]
     udocs = await db.users.find({"user_id": {"$in": from_ids}},
-        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1, "role": 1, "avatar_url": 1}).to_list(100)
+        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1, "role": 1, "avatar_url": 1, "last_seen": 1}).to_list(100)
     umap = {u["user_id"]: u for u in udocs}
     for r in reqs:
         r["from"] = umap.get(r["from_user"], {})
@@ -7106,7 +7231,7 @@ async def list_friends(user: dict = Depends(get_user_dep)):
     friend_ids = [link["user_b"] if link["user_a"] == user["user_id"] else link["user_a"] for link in links]
     friends = await db.users.find({"user_id": {"$in": friend_ids}},
         {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_id": 1, "class_name": 1,
-         "role": 1, "avatar_url": 1, "rank": 1}).to_list(500)
+         "role": 1, "avatar_url": 1, "rank": 1, "last_seen": 1}).to_list(500)
     return await _enrich_friends_online_async(friends)
 
 
@@ -7154,7 +7279,7 @@ async def list_friend_chat_threads(user: dict = Depends(get_user_dep)):
     friends = await db.users.find(
         {"user_id": {"$in": friend_ids}},
         {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_id": 1, "class_name": 1,
-         "role": 1, "avatar_url": 1, "rank": 1},
+         "role": 1, "avatar_url": 1, "rank": 1, "last_seen": 1},
     ).to_list(500)
     # Use the same session-based online check as /friends so both panels are consistent.
     enriched = await _enrich_friends_online_async(friends)
@@ -7560,6 +7685,19 @@ async def admin_grant_aether(req: AetherGrantReq, user: dict = Depends(get_admin
             aether=req.amount,
             extra=[req.reason or "sans motif"],
         )
+        await record_economy_transaction(
+            db,
+            user_id=req.target_user_id,
+            username=target.get("username"),
+            amount=req.amount,
+            tx_type="admin_adjustment",
+            source="admin",
+            reason=f"Don du Conseil — {req.reason or 'admin'}",
+            balance_before=int(target.get("aether") or 0),
+            balance_after=new_aether,
+            created_by=user.get("user_id"),
+            metadata={"admin_username": user.get("username")},
+        )
         await add_chronicle(req.target_user_id,
             f"Le Conseil ({user['username']}) retire {req.amount} Écus · {req.reason or 'sans motif'}",
             "admin")
@@ -7828,8 +7966,9 @@ async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
         friends = await db.users.find(
             {"user_id": {"$in": friend_ids}},
             {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1,
-             "rank": 1, "role": 1, "avatar_url": 1, "active_title": 1},
+             "rank": 1, "role": 1, "avatar_url": 1, "active_title": 1, "last_seen": 1},
         ).to_list(24)
+        friends = await _enrich_friends_online_async(friends)
     # Equipped cosmetics (frame / banner from shop)
     equipped_cosmetics = {}
     if u.get("active_frame"):
@@ -7929,6 +8068,15 @@ async def discord_interactions(request: Request):
 
 
 # ---------- Mount router at the very end (after ALL endpoint declarations) ----------
+register_economy_admin_routes(
+    api,
+    db=db,
+    get_admin_dep=get_admin_dep,
+    grant_aether=grant_aether,
+    push_wallet_updated=push_wallet_updated,
+    add_chronicle=add_chronicle,
+    now_utc=now_utc,
+)
 app.include_router(api)
 app.mount("/uploads", StaticFiles(directory=str(ROOT_DIR / "uploads")), name="uploads")
 

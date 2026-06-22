@@ -543,6 +543,29 @@
   transform: translateX(24px);
 }
 
+.adminLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(138, 106, 26, 0.22);
+  background: rgba(10, 8, 24, 0.5);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6b7280;
+  text-decoration: none;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.adminLink:hover {
+  color: #c8960a;
+  border-color: rgba(200, 150, 10, 0.35);
+  background: rgba(200, 150, 10, 0.06);
+}
+
 @media (max-width: 640px) {
   .drawer { width: min(320px, 90vw); }
   .crestTitle { font-size: 14px; letter-spacing: 0.14em; }

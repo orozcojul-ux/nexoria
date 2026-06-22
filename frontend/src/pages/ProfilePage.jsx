@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Globe, Twitter, Twitch, Youtube } from "lucide-react";
 import { PremiumBadge } from "@/components/ui-premium";
 import ClassImage from "@/components/ClassImage";
+import LastConnection from "@/components/LastConnection";
 import styles from "./ProfilePage.module.css";
 
 /* Normalise un identifiant social en URL absolue cliquable. */
@@ -294,6 +295,9 @@ export default function ProfilePage({
             </div>
             <h1 className={styles.heroName} data-testid="profile-username" style={{ textShadow: `0 0 18px ${accent}88` }}>{name}</h1>
             <div className={styles.discordLine} data-testid="profile-discord-name">Discord · {discordName}</div>
+            <div className={styles.lastSeenLine} data-testid="profile-last-connection">
+              <LastConnection user={hero} onlineClassName={styles.lastSeenOnline} offlineClassName={styles.lastSeenOffline} />
+            </div>
             {statusMessage && (
               <div
                 className={styles.statusLine}

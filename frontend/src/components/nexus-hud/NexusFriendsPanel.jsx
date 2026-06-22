@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import HeroName from "@/components/HeroName";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
+import LastConnection from "@/components/LastConnection";
 import FriendChat from "@/components/friends/FriendChat";
 import { sfx } from "@/lib/sfx";
 
@@ -178,11 +179,13 @@ export default function NexusFriendsPanel({ open, onClose, initialTab = "chat", 
                         </div>
                         <div className="nexus-friend-meta">
                           <HeroName user={f} size="sm" />
-                          <div className="text-[10px] text-zinc-500 flex items-center gap-1.5">
+                          <div className="text-[10px] text-zinc-500 flex items-center gap-1.5 flex-wrap">
                             <span>{f.class_name} · niv. {f.level}</span>
-                            <span className={`nexus-friend-status ${f.online ? "nexus-friend-status--on" : "nexus-friend-status--off"}`}>
-                              {f.online ? "En ligne" : "Hors ligne"}
-                            </span>
+                            <LastConnection
+                              user={f}
+                              onlineClassName="nexus-friend-status nexus-friend-status--on"
+                              offlineClassName="nexus-friend-status nexus-friend-status--off"
+                            />
                           </div>
                         </div>
                         <button

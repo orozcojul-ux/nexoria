@@ -6,15 +6,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import HeroName from "@/components/HeroName";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
+import LastConnection from "@/components/LastConnection";
 import "./FriendChat.css";
 
 const POLL_INTERVAL_MS = 2500; // fallback polling when socket is unavailable
 
-function FriendOnlineBadge({ online }) {
+function FriendPresence({ user }) {
   return (
-    <span className={`friend-online-badge ${online ? "friend-online-badge--on" : "friend-online-badge--off"}`}>
-      {online ? "En ligne" : "Hors ligne"}
-    </span>
+    <LastConnection
+      user={user}
+      onlineClassName="friend-online-badge friend-online-badge--on"
+      offlineClassName="friend-online-badge friend-online-badge--off"
+    />
   );
 }
 
@@ -277,7 +280,7 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
                 <div className="friend-chat-thread-meta">
                   <div className="friend-chat-thread-name">
                     {t.friend.username}
-                    <FriendOnlineBadge online={t.friend.online} />
+                    <FriendPresence user={t.friend} />
                   </div>
                   <div className="friend-chat-thread-preview">
                     {t.last_message?.text || "Commencer la conversation…"}
@@ -314,7 +317,7 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
                 <HeroName user={activeFriend} size="sm" />
                 <div className="text-[10px] text-zinc-500 flex items-center gap-1.5 flex-wrap">
                   <span>{activeFriend?.class_name} · niv. {activeFriend?.level}</span>
-                  <FriendOnlineBadge online={activeFriend?.online} />
+                  <FriendPresence user={activeFriend} />
                   {!activeFriend?.online && (
                     <span className="friend-offline-hint">— message en attente à la connexion</span>
                   )}

@@ -128,6 +128,11 @@ export const TRANSLATIONS_UI = {
 
   // ─── Common status / actions ───
   "status.online": T("En ligne", "Online"),
+
+  // ─── Profil ───
+  "profile.last_connection": T("Dernière connexion", "Last seen"),
+  "profile.last_connection_unknown": T("Dernière connexion inconnue", "Last seen unknown"),
+  "nav.admin_panel": T("Centre de contrôle", "Control center"),
   "status.offline": T("Hors ligne", "Offline"),
   "status.locked": T("Verrouillé", "Locked"),
   "status.unlocked": T("Débloqué", "Unlocked"),

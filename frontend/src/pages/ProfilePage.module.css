@@ -270,6 +270,9 @@
 }
 
 .discordLine { font-size: 13px; color: #7a7aaa; }
+.lastSeenLine { margin-top: 4px; font-size: 11px; letter-spacing: 0.04em; }
+.lastSeenOnline { color: #34d399; font-weight: 600; }
+.lastSeenOffline { color: #6b7280; }
 
 .classLine {
   display: flex;
