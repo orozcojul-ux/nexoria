@@ -1,5 +1,23 @@
 /**
- * Formate la dernière connexion d'un héros.
+ * Formate la date et l'heure exactes de dernière activité sur le site.
+ */
+export function formatLastSeenDateTime(lastSeen, { locale = "fr-FR", unknown = "—" } = {}) {
+  if (!lastSeen) return unknown;
+
+  const date = new Date(lastSeen);
+  if (Number.isNaN(date.getTime())) return unknown;
+
+  return date.toLocaleString(locale, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Formate la dernière connexion d'un héros (texte relatif ou date complète).
  */
 export function formatLastConnection(lastSeen, { locale = "fr-FR", unknown = "Dernière connexion inconnue", prefix = "Dernière connexion" } = {}) {
   if (!lastSeen) return unknown;

@@ -270,8 +270,17 @@
 }
 
 .discordLine { font-size: 13px; color: #7a7aaa; }
-.lastSeenLine { margin-top: 4px; font-size: 11px; letter-spacing: 0.04em; }
-.lastSeenOnline { color: #34d399; font-weight: 600; }
+.lastSeenLine {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.lastSeenDateTime { display: block; color: #d1d5db; font-weight: 600; font-size: 12px; }
+.lastSeenStatus { display: block; margin-top: 3px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.lastSeenOnline { color: #34d399; }
 .lastSeenOffline { color: #6b7280; }
 
 .classLine {

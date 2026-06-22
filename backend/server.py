@@ -2100,6 +2100,7 @@ async def get_profile_by_username(username: str, request: Request):
                 }
 
     pub = public_user(user)
+    pub["last_seen"] = await _resolve_last_seen_iso(user["user_id"], pub)
     hero_card_available = await _hero_card_visible_to(viewer, user)
     enriched = await _enrich_friends_online_async([{**pub, "user_id": user["user_id"]}])
     if enriched:
@@ -7144,6 +7145,23 @@ def _enrich_friends_online(friends: list) -> list:
     return friends
 
 
+async def _resolve_last_seen_iso(user_id: str, user: dict | None = None) -> str | None:
+    """Return ISO timestamp for last site activity (users.last_seen or latest session)."""
+    raw = (user or {}).get("last_seen")
+    if raw:
+        if isinstance(raw, datetime):
+            return iso(raw)
+        return str(raw)
+    sess = await db.user_sessions.find_one(
+        {"user_id": user_id},
+        {"_id": 0, "last_activity_at": 1, "created_at": 1},
+        sort=[("last_activity_at", -1), ("created_at", -1)],
+    )
+    if not sess:
+        return None
+    return sess.get("last_activity_at") or sess.get("created_at")
+
+
 async def _enrich_friends_online_async(friends: list) -> list:
     """Determine online status from SITE sessions (not just Nexus socket),
     and honour each friend's appear_offline preference.
@@ -8001,9 +8019,15 @@ async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
     ]
     quests_completed = await db.user_quests.count_documents({"user_id": user_id, "completed": True})
     can_edit_profile = viewer["user_id"] == user_id or is_staff_user(viewer)
+    pub = public_user(u)
+    pub["last_seen"] = await _resolve_last_seen_iso(user_id, pub)
+    pub["quests_completed"] = quests_completed
+    enriched_main = await _enrich_friends_online_async([{**pub, "user_id": user_id}])
+    if enriched_main:
+        pub["online"] = enriched_main[0].get("online", False)
     return {
         "hidden": False,
-        "user": {**u, "quests_completed": quests_completed},
+        "user": pub,
         "inventory": inv,
         "badges": badges,
         "chronicles": chronicles,
