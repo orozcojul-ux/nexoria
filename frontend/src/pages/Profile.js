@@ -58,6 +58,21 @@ export default function Profile() {
   }, [username]);
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    const refreshSelfProfile = () => {
+      if (user?.username === username) load();
+    };
+    window.addEventListener("nexoria:auth-login", refreshSelfProfile);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshSelfProfile();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("nexoria:auth-login", refreshSelfProfile);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [user?.username, username, load]);
+
   const toggleFollow = async () => {
     try {
       const { data } = await api.post(`/follow/${username}`);

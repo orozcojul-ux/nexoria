@@ -33,7 +33,9 @@ from pydantic import BaseModel, Field, EmailStr
 from auth import (
     hash_password, verify_password, create_session_token, session_expiry,
     set_session_cookie, clear_session_cookie, get_current_user, generate_user_id,
-    _extract_session_token,
+    _extract_session_token, session_idle_cutoff_iso, session_is_idle,
+    terminate_session, run_session_end_side_effects,
+    TAB_CLOSE_GRACE_SECONDS, SESSION_IDLE_MINUTES,
 )
 from game_data import (
     CLASSES, SKILLS, KINGDOM_BUILDINGS, RARITIES, TITLES, BADGES, SHOP_ONLY_TITLES,
@@ -547,26 +549,110 @@ async def on_nexus_join(user_id: str):
     await progress_quests(user_id, "nexus_enter", 1)
 
 
-async def touch_user_last_seen(user_id: str, min_interval_seconds: int = 300):
+async def touch_user_last_seen(user_id: str, min_interval_seconds: int = 300, *, force: bool = False):
     """Throttled visit heartbeat (default max once per 5 minutes per user)."""
     now = now_utc()
-    user = await db.users.find_one({"user_id": user_id}, {"last_seen": 1})
-    if not user:
-        return
-    last = user.get("last_seen")
-    if last:
-        try:
-            last_dt = datetime.fromisoformat(last) if isinstance(last, str) else last
-            if last_dt.tzinfo is None:
-                last_dt = last_dt.replace(tzinfo=timezone.utc)
-            if (now - last_dt).total_seconds() < min_interval_seconds:
-                return
-        except Exception:
-            pass
+    if not force:
+        user = await db.users.find_one({"user_id": user_id}, {"last_seen": 1})
+        if not user:
+            return
+        last = user.get("last_seen")
+        if last:
+            try:
+                last_dt = datetime.fromisoformat(last) if isinstance(last, str) else last
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=timezone.utc)
+                if (now - last_dt).total_seconds() < min_interval_seconds:
+                    return
+            except Exception:
+                pass
     await db.users.update_one(
         {"user_id": user_id},
         {"$set": {"last_seen": now.isoformat()}},
     )
+
+
+_pending_tab_close_tasks: dict[str, asyncio.Task] = {}
+
+
+async def _end_user_session(token: str):
+    """Terminate one session and propagate offline side-effects."""
+    user_id = await terminate_session(db, token)
+    if not user_id:
+        return
+    await run_session_end_side_effects(db, user_id)
+
+
+def _schedule_tab_close_termination(token: str):
+    existing = _pending_tab_close_tasks.pop(token, None)
+    if existing and not existing.done():
+        existing.cancel()
+
+    async def _delayed_close():
+        try:
+            await asyncio.sleep(TAB_CLOSE_GRACE_SECONDS)
+            session = await db.user_sessions.find_one(
+                {"session_token": token, "tab_closed_at": {"$exists": True}},
+                {"user_id": 1},
+            )
+            if session:
+                await _end_user_session(token)
+        finally:
+            _pending_tab_close_tasks.pop(token, None)
+
+    _pending_tab_close_tasks[token] = asyncio.create_task(_delayed_close())
+
+
+def _cancel_tab_close_termination(token: str | None):
+    if not token:
+        return
+    task = _pending_tab_close_tasks.pop(token, None)
+    if task and not task.done():
+        task.cancel()
+
+
+async def _session_lifecycle_sweeper():
+    """Close idle or abandoned (tab-closed) sessions even without a new HTTP request."""
+    while True:
+        await asyncio.sleep(30)
+        try:
+            now = now_utc()
+            now_iso = now.isoformat()
+            idle_cutoff = session_idle_cutoff_iso()
+            tab_cutoff = (now - timedelta(seconds=TAB_CLOSE_GRACE_SECONDS)).isoformat()
+
+            async for session in db.user_sessions.find(
+                {"expires_at": {"$gt": now_iso}},
+                {"session_token": 1, "last_heartbeat_at": 1, "last_activity_at": 1, "tab_closed_at": 1},
+            ):
+                token = session.get("session_token")
+                if not token:
+                    continue
+                tab_closed_at = session.get("tab_closed_at")
+                if tab_closed_at:
+                    try:
+                        closed_dt = datetime.fromisoformat(tab_closed_at)
+                        if closed_dt.tzinfo is None:
+                            closed_dt = closed_dt.replace(tzinfo=timezone.utc)
+                        if (now - closed_dt).total_seconds() >= TAB_CLOSE_GRACE_SECONDS:
+                            await _end_user_session(token)
+                            continue
+                    except Exception:
+                        pass
+                idle_ref = session.get("last_heartbeat_at") or session.get("last_activity_at")
+                if idle_ref and idle_ref < idle_cutoff:
+                    await _end_user_session(token)
+        except Exception as e:
+            logger.warning("session lifecycle sweeper: %s", e)
+
+
+def _session_bootstrap_fields() -> dict:
+    now_iso = now_utc().isoformat()
+    return {
+        "created_at": now_iso,
+        "last_activity_at": now_iso,
+        "last_heartbeat_at": now_iso,
+    }
 
 
 def _current_quest_periods() -> set:
@@ -644,18 +730,17 @@ async def _repair_daily_login_quest(user_id: str, today: str, *, grant_if_new: b
 
 
 async def count_site_online() -> int:
-    """Users with a valid session active in the last 5 minutes, excluding hidden presence."""
-    now = now_utc()
-    cutoff = (now - timedelta(minutes=5)).isoformat()
-    now_iso = now.isoformat()
+    """Users with a valid session and recent heartbeat, excluding hidden presence."""
+    now_iso = now_utc().isoformat()
     try:
-        # Get IDs of users who have chosen to hide their presence
         hidden = set(await db.users.distinct("user_id", {"appear_offline": True}))
+        cutoff = session_idle_cutoff_iso()
         active_ids = set(await db.user_sessions.distinct("user_id", {
             "expires_at": {"$gt": now_iso},
+            "tab_closed_at": {"$exists": False},
             "$or": [
-                {"last_activity_at": {"$gt": cutoff}},
-                {"last_activity_at": {"$exists": False}, "created_at": {"$gt": cutoff}},
+                {"last_heartbeat_at": {"$gt": cutoff}},
+                {"last_heartbeat_at": {"$exists": False}, "last_activity_at": {"$gt": cutoff}},
             ],
         }))
         return len(active_ids - hidden)
@@ -1482,12 +1567,11 @@ async def register(req: RegisterReq, response: Response):
         "session_token": token,
         "user_id": user_id,
         "expires_at": session_expiry().isoformat(),
-        "created_at": now_utc().isoformat(),
-        "last_activity_at": now_utc().isoformat(),
+        **_session_bootstrap_fields(),
     })
     set_session_cookie(response, token)
 
-    await touch_user_last_seen(user_id)
+    await touch_user_last_seen(user_id, force=True)
     await add_chronicle(user_id, f"Le héros {username} ({cls['name']}) a rejoint NEXORIA", "creation")
     discord_auth_forum.schedule_auth_event("register", user_doc, method="email")
 
@@ -1499,7 +1583,8 @@ async def register(req: RegisterReq, response: Response):
 
     await claim_founder_reward(user_id)
 
-    result = public_user(user_doc)
+    fresh = await db.users.find_one({"user_id": user_id})
+    result = public_user(fresh or user_doc)
     result["session_token"] = token
     return result
 
@@ -1547,14 +1632,14 @@ async def login(req: LoginReq, response: Response):
         "session_token": token,
         "user_id": user["user_id"],
         "expires_at": session_expiry().isoformat(),
-        "created_at": now_utc().isoformat(),
-        "last_activity_at": now_utc().isoformat(),
+        **_session_bootstrap_fields(),
     })
     set_session_cookie(response, token)
-    await touch_user_last_seen(user["user_id"])
+    await touch_user_last_seen(user["user_id"], force=True)
     discord_auth_forum.schedule_auth_event("login", user, method="email")
     asyncio.create_task(_notify_friends_presence(user["user_id"], True))
-    result = public_user(user)
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    result = public_user(fresh or user)
     result["session_token"] = token
     return result
 
@@ -1562,26 +1647,10 @@ async def login(req: LoginReq, response: Response):
 @api.post("/auth/logout")
 async def logout(request: Request, response: Response):
     token = _extract_session_token(request)
-    user_doc = None
-    user_id = None
     if token:
-        session = await db.user_sessions.find_one({"session_token": token})
-        if session:
-            user_id = session.get("user_id")
-            user_doc = await db.users.find_one(
-                {"user_id": user_id},
-                {"username": 1},
-            )
-        await db.user_sessions.delete_one({"session_token": token})
+        _cancel_tab_close_termination(token)
+        await _end_user_session(token)
     clear_session_cookie(response)
-    if user_id:
-        try:
-            await nexus_world.disconnect_user(user_id)
-        except Exception as e:
-            logger.warning("nexus disconnect on logout failed: %s", e)
-    if user_doc:
-        discord_auth_forum.schedule_auth_event("logout", user_doc)
-        asyncio.create_task(_notify_friends_presence(user_id, False))
     return {"ok": True}
 
 
@@ -1673,12 +1742,10 @@ async def auth_heartbeat(request: Request, user: dict = Depends(get_user_dep)):
 
 # ---------- Tab-close / reactivate (sendBeacon-based session cleanup) ----------
 # Flow:
-#   1. `beforeunload` always fires (close AND F5 refresh).
-#      → sends beacon to /auth/tab-close (marks session as "maybe closing")
-#   2a. Real close: no reactivation arrives → session stays marked →
-#       5 s later `get_current_user` rejects it → user is logged out.
-#   2b. F5 refresh: page reloads in < 2 s → frontend detects it was a reload
-#       and immediately calls /auth/tab-reactivate → flag removed → session valid.
+#   1. beforeunload / pagehide → beacon /auth/tab-close (marks tab_closed_at)
+#   2a. Real browser close → after TAB_CLOSE_GRACE_SECONDS the session is deleted
+#       and Discord logout is announced.
+#   2b. F5 refresh → /auth/tab-reactivate cancels the pending close.
 #
 # sendBeacon cannot set Authorization headers, so the token is sent in the body.
 
@@ -1698,31 +1765,29 @@ async def _session_from_body_token(request: Request):
 
 @api.post("/auth/tab-close")
 async def tab_close(request: Request):
-    """Marque la fin d'activité (fermeture d'onglet). La session expire après
-    SESSION_IDLE_MINUTES sans heartbeat — pas de déconnexion instantanée."""
+    """Fermeture d'onglet / navigateur — session supprimée après un court délai de grâce."""
     session = await _session_from_body_token(request)
     if session:
-        now_iso = now_utc().isoformat()
+        token = session["session_token"]
         await db.user_sessions.update_one(
-            {"session_token": session["session_token"]},
-            {"$set": {"last_heartbeat_at": now_iso}, "$unset": {"tab_closed_at": ""}},
+            {"session_token": token},
+            {"$set": {"tab_closed_at": now_utc().isoformat()}},
         )
+        _schedule_tab_close_termination(token)
     return {"ok": True}
 
 
 @api.post("/auth/tab-reactivate")
-async def tab_reactivate(user: dict = Depends(get_user_dep)):
-    """Cancel a pending tab-close (called on page reload detection).
-    Removes the `tab_closed_at` flag so the session stays alive.
-    """
-    token = None
-    # user was authenticated via the standard Bearer header in this request
-    # so the session is valid — just clear the flag
-    # We need the raw token to find the session:
-    # re-resolve from get_user_dep is impossible here, but we can query by user_id
+async def tab_reactivate(request: Request, user: dict = Depends(get_user_dep)):
+    """Annule une fermeture d'onglet en cours (refresh F5)."""
+    token = _extract_session_token(request)
+    _cancel_tab_close_termination(token)
     await db.user_sessions.update_many(
-        {"user_id": user["user_id"], "tab_closed_at": {"$exists": True}},
-        {"$unset": {"tab_closed_at": ""}},
+        {"user_id": user["user_id"]},
+        {
+            "$unset": {"tab_closed_at": ""},
+            "$set": {"last_heartbeat_at": now_utc().isoformat()},
+        },
     )
     return {"ok": True}
 
@@ -1795,19 +1860,20 @@ async def google_session(req: SessionExchangeReq, response: Response):
         "session_token": emergent_token,
         "user_id": user["user_id"],
         "expires_at": session_expiry().isoformat(),
-        "created_at": now_utc().isoformat(),
-        "last_activity_at": now_utc().isoformat(),
         "provider": "google",
+        **_session_bootstrap_fields(),
     })
     set_session_cookie(response, emergent_token)
-    await touch_user_last_seen(user["user_id"])
+    await touch_user_last_seen(user["user_id"], force=True)
     await maybe_process_daily_login(user["user_id"])
     if is_new_google_account:
         discord_auth_forum.schedule_auth_event("register", user, method="google")
         await claim_founder_reward(user["user_id"])
     else:
         discord_auth_forum.schedule_auth_event("login", user, method="google")
-    result = public_user(user)
+        asyncio.create_task(_notify_friends_presence(user["user_id"], True))
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    result = public_user(fresh or user)
     result["session_token"] = emergent_token
     return result
 
@@ -2104,6 +2170,7 @@ async def get_profile_by_username(username: str, request: Request):
     enriched = await _enrich_friends_online_async([{**pub, "user_id": user["user_id"]}])
     if enriched:
         pub["online"] = enriched[0].get("online", False)
+        pub["nexus_online"] = enriched[0].get("nexus_online", False)
     user_badges = await db.user_badges.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(500)
     return {
         "hidden": False,
@@ -4108,12 +4175,11 @@ async def staff_maintenance_discord_callback(req: MaintenanceDiscordCallbackReq,
         "session_token": session_token,
         "user_id": user["user_id"],
         "expires_at": session_expiry().isoformat(),
-        "created_at": now_utc().isoformat(),
-        "last_activity_at": now_utc().isoformat(),
         "provider": "discord_maintenance",
+        **_session_bootstrap_fields(),
     })
     set_session_cookie(response, session_token)
-    await touch_user_last_seen(user["user_id"])
+    await touch_user_last_seen(user["user_id"], force=True)
     discord_auth_forum.schedule_auth_event("login", user, method="discord")
     result = public_user(user)
     result["session_token"] = session_token
@@ -5572,15 +5638,15 @@ async def discord_exchange(req: DiscordExchangeReq, response: Response):
         "session_token": token,
         "user_id": user["user_id"],
         "expires_at": session_expiry().isoformat(),
-        "created_at": now_utc().isoformat(),
-        "last_activity_at": now_utc().isoformat(),
         "provider": "discord",
+        **_session_bootstrap_fields(),
     })
     set_session_cookie(response, token)
-    await touch_user_last_seen(user["user_id"])
+    await touch_user_last_seen(user["user_id"], force=True)
     await maybe_process_daily_login(user["user_id"])
     discord_sync.schedule_sync(db, user["user_id"])
     discord_beta.schedule_maybe_grant_beta_on_link(db, user["user_id"], email)
+    asyncio.create_task(_notify_friends_presence(user["user_id"], True))
     if is_new_account:
         discord_auth_forum.schedule_auth_event("register", user, method="discord")
         if req.referral_code:
@@ -6019,14 +6085,15 @@ async def world_heroes():
         "level": 1, "rank": 1, "avatar_url": 1, "active_title": 1, "role": 1,
         "appear_offline": 1,
     }).to_list(500)
-    # active = valid session with recent activity (5 min)
-    cutoff = (now_utc() - timedelta(minutes=5)).isoformat()
+    # active = valid session with recent heartbeat
+    cutoff = session_idle_cutoff_iso()
     now_iso = now_utc().isoformat()
     active_sessions = await db.user_sessions.distinct("user_id", {
         "expires_at": {"$gt": now_iso},
+        "tab_closed_at": {"$exists": False},
         "$or": [
-            {"last_activity_at": {"$gt": cutoff}},
-            {"last_activity_at": {"$exists": False}, "created_at": {"$gt": cutoff}},
+            {"last_heartbeat_at": {"$gt": cutoff}},
+            {"last_heartbeat_at": {"$exists": False}, "last_activity_at": {"$gt": cutoff}},
         ],
     })
     active_set = set(active_sessions)
@@ -7136,6 +7203,35 @@ def _nexus_online_ids():
         return set()
 
 
+async def _active_site_user_ids(user_ids: list[str] | None = None) -> set[str]:
+    """User IDs with a recent heartbeat on an active site session."""
+    now_iso = now_utc().isoformat()
+    cutoff = session_idle_cutoff_iso()
+    query: dict = {
+        "expires_at": {"$gt": now_iso},
+        "tab_closed_at": {"$exists": False},
+        "$or": [
+            {"last_heartbeat_at": {"$gt": cutoff}},
+            {"last_heartbeat_at": {"$exists": False}, "last_activity_at": {"$gt": cutoff}},
+        ],
+    }
+    if user_ids:
+        query["user_id"] = {"$in": user_ids}
+    return set(await db.user_sessions.distinct("user_id", query))
+
+
+async def _resolve_user_presence(user_id: str, appear_offline: bool = False) -> dict:
+    """Site + Nexus presence, masked when the user hides their presence."""
+    if appear_offline:
+        return {"online": False, "nexus_online": False}
+    site_ids = await _active_site_user_ids([user_id])
+    nexus_ids = _nexus_online_ids()
+    return {
+        "online": user_id in site_ids,
+        "nexus_online": user_id in nexus_ids,
+    }
+
+
 def _enrich_friends_online(friends: list) -> list:
     # Legacy sync helper — superseded by the async version in list_friends.
     online = _nexus_online_ids()
@@ -7145,32 +7241,20 @@ def _enrich_friends_online(friends: list) -> list:
 
 
 async def _enrich_friends_online_async(friends: list) -> list:
-    """Determine online status from SITE sessions (not just Nexus socket),
-    and honour each friend's appear_offline preference.
+    """Site + Nexus presence, honouring each friend's appear_offline preference.
 
-    A friend is online if:
-      1. They have an active session with recent activity (≤ 5 min), AND
-      2. They have NOT enabled appear_offline.
+    - online: active site session (≤ 5 min), unless appear_offline.
+    - nexus_online: connected to Nexus realtime layer, unless appear_offline.
     """
     if not friends:
         return friends
-    now_iso = now_utc().isoformat()
-    cutoff = (now_utc() - timedelta(minutes=5)).isoformat()
     friend_ids = [f["user_id"] for f in friends if f.get("user_id")]
     if not friend_ids:
         return friends
 
-    # Who has an active session in the last 5 minutes?
-    active_sessions = set(await db.user_sessions.distinct("user_id", {
-        "user_id": {"$in": friend_ids},
-        "expires_at": {"$gt": now_iso},
-        "$or": [
-            {"last_activity_at": {"$gt": cutoff}},
-            {"last_activity_at": {"$exists": False}, "created_at": {"$gt": cutoff}},
-        ],
-    }))
+    active_sessions = await _active_site_user_ids(friend_ids)
+    nexus_online = _nexus_online_ids()
 
-    # Who has appear_offline enabled?
     hidden_users = set()
     async for doc in db.users.find(
         {"user_id": {"$in": friend_ids}, "appear_offline": True},
@@ -7180,7 +7264,9 @@ async def _enrich_friends_online_async(friends: list) -> list:
 
     for f in friends:
         uid = f.get("user_id")
-        f["online"] = (uid in active_sessions) and (uid not in hidden_users)
+        hidden = uid in hidden_users
+        f["online"] = (uid in active_sessions) and not hidden
+        f["nexus_online"] = (uid in nexus_online) and not hidden
         f["is_nexus_supreme"] = (f.get("username") or "").lower() == OWNER_USERNAME.lower()
     return friends
 
@@ -8001,9 +8087,10 @@ async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
     ]
     quests_completed = await db.user_quests.count_documents({"user_id": user_id, "completed": True})
     can_edit_profile = viewer["user_id"] == user_id or is_staff_user(viewer)
+    presence = await _resolve_user_presence(user_id, bool(u.get("appear_offline")))
     return {
         "hidden": False,
-        "user": {**u, "quests_completed": quests_completed},
+        "user": {**u, "quests_completed": quests_completed, **presence},
         "inventory": inv,
         "badges": badges,
         "chronicles": chronicles,
@@ -8350,6 +8437,14 @@ async def startup():
         _vip_expiry_task = asyncio.create_task(_vip_expiry_loop(300))
     except Exception as e:
         logger.warning(f"NEXORIA: could not start VIP expiry watcher — {e}")
+
+    # Session lifecycle: idle timeout + tab-close cleanup + friend presence on end.
+    try:
+        from auth import register_session_end_extra
+        register_session_end_extra(lambda uid: _notify_friends_presence(uid, False))
+        asyncio.create_task(_session_lifecycle_sweeper())
+    except Exception as e:
+        logger.warning(f"NEXORIA: could not start session lifecycle sweeper — {e}")
 
     # Trade offers expiry watcher (auto-refund past the response deadline).
     global _trade_expiry_task

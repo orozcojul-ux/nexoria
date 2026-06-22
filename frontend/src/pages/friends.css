@@ -223,6 +223,14 @@
   text-transform: uppercase;
   color: #b8aecb;
 }
+.friend-card-lastseen {
+  margin-top: 0.2rem;
+}
+.friend-card-lastseen-date {
+  font-size: 0.58rem;
+  color: #71717a;
+  letter-spacing: 0.02em;
+}
 
 .friend-card-actions {
   display: flex;

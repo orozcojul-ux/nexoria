@@ -6,15 +6,16 @@ import uuid
 import bcrypt
 import jwt
 import secrets
+import asyncio
 from datetime import datetime, timezone, timedelta
 from fastapi import HTTPException, Request
 
 JWT_ALGORITHM = "HS256"
 
 # Inactivité : une session sans heartbeat depuis SESSION_IDLE_MINUTES est fermée.
-# Couvre l'inactivité (onglet ouvert sans interaction) et la fermeture du navigateur
-# (les heartbeats cessent) — pas de déconnexion instantanée à la fermeture d'onglet.
 SESSION_IDLE_MINUTES = int(os.environ.get("SESSION_IDLE_MINUTES", "15"))
+# Grace après fermeture d'onglet (F5 refresh annule via /auth/tab-reactivate).
+TAB_CLOSE_GRACE_SECONDS = int(os.environ.get("TAB_CLOSE_GRACE_SECONDS", "3"))
 
 
 def hash_password(password: str) -> str:
@@ -36,6 +37,71 @@ def get_jwt_secret() -> str:
 def create_session_token() -> str:
     """Random opaque session token (used both for JWT-auth users and Google-auth users)."""
     return secrets.token_urlsafe(48)
+
+
+def session_idle_cutoff_iso() -> str:
+    """Sessions without heartbeat since this instant are considered idle/offline."""
+    return (datetime.now(timezone.utc) - timedelta(minutes=SESSION_IDLE_MINUTES)).isoformat()
+
+
+def session_is_idle(session: dict) -> bool:
+    """True when the session has no recent heartbeat (or legacy activity fallback)."""
+    if not session or SESSION_IDLE_MINUTES <= 0:
+        return False
+    idle_ref = session.get("last_heartbeat_at") or session.get("last_activity_at")
+    if not idle_ref:
+        return False
+    try:
+        ref_dt = datetime.fromisoformat(idle_ref) if isinstance(idle_ref, str) else idle_ref
+        if ref_dt.tzinfo is None:
+            ref_dt = ref_dt.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - ref_dt).total_seconds() > SESSION_IDLE_MINUTES * 60
+    except Exception:
+        return False
+
+
+async def terminate_session(db, token: str) -> str | None:
+    """Delete a session row. Returns user_id if a session was removed."""
+    session = await db.user_sessions.find_one({"session_token": token}, {"user_id": 1})
+    if not session:
+        return None
+    user_id = session.get("user_id")
+    await db.user_sessions.delete_one({"session_token": token})
+    return user_id
+
+
+_session_end_extra = None
+
+
+def register_session_end_extra(callback):
+    """Optional hook (e.g. friend presence) when any session ends."""
+    global _session_end_extra
+    _session_end_extra = callback
+
+
+async def run_session_end_side_effects(db, user_id: str):
+    """Disconnect realtime layers after any session termination (best-effort)."""
+    if not user_id:
+        return
+    try:
+        import nexus_world
+        await nexus_world.disconnect_user(user_id)
+    except Exception:
+        pass
+    try:
+        import discord_auth_forum
+        user = await db.users.find_one({"user_id": user_id}, {"username": 1})
+        if user:
+            discord_auth_forum.schedule_auth_event("logout", user)
+    except Exception:
+        pass
+    if _session_end_extra:
+        try:
+            result = _session_end_extra(user_id)
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception:
+            pass
 
 
 def session_expiry(days: int = 7) -> datetime:
@@ -87,11 +153,7 @@ async def get_current_user(request: Request, db) -> dict:
     if expires_at and expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Session expired")
 
-    # Idle timeout: kill the session if there has been no *interaction* for too long.
-    # We use `last_heartbeat_at` (set ONLY by /auth/heartbeat, which the client fires
-    # solely while the user is genuinely active) — NOT `last_activity_at`, which any
-    # background poll would refresh, defeating the timeout. Falls back to
-    # last_activity_at for legacy sessions that predate the heartbeat field.
+    # Idle timeout driven by heartbeat (not background API polls).
     idle_ref = session.get("last_heartbeat_at") or session.get("last_activity_at")
     if idle_ref and SESSION_IDLE_MINUTES > 0:
         try:
@@ -100,14 +162,35 @@ async def get_current_user(request: Request, db) -> dict:
                 ref_dt = ref_dt.replace(tzinfo=timezone.utc)
             idle_seconds = (datetime.now(timezone.utc) - ref_dt).total_seconds()
             if idle_seconds > SESSION_IDLE_MINUTES * 60:
+                user_id = session.get("user_id")
                 await db.user_sessions.delete_one({"session_token": token})
+                if user_id:
+                    await run_session_end_side_effects(db, user_id)
                 raise HTTPException(status_code=401, detail="Session expirée (inactivité)")
         except HTTPException:
             raise
         except Exception:
             pass
 
-    # Throttled activity ping (max once per 60s) — drives site_online accuracy
+    # Tab close: grace window lets F5 refresh call /auth/tab-reactivate.
+    tab_closed_at = session.get("tab_closed_at")
+    if tab_closed_at:
+        try:
+            closed_dt = datetime.fromisoformat(tab_closed_at) if isinstance(tab_closed_at, str) else tab_closed_at
+            if closed_dt.tzinfo is None:
+                closed_dt = closed_dt.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc) - closed_dt).total_seconds() > TAB_CLOSE_GRACE_SECONDS:
+                user_id = session.get("user_id")
+                await db.user_sessions.delete_one({"session_token": token})
+                if user_id:
+                    await run_session_end_side_effects(db, user_id)
+                raise HTTPException(status_code=401, detail="Session fermée")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    # Throttled activity ping (max once per 60s) — legacy presence fallback only.
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
     last_act = session.get("last_activity_at")

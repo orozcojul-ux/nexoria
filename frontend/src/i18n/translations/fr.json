@@ -443,6 +443,8 @@
   "common.hero": "Héros",
   "common.online": "En ligne",
   "common.offline": "Hors ligne",
+  "presence.nexus_online": "Nexus · Connecté",
+  "presence.nexus_offline": "Nexus · Absent",
   "quests.tab.daily": "Quotidien",
   "quests.tab.weekly": "Hebdo",
   "quests.tab.monthly": "Mensuel",

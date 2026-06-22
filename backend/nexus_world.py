@@ -416,19 +416,24 @@ async def disconnect_user(user_id: str):
 
 
 async def _session_presence_watchdog():
-    """Kick Nexus sockets whose user no longer has a valid session."""
+    """Kick Nexus sockets whose user no longer has a valid, non-idle session."""
     while True:
         await asyncio.sleep(45)
         if _db_ref is None or _sio_ref is None:
             continue
         now_iso = datetime.now(timezone.utc).isoformat()
+        try:
+            from auth import session_is_idle
+        except Exception:
+            session_is_idle = None
         for uid in list(_user_sids.keys()):
             try:
                 session = await _db_ref.user_sessions.find_one({
                     "user_id": uid,
                     "expires_at": {"$gt": now_iso},
+                    "tab_closed_at": {"$exists": False},
                 })
-                if not session:
+                if not session or (session_is_idle and session_is_idle(session)):
                     await disconnect_user(uid)
             except Exception as e:
                 logger.warning(f"[nexus] session watchdog uid={uid}: {e}")

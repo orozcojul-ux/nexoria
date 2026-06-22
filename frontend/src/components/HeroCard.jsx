@@ -491,11 +491,17 @@ export default function HeroCard({ userId, open, onClose }) {
                       label="Inscription"
                       value={u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
                     />
-                    <SidebarRow
-                      label="Dernière connexion"
-                      value={data.location ? "En ligne" : "Hors-ligne"}
-                      color={data.location ? "#6ee7b7" : undefined}
-                    />
+                    <SidebarRow label="Dernière connexion" stacked>
+                      <LastConnection
+                        user={u}
+                        includePrefix={false}
+                        dateTimeClassName={styles.sidebarLastSeenDate}
+                        onlineClassName={styles.sidebarLastSeenOnline}
+                        offlineClassName={styles.sidebarLastSeenOffline}
+                        nexusOnlineClassName={styles.sidebarNexusOnline}
+                        nexusOfflineClassName={styles.sidebarNexusOffline}
+                      />
+                    </SidebarRow>
                     <SidebarRow
                       label="Localisation"
                       value={data.location ? prettyRoom(data.location.room) : "—"}
@@ -629,11 +635,15 @@ export default function HeroCard({ userId, open, onClose }) {
   );
 }
 
-function SidebarRow({ label, value, color }) {
+function SidebarRow({ label, value, color, children, stacked }) {
   return (
-    <div className={styles.sidebarRow}>
+    <div className={`${styles.sidebarRow}${stacked ? ` ${styles.sidebarRowStacked}` : ""}`}>
       <span className={styles.sidebarLabel}>{label}</span>
-      <span className={styles.sidebarValue} style={color ? { color } : undefined}>{value}</span>
+      {children ? (
+        <div className={styles.sidebarValueStack}>{children}</div>
+      ) : (
+        <span className={styles.sidebarValue} style={color ? { color } : undefined}>{value}</span>
+      )}
     </div>
   );
 }
@@ -655,7 +665,6 @@ function OverviewTab({ data, u, classColor, onViewBadges }) {
   const titles = (data.titles_progress || []).slice(-4);
   const dna = data.dna || {};
   const cosmetics = Object.values(data.equipped_cosmetics || {});
-  const isOnline = Boolean(data.location);
 
   return (
     <>
@@ -747,8 +756,8 @@ function OverviewTab({ data, u, classColor, onViewBadges }) {
               label="Inscription"
               value={u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
             />
-            <InfoEntry label="Statut">
-              <LastConnection user={u} online={isOnline} />
+            <InfoEntry label="Dernière connexion">
+              <LastConnection user={u} includePrefix={false} />
             </InfoEntry>
             <InfoEntry
               label="Localisation"
@@ -788,7 +797,6 @@ function InfoEntry({ label, value, color, bold, muted, children }) {
 }
 
 function InfoTab({ u, guild, location }) {
-  const isOnline = Boolean(location);
   return (
     <Section title="Fiche détaillée">
       <div className={styles.grid2}>
@@ -806,10 +814,10 @@ function InfoTab({ u, guild, location }) {
         <div className={styles.infoBlock}>
           <div className={styles.infoBlockLabel}>Dernière connexion</div>
           <div className={styles.infoBlockValue}>
-            <LastConnection user={u} online={isOnline} />
+            <LastConnection user={u} includePrefix={false} />
           </div>
         </div>
-        <InfoBlock label="Localisation" value={location ? prettyRoom(location.room) : "Hors-ligne"} />
+        <InfoBlock label="Localisation" value={location ? prettyRoom(location.room) : "—"} />
         <InfoBlock label="Followers" value={u.followers || 0} />
         <InfoBlock label="Following" value={u.following || 0} />
         <InfoBlock label="Rôle" value={u.role || "user"} />

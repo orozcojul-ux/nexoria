@@ -217,4 +217,6 @@ export const TRANSLATIONS_EXTENDED = {
   "common.hero": T("Héros", "Hero"),
   "common.online": T("En ligne", "Online"),
   "common.offline": T("Hors ligne", "Offline"),
+  "presence.nexus_online": T("Nexus · Connecté", "Nexus · Connected"),
+  "presence.nexus_offline": T("Nexus · Absent", "Nexus · Away"),
 };

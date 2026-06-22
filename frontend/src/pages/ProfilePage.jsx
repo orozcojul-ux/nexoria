@@ -296,7 +296,14 @@ export default function ProfilePage({
             <h1 className={styles.heroName} data-testid="profile-username" style={{ textShadow: `0 0 18px ${accent}88` }}>{name}</h1>
             <div className={styles.discordLine} data-testid="profile-discord-name">Discord · {discordName}</div>
             <div className={styles.lastSeenLine} data-testid="profile-last-connection">
-              <LastConnection user={hero} onlineClassName={styles.lastSeenOnline} offlineClassName={styles.lastSeenOffline} />
+              <LastConnection
+                user={hero}
+                dateTimeClassName={styles.lastSeenDate}
+                onlineClassName={styles.lastSeenOnline}
+                offlineClassName={styles.lastSeenOffline}
+                nexusOnlineClassName={styles.lastSeenNexusOnline}
+                nexusOfflineClassName={styles.lastSeenNexusOffline}
+              />
             </div>
             {statusMessage && (
               <div

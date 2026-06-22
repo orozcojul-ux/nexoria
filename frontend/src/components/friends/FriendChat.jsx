@@ -15,8 +15,11 @@ function FriendPresence({ user }) {
   return (
     <LastConnection
       user={user}
+      dateTimeClassName="friend-presence-datetime"
       onlineClassName="friend-online-badge friend-online-badge--on"
       offlineClassName="friend-online-badge friend-online-badge--off"
+      nexusOnlineClassName="friend-nexus-badge friend-nexus-badge--on"
+      nexusOfflineClassName="friend-nexus-badge friend-nexus-badge--off"
     />
   );
 }

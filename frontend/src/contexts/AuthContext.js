@@ -17,6 +17,11 @@ export function AuthProvider({ children }) {
   const setUser = useCallback((u) => {
     if (u?.session_token) setToken(u.session_token);
     setUserState(u);
+    if (u?.session_token) {
+      window.dispatchEvent(new CustomEvent("nexoria:auth-login", {
+        detail: { user_id: u.user_id, last_seen: u.last_seen, username: u.username },
+      }));
+    }
   }, []);
 
   const checkAuth = useCallback(async () => {

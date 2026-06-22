@@ -243,10 +243,15 @@ export default function Friends() {
                   </HeroCardOpener>
                   <div className="friend-card-sub">
                     <span className="friend-card-class">{f.class_name} · Niv. {f.level}</span>
+                  </div>
+                  <div className="friend-card-lastseen">
                     <LastConnection
                       user={f}
+                      dateTimeClassName="friend-card-lastseen-date"
                       onlineClassName="friend-online-badge friend-online-badge--on"
                       offlineClassName="friend-online-badge friend-online-badge--off"
+                      nexusOnlineClassName="friend-nexus-badge friend-nexus-badge--on"
+                      nexusOfflineClassName="friend-nexus-badge friend-nexus-badge--off"
                     />
                   </div>
                 </div>

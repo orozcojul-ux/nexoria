@@ -48,8 +48,10 @@ function CrystalLogo({ t }) {
 
 function UserCard({ user, t }) {
   const { openHeroCard } = useHeroCard();
+  const ns = useNexusSocket();
   const xpPercent = user.xp_pct ?? 0;
   const avatarSrc = getUserAvatarUrl(user);
+  const nexusOnline = ns?.status === "online";
   return (
     <button
       type="button"
@@ -92,8 +94,17 @@ function UserCard({ user, t }) {
             <div className="text-[11px] text-amber-400/95 font-medium truncate">
               {getTitleLabel(user)}
             </div>
-            <div className="text-[9px] uppercase tracking-wider font-semibold mt-0.5">
-              <LastConnection user={user} online onlineClassName="text-emerald-400/90" offlineClassName="text-zinc-500" />
+            <div className="text-[9px] tracking-wider font-medium mt-0.5 leading-tight">
+              <LastConnection
+                user={user}
+                online
+                nexusOnline={nexusOnline}
+                dateTimeClassName="text-zinc-500"
+                onlineClassName="text-emerald-400/90 font-semibold uppercase text-[8px] tracking-widest"
+                offlineClassName="text-zinc-500 uppercase text-[8px] tracking-widest"
+                nexusOnlineClassName="text-cyan-400/90 font-semibold text-[8px] tracking-wide"
+                nexusOfflineClassName="text-zinc-600 text-[8px] tracking-wide"
+              />
             </div>
           </div>
         </div>

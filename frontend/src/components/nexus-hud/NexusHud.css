@@ -1067,6 +1067,25 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.nexus-friend-nexus-status {
+  font-size: 0.48rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 9999px;
+}
+
+.nexus-friend-nexus-status--on {
+  color: #67e8f9;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(6, 182, 212, 0.12);
+}
+
+.nexus-friend-nexus-status--off {
+  color: #52525b;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
 .nexus-friend-avatar--pixel,
 .nexus-hero-avatar--pixel {
   display: flex;
