@@ -109,4 +109,56 @@ Publie dans chaque `DISCORD_CHANNEL_*_ID` configuré (traduction via i18n / Libr
 
 ## Traduction des messages joueurs
 
-Non activée globalement (anti-spam). Le menu 🌍 sur les messages **officiels du bot** reste la voie principale. `#global-chat` reste multilingue avec traduction à la demande.
+La traduction est **à la demande** (pas d’auto-traduction publique dans les salons).
+
+### Clic droit sur un message
+
+1. Clic droit sur n’importe quel message (forum, thread, `#global-chat`, salon langue, message joueur…)
+2. **Applications** → **Traduire ce message**
+3. Le bot répond en **message éphémère** (visible uniquement par toi)
+4. La langue cible est celle de ton rôle **Langue — …** (Onboarding ou profil site). Sinon : français.
+5. Un menu **Choisir une autre langue** permet de retraduire vers une autre langue.
+
+### Commande slash (fallback)
+
+```
+/traduire message:https://discord.com/channels/GUILD/CHANNEL/MESSAGE langue:English
+```
+
+`langue` est optionnelle. Tu peux coller une URL Discord ou un ID de message (dans le salon courant).
+
+### Forum `#inscriptions-beta`
+
+- Les posts joueurs : clic droit → **Traduire ce message**
+- Les threads créés par le bot peuvent afficher un rappel discret + bouton **🌍 Traduire la candidature**
+
+### Messages officiels du bot
+
+Le menu **🌍 Traduire ce message** sur les annonces Oracle / bot reste inchangé.
+
+### Enregistrer les commandes Discord (VPS)
+
+```bash
+cd /var/www/nexoria/backend
+python scripts/register_discord_translate_commands.py              # dry-run
+python scripts/register_discord_translate_commands.py --confirm
+```
+
+Variables : `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`.
+
+### Tests manuels
+
+| Scénario | Étapes | Résultat attendu |
+|----------|--------|------------------|
+| Forum `#inscriptions-beta` | Clic droit sur un post joueur → Traduire ce message | Traduction éphémère dans ta langue |
+| Thread forum | Idem dans un fil de discussion | Idem |
+| `#global-chat` | Clic droit sur un message multilingue | Idem |
+| Langue cible | Compte avec rôle `Langue — English` | Traduction vers l’anglais |
+| Éphémère | Après traduction | Seul toi vois la réponse |
+| Oracle / bot | Menu 🌍 sur message officiel | Comportement inchangé |
+
+### Permissions bot requises
+
+- Lire l’historique des messages (`View Channel`, `Read Message History`)
+- Envoyer des messages (hint forum optionnel)
+- Utiliser les commandes slash / context menu (scope `applications.commands` à l’invitation)

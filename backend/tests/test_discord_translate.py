@@ -2,10 +2,13 @@
 import pytest
 
 from discord_translate import (
+    MAX_TRANSLATION_CHARS,
     build_source_version_embed,
     build_translation_embed,
     normalize_select_lang,
     parse_discord_message,
+    parse_message_reference,
+    payload_char_count,
     payload_source_hash,
     translate_select_component_rows,
 )
@@ -102,3 +105,30 @@ def test_translate_select_component_single_row():
 def test_normalize_select_lang_pt_br():
     assert normalize_select_lang("pt-BR") == "pt"
     assert normalize_select_lang("en") == "en"
+    assert normalize_select_lang("English") == "en"
+    assert normalize_select_lang("français") == "fr"
+
+
+def test_parse_message_reference_url():
+    url = "https://discord.com/channels/111/222/333"
+    channel_id, message_id = parse_message_reference(url, "999")
+    assert channel_id == "222"
+    assert message_id == "333"
+
+
+def test_parse_message_reference_id_only():
+    channel_id, message_id = parse_message_reference("444555666777888999", "222")
+    assert channel_id == "222"
+    assert message_id == "444555666777888999"
+
+
+def test_parse_message_reference_invalid():
+    with pytest.raises(ValueError):
+        parse_message_reference("not-a-url", "")
+
+
+def test_payload_char_count():
+    payload = parse_discord_message(SAMPLE_MESSAGE)
+    assert payload_char_count(payload) > 0
+    assert payload_char_count({"content": "x" * (MAX_TRANSLATION_CHARS + 1)}) > MAX_TRANSLATION_CHARS
+

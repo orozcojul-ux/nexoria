@@ -89,6 +89,33 @@ def restore_text(text: str, tokens: list[str]) -> str:
     return PH_RE.sub(repl, text)
 
 
+async def detect_language(text: str) -> str | None:
+    """Détecte la langue via LibreTranslate /detect. Retourne un code NEXORIA ou None."""
+    snippet = (text or "").strip()[:500]
+    if not snippet or not is_configured():
+        return None
+    url = f"{libretranslate_url()}/detect"
+    try:
+        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+            r = await client.post(url, json={"q": snippet})
+            if r.status_code != 200:
+                return None
+            data = r.json()
+            if isinstance(data, list) and data:
+                code = (data[0].get("language") or "").lower()
+            elif isinstance(data, dict):
+                code = (data.get("language") or "").lower()
+            else:
+                return None
+            if code == "pt-br":
+                code = "pt"
+            if code in {"fr", "en", "es", "de", "it", "pt", "nl", "ja"}:
+                return code
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("LibreTranslate detect failed: %s", str(exc)[:120])
+    return None
+
+
 async def translate_text(text: str, source: str, target: str) -> str | None:
     """Traduit un segment via POST /translate (format=text)."""
     if not text or not text.strip():

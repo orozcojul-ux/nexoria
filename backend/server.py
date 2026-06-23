@@ -8612,7 +8612,7 @@ async def gm_audit_log(
 
 @api.post("/discord/interactions")
 async def discord_interactions(request: Request):
-    """Discord Interactions endpoint — select menu translates bot messages."""
+    """Discord Interactions — traduction (menu, context menu, slash, boutons)."""
     body = await request.body()
     sig = request.headers.get("X-Signature-Ed25519")
     ts = request.headers.get("X-Signature-Timestamp")

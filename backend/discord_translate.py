@@ -1,7 +1,8 @@
-"""Discord message translation — select menu + Interactions API.
+"""Discord message translation — select menu, context menu, slash + Interactions API.
 
-Messages bot are published in French (source). A compact language select menu
-translates to other languages via: i18n prédéfini → LibreTranslate local → Gemini.
+Messages bot are published in French (source). Players can translate any message via
+context menu (Applications → Traduire ce message) or /traduire. Bot messages keep the
+compact language select menu (i18n → LibreTranslate → Gemini).
 """
 from __future__ import annotations
 
@@ -10,6 +11,7 @@ import json
 import logging
 import os
 import re
+import time
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
@@ -42,6 +44,41 @@ SELECT_VALUE_TO_LANG = {lang["select_value"]: lang["code"] for lang in TRANSLATE
 SELECT_VALUE_TO_LANG.update({lang["code"]: lang["code"] for lang in TRANSLATE_LANGS})
 
 TRANSLATE_SELECT_CUSTOM_ID = "translate_select"
+TRANSLATE_USER_SELECT_PREFIX = "translate_user_select"
+TRANSLATE_MSG_BUTTON_PREFIX = "translate_msg"
+CONTEXT_MENU_TRANSLATE_NAME = "Traduire ce message"
+SLASH_TRANSLATE_NAME = "traduire"
+MAX_TRANSLATION_CHARS = 6000
+MESSAGE_URL_RE = re.compile(r"discord(?:app)?\.com/channels/(\d+)/(\d+)/(\d+)")
+
+SLASH_LANG_CHOICES: dict[str, str] = {
+    "français": "fr",
+    "francais": "fr",
+    "english": "en",
+    "anglais": "en",
+    "español": "es",
+    "espanol": "es",
+    "deutsch": "de",
+    "allemand": "de",
+    "italiano": "it",
+    "italien": "it",
+    "português br": "pt",
+    "portugues br": "pt",
+    "português": "pt",
+    "nederlands": "nl",
+    "néerlandais": "nl",
+    "日本語": "ja",
+    "japonais": "ja",
+    "fr": "fr",
+    "en": "en",
+    "es": "es",
+    "de": "de",
+    "it": "it",
+    "pt": "pt",
+    "pt-br": "pt",
+    "nl": "nl",
+    "ja": "ja",
+}
 
 TARGET_LANG_PROMPT = {
     "fr": "français",
@@ -89,7 +126,97 @@ def normalize_select_lang(value: str) -> str:
     key = (value or "").strip()
     if not key:
         return ""
-    return SELECT_VALUE_TO_LANG.get(key, key.lower())
+    lowered = key.lower()
+    if lowered in SLASH_LANG_CHOICES:
+        return SLASH_LANG_CHOICES[lowered]
+    return SELECT_VALUE_TO_LANG.get(key, lowered)
+
+
+def payload_char_count(payload: dict[str, Any]) -> int:
+    total = len(payload.get("content") or "")
+    for emb in payload.get("embeds") or []:
+        for key in ("title", "description", "footer"):
+            total += len(str(emb.get(key) or ""))
+        for field in emb.get("fields") or []:
+            total += len(str(field.get("name") or ""))
+            total += len(str(field.get("value") or ""))
+    return total
+
+
+async def detect_source_language(payload: dict[str, Any]) -> str:
+    parts: list[str] = []
+    content = (payload.get("content") or "").strip()
+    if content:
+        parts.append(content)
+    for emb in payload.get("embeds") or []:
+        for key in ("title", "description"):
+            value = (emb.get(key) or "").strip()
+            if value:
+                parts.append(value)
+    snippet = "\n".join(parts).strip()
+    if not snippet:
+        return DEFAULT_SOURCE_LANG
+    detected = await libretranslate_client.detect_language(snippet)
+    return detected or DEFAULT_SOURCE_LANG
+
+
+def alternate_language_select_row(message_id: str, channel_id: str) -> dict:
+    custom_id = f"{TRANSLATE_USER_SELECT_PREFIX}:{message_id}:{channel_id}"[:100]
+    return {
+        "type": 1,
+        "components": [{
+            "type": 3,
+            "custom_id": custom_id,
+            "placeholder": "🌍 Choisir une autre langue",
+            "min_values": 1,
+            "max_values": 1,
+            "options": translate_select_options(),
+        }],
+    }
+
+
+def parse_message_reference(ref: str, fallback_channel_id: str) -> tuple[str, str]:
+    """Parse Discord message URL or snowflake ID → (channel_id, message_id)."""
+    value = (ref or "").strip()
+    match = MESSAGE_URL_RE.search(value)
+    if match:
+        return match.group(2), match.group(3)
+    if value.isdigit() and fallback_channel_id:
+        return fallback_channel_id, value
+    raise ValueError("invalid message reference")
+
+
+def parse_slash_lang(value: str | None) -> str:
+    if not value:
+        return ""
+    return normalize_select_lang(str(value).strip())
+
+
+def _log_translation_event(
+    *,
+    event: str,
+    message_id: str,
+    channel_id: str,
+    guild_id: str,
+    target_lang: str,
+    source_lang: str,
+    provider: str,
+    duration_ms: int | None = None,
+    error: str | None = None,
+) -> None:
+    extra = (
+        f"event={event} message_id={message_id} channel_id={channel_id} "
+        f"guild_id={guild_id} target_lang={target_lang} source_lang={source_lang} "
+        f"provider={provider}"
+    )
+    if duration_ms is not None:
+        extra += f" duration_ms={duration_ms}"
+    if error:
+        logger.warning("%s error=%s", extra, error[:200])
+    elif event == "success":
+        logger.info("%s success=1", extra)
+    else:
+        logger.info(extra)
 
 
 def translate_select_options() -> list[dict[str, str]]:
@@ -618,12 +745,19 @@ def build_translation_embed(
     return embed
 
 
-def _ephemeral_response(*, content: str = "", embeds: list | None = None) -> dict:
+def _ephemeral_response(
+    *,
+    content: str = "",
+    embeds: list | None = None,
+    components: list | None = None,
+) -> dict:
     data: dict[str, Any] = {"flags": 64}
     if embeds:
         data["embeds"] = embeds[:10]
     if content:
         data["content"] = content[:2000]
+    if components:
+        data["components"] = components[:5]
     return {"type": 4, "data": data}
 
 
@@ -680,29 +814,40 @@ async def resolve_source_payload(
     interaction_message: dict | None,
 ) -> tuple[dict[str, Any], str]:
     payload: dict[str, Any] | None = None
+    source_lang = DEFAULT_SOURCE_LANG
+    registered_doc: dict | None = None
 
     if _db is not None:
-        doc = await _db.discord_translatable_messages.find_one({"message_id": message_id})
-        if doc:
+        registered_doc = await _db.discord_translatable_messages.find_one({"message_id": message_id})
+        if registered_doc:
             payload = parse_discord_message({
-                "content": doc.get("content") or "",
-                "embeds": doc.get("embeds") or [],
+                "content": registered_doc.get("content") or "",
+                "embeds": registered_doc.get("embeds") or [],
             })
+            source_lang = (registered_doc.get("source_lang") or DEFAULT_SOURCE_LANG).strip().lower()
+            if source_lang == "pt-br":
+                source_lang = "pt"
 
     if not payload or not _payload_has_text(payload):
         msg = interaction_message or await fetch_discord_message(channel_id, message_id)
         if msg:
             payload = parse_discord_message(msg)
-            if _db is not None:
-                await register_message(
-                    message_id,
-                    channel_id,
-                    content=msg.get("content") or "",
-                    embeds=msg.get("embeds") or [],
-                    source_lang=DEFAULT_SOURCE_LANG,
-                )
+            if registered_doc:
+                source_lang = (registered_doc.get("source_lang") or source_lang).strip().lower()
+                if source_lang == "pt-br":
+                    source_lang = "pt"
+            else:
+                source_lang = await detect_source_language(payload)
+                if _db is not None:
+                    await register_message(
+                        message_id,
+                        channel_id,
+                        content=msg.get("content") or "",
+                        embeds=msg.get("embeds") or [],
+                        source_lang=source_lang,
+                    )
 
-    return payload or {"content": "", "embeds": []}, DEFAULT_SOURCE_LANG
+    return payload or {"content": "", "embeds": []}, source_lang
 
 
 def _payload_has_text(payload: dict[str, Any]) -> bool:
@@ -732,6 +877,7 @@ async def _edit_deferred_interaction(
     *,
     content: str = "",
     embeds: list | None = None,
+    components: list | None = None,
 ) -> bool:
     token = bot_token()
     if not token or not application_id or not interaction_token:
@@ -742,6 +888,8 @@ async def _edit_deferred_interaction(
         data["embeds"] = embeds[:10]
     if content:
         data["content"] = content[:2000]
+    if components:
+        data["components"] = components[:5]
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.patch(
@@ -774,10 +922,13 @@ async def _finish_deferred_translation(
     interaction_token: str,
     message_id: str,
     channel_id: str,
+    guild_id: str,
     target: str,
     source_lang: str,
     source_payload: dict[str, Any],
+    member_lang: str,
 ) -> None:
+    started = time.monotonic()
     try:
         translated, provider_name = await translate_payload(
             source_payload,
@@ -785,45 +936,60 @@ async def _finish_deferred_translation(
             source_lang,
             message_id=message_id,
         )
+        duration_ms = int((time.monotonic() - started) * 1000)
         if translated is None:
-            logger.warning(
-                "Discord deferred translation failed message_id=%s target=%s source=%s provider=%s",
-                message_id,
-                target,
-                source_lang,
-                provider_name,
+            _log_translation_event(
+                event="error",
+                message_id=message_id,
+                channel_id=channel_id,
+                guild_id=guild_id,
+                target_lang=target,
+                source_lang=source_lang,
+                provider=provider_name,
+                duration_ms=duration_ms,
+                error="translation_failed",
             )
             await _edit_deferred_interaction(
                 application_id,
                 interaction_token,
-                content="Traduction indisponible pour le moment.",
+                content=discord_international.t_bot(member_lang, "translation_unavailable"),
             )
             return
 
-        logger.info(
-            "Discord deferred translation ok message_id=%s target=%s source=%s provider=%s",
-            message_id,
-            target,
-            source_lang,
-            provider_name,
+        _log_translation_event(
+            event="success",
+            message_id=message_id,
+            channel_id=channel_id,
+            guild_id=guild_id,
+            target_lang=target,
+            source_lang=source_lang,
+            provider=provider_name,
+            duration_ms=duration_ms,
         )
         embed = build_translation_embed(translated, target, source_lang)
         await _edit_deferred_interaction(
             application_id,
             interaction_token,
             embeds=[embed],
+            components=[alternate_language_select_row(message_id, channel_id)],
         )
     except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "Discord deferred translation error message_id=%s target=%s: %s",
-            message_id,
-            target,
-            exc,
+        duration_ms = int((time.monotonic() - started) * 1000)
+        _log_translation_event(
+            event="error",
+            message_id=message_id,
+            channel_id=channel_id,
+            guild_id=guild_id,
+            target_lang=target,
+            source_lang=source_lang,
+            provider="none",
+            duration_ms=duration_ms,
+            error=str(exc),
         )
         await _edit_deferred_interaction(
             application_id,
             interaction_token,
-            content="Traduction impossible. Réessaie dans un instant.",
+            content=discord_international.t_bot(member_lang, "translation_unavailable"),
         )
 
 
@@ -831,43 +997,62 @@ async def _handle_translation_request(
     *,
     payload: dict,
     target: str,
+    message_id: str | None = None,
+    channel_id: str | None = None,
+    interaction_message: dict | None = None,
 ) -> dict:
-    """Shared translation flow for select menu and legacy flag buttons."""
-    if target not in LANG_CODES:
-        return _ephemeral_response(content="Langue non prise en charge.")
+    """Shared translation flow — bot select menu, context menu, slash, alternate lang."""
+    started = time.monotonic()
+    member_lang = member_lang_from_interaction(payload)
+    guild_id = str(payload.get("guild_id") or "")
 
-    message = payload.get("message") or {}
-    message_id = str(message.get("id") or "")
-    channel_id = str(payload.get("channel_id") or message.get("channel_id") or "")
+    if target not in LANG_CODES:
+        return _ephemeral_response(
+            content=discord_international.t_bot(member_lang, "unknown_action"),
+        )
+
+    message = interaction_message or payload.get("message") or {}
+    message_id = str(message_id or message.get("id") or "")
+    channel_id = str(channel_id or payload.get("channel_id") or message.get("channel_id") or "")
     if not message_id or not channel_id:
-        return _ephemeral_response(content="Message introuvable.")
+        return _ephemeral_response(content=discord_international.t_bot(member_lang, "message_not_found"))
 
     source_payload, source_lang = await resolve_source_payload(message_id, channel_id, message)
-    source_lang = DEFAULT_SOURCE_LANG
     if not _payload_has_text(source_payload):
-        return _ephemeral_response(content="Aucun contenu à traduire dans ce message.")
+        return _ephemeral_response(content=discord_international.t_bot(member_lang, "no_content"))
 
-    if target == DEFAULT_SOURCE_LANG:
-        logger.info(
-            "Discord translation source display message_id=%s target=%s source=%s provider=none",
-            message_id, target, source_lang,
+    if payload_char_count(source_payload) > MAX_TRANSLATION_CHARS:
+        return _ephemeral_response(content=discord_international.t_bot(member_lang, "message_too_long"))
+
+    if target == source_lang:
+        if source_lang == DEFAULT_SOURCE_LANG and (payload.get("data") or {}).get("custom_id") == TRANSLATE_SELECT_CUSTOM_ID:
+            return _ephemeral_response(content="🇫🇷 Ce message est déjà en français.")
+        return _ephemeral_response(
+            content=discord_international.t_bot(member_lang, "already_in_language"),
+            components=[alternate_language_select_row(message_id, channel_id)],
         )
-        return _ephemeral_response(content="🇫🇷 Ce message est déjà en français.")
 
     src_hash = payload_source_hash(source_payload)
     cache_key = make_cache_key(message_id, source_lang, target, src_hash)
     if cache_key:
         cached = await _read_translation_cache(cache_key)
         if cached:
-            logger.info(
-                "Discord translation cache hit key=%s message_id=%s target=%s provider=%s",
-                cache_key[:16],
-                message_id,
-                target,
-                cached.get("provider") or "cache",
+            duration_ms = int((time.monotonic() - started) * 1000)
+            _log_translation_event(
+                event="success",
+                message_id=message_id,
+                channel_id=channel_id,
+                guild_id=guild_id,
+                target_lang=target,
+                source_lang=source_lang,
+                provider=cached.get("provider") or "cache",
+                duration_ms=duration_ms,
             )
             embed = build_translation_embed(cached["payload"], target, source_lang)
-            return _ephemeral_response(embeds=[embed])
+            return _ephemeral_response(
+                embeds=[embed],
+                components=[alternate_language_select_row(message_id, channel_id)],
+            )
 
     if _is_fast_translation_path(source_payload, target, source_lang):
         translated, provider_name = await translate_payload(
@@ -876,18 +1061,37 @@ async def _handle_translation_request(
             source_lang,
             message_id=message_id,
         )
+        duration_ms = int((time.monotonic() - started) * 1000)
         if translated is None:
-            return _ephemeral_response(content=discord_international.t_bot(member_lang_from_interaction(payload), "translation_unavailable"))
-        logger.info(
-            "Discord translation ok message_id=%s target=%s source=%s provider=%s cache_key=%s",
-            message_id,
-            target,
-            source_lang,
-            provider_name,
-            cache_key[:16] if cache_key else "-",
+            _log_translation_event(
+                event="error",
+                message_id=message_id,
+                channel_id=channel_id,
+                guild_id=guild_id,
+                target_lang=target,
+                source_lang=source_lang,
+                provider=provider_name,
+                duration_ms=duration_ms,
+                error="translation_failed",
+            )
+            return _ephemeral_response(
+                content=discord_international.t_bot(member_lang, "translation_unavailable"),
+            )
+        _log_translation_event(
+            event="success",
+            message_id=message_id,
+            channel_id=channel_id,
+            guild_id=guild_id,
+            target_lang=target,
+            source_lang=source_lang,
+            provider=provider_name,
+            duration_ms=duration_ms,
         )
         embed = build_translation_embed(translated, target, source_lang)
-        return _ephemeral_response(embeds=[embed])
+        return _ephemeral_response(
+            embeds=[embed],
+            components=[alternate_language_select_row(message_id, channel_id)],
+        )
 
     application_id = str(payload.get("application_id") or "")
     interaction_token = str(payload.get("token") or "")
@@ -897,16 +1101,12 @@ async def _handle_translation_request(
             interaction_token=interaction_token,
             message_id=message_id,
             channel_id=channel_id,
+            guild_id=guild_id,
             target=target,
             source_lang=source_lang,
             source_payload=source_payload,
+            member_lang=member_lang,
         ))
-        logger.info(
-            "Discord translation deferred message_id=%s target=%s source=%s",
-            message_id,
-            target,
-            source_lang,
-        )
         return _deferred_ephemeral_ack()
 
     translated, provider_name = await translate_payload(
@@ -915,51 +1115,142 @@ async def _handle_translation_request(
         source_lang,
         message_id=message_id,
     )
+    duration_ms = int((time.monotonic() - started) * 1000)
     if translated is None:
-        logger.warning(
-            "Discord translation failed message_id=%s target=%s source=%s provider=%s",
-            message_id,
-            target,
-            source_lang,
-            provider_name,
+        _log_translation_event(
+            event="error",
+            message_id=message_id,
+            channel_id=channel_id,
+            guild_id=guild_id,
+            target_lang=target,
+            source_lang=source_lang,
+            provider=provider_name,
+            duration_ms=duration_ms,
+            error="translation_failed",
         )
-        return _ephemeral_response(content=discord_international.t_bot(member_lang_from_interaction(payload), "translation_unavailable"))
+        return _ephemeral_response(
+            content=discord_international.t_bot(member_lang, "translation_unavailable"),
+        )
 
-    logger.info(
-        "Discord translation ok message_id=%s target=%s source=%s provider=%s cache_key=%s",
-        message_id,
-        target,
-        source_lang,
-        provider_name,
-        cache_key[:16] if cache_key else "-",
+    _log_translation_event(
+        event="success",
+        message_id=message_id,
+        channel_id=channel_id,
+        guild_id=guild_id,
+        target_lang=target,
+        source_lang=source_lang,
+        provider=provider_name,
+        duration_ms=duration_ms,
     )
     embed = build_translation_embed(translated, target, source_lang)
-    return _ephemeral_response(embeds=[embed])
+    return _ephemeral_response(
+        embeds=[embed],
+        components=[alternate_language_select_row(message_id, channel_id)],
+    )
 
 
-def _parse_translation_target(payload: dict) -> str:
-    """Extract target language from select menu or legacy button interaction."""
+def _parse_translation_target(payload: dict) -> tuple[str, str, str]:
+    """Extract target language and optional message/channel from component interaction."""
     data = payload.get("data") or {}
     custom_id = (data.get("custom_id") or "").strip()
     component_type = data.get("component_type")
+    message_id = ""
+    channel_id = ""
+
+    if component_type == 3 and custom_id.startswith(TRANSLATE_USER_SELECT_PREFIX):
+        parts = custom_id.split(":")
+        if len(parts) >= 3:
+            message_id = parts[1]
+            channel_id = parts[2]
+        values = data.get("values") or []
+        target = normalize_select_lang(str(values[0])) if values else ""
+        return target, message_id, channel_id
 
     if component_type == 3 and custom_id.startswith(TRANSLATE_SELECT_CUSTOM_ID):
         values = data.get("values") or []
         if values:
-            return normalize_select_lang(str(values[0]))
-        return ""
+            return normalize_select_lang(str(values[0])), "", ""
+        return "", "", ""
+
+    if custom_id.startswith(TRANSLATE_MSG_BUTTON_PREFIX):
+        parts = custom_id.split(":")
+        if len(parts) >= 3:
+            channel_id = parts[1]
+            message_id = parts[2]
+        return member_lang_from_interaction(payload), message_id, channel_id
 
     if custom_id.startswith("tr:"):
-        return custom_id.split(":", 1)[1].lower()
+        return custom_id.split(":", 1)[1].lower(), "", ""
 
-    return ""
+    return "", "", ""
 
 
 async def handle_component_interaction(payload: dict) -> dict:
-    target = _parse_translation_target(payload)
+    target, message_id, channel_id = _parse_translation_target(payload)
     if not target:
-        return _ephemeral_response(content=discord_international.t_bot(member_lang_from_interaction(payload), "unknown_action"))
-    return await _handle_translation_request(payload=payload, target=target)
+        return _ephemeral_response(
+            content=discord_international.t_bot(member_lang_from_interaction(payload), "unknown_action"),
+        )
+    return await _handle_translation_request(
+        payload=payload,
+        target=target,
+        message_id=message_id or None,
+        channel_id=channel_id or None,
+    )
+
+
+async def handle_message_context_command(payload: dict) -> dict:
+    """Clic droit → Applications → Traduire ce message."""
+    data = payload.get("data") or {}
+    message_id = str(data.get("target_id") or "")
+    channel_id = str(payload.get("channel_id") or "")
+    target = member_lang_from_interaction(payload)
+    return await _handle_translation_request(
+        payload=payload,
+        target=target,
+        message_id=message_id,
+        channel_id=channel_id,
+    )
+
+
+async def handle_slash_traduire(payload: dict) -> dict:
+    """Commande /traduire message_url:<url|id> langue:<optionnel>."""
+    member_lang = member_lang_from_interaction(payload)
+    data = payload.get("data") or {}
+    options = {opt["name"]: opt.get("value") for opt in data.get("options") or []}
+    message_ref = str(options.get("message") or "").strip()
+    if not message_ref:
+        return _ephemeral_response(content=discord_international.t_bot(member_lang, "message_not_found"))
+    try:
+        channel_id, message_id = parse_message_reference(
+            message_ref,
+            str(payload.get("channel_id") or ""),
+        )
+    except ValueError:
+        return _ephemeral_response(content=discord_international.t_bot(member_lang, "message_not_found"))
+    lang_opt = options.get("langue")
+    target = parse_slash_lang(str(lang_opt)) if lang_opt else member_lang_from_interaction(payload)
+    if not target:
+        target = member_lang
+    return await _handle_translation_request(
+        payload=payload,
+        target=target,
+        message_id=message_id,
+        channel_id=channel_id,
+    )
+
+
+async def handle_application_command(payload: dict) -> dict:
+    data = payload.get("data") or {}
+    cmd_type = data.get("type")
+    name = (data.get("name") or "").strip().lower()
+    if cmd_type == 3:
+        return await handle_message_context_command(payload)
+    if cmd_type == 1 and name == SLASH_TRANSLATE_NAME:
+        return await handle_slash_traduire(payload)
+    return _ephemeral_response(
+        content=discord_international.t_bot(member_lang_from_interaction(payload), "unknown_action"),
+    )
 
 
 async def handle_interaction(body: bytes) -> dict:
@@ -967,9 +1258,73 @@ async def handle_interaction(body: bytes) -> dict:
     itype = data.get("type")
     if itype == 1:
         return {"type": 1}
+    if itype == 2:
+        return await handle_application_command(data)
     if itype == 3:
         return await handle_component_interaction(data)
-    return _ephemeral_response(content=discord_international.t_bot(member_lang_from_interaction(data), "unknown_action"))
+    return _ephemeral_response(
+        content=discord_international.t_bot(member_lang_from_interaction(data), "unknown_action"),
+    )
+
+
+async def post_thread_message(
+    thread_id: str,
+    *,
+    content: str = "",
+    components: list | None = None,
+) -> bool:
+    token = bot_token()
+    if not token or not thread_id:
+        return False
+    payload: dict[str, Any] = {}
+    if content:
+        payload["content"] = content[:1900]
+    if components:
+        payload["components"] = components[:5]
+    if not payload:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(
+                f"{DISCORD_API}/channels/{thread_id}/messages",
+                headers={**_headers(token), "Content-Type": "application/json"},
+                json=payload,
+            )
+            return r.status_code in (200, 201)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("post_thread_message failed thread_id=%s: %s", thread_id, exc)
+        return False
+
+
+async def maybe_post_forum_translate_hint(
+    forum_channel_id: str,
+    thread_id: str,
+    starter_message_id: str,
+) -> None:
+    """Hint discret dans un thread forum bot (ex. inscriptions-beta) — pas de spam global."""
+    beta_channel = os.environ.get("DISCORD_BETA_SIGNUP_CHANNEL_ID", "").strip()
+    if not beta_channel or forum_channel_id != beta_channel or not thread_id:
+        return
+    button_id = f"{TRANSLATE_MSG_BUTTON_PREFIX}:{thread_id}:{starter_message_id}"[:100]
+    components = [{
+        "type": 1,
+        "components": [{
+            "type": 2,
+            "style": 2,
+            "label": "🌍 Traduire la candidature",
+            "custom_id": button_id,
+        }],
+    }]
+    content = (
+        "🌍 Ce message peut être traduit avec **clic droit → Applications → Traduire ce message**."
+    )
+    ok = await post_thread_message(thread_id, content=content, components=components)
+    if ok:
+        logger.info(
+            "forum translate hint posted thread_id=%s forum_channel_id=%s",
+            thread_id,
+            forum_channel_id,
+        )
 
 
 def attach_translate_components(payload: dict) -> dict:
