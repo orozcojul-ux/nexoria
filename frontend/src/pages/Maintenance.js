@@ -5,13 +5,13 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import MaintenanceBootShell from "@/components/maintenance/MaintenanceBootShell";
 import MaintenanceBrand from "@/components/maintenance/MaintenanceBrand";
 import MaintenanceGlobalProgress from "@/components/maintenance/MaintenanceGlobalProgress";
 import MaintenanceDiscordCommunity from "@/components/maintenance/MaintenanceDiscordCommunity";
 import MaintenanceStaffGate from "@/components/maintenance/MaintenanceStaffGate";
-import MaintenanceBetaGate from "@/components/maintenance/MaintenanceBetaGate";
-import MaintenanceBetaApply from "@/components/maintenance/MaintenanceBetaApply";
+import MaintenanceAnticipationPanel from "@/components/maintenance/MaintenanceAnticipationPanel";
 import MaintenanceCountdown from "@/components/maintenance/MaintenanceCountdown";
 import { resolveMaintenanceText, normalizeMaintenanceSystems } from "@/lib/maintenance-content";
 import { stripHtml } from "@/lib/stripHtml";
@@ -70,6 +70,7 @@ function SystemsPanel({ systems }) {
 
 export default function Maintenance() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [statusData, setStatusData] = useState(null);
   // Error message forwarded from mobile Discord OAuth callback
@@ -81,13 +82,13 @@ export default function Maintenance() {
       setStatusData(data);
       if (!data.enabled) {
         navigate("/feed", { replace: true });
-      } else if (data.beta_access) {
+      } else if (data.beta_access || user?.beta_access) {
         navigate("/feed", { replace: true });
       }
     } catch {
       setStatusData({ enabled: true, html: {}, systems: DEFAULT_SYSTEMS });
     }
-  }, [navigate]);
+  }, [navigate, user?.beta_access]);
 
   useEffect(() => {
     loadStatus();
@@ -158,11 +159,10 @@ export default function Maintenance() {
                 updatedAt={statusData?.updated_at}
                 subtitle={statusData?.subtitle}
               />
-              <MaintenanceDiscordCommunity />
             </div>
-            <div className="maint-panels-col maint-panels-col--beta">
-              <MaintenanceBetaApply />
-              <MaintenanceBetaGate />
+            <div className="maint-panels-col maint-panels-col--signup">
+              <MaintenanceAnticipationPanel />
+              <MaintenanceDiscordCommunity />
             </div>
           </div>
         </motion.div>

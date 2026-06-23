@@ -247,6 +247,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
+    const hadBetaAccess = user?.beta_access;
     try { await api.post("/auth/logout"); }
     catch (err) { console.warn("Logout failed", err?.message); }
     setToken(null);
@@ -255,7 +256,7 @@ export function AuthProvider({ children }) {
 
     try {
       const { data } = await api.get("/maintenance/status");
-      if (data.enabled && !data.beta_access) {
+      if (data.enabled && !data.beta_access && !hadBetaAccess) {
         window.location.replace("/maintenance");
         return "/maintenance";
       }
@@ -263,7 +264,7 @@ export function AuthProvider({ children }) {
       /* MaintenanceGate handles redirect on next navigation */
     }
     return "/";
-  }, []);
+  }, [user?.beta_access]);
 
   return (
     <AuthContext.Provider value={{ user, setUser, loading, refresh, logout, checkAuth, banInfo, setBanInfo }}>

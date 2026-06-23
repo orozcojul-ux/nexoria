@@ -61,23 +61,24 @@ export default function DiscordCallback() {
     }
 
     // ── Maintenance staff gate: popup (desktop) ──────────────────────────────
-    // The popup was opened with window.name = "discord_oauth". Send the code to
-    // the parent window and close the popup.
     if (window.opener && window.name === "discord_oauth") {
-
       window.opener.postMessage({ type: "discord_oauth_code", code }, window.location.origin);
-
       window.close();
-
       return;
+    }
 
+    if (window.opener && window.name.startsWith("discord_oauth_maint_")) {
+      const flow = window.name === "discord_oauth_maint_beta"
+        ? "beta"
+        : "register";
+      window.opener.postMessage({ type: "discord_oauth_code_maint", code, flow }, window.location.origin);
+      window.close();
+      return;
     }
 
     // ── Maintenance staff gate: same-window redirect (mobile / popup blocked) ─
-    // The flag is set by MaintenanceStaffGate when popup was blocked.
-    // Call the maintenance Discord endpoint directly, then navigate to /feed.
-    const isMaintFlow = sessionStorage.getItem("nexoria_maint_discord_flow");
-    if (isMaintFlow) {
+    const isMaintStaffFlow = sessionStorage.getItem("nexoria_maint_discord_flow");
+    if (isMaintStaffFlow) {
 
       sessionStorage.removeItem("nexoria_maint_discord_flow");
 
@@ -92,7 +93,6 @@ export default function DiscordCallback() {
             setToken(data.session_token);
           }
 
-          // AuthContext will pick up the user on next render via checkAuth
           window.location.replace("/feed");
 
         } catch (err) {
@@ -107,6 +107,44 @@ export default function DiscordCallback() {
 
       return;
 
+    }
+
+    // ── Maintenance signup / beta (same-window when popup blocked) ───────────
+    const maintFlow = sessionStorage.getItem("nexoria_maint_discord_flow_type");
+    if (maintFlow) {
+      (async () => {
+        try {
+          const {
+            completeMaintenanceDiscordOAuth,
+            applyMaintenanceDiscordSession,
+            shouldRedirectFeedAfterMaintDiscord,
+          } = await import("@/lib/maintenanceDiscordOAuth");
+          const { setToken } = await import("@/lib/api");
+
+          const result = await completeMaintenanceDiscordOAuth(code);
+          if (!result?.data) {
+            navigate("/maintenance");
+            return;
+          }
+
+          const { data } = result;
+          if (data.session_token) setToken(data.session_token);
+          setUser(data);
+
+          if (shouldRedirectFeedAfterMaintDiscord(data)) {
+            toast.success(data.message || "Accès bêta activé. Bienvenue dans le Nexus.");
+            window.location.replace("/feed");
+            return;
+          }
+
+          toast.success(data.message || "Compte enregistré — accès bêta requis pour entrer dans le Nexus.");
+          navigate("/maintenance");
+        } catch (err) {
+          const msg = formatApiError(err) || "Connexion Discord refusée";
+          navigate(`/maintenance?error=${encodeURIComponent(msg)}`);
+        }
+      })();
+      return;
     }
 
 

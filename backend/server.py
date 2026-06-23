@@ -72,6 +72,7 @@ import discord_sync
 import discord_rewards
 import discord_auth_forum
 import discord_beta
+import beta_access
 import discord_translate
 import online_gate
 import asyncio
@@ -121,6 +122,11 @@ MAINTENANCE_PUBLIC_PATHS = frozenset({
     "/api/auth/tab-reactivate",
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
+    "/api/auth/register-from-maintenance",
+    "/api/auth/activate-beta-access",
+    "/api/auth/maintenance-discord-register",
+    "/api/auth/maintenance-discord-beta",
+    "/api/auth/check-availability",
     "/api/webhooks/stripe",  # Stripe calls this server-to-server (no session)
     "/api/discord/interactions",  # Discord Interactions (translation flags)
 })
@@ -1144,6 +1150,27 @@ class LoginReq(BaseModel):
     password: str
 
 
+class MaintenanceRegisterReq(BaseModel):
+    email: EmailStr
+    username: str = Field(..., min_length=3, max_length=20, pattern=r"^[a-zA-Z0-9_]+$")
+    password: str = Field(..., min_length=6)
+
+
+class ActivateBetaReq(BaseModel):
+    login: str = Field(..., min_length=3, max_length=120)
+    password: str = Field(..., min_length=6)
+    beta_key: str = Field(..., min_length=8, max_length=32)
+
+
+class MaintenanceDiscordCodeReq(BaseModel):
+    code: str = Field(..., min_length=1)
+
+
+class MaintenanceDiscordBetaReq(BaseModel):
+    code: str = Field(..., min_length=1)
+    beta_key: str = Field(..., min_length=8, max_length=32)
+
+
 class ForgotPasswordReq(BaseModel):
     email: EmailStr
 
@@ -1341,6 +1368,98 @@ async def claim_founder_reward(user_id: str):
         logger.warning("claim_founder_reward failed for %s: %s", user_id, e)
 
 
+async def claim_beta_activation_rewards(user_id: str, username: str):
+    """Récompenses beta — une seule fois à l'activation de la clé."""
+    user = await db.users.find_one({"user_id": user_id}, {"beta_rewards_claimed": 1, "_id": 0})
+    if user and user.get("beta_rewards_claimed"):
+        return
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"beta_rewards_claimed": True}},
+    )
+    await grant_badge(user_id, beta_access.BETA_BADGE_ID)
+    await grant_xp(user_id, beta_access.BETA_XP_REWARD, "Activation accès beta")
+    await grant_aether(user_id, beta_access.BETA_AETHER_REWARD, "Activation accès beta")
+    await add_chronicle(
+        user_id,
+        f"{username} a débloqué l'accès beta et pénétré le Nexus scellé",
+        "creation",
+    )
+    try:
+        await push_notification(
+            db, user_id, "beta_access",
+            "Accès beta activé",
+            "Bienvenue dans le Nexus — badge Beta Testeur et récompenses débloqués !",
+            "fanfare", "FlaskConical", link="/hero",
+        )
+    except Exception:
+        pass
+    discord_beta.schedule_grant_beta_tester(db, user_id)
+
+
+async def _find_user_by_login(login: str) -> dict | None:
+    raw = login.strip()
+    if not raw:
+        return None
+    if "@" in raw:
+        return await db.users.find_one({"email": raw.lower()})
+    return await db.users.find_one({"username": {"$regex": f"^{re.escape(raw)}$", "$options": "i"}})
+
+
+def _new_user_doc(*, user_id: str, email: str, username: str, password: str, class_id: str, beta_access_flag: bool) -> dict:
+    cls = CLASSES[class_id]
+    doc = {
+        "user_id": user_id,
+        "email": email,
+        "username": username,
+        "password_hash": hash_password(password),
+        "class_id": class_id,
+        "class_name": cls["name"],
+        "secondary_class_id": None,
+        "avatar_url": class_portrait_path(class_id),
+        "banner_url": None,
+        "bio": "",
+        "story": "",
+        "quote": "",
+        "display_name": "",
+        "status_message": "",
+        "pronouns": "",
+        "location": "",
+        "website_url": "",
+        "social_links": {},
+        "profile_accent": "#7B2FF7",
+        "featured_badge_id": None,
+        "profile_show_stats": True,
+        "profile_show_dna": True,
+        "profile_show_chronicle": True,
+        "profile_visibility": "public",
+        "profile_hide_hero_card": False,
+        "level": 1,
+        "xp": 0,
+        "rank": "Novice",
+        "reputation": 0,
+        "aether": 100,
+        "skill_points": 1,
+        "active_title": "novice",
+        "role": "admin" if username.lower() == OWNER_USERNAME.lower() else "user",
+        "auth_provider": "local",
+        "created_at": now_utc().isoformat(),
+        "dna": {"creativity": 10, "ambition": 10, "sociability": 10, "curiosity": 10, "persistence": 10, "influence": 10},
+        "kingdom": {b["id"]: {"level": 1 if b["id"] == "castle" else 0} for b in KINGDOM_BUILDINGS},
+        "skills_allocated": {},
+        "followers": 0,
+        "following": 0,
+        "beta_access": beta_access_flag,
+        "beta_activated_at": None,
+        "beta_key_used": None,
+        "beta_rewards_claimed": False,
+    }
+    for stat, bonus in cls.get("stat_bonus", {}).items():
+        if stat in doc["dna"]:
+            doc["dna"][stat] += bonus * 5
+    return doc
+
+
 class PostReq(BaseModel):
     content: str
 
@@ -1496,53 +1615,14 @@ async def register(req: RegisterReq, response: Response):
         raise HTTPException(400, "Pseudo déjà pris")
 
     user_id = generate_user_id()
-    cls = CLASSES[req.class_id]
-    user_doc = {
-        "user_id": user_id,
-        "email": email,
-        "username": username,
-        "password_hash": hash_password(req.password),
-        "class_id": req.class_id,
-        "class_name": cls["name"],
-        "secondary_class_id": None,
-        "avatar_url": class_portrait_path(req.class_id),
-        "banner_url": None,
-        "bio": "",
-        "story": "",
-        "quote": "",
-        "display_name": "",
-        "status_message": "",
-        "pronouns": "",
-        "location": "",
-        "website_url": "",
-        "social_links": {},
-        "profile_accent": "#7B2FF7",
-        "featured_badge_id": None,
-        "profile_show_stats": True,
-        "profile_show_dna": True,
-        "profile_show_chronicle": True,
-        "profile_visibility": "public",
-        "profile_hide_hero_card": False,
-        "level": 1,
-        "xp": 0,
-        "rank": "Novice",
-        "reputation": 0,
-        "aether": 100,
-        "skill_points": 1,
-        "active_title": "novice",
-        "role": "admin" if username.lower() == OWNER_USERNAME.lower() else "user",
-        "auth_provider": "local",
-        "created_at": now_utc().isoformat(),
-        "dna": {"creativity": 10, "ambition": 10, "sociability": 10, "curiosity": 10, "persistence": 10, "influence": 10},
-        "kingdom": {b["id"]: {"level": 1 if b["id"] == "castle" else 0} for b in KINGDOM_BUILDINGS},
-        "skills_allocated": {},
-        "followers": 0,
-        "following": 0,
-    }
-    # apply class stat bonus
-    for stat, bonus in cls.get("stat_bonus", {}).items():
-        if stat in user_doc["dna"]:
-            user_doc["dna"][stat] += bonus * 5
+    user_doc = _new_user_doc(
+        user_id=user_id,
+        email=email,
+        username=username,
+        password=req.password,
+        class_id=req.class_id,
+        beta_access_flag=False,
+    )
     await db.users.insert_one(user_doc)
 
     # session
@@ -1556,6 +1636,7 @@ async def register(req: RegisterReq, response: Response):
     set_session_cookie(response, token)
 
     await record_user_connection(db, user_id)
+    cls = CLASSES[req.class_id]
     await add_chronicle(user_id, f"Le héros {username} ({cls['name']}) a rejoint NEXORIA", "creation")
     discord_auth_forum.schedule_auth_event("register", user_doc, method="email")
 
@@ -1571,6 +1652,294 @@ async def register(req: RegisterReq, response: Response):
     result = public_user(fresh or user_doc)
     result["session_token"] = token
     return result
+
+
+@api.post("/auth/register-from-maintenance")
+async def register_from_maintenance(req: MaintenanceRegisterReq):
+    """Création de compte depuis la page maintenance — sans session ni accès beta."""
+    enabled, _ = await is_maintenance_active()
+    if not enabled:
+        raise HTTPException(400, "L'inscription anticipée n'est disponible que pendant la maintenance")
+
+    email = req.email.lower().strip()
+    username = req.username.strip()
+    if await _email_taken(email):
+        raise HTTPException(400, "Email déjà utilisé")
+    if await _username_taken(username):
+        raise HTTPException(400, "Pseudo déjà pris")
+
+    user_id = generate_user_id()
+    user_doc = _new_user_doc(
+        user_id=user_id,
+        email=email,
+        username=username,
+        password=req.password,
+        class_id="explorer",
+        beta_access_flag=False,
+    )
+    await db.users.insert_one(user_doc)
+    await add_chronicle(user_id, f"{username} a créé un compte en anticipation de l'ouverture du Nexus", "creation")
+    discord_auth_forum.schedule_auth_event("register", user_doc, method="maintenance")
+    await claim_founder_reward(user_id)
+
+    return {
+        "ok": True,
+        "message": "Compte créé avec succès. Rejoins le Discord et propose-toi au bêta test pour recevoir une clé d'accès.",
+    }
+
+
+@api.post("/auth/activate-beta-access")
+async def activate_beta_access(req: ActivateBetaReq, response: Response):
+    """Connexion + clé beta — active betaAccess et débloque le site en maintenance."""
+    user = await _find_user_by_login(req.login)
+    if not user or not user.get("password_hash") or not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(401, "Identifiants invalides")
+    enforce_ban_or_raise(user)
+    result = await _activate_beta_key_for_user(user, req.beta_key, response, auth_method="beta")
+    return result
+
+
+async def _activate_beta_key_for_user(user: dict, beta_key: str, response: Response, *, auth_method: str = "beta") -> dict:
+    if user.get("beta_access"):
+        raise HTTPException(409, "Compte déjà activé")
+
+    key_norm = beta_access.normalize_beta_key(beta_key)
+    if not key_norm:
+        raise HTTPException(400, "Clé beta requise")
+
+    key_doc = await beta_access.find_beta_key(db, key_norm)
+    if not key_doc or not key_doc.get("active", True):
+        raise HTTPException(404, "Clé beta invalide")
+    if not beta_access.beta_key_is_available(key_doc):
+        raise HTTPException(403, "Clé déjà utilisée")
+    if not beta_access.beta_key_matches_user(key_doc, user["user_id"]):
+        raise HTTPException(403, "Cette clé n'est pas assignée à votre compte")
+
+    now = now_utc().isoformat()
+    key_result = await db.beta_keys.update_one(
+        {"key": key_norm, "active": True, "used_by_user_id": None},
+        {
+            "$set": {
+                "used_by_user_id": user["user_id"],
+                "used_by_username": user.get("username"),
+                "used_at": now,
+                "last_used_at": now,
+            },
+            "$inc": {"uses": 1},
+        },
+    )
+    if key_result.modified_count == 0:
+        raise HTTPException(403, "Clé déjà utilisée")
+
+    await db.users.update_one(
+        {"user_id": user["user_id"], "beta_access": {"$ne": True}},
+        {
+            "$set": {
+                "beta_access": True,
+                "beta_activated_at": now,
+                "beta_key_used": key_norm,
+            },
+        },
+    )
+    fresh_user = await db.users.find_one({"user_id": user["user_id"]})
+    if not fresh_user or not fresh_user.get("beta_access"):
+        raise HTTPException(409, "Compte déjà activé")
+
+    await claim_beta_activation_rewards(user["user_id"], user.get("username") or "Héros")
+    discord_auth_forum.schedule_beta_redeemed(user.get("username"))
+
+    token = create_session_token()
+    await db.user_sessions.insert_one({
+        "session_token": token,
+        "user_id": user["user_id"],
+        "expires_at": session_expiry().isoformat(),
+        **_session_bootstrap_fields(),
+    })
+    set_session_cookie(response, token)
+    response.set_cookie(
+        beta_access.BETA_COOKIE, key_norm, httponly=True, secure=True, samesite="none",
+        max_age=30 * 24 * 3600, path="/",
+    )
+    await record_user_connection(db, user["user_id"])
+    discord_auth_forum.schedule_auth_event("login", fresh_user, method=auth_method)
+    asyncio.create_task(_notify_friends_presence(user["user_id"], True))
+
+    result = public_user(fresh_user)
+    result["session_token"] = token
+    result["message"] = "Accès bêta activé. Bienvenue dans le Nexus."
+    return result
+
+
+async def _unique_discord_username(base: str) -> str:
+    username = (base or "").replace(" ", "") or f"Heros{uuid.uuid4().hex[:6]}"
+    candidate = username
+    i = 0
+    while await db.users.find_one({"username": candidate}):
+        i += 1
+        candidate = f"{username}{i}"
+    return candidate
+
+
+async def _resolve_discord_user_conflict(profile: dict) -> tuple[dict | None, bool]:
+    """Return (existing_user, is_new). Raises HTTPException on conflict."""
+    email = profile["email"].lower()
+    discord_id = profile["discord_id"]
+    by_discord = await db.users.find_one({"discord_id": discord_id})
+    by_email = await db.users.find_one({"email": email})
+    if by_discord and by_email and by_discord["user_id"] != by_email["user_id"]:
+        raise HTTPException(
+            409,
+            detail="Ce compte Discord est déjà lié à un autre profil NEXORIA",
+        )
+    existing = by_discord or by_email
+    return existing, existing is None
+
+
+@api.post("/auth/maintenance-discord-register")
+async def maintenance_discord_register(req: MaintenanceDiscordCodeReq, response: Response):
+    """Inscription/connexion Discord pendant la maintenance — sans accès beta."""
+    enabled, _ = await is_maintenance_active()
+    if not enabled:
+        raise HTTPException(400, "Inscription Discord maintenance disponible uniquement pendant la maintenance")
+
+    try:
+        profile = await discord_auth.exchange_code(req.code)
+    except discord_auth.DiscordAuthError as e:
+        raise HTTPException(e.status, e.message)
+
+    existing, is_new = await _resolve_discord_user_conflict(profile)
+    is_new_account = is_new
+
+    if existing:
+        enforce_ban_or_raise(existing)
+        user_id = existing["user_id"]
+        patch = _discord_profile_fields(profile)
+        if _avatar_should_sync_from_discord(existing, profile):
+            patch["avatar_url"] = profile.get("discord_avatar_url")
+        if not existing.get("discord_id"):
+            patch["auth_provider"] = existing.get("auth_provider") or "discord"
+        await db.users.update_one({"user_id": user_id}, {"$set": patch})
+        user = await db.users.find_one({"user_id": user_id})
+        if user.get("beta_access"):
+            token = create_session_token()
+            await db.user_sessions.insert_one({
+                "session_token": token,
+                "user_id": user_id,
+                "expires_at": session_expiry().isoformat(),
+                "provider": "discord",
+                **_session_bootstrap_fields(),
+            })
+            set_session_cookie(response, token)
+            await record_user_connection(db, user_id)
+            result = public_user(user)
+            result["session_token"] = token
+            result["ok"] = True
+            result["is_new_account"] = False
+            result["beta_access"] = True
+            result["redirect_feed"] = True
+            result["message"] = "Accès bêta déjà actif. Bienvenue dans le Nexus."
+            return result
+        await add_chronicle(user_id, "Connexion via Discord (maintenance)", "login")
+    else:
+        user_id = generate_user_id()
+        username = await _unique_discord_username(profile.get("username") or profile.get("discord_global_name") or "")
+        email = profile["email"].lower()
+        user_doc = _new_user_doc(
+            user_id=user_id,
+            email=email,
+            username=username,
+            password=_secrets.token_urlsafe(24),
+            class_id="explorer",
+            beta_access_flag=False,
+        )
+        user_doc["password_hash"] = None
+        user_doc.update(_discord_profile_fields(profile))
+        user_doc["auth_provider"] = "discord"
+        user_doc["needs_class_selection"] = True
+        user_doc["avatar_url"] = profile.get("discord_avatar_url") or user_doc["avatar_url"]
+        for stat in ("creativity", "sociability", "curiosity"):
+            if stat in user_doc["dna"]:
+                user_doc["dna"][stat] += 3
+        await db.users.insert_one(user_doc)
+        await add_chronicle(user_id, f"{username} a créé un compte via Discord en anticipation de l'ouverture", "creation")
+        discord_auth_forum.schedule_auth_event("register", user_doc, method="discord")
+        await claim_founder_reward(user_id)
+        user = await db.users.find_one({"user_id": user_id})
+
+    token = create_session_token()
+    await db.user_sessions.insert_one({
+        "session_token": token,
+        "user_id": user_id,
+        "expires_at": session_expiry().isoformat(),
+        "provider": "discord",
+        **_session_bootstrap_fields(),
+    })
+    set_session_cookie(response, token)
+    await record_user_connection(db, user_id)
+    discord_sync.schedule_sync(db, user_id)
+    if not is_new_account:
+        discord_auth_forum.schedule_auth_event("login", user, method="discord")
+    asyncio.create_task(_notify_friends_presence(user_id, True))
+
+    result = public_user(user)
+    result["session_token"] = token
+    result["ok"] = True
+    result["is_new_account"] = is_new_account
+    result["beta_access"] = False
+    result["redirect_feed"] = False
+    if is_new_account:
+        result["message"] = (
+            "Compte créé via Discord. Rejoins le Discord et propose-toi au bêta test pour recevoir une clé d'accès."
+        )
+    else:
+        result["message"] = "Connexion réussie. Active ton accès bêta avec ta clé pour entrer dans le Nexus."
+    return result
+
+
+@api.post("/auth/maintenance-discord-beta")
+async def maintenance_discord_beta(req: MaintenanceDiscordBetaReq, response: Response):
+    """Connexion Discord + clé beta — refuse l'accès sans clé valide."""
+    enabled, _ = await is_maintenance_active()
+    if not enabled:
+        raise HTTPException(400, "Activation beta Discord disponible uniquement pendant la maintenance")
+
+    try:
+        profile = await discord_auth.exchange_code(req.code)
+    except discord_auth.DiscordAuthError as e:
+        raise HTTPException(e.status, e.message)
+
+    existing, is_new = await _resolve_discord_user_conflict(profile)
+    if is_new or not existing:
+        raise HTTPException(404, "Aucun compte NEXORIA lié à ce Discord — crée d'abord ton compte")
+
+    enforce_ban_or_raise(existing)
+    user_id = existing["user_id"]
+    patch = _discord_profile_fields(profile)
+    if _avatar_should_sync_from_discord(existing, profile):
+        patch["avatar_url"] = profile.get("discord_avatar_url")
+    if not existing.get("discord_id"):
+        patch["auth_provider"] = existing.get("auth_provider") or "discord"
+    await db.users.update_one({"user_id": user_id}, {"$set": patch})
+    user = await db.users.find_one({"user_id": user_id})
+
+    if user.get("beta_access"):
+        token = create_session_token()
+        await db.user_sessions.insert_one({
+            "session_token": token,
+            "user_id": user_id,
+            "expires_at": session_expiry().isoformat(),
+            "provider": "discord",
+            **_session_bootstrap_fields(),
+        })
+        set_session_cookie(response, token)
+        await record_user_connection(db, user_id)
+        result = public_user(user)
+        result["session_token"] = token
+        result["message"] = "Accès bêta déjà actif. Bienvenue dans le Nexus."
+        result["redirect_feed"] = True
+        return result
+
+    return await _activate_beta_key_for_user(user, req.beta_key, response, auth_method="discord_beta")
 
 
 @api.get("/referral/me")
@@ -3833,24 +4202,31 @@ async def get_maintenance() -> dict:
 
 
 # ---------- Clés beta (accès testeurs pendant la maintenance) ----------
-BETA_COOKIE = "nexoria_beta"
+BETA_COOKIE = beta_access.BETA_COOKIE
 _BETA_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 BETA_TESTER_SLOTS = 100
 
 
 def _gen_beta_key() -> str:
-    def part(n: int) -> str:
-        return "".join(_secrets.choice(_BETA_ALPHABET) for _ in range(n))
-    return f"BETA-{part(4)}-{part(4)}"
+    return beta_access.gen_beta_key()
 
 
 async def has_beta_access(request: Request) -> bool:
-    """True if the request carries a header/cookie matching an active beta key."""
+    """Compte avec beta_access, staff, ou clé beta legacy (cookie/header)."""
+    try:
+        user = await get_current_user(request, db)
+        if user.get("beta_access"):
+            return True
+        if is_staff_user(user):
+            return True
+    except HTTPException:
+        pass
+
     key = request.headers.get("x-beta-key") or request.cookies.get(BETA_COOKIE)
     if not key:
         return False
-    doc = await db.beta_keys.find_one({"key": key.strip().upper(), "active": True})
-    return bool(doc)
+    doc = await beta_access.find_beta_key(db, key)
+    return beta_access.beta_key_is_available(doc)
 
 
 async def is_maintenance_active() -> tuple[bool, str]:
@@ -4055,27 +4431,63 @@ async def list_beta_keys(user: dict = Depends(get_admin_dep)):
 @api.post("/admin/beta-keys")
 async def create_beta_keys(payload: dict, user: dict = Depends(get_admin_dep)):
     label = str(payload.get("label", ""))[:80]
-    max_uses = max(0, min(100000, int(payload.get("max_uses", 0) or 0)))
+    max_uses = max(1, min(100000, int(payload.get("max_uses", 1) or 1)))
     count = max(1, min(50, int(payload.get("count", 1) or 1)))
+    assigned_user_id = str(payload.get("assigned_user_id", "")).strip() or None
+    assigned_username = None
+    if assigned_user_id:
+        target = await db.users.find_one({"user_id": assigned_user_id}, {"username": 1, "beta_access": 1})
+        if not target:
+            raise HTTPException(404, "Utilisateur introuvable")
+        if target.get("beta_access"):
+            raise HTTPException(409, "Compte déjà activé beta")
+        assigned_username = target.get("username")
+        if not label:
+            label = f"Beta — {assigned_username}"
+
     created = []
     for _ in range(count):
         key = _gen_beta_key()
         while await db.beta_keys.find_one({"key": key}):
             key = _gen_beta_key()
-        doc = {
-            "key": key,
-            "label": label,
-            "active": True,
-            "max_uses": max_uses,
-            "uses": 0,
-            "created_at": now_utc().isoformat(),
-            "created_by": user["username"],
-            "last_used_at": None,
-        }
+        doc = beta_access.new_beta_key_doc(
+            key=key,
+            label=label,
+            created_by=user["username"],
+            assigned_user_id=assigned_user_id,
+            assigned_username=assigned_username,
+            max_uses=max_uses,
+        )
         await db.beta_keys.insert_one(doc)
         doc.pop("_id", None)
         created.append(doc)
     return {"created": created}
+
+
+@api.post("/admin/users/{user_id}/beta-key")
+async def assign_beta_key_to_user(user_id: str, payload: dict, user: dict = Depends(get_admin_dep)):
+    """Génère une clé beta réservée à un compte précis (affichée une seule fois)."""
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    if target.get("beta_access"):
+        raise HTTPException(409, "Compte déjà activé beta")
+
+    label = str(payload.get("label", ""))[:80] or f"Beta — {target.get('username', user_id)}"
+    key = _gen_beta_key()
+    while await db.beta_keys.find_one({"key": key}):
+        key = _gen_beta_key()
+    doc = beta_access.new_beta_key_doc(
+        key=key,
+        label=label,
+        created_by=user["username"],
+        assigned_user_id=user_id,
+        assigned_username=target.get("username"),
+        max_uses=1,
+    )
+    await db.beta_keys.insert_one(doc)
+    doc.pop("_id", None)
+    return {"ok": True, "key": key, "label": label, "assigned_user_id": user_id, "assigned_username": target.get("username")}
 
 
 @api.post("/admin/beta-keys/{key}/toggle")

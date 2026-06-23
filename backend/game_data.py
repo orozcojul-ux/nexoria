@@ -187,6 +187,7 @@ TITLES = [
     {"id": "void_walker", "name": "Marcheur du Vide", "unlock_level": 1},
     {"id": "ambassadeur_nexus", "name": "Ambassadeur du Nexus", "unlock_level": 1},
     {"id": "ascendant_nexus", "name": "Ascendant du Nexus", "unlock_level": 1},
+    {"id": "beta_tester", "name": "Beta Testeur", "unlock_level": 1},
 ]
 
 SHOP_ONLY_TITLES = frozenset({"starforged", "void_walker"})
@@ -214,6 +215,7 @@ BADGES = [
     {"id": "parrain_legendaire", "name": "Parrain Légendaire", "category": "social", "icon": "Crown", "rarity": "mythic", "description": "A parrainé 50 nouveaux héros", "color": "#EF4444"},
     {"id": "vip_nexus", "name": "VIP Nexus", "category": "social", "icon": "Gem", "rarity": "legendary", "description": "Détenteur du Pass Ascendant", "color": "#FBBF24"},
     {"id": "pionnier_nexus", "name": "Pionnier du Nexus", "category": "social", "icon": "Flag", "rarity": "mythic", "description": "Parmi les 100 premiers héros à rejoindre NEXORIA", "color": "#22D3EE"},
+    {"id": "beta_testeur", "name": "Beta Testeur", "category": "social", "icon": "FlaskConical", "rarity": "legendary", "description": "Accès beta activé — pionnier du Nexus scellé", "color": "#A78BFA"},
     {"id": "season_passholder", "name": "Détenteur du Passe Saison", "category": "social", "icon": "Ticket", "rarity": "legendary", "description": "A acquis le Passe Saison premium", "color": "#EC4899"},
     {"id": "mentor", "name": "Mentor", "category": "social", "icon": "GraduationCap", "rarity": "epic", "description": "100 abonnés", "color": "#A855F7"},
     {"id": "influencer", "name": "Influenceur", "category": "social", "icon": "TrendingUp", "rarity": "legendary", "description": "1000 abonnés", "color": "#EAB308"},

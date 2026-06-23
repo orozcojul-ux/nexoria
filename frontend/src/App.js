@@ -70,7 +70,7 @@ function MaintenanceGate({ children }) {
 
   const isBypass = isMaintenanceBypassRoute(location.pathname);
   const isStaff = user?.role === "admin" || user?.role === "moderator";
-  const canAccessSite = !maint.enabled || isStaff || maint.beta_access;
+  const canAccessSite = !maint.enabled || isStaff || maint.beta_access || user?.beta_access;
 
   // Callback Discord OAuth : monter immédiatement (Safari mobile).
   if (isBypass) {

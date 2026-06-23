@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ExternalLink, Trash2 } from "lucide-react";
+import { ExternalLink, Trash2, KeyRound, Copy, Check, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
 import HeroCardOpener from "@/components/HeroCardOpener";
@@ -70,6 +70,9 @@ function buildForm(target) {
 export default function AdminEditHeroDialog({ target, onClose, onDone, t }) {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [betaLoading, setBetaLoading] = useState(false);
+  const [generatedKey, setGeneratedKey] = useState("");
+  const [copiedKey, setCopiedKey] = useState(false);
   const [classes, setClasses] = useState([]);
   const [titles, setTitles] = useState([]);
   const [form, setForm] = useState(() => buildForm(target));
@@ -90,7 +93,36 @@ export default function AdminEditHeroDialog({ target, onClose, onDone, t }) {
     { label: "Classe", value: target.class_name || "—" },
     { label: "Inscrit le", value: target.created_at ? new Date(target.created_at).toLocaleDateString() : "—" },
     { label: "Auth", value: target.auth_provider || "local" },
+    { label: "Beta", value: target.beta_access ? "Activé" : "Non activé" },
   ], [target]);
+
+  const generateBetaKey = async () => {
+    if (target.beta_access) return toast.error("Compte déjà activé beta");
+    setBetaLoading(true);
+    setGeneratedKey("");
+    try {
+      const { data } = await api.post(`/admin/users/${target.user_id}/beta-key`, {
+        label: `Beta — ${target.username}`,
+      });
+      setGeneratedKey(data.key || "");
+      toast.success("Clé beta générée pour ce compte");
+    } catch (err) {
+      toast.error(formatApiError(err) || "Erreur");
+    } finally {
+      setBetaLoading(false);
+    }
+  };
+
+  const copyGeneratedKey = async () => {
+    if (!generatedKey) return;
+    try {
+      await navigator.clipboard.writeText(generatedKey);
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 1500);
+    } catch {
+      toast.error("Copie impossible");
+    }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -271,6 +303,46 @@ export default function AdminEditHeroDialog({ target, onClose, onDone, t }) {
                 />
                 Lever le bannissement
               </label>
+            )}
+          </div>
+        </Section>
+
+        <Section title="Accès beta">
+          <div className="rounded-lg border border-violet-500/25 bg-violet-500/[0.04] p-3 space-y-3">
+            {target.beta_access ? (
+              <p className="text-sm text-emerald-300 flex items-center gap-2">
+                <FlaskConical className="w-4 h-4" />
+                Accès beta activé
+                {target.beta_activated_at && (
+                  <span className="text-xs text-zinc-500">
+                    — {new Date(target.beta_activated_at).toLocaleString()}
+                  </span>
+                )}
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-zinc-400">
+                  Génère une clé réservée à ce compte. Elle ne sera affichée qu&apos;une fois — transmets-la au testeur.
+                </p>
+                <button
+                  type="button"
+                  onClick={generateBetaKey}
+                  disabled={betaLoading}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded border border-violet-500/40 text-violet-200 hover:bg-violet-500/10 text-xs font-bold disabled:opacity-50"
+                  data-testid="admin-generate-user-beta-key"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  {betaLoading ? "Génération…" : "Générer clé beta pour ce compte"}
+                </button>
+                {generatedKey && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <code className="font-mono text-sm text-cyan-200 tracking-wider">{generatedKey}</code>
+                    <button type="button" onClick={copyGeneratedKey} className="p-1.5 rounded border border-white/10 text-zinc-400 hover:text-white">
+                      {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </Section>

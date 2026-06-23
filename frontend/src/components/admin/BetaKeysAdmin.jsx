@@ -14,7 +14,7 @@ export default function BetaKeysAdmin() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [label, setLabel] = useState("");
-  const [maxUses, setMaxUses] = useState(0);
+  const [maxUses, setMaxUses] = useState(1);
   const [count, setCount] = useState(1);
   const [copied, setCopied] = useState("");
 
@@ -93,7 +93,7 @@ export default function BetaKeysAdmin() {
           <KeyRound className="w-5 h-5 text-violet-400" /> Clés beta — accès testeurs
         </h3>
         <p className="text-xs text-zinc-500 mt-1">
-          Les testeurs munis d'une clé active peuvent accéder au site même pendant la maintenance.
+          Une clé = un compte. Assigne une clé depuis la fiche joueur (admin) ou génère des clés libres ici.
         </p>
       </div>
 
@@ -119,7 +119,7 @@ export default function BetaKeysAdmin() {
             className="w-24 bg-[#0A0A0E] border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50"
             data-testid="beta-key-maxuses"
           />
-          <span className="block text-[9px] text-zinc-600 mt-1">0 = illimité</span>
+          <span className="block text-[9px] text-zinc-600 mt-1">1 = un seul compte (MVP)</span>
         </div>
         <div>
           <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold block mb-1">Nombre</label>
@@ -202,6 +202,12 @@ export default function BetaKeysAdmin() {
               >
                 <code className="font-mono text-sm tracking-wider text-violet-100">{k.key}</code>
                 {k.label && <span className="text-xs text-zinc-400">· {k.label}</span>}
+                {k.assigned_username && (
+                  <span className="text-xs text-cyan-400/90">→ {k.assigned_username}</span>
+                )}
+                {k.used_by_username && (
+                  <span className="text-xs text-emerald-400/90">utilisée par {k.used_by_username}</span>
+                )}
                 <span className="text-[11px] font-mono-stat text-zinc-500">
                   {k.uses || 0}{limit ? `/${limit}` : ""} util.
                 </span>
