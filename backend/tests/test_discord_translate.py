@@ -109,6 +109,32 @@ def test_normalize_select_lang_pt_br():
     assert normalize_select_lang("français") == "fr"
 
 
+def test_is_translatable_payload():
+    from discord_translate import is_translatable_payload, extract_translatable_text
+
+    assert not is_translatable_payload({"content": "", "embeds": []})
+    assert not is_translatable_payload({"content": "a", "embeds": []})
+    assert is_translatable_payload({"content": "Bonjour le monde", "embeds": []})
+    assert len(extract_translatable_text({"content": "Hello", "embeds": []})) >= 2
+
+
+def test_reaction_cooldown():
+    from discord_translate import _reaction_cooldown, _reaction_on_cooldown
+
+    _reaction_cooldown.clear()
+    assert _reaction_on_cooldown("user-test-1") is False
+    assert _reaction_on_cooldown("user-test-1") is True
+    _reaction_cooldown.clear()
+
+
+def test_globe_reaction_detection():
+    from discord_gateway import _is_globe_reaction
+
+    assert _is_globe_reaction({"name": "🌍"}) is True
+    assert _is_globe_reaction({"name": "👍"}) is False
+    assert _is_globe_reaction({"id": "123", "name": "custom"}) is False
+
+
 def test_parse_message_reference_url():
     url = "https://discord.com/channels/111/222/333"
     channel_id, message_id = parse_message_reference(url, "999")

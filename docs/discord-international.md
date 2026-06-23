@@ -60,7 +60,8 @@ Après `--confirm`, copier les IDs affichés par le script dans le `.env` du VPS
 |---------|-------------|
 | `backend/discord_international.py` | Specs rôles/salons, `get_user_preferred_language()`, sync rôle langue |
 | `backend/scripts/setup_discord_international.py` | Script de setup |
-| `backend/discord_translate.py` | Menu traduction + messages ephemeral i18n |
+| `backend/discord_translate.py` | Menu traduction, réactions 🌍, context menu, slash |
+| `backend/discord_gateway.py` | Gateway WebSocket — réactions 🌍 et helpers forum |
 | `backend/discord_sync.py` | Sync rôle langue si absent (à la liaison Discord) |
 
 ### `get_user_preferred_language(member)`
@@ -111,7 +112,20 @@ Publie dans chaque `DISCORD_CHANNEL_*_ID` configuré (traduction via i18n / Libr
 
 La traduction est **à la demande** (pas d’auto-traduction publique dans les salons).
 
-### Clic droit sur un message
+### Traduire facilement un message
+
+Pour traduire un message, ajoute simplement une réaction **🌍** dessus. Le bot t’enverra la traduction dans ta langue choisie lors de l’arrivée sur le serveur (rôle **Langue — …**). Si tes messages privés sont fermés, le bot répondra discrètement dans le salon ou le thread (message supprimé après 60 secondes).
+
+Dans `#global-chat`, un message épinglé rappelle cette méthode. Pour le publier :
+
+```bash
+cd backend
+python scripts/post_global_chat_translate_hint.py --confirm
+```
+
+Puis épingle le message dans Discord.
+
+### Clic droit sur un message (alternative)
 
 1. Clic droit sur n’importe quel message (forum, thread, `#global-chat`, salon langue, message joueur…)
 2. **Applications** → **Traduire ce message**
@@ -129,8 +143,9 @@ La traduction est **à la demande** (pas d’auto-traduction publique dans les s
 
 ### Forum `#inscriptions-beta`
 
-- Les posts joueurs : clic droit → **Traduire ce message**
-- Les threads créés par le bot peuvent afficher un rappel discret + bouton **🌍 Traduire la candidature**
+- Réagis avec **🌍** sur n’importe quel message du thread
+- Un message helper (une fois par thread) rappelle la réaction 🌍 + bouton **🌍 Traduire la candidature**
+- Alternative : clic droit → **Traduire ce message**
 
 ### Messages officiels du bot
 
@@ -150,15 +165,19 @@ Variables : `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`.
 
 | Scénario | Étapes | Résultat attendu |
 |----------|--------|------------------|
-| Forum `#inscriptions-beta` | Clic droit sur un post joueur → Traduire ce message | Traduction éphémère dans ta langue |
-| Thread forum | Idem dans un fil de discussion | Idem |
-| `#global-chat` | Clic droit sur un message multilingue | Idem |
+| **Réaction 🌍** | Ajouter 🌍 sur un message dans `#global-chat` | Traduction reçue en DM (ou réponse discrète 60 s) |
+| Forum `#inscriptions-beta` | Réaction 🌍 sur un post joueur | Idem |
+| Thread forum | Réaction 🌍 dans un fil | Idem |
+| DM fermés | Désactiver les MP du serveur, réagir avec 🌍 | Mention + traduction dans le salon, supprimée après 60 s |
+| Cooldown | Deux réactions 🌍 en moins de 10 s | Seule la première est traitée |
 | Langue cible | Compte avec rôle `Langue — English` | Traduction vers l’anglais |
-| Éphémère | Après traduction | Seul toi vois la réponse |
+| Clic droit | Applications → Traduire ce message | Traduction éphémère (inchangé) |
 | Oracle / bot | Menu 🌍 sur message officiel | Comportement inchangé |
 
 ### Permissions bot requises
 
 - Lire l’historique des messages (`View Channel`, `Read Message History`)
-- Envoyer des messages (hint forum optionnel)
+- Envoyer des messages et gérer les messages (suppression après 60 s en fallback)
+- **Gateway intents** (Developer Portal → Bot) : activer **MESSAGE CONTENT INTENT** uniquement si nécessaire (le bot récupère les messages via l’API REST). Intents code : `GUILDS`, `GUILD_MESSAGES`, `GUILD_MESSAGE_REACTIONS`
 - Utiliser les commandes slash / context menu (scope `applications.commands` à l’invitation)
+- **Add Reactions** (optionnel — les joueurs ajoutent la réaction, pas le bot)

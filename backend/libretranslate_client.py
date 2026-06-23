@@ -24,6 +24,8 @@ PROTECTED_TERMS = (
 )
 
 URL_RE = re.compile(r"https?://[^\s<>)\]]+")
+EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
+BETA_KEY_RE = re.compile(r"BETA-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}", re.IGNORECASE)
 MENTION_RE = re.compile(r"<@[!&]?\d+>")
 CHANNEL_MENTION_RE = re.compile(r"<#\d+>")
 EMOJI_RE = re.compile(
@@ -63,6 +65,8 @@ def protect_text(text: str) -> tuple[str, list[str]]:
 
     protected = text
     protected = repl_pattern(URL_RE, protected)
+    protected = repl_pattern(EMAIL_RE, protected)
+    protected = repl_pattern(BETA_KEY_RE, protected)
     protected = repl_pattern(MENTION_RE, protected)
     protected = repl_pattern(CHANNEL_MENTION_RE, protected)
     protected = repl_pattern(EMOJI_RE, protected)

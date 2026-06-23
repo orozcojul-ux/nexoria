@@ -87,3 +87,13 @@ def test_translate_payload_uses_i18n_without_network(monkeypatch):
     translated, provider = asyncio.run(translate_payload(payload, "en", "fr", message_id=""))
     assert provider == "i18n"
     assert translated["embeds"][0]["title"] == "🌌 Nexus Chronicles"
+
+
+def test_protect_email_and_beta_key():
+    text = "Contact: player@example.com clé BETA-ABCD-2345"
+    protected, tokens = protect_text(text)
+    assert "player@example.com" not in protected
+    assert "BETA-ABCD-2345" not in protected
+    restored = restore_text(protected, tokens)
+    assert "player@example.com" in restored
+    assert "BETA-ABCD-2345" in restored

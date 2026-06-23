@@ -8905,7 +8905,13 @@ async def startup():
                 cache_stats["deleted_null_keys"],
             )
         await db.discord_translatable_messages.create_index("message_id", unique=True)
+        await db.discord_translate_thread_helpers.create_index("thread_id", unique=True)
         discord_sync.start_periodic_sync(db, interval=30)
+        try:
+            import discord_gateway
+            discord_gateway.start()
+        except Exception as gw_exc:  # noqa: BLE001
+            logger.warning(f"NEXORIA: could not start Discord gateway — {gw_exc}")
     except Exception as e:
         logger.warning(f"NEXORIA: could not start Discord periodic sync — {e}")
 
@@ -8938,6 +8944,11 @@ async def startup():
 async def shutdown():
     try:
         discord_sync.stop_periodic_sync()
+    except Exception:
+        pass
+    try:
+        import discord_gateway
+        discord_gateway.stop()
     except Exception:
         pass
     try:

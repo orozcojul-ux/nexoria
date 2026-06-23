@@ -49,7 +49,15 @@ TRANSLATE_MSG_BUTTON_PREFIX = "translate_msg"
 CONTEXT_MENU_TRANSLATE_NAME = "Traduire ce message"
 SLASH_TRANSLATE_NAME = "traduire"
 MAX_TRANSLATION_CHARS = 6000
+MIN_TRANSLATABLE_CHARS = 2
+REACTION_COOLDOWN_SECONDS = 10
+REACTION_DUPLICATE_WINDOW_SECONDS = 30
+CHANNEL_REPLY_TTL_SECONDS = 60
 MESSAGE_URL_RE = re.compile(r"discord(?:app)?\.com/channels/(\d+)/(\d+)/(\d+)")
+
+_reaction_cooldown: dict[str, float] = {}
+_reaction_recent: dict[str, float] = {}
+
 
 SLASH_LANG_CHOICES: dict[str, str] = {
     "français": "fr",
@@ -241,7 +249,7 @@ def translate_select_component_rows() -> list[dict]:
         "components": [{
             "type": 3,
             "custom_id": TRANSLATE_SELECT_CUSTOM_ID,
-            "placeholder": "🌍 Traduire ce message",
+            "placeholder": "🌍 Traduire ce message (ou réagis avec 🌍)",
             "min_values": 1,
             "max_values": 1,
             "options": translate_select_options(),
@@ -866,6 +874,411 @@ def _payload_has_text(payload: dict[str, Any]) -> bool:
     return False
 
 
+def extract_translatable_text(payload: dict[str, Any]) -> str:
+    parts: list[str] = []
+    content = (payload.get("content") or "").strip()
+    if content:
+        parts.append(content)
+    for emb in payload.get("embeds") or []:
+        for key in ("title", "description", "footer"):
+            value = (emb.get(key) or "").strip()
+            if value:
+                parts.append(value)
+        for field in emb.get("fields") or []:
+            name = (field.get("name") or "").strip()
+            value = (field.get("value") or "").strip()
+            if name:
+                parts.append(name)
+            if value:
+                parts.append(value)
+    return "\n".join(parts).strip()
+
+
+def is_translatable_payload(payload: dict[str, Any]) -> bool:
+    if not _payload_has_text(payload):
+        return False
+    cleaned = libretranslate_client.MENTION_RE.sub("", extract_translatable_text(payload)).strip()
+    return len(cleaned) >= MIN_TRANSLATABLE_CHARS
+
+
+def _reaction_on_cooldown(user_id: str) -> bool:
+    now = time.monotonic()
+    last = _reaction_cooldown.get(user_id, 0.0)
+    if now - last < REACTION_COOLDOWN_SECONDS:
+        return True
+    _reaction_cooldown[user_id] = now
+    if len(_reaction_cooldown) > 5000:
+        cutoff = now - REACTION_COOLDOWN_SECONDS * 2
+        for uid, ts in list(_reaction_cooldown.items()):
+            if ts < cutoff:
+                _reaction_cooldown.pop(uid, None)
+    return False
+
+
+def _reaction_duplicate(user_id: str, message_id: str, target: str) -> bool:
+    key = f"{user_id}:{message_id}:{target}"
+    now = time.monotonic()
+    last = _reaction_recent.get(key, 0.0)
+    if now - last < REACTION_DUPLICATE_WINDOW_SECONDS:
+        return True
+    _reaction_recent[key] = now
+    if len(_reaction_recent) > 10000:
+        cutoff = now - REACTION_DUPLICATE_WINDOW_SECONDS * 2
+        for k, ts in list(_reaction_recent.items()):
+            if ts < cutoff:
+                _reaction_recent.pop(k, None)
+    return False
+
+
+def flatten_translation_body(translated: dict[str, Any], target: str, source_lang: str) -> str:
+    embed = build_translation_embed(translated, target, source_lang)
+    return (embed.get("description") or "—").strip()
+
+
+def member_lang_from_member_dict(member: dict | None) -> str:
+    return discord_international.get_user_preferred_language(member)
+
+
+async def fetch_guild_member(guild_id: str, user_id: str) -> dict | None:
+    token = bot_token()
+    if not token or not guild_id or not user_id:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                f"{DISCORD_API}/guilds/{guild_id}/members/{user_id}",
+                headers=_headers(token),
+            )
+            if r.status_code == 200:
+                return r.json()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("fetch_guild_member failed guild_id=%s user_id=%s: %s", guild_id, user_id, exc)
+    return None
+
+
+async def create_dm_channel(user_id: str) -> str | None:
+    token = bot_token()
+    if not token or not user_id:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(
+                f"{DISCORD_API}/users/@me/channels",
+                headers={**_headers(token), "Content-Type": "application/json"},
+                json={"recipient_id": user_id},
+            )
+            if r.status_code in (200, 201):
+                return str(r.json().get("id") or "")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("create_dm_channel failed user_id=%s: %s", user_id, exc)
+    return None
+
+
+async def send_discord_message(
+    channel_id: str,
+    content: str,
+    *,
+    embeds: list | None = None,
+) -> dict | None:
+    token = bot_token()
+    if not token or not channel_id:
+        return None
+    payload: dict[str, Any] = {"content": content[:2000]}
+    if embeds:
+        payload["embeds"] = embeds[:10]
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.post(
+                f"{DISCORD_API}/channels/{channel_id}/messages",
+                headers={**_headers(token), "Content-Type": "application/json"},
+                json=payload,
+            )
+            if r.status_code in (200, 201):
+                return r.json()
+            logger.info(
+                "send_discord_message failed channel_id=%s status=%s",
+                channel_id,
+                r.status_code,
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("send_discord_message error channel_id=%s: %s", channel_id, exc)
+    return None
+
+
+async def delete_discord_message(channel_id: str, message_id: str) -> None:
+    token = bot_token()
+    if not token or not channel_id or not message_id:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.delete(
+                f"{DISCORD_API}/channels/{channel_id}/messages/{message_id}",
+                headers=_headers(token),
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("delete_discord_message failed channel_id=%s message_id=%s: %s", channel_id, message_id, exc)
+
+
+async def _delete_message_after(channel_id: str, message_id: str, delay: int) -> None:
+    await asyncio.sleep(max(1, delay))
+    await delete_discord_message(channel_id, message_id)
+
+
+async def deliver_reaction_translation(
+    *,
+    user_id: str,
+    channel_id: str,
+    target_lang: str,
+    body: str,
+) -> str:
+    """Envoie la traduction en DM, sinon réponse discrète dans le salon. Retourne delivery mode."""
+    meta = lang_meta(target_lang)
+    dm_text = f"🌍 **Traduction** ({meta['flag']} {meta['label_full']})\n\n{body[:1800]}"
+    dm_channel = await create_dm_channel(user_id)
+    if dm_channel:
+        sent = await send_discord_message(dm_channel, dm_text)
+        if sent:
+            return "dm"
+
+    channel_text = (
+        f"<@{user_id}> 🌍 **Traduction en {meta['label_full']}** :\n\n{body[:1700]}"
+    )
+    sent = await send_discord_message(channel_id, channel_text)
+    if sent and sent.get("id"):
+        asyncio.create_task(
+            _delete_message_after(channel_id, str(sent["id"]), CHANNEL_REPLY_TTL_SECONDS)
+        )
+        return "channel"
+    return "failed"
+
+
+async def handle_reaction_translate(
+    *,
+    user_id: str,
+    channel_id: str,
+    message_id: str,
+    guild_id: str = "",
+    member: dict | None = None,
+) -> None:
+    """Traduction déclenchée par une réaction 🌍."""
+    started = time.monotonic()
+    if not user_id or not channel_id or not message_id:
+        return
+
+    logger.info(
+        "reaction_translate_started user_id=%s message_id=%s channel_id=%s guild_id=%s",
+        user_id,
+        message_id,
+        channel_id,
+        guild_id,
+    )
+
+    if _reaction_on_cooldown(user_id):
+        logger.info(
+            "reaction_translate_skipped user_id=%s reason=cooldown message_id=%s",
+            user_id,
+            message_id,
+        )
+        return
+
+    if not member and guild_id:
+        member = await fetch_guild_member(guild_id, user_id)
+    target_lang = member_lang_from_member_dict(member)
+
+    if _reaction_duplicate(user_id, message_id, target_lang):
+        logger.info(
+            "reaction_translate_skipped user_id=%s reason=duplicate message_id=%s target_lang=%s",
+            user_id,
+            message_id,
+            target_lang,
+        )
+        return
+
+    source_payload, source_lang = await resolve_source_payload(message_id, channel_id, None)
+    if not is_translatable_payload(source_payload):
+        duration_ms = int((time.monotonic() - started) * 1000)
+        _log_translation_event(
+            event="reaction_translate_error",
+            message_id=message_id,
+            channel_id=channel_id,
+            guild_id=guild_id,
+            target_lang=target_lang,
+            source_lang=source_lang,
+            provider="none",
+            duration_ms=duration_ms,
+            error="no_content",
+        )
+        return
+
+    if payload_char_count(source_payload) > MAX_TRANSLATION_CHARS:
+        duration_ms = int((time.monotonic() - started) * 1000)
+        _log_translation_event(
+            event="reaction_translate_error",
+            message_id=message_id,
+            channel_id=channel_id,
+            guild_id=guild_id,
+            target_lang=target_lang,
+            source_lang=source_lang,
+            provider="none",
+            duration_ms=duration_ms,
+            error="message_too_long",
+        )
+        meta = lang_meta(target_lang)
+        await deliver_reaction_translation(
+            user_id=user_id,
+            channel_id=channel_id,
+            target_lang=target_lang,
+            body=discord_international.t_bot(meta["code"], "message_too_long"),
+        )
+        return
+
+    if target_lang == source_lang:
+        duration_ms = int((time.monotonic() - started) * 1000)
+        _log_translation_event(
+            event="reaction_translate_skipped",
+            message_id=message_id,
+            channel_id=channel_id,
+            guild_id=guild_id,
+            target_lang=target_lang,
+            source_lang=source_lang,
+            provider="none",
+            duration_ms=duration_ms,
+        )
+        await deliver_reaction_translation(
+            user_id=user_id,
+            channel_id=channel_id,
+            target_lang=target_lang,
+            body=discord_international.t_bot(target_lang, "already_in_language"),
+        )
+        return
+
+    translated, provider_name = await translate_payload(
+        source_payload,
+        target_lang,
+        source_lang,
+        message_id=message_id,
+    )
+    duration_ms = int((time.monotonic() - started) * 1000)
+
+    if translated is None:
+        _log_translation_event(
+            event="reaction_translate_error",
+            message_id=message_id,
+            channel_id=channel_id,
+            guild_id=guild_id,
+            target_lang=target_lang,
+            source_lang=source_lang,
+            provider=provider_name,
+            duration_ms=duration_ms,
+            error="translation_failed",
+        )
+        await deliver_reaction_translation(
+            user_id=user_id,
+            channel_id=channel_id,
+            target_lang=target_lang,
+            body=discord_international.t_bot(target_lang, "translation_unavailable"),
+        )
+        return
+
+    body = flatten_translation_body(translated, target_lang, source_lang)
+    delivery = await deliver_reaction_translation(
+        user_id=user_id,
+        channel_id=channel_id,
+        target_lang=target_lang,
+        body=body,
+    )
+    _log_translation_event(
+        event="reaction_translate_success",
+        message_id=message_id,
+        channel_id=channel_id,
+        guild_id=guild_id,
+        target_lang=target_lang,
+        source_lang=source_lang,
+        provider=f"{provider_name}:{delivery}",
+        duration_ms=duration_ms,
+    )
+
+
+async def _thread_helper_exists(thread_id: str) -> bool:
+    if _db is None or not thread_id:
+        return False
+    doc = await _db.discord_translate_thread_helpers.find_one({"thread_id": thread_id}, {"_id": 1})
+    return doc is not None
+
+
+async def _mark_thread_helper(thread_id: str) -> None:
+    if _db is None or not thread_id:
+        return
+    now = _utc_now_iso()
+    await _db.discord_translate_thread_helpers.update_one(
+        {"thread_id": thread_id},
+        {"$set": {"thread_id": thread_id, "created_at": now}},
+        upsert=True,
+    )
+
+
+async def fetch_thread_starter_message_id(thread_id: str) -> str:
+    token = bot_token()
+    if not token or not thread_id:
+        return thread_id
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                f"{DISCORD_API}/channels/{thread_id}/messages",
+                headers=_headers(token),
+                params={"limit": 1},
+            )
+            if r.status_code == 200:
+                messages = r.json()
+                if messages:
+                    return str(messages[0].get("id") or thread_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("fetch_thread_starter_message_id failed thread_id=%s: %s", thread_id, exc)
+    return thread_id
+
+
+def _forum_helper_content() -> str:
+    return (
+        "🌍 **Besoin d'une traduction ?**\n"
+        "Ajoute une réaction 🌍 au message que tu veux traduire, "
+        "ou utilise le bouton ci-dessous pour traduire la candidature."
+    )
+
+
+async def ensure_thread_translate_helper(
+    *,
+    forum_channel_id: str,
+    thread_id: str,
+    starter_message_id: str | None = None,
+) -> None:
+    """Un seul message helper par thread forum inscriptions-beta."""
+    beta_channel = os.environ.get("DISCORD_BETA_SIGNUP_CHANNEL_ID", "").strip()
+    if not beta_channel or forum_channel_id != beta_channel or not thread_id:
+        return
+    if await _thread_helper_exists(thread_id):
+        return
+
+    starter_id = starter_message_id or await fetch_thread_starter_message_id(thread_id)
+    button_id = f"{TRANSLATE_MSG_BUTTON_PREFIX}:{thread_id}:{starter_id}"[:100]
+    components = [{
+        "type": 1,
+        "components": [{
+            "type": 2,
+            "style": 2,
+            "label": "🌍 Traduire la candidature",
+            "custom_id": button_id,
+        }],
+    }]
+    ok = await post_thread_message(thread_id, content=_forum_helper_content(), components=components)
+    if ok:
+        await _mark_thread_helper(thread_id)
+        logger.info(
+            "forum translate helper posted thread_id=%s forum_channel_id=%s",
+            thread_id,
+            forum_channel_id,
+        )
+
+
 def _deferred_ephemeral_ack() -> dict:
     """Accusé de réception différé — Discord exige une réponse < 3 s."""
     return {"type": 5, "data": {"flags": 64}}
@@ -1301,30 +1714,12 @@ async def maybe_post_forum_translate_hint(
     thread_id: str,
     starter_message_id: str,
 ) -> None:
-    """Hint discret dans un thread forum bot (ex. inscriptions-beta) — pas de spam global."""
-    beta_channel = os.environ.get("DISCORD_BETA_SIGNUP_CHANNEL_ID", "").strip()
-    if not beta_channel or forum_channel_id != beta_channel or not thread_id:
-        return
-    button_id = f"{TRANSLATE_MSG_BUTTON_PREFIX}:{thread_id}:{starter_message_id}"[:100]
-    components = [{
-        "type": 1,
-        "components": [{
-            "type": 2,
-            "style": 2,
-            "label": "🌍 Traduire la candidature",
-            "custom_id": button_id,
-        }],
-    }]
-    content = (
-        "🌍 Ce message peut être traduit avec **clic droit → Applications → Traduire ce message**."
+    """Hint discret dans un thread forum (ex. inscriptions-beta) — délègue au helper unique."""
+    await ensure_thread_translate_helper(
+        forum_channel_id=forum_channel_id,
+        thread_id=thread_id,
+        starter_message_id=starter_message_id,
     )
-    ok = await post_thread_message(thread_id, content=content, components=components)
-    if ok:
-        logger.info(
-            "forum translate hint posted thread_id=%s forum_channel_id=%s",
-            thread_id,
-            forum_channel_id,
-        )
 
 
 def attach_translate_components(payload: dict) -> dict:
