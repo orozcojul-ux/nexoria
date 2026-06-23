@@ -135,6 +135,12 @@ def test_globe_reaction_detection():
     assert _is_globe_reaction({"id": "123", "name": "custom"}) is False
 
 
+def test_dm_fallback_disabled_by_default():
+    from discord_translate import _dm_fallback_enabled
+
+    assert _dm_fallback_enabled() is False
+
+
 def test_parse_message_reference_url():
     url = "https://discord.com/channels/111/222/333"
     channel_id, message_id = parse_message_reference(url, "999")

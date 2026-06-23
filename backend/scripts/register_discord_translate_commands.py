@@ -28,15 +28,15 @@ CONTEXT_MENU_COMMAND = {
 
 SLASH_COMMAND = {
     "name": "traduire",
-    "description": "Traduire un message Discord (URL ou ID)",
+    "description": "Traduire un message (réponse privée pour toi dans le salon)",
     "type": 1,
     "dm_permission": True,
     "options": [
         {
             "name": "message",
-            "description": "URL Discord ou ID du message",
+            "description": "URL ou ID du message (optionnel — sinon le dernier message)",
             "type": 3,
-            "required": True,
+            "required": False,
         },
         {
             "name": "langue",

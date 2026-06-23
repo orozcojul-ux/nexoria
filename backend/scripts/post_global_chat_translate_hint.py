@@ -18,11 +18,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import discord_translate
 
 GLOBAL_CHAT_HINT = (
-    "🌍 **Traduire un message**\n"
-    "Pour traduire un message dans ce salon, réagis simplement avec **🌍** dessus.\n"
-    "Le bot t'enverra la traduction dans ta langue (rôle Langue choisi à l'arrivée sur le serveur).\n"
-    "Si tes messages privés sont fermés, le bot répondra discrètement ici (message supprimé après 60 s).\n\n"
-    "Tu peux aussi utiliser **clic droit → Applications → Traduire ce message**."
+    "🌍 **Traduire un message**\n\n"
+    "Pour traduire un message :\n"
+    "• clique sur un bouton **🌍 Traduire** lorsqu'il est disponible ;\n"
+    "• ou utilise **`/traduire`** (avec le lien du message, ou sans argument pour le dernier message) ;\n"
+    "• ou **clic droit → Applications → Traduire ce message**.\n\n"
+    "La traduction s'affichera **pour toi uniquement** (réponse éphémère) quand Discord le permet.\n\n"
+    "Tu peux aussi réagir avec **🌍** sur un message : le bot répondra brièvement dans le salon "
+    "(message supprimé après 60 s, visible par tous le temps d'affichage)."
 )
 
 

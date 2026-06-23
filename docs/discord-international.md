@@ -114,9 +114,20 @@ La traduction est **à la demande** (pas d’auto-traduction publique dans les s
 
 ### Traduire facilement un message
 
-Pour traduire un message, ajoute simplement une réaction **🌍** dessus. Le bot t’enverra la traduction dans ta langue choisie lors de l’arrivée sur le serveur (rôle **Langue — …**). Si tes messages privés sont fermés, le bot répondra discrètement dans le salon ou le thread (message supprimé après 60 secondes).
+**Priorité — interactions (visible uniquement par toi)** :
+- Bouton **🌍 Traduire cette candidature** (forums)
+- Menu **🌍 Traduire ce message** (messages officiels bot)
+- **Clic droit → Applications → Traduire ce message**
+- Commande **`/traduire`** (lien/ID optionnel — sans argument : dernier message du salon)
 
-Dans `#global-chat`, un message épinglé rappelle cette méthode. Pour le publier :
+→ Réponse **éphémère** dans le salon/thread (flag Discord 64).
+
+**Fallback — réaction 🌍** :
+Les réactions ne permettent pas de réponse éphémère. Le bot poste un **message temporaire** dans le salon (`@toi` + traduction), **supprimé après 60 s**. Ce message est brièvement visible par les autres. Pour une traduction strictement privée, utilise un bouton ou `/traduire`.
+
+Le bot **n'ouvre plus de DM** par défaut. DM uniquement si `DISCORD_TRANSLATE_DM_FALLBACK=true` et envoi salon impossible.
+
+Dans `#global-chat`, un message épinglé rappelle ces méthodes :
 
 ```bash
 cd backend
@@ -133,19 +144,21 @@ Puis épingle le message dans Discord.
 4. La langue cible est celle de ton rôle **Langue — …** (Onboarding ou profil site). Sinon : français.
 5. Un menu **Choisir une autre langue** permet de retraduire vers une autre langue.
 
-### Commande slash (fallback)
+### Commande slash
 
 ```
-/traduire message:https://discord.com/channels/GUILD/CHANNEL/MESSAGE langue:English
+/traduire
+/traduire message:https://discord.com/channels/GUILD/CHANNEL/MESSAGE
+/traduire langue:English
 ```
 
-`langue` est optionnelle. Tu peux coller une URL Discord ou un ID de message (dans le salon courant).
+`message` est **optionnel** : sans argument, traduit le **dernier message** du salon/thread. `langue` optionnelle (sinon rôle Langue).
 
 ### Forum `#inscriptions-beta`
 
-- Réagis avec **🌍** sur n’importe quel message du thread
-- Un message helper (une fois par thread) rappelle la réaction 🌍 + bouton **🌍 Traduire la candidature**
-- Alternative : clic droit → **Traduire ce message**
+- Bouton **🌍 Traduire cette candidature** → traduction éphémère (privée pour toi)
+- Helper bot une fois par thread
+- Réaction 🌍 → message temporaire 60 s (fallback)
 
 ### Messages officiels du bot
 
@@ -165,14 +178,14 @@ Variables : `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`.
 
 | Scénario | Étapes | Résultat attendu |
 |----------|--------|------------------|
-| **Réaction 🌍** | Ajouter 🌍 sur un message dans `#global-chat` | Traduction reçue en DM (ou réponse discrète 60 s) |
-| Forum `#inscriptions-beta` | Réaction 🌍 sur un post joueur | Idem |
-| Thread forum | Réaction 🌍 dans un fil | Idem |
-| DM fermés | Désactiver les MP du serveur, réagir avec 🌍 | Mention + traduction dans le salon, supprimée après 60 s |
-| Cooldown | Deux réactions 🌍 en moins de 10 s | Seule la première est traitée |
-| Langue cible | Compte avec rôle `Langue — English` | Traduction vers l’anglais |
-| Clic droit | Applications → Traduire ce message | Traduction éphémère (inchangé) |
-| Oracle / bot | Menu 🌍 sur message officiel | Comportement inchangé |
+| **Bouton forum** | Cliquer 🌍 Traduire cette candidature | Traduction **éphémère** (toi seul) |
+| **Menu bot / clic droit** | Traduire ce message | Traduction **éphémère** |
+| **`/traduire`** | Dans `#global-chat` sans argument | Dernier message, réponse **éphémère** |
+| **Réaction 🌍** | Ajouter 🌍 sur un message | Message temporaire @toi, supprimé 60 s |
+| **Pas de DM** | Réagir avec 🌍 | Aucun MP ouvert par défaut |
+| Cooldown | Deux 🌍 en < 10 s | Seule la 1ʳᵉ traitée |
+| Langue cible | Rôle `Langue — English` | Traduction en anglais |
+| Oracle / bot | Menu 🌍 sur message officiel | Inchangé (éphémère) |
 
 ### Permissions bot requises
 

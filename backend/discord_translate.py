@@ -1024,6 +1024,34 @@ async def _delete_message_after(channel_id: str, message_id: str, delay: int) ->
     await delete_discord_message(channel_id, message_id)
 
 
+def _dm_fallback_enabled() -> bool:
+    """DM uniquement si explicitement activé (DISCORD_TRANSLATE_DM_FALLBACK=true)."""
+    return os.environ.get("DISCORD_TRANSLATE_DM_FALLBACK", "false").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+
+async def fetch_last_channel_message(channel_id: str) -> dict | None:
+    """Dernier message d'un salon/thread — pour /traduire sans argument."""
+    token = bot_token()
+    if not token or not channel_id:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                f"{DISCORD_API}/channels/{channel_id}/messages",
+                headers=_headers(token),
+                params={"limit": 1},
+            )
+            if r.status_code == 200:
+                messages = r.json()
+                if messages:
+                    return messages[0]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("fetch_last_channel_message failed channel_id=%s: %s", channel_id, exc)
+    return None
+
+
 async def deliver_reaction_translation(
     *,
     user_id: str,
@@ -1031,24 +1059,27 @@ async def deliver_reaction_translation(
     target_lang: str,
     body: str,
 ) -> str:
-    """Envoie la traduction en DM, sinon réponse discrète dans le salon. Retourne delivery mode."""
+    """Réaction 🌍 : message temporaire dans le salon (60 s). DM seulement en dernier recours."""
     meta = lang_meta(target_lang)
-    dm_text = f"🌍 **Traduction** ({meta['flag']} {meta['label_full']})\n\n{body[:1800]}"
-    dm_channel = await create_dm_channel(user_id)
-    if dm_channel:
-        sent = await send_discord_message(dm_channel, dm_text)
-        if sent:
-            return "dm"
-
     channel_text = (
-        f"<@{user_id}> 🌍 **Traduction en {meta['label_full']}** :\n\n{body[:1700]}"
+        f"<@{user_id}> 🌍 **Traduction en {meta['label_full']}** :\n\n{body[:1500]}\n\n"
+        "_Pour une traduction visible uniquement par toi, utilise le bouton "
+        "🌍 Traduire ou `/traduire`._"
     )
     sent = await send_discord_message(channel_id, channel_text)
     if sent and sent.get("id"):
         asyncio.create_task(
             _delete_message_after(channel_id, str(sent["id"]), CHANNEL_REPLY_TTL_SECONDS)
         )
-        return "channel"
+        return "channel_temp"
+
+    if _dm_fallback_enabled():
+        dm_text = f"🌍 **Traduction** ({meta['flag']} {meta['label_full']})\n\n{body[:1800]}"
+        dm_channel = await create_dm_channel(user_id)
+        if dm_channel:
+            dm_sent = await send_discord_message(dm_channel, dm_text)
+            if dm_sent:
+                return "dm_fallback"
     return "failed"
 
 
@@ -1240,8 +1271,7 @@ async def fetch_thread_starter_message_id(thread_id: str) -> str:
 def _forum_helper_content() -> str:
     return (
         "🌍 **Besoin d'une traduction ?**\n"
-        "Ajoute une réaction 🌍 au message que tu veux traduire, "
-        "ou utilise le bouton ci-dessous pour traduire la candidature."
+        "Clique sur le bouton ci-dessous pour traduire cette candidature dans ta langue."
     )
 
 
@@ -1265,7 +1295,7 @@ async def ensure_thread_translate_helper(
         "components": [{
             "type": 2,
             "style": 2,
-            "label": "🌍 Traduire la candidature",
+            "label": "🌍 Traduire cette candidature",
             "custom_id": button_id,
         }],
     }]
@@ -1627,20 +1657,28 @@ async def handle_message_context_command(payload: dict) -> dict:
 
 
 async def handle_slash_traduire(payload: dict) -> dict:
-    """Commande /traduire message_url:<url|id> langue:<optionnel>."""
+    """Commande /traduire [message] [langue] — message optionnel (dernier du salon)."""
     member_lang = member_lang_from_interaction(payload)
     data = payload.get("data") or {}
     options = {opt["name"]: opt.get("value") for opt in data.get("options") or []}
+    channel_id = str(payload.get("channel_id") or "")
     message_ref = str(options.get("message") or "").strip()
-    if not message_ref:
-        return _ephemeral_response(content=discord_international.t_bot(member_lang, "message_not_found"))
-    try:
-        channel_id, message_id = parse_message_reference(
-            message_ref,
-            str(payload.get("channel_id") or ""),
-        )
-    except ValueError:
-        return _ephemeral_response(content=discord_international.t_bot(member_lang, "message_not_found"))
+
+    if message_ref:
+        try:
+            channel_id, message_id = parse_message_reference(message_ref, channel_id)
+        except ValueError:
+            return _ephemeral_response(
+                content=discord_international.t_bot(member_lang, "message_not_found"),
+            )
+    else:
+        last_msg = await fetch_last_channel_message(channel_id)
+        if not last_msg or not last_msg.get("id"):
+            return _ephemeral_response(
+                content=discord_international.t_bot(member_lang, "message_not_found"),
+            )
+        message_id = str(last_msg["id"])
+
     lang_opt = options.get("langue")
     target = parse_slash_lang(str(lang_opt)) if lang_opt else member_lang_from_interaction(payload)
     if not target:
