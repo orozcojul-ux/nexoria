@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Loader2 } from "lucide-react";
 import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/i18n/LanguageProvider";
+import { translateMaintenanceApiError, translateMaintenanceApiSuccess } from "@/lib/maintenance-i18n";
 import MaintenanceModalShell from "./MaintenanceModalShell";
 import MaintenanceDiscordOAuthButton from "./MaintenanceDiscordOAuthButton";
 import {
@@ -12,6 +14,7 @@ import {
 
 export default function MaintenanceCreateAccountModal({ onClose, onSuccess, onSwitchToBeta }) {
   const { setUser } = useAuth();
+  const { t } = useI18n();
   const [form, setForm] = useState({ username: "", email: "", password: "", confirm: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -25,7 +28,7 @@ export default function MaintenanceCreateAccountModal({ onClose, onSuccess, onSw
       window.location.replace("/feed");
       return;
     }
-    onSuccess(data.message || "Compte créé via Discord.");
+    onSuccess(translateMaintenanceApiSuccess(t, data.message) || data.message || t("maintenance.success.account_discord"));
     onClose();
   };
 
@@ -33,11 +36,11 @@ export default function MaintenanceCreateAccountModal({ onClose, onSuccess, onSw
     e.preventDefault();
     setError("");
     if (!form.username.trim() || !form.email.trim() || form.password.length < 6) {
-      setError("Remplis tous les champs (mot de passe ≥ 6 caractères).");
+      setError(t("maintenance.error.fill_fields"));
       return;
     }
     if (form.password !== form.confirm) {
-      setError("Les mots de passe ne correspondent pas.");
+      setError(t("maintenance.error.password_mismatch"));
       return;
     }
     setLoading(true);
@@ -47,10 +50,10 @@ export default function MaintenanceCreateAccountModal({ onClose, onSuccess, onSw
         email: form.email.trim(),
         password: form.password,
       });
-      onSuccess(data.message || "Compte créé avec succès.");
+      onSuccess(translateMaintenanceApiSuccess(t, data.message) || t("maintenance.success.account_created"));
       onClose();
     } catch (err) {
-      setError(formatApiError(err) || "Erreur serveur");
+      setError(translateMaintenanceApiError(t, formatApiError(err)));
     } finally {
       setLoading(false);
     }
@@ -58,30 +61,28 @@ export default function MaintenanceCreateAccountModal({ onClose, onSuccess, onSw
 
   return (
     <MaintenanceModalShell
-      title="Créer mon compte NEXORIA"
+      title={t("maintenance.modal.create.title")}
       onClose={onClose}
       testId="maintenance-create-account-modal"
     >
       <form onSubmit={submit} className="maint-modal-form">
-        <p className="maint-modal-notice">
-          Inscription temporaire pour la bêta. Le choix de ta classe sera disponible dès l&apos;ouverture officielle du Nexus à tous les héros.
-        </p>
+        <p className="maint-modal-notice">{t("maintenance.modal.create.notice")}</p>
 
         <MaintenanceDiscordOAuthButton
           flow={MAINT_DISCORD_FLOW_REGISTER}
           disabled={loading}
-          label="S'inscrire avec Discord"
+          label={t("maintenance.modal.create.discord")}
           testId="maint-register-discord"
           onComplete={handleDiscordComplete}
-          onError={(err) => setError(err?.message || formatApiError(err) || "Connexion Discord impossible")}
+          onError={(err) => setError(translateMaintenanceApiError(t, err?.message || formatApiError(err)))}
         />
 
         <div className="maint-modal-divider">
-          <span>ou par email</span>
+          <span>{t("maintenance.modal.divider_or_email")}</span>
         </div>
 
         <label className="maint-modal-field">
-          <span>Pseudo</span>
+          <span>{t("maintenance.modal.field.username")}</span>
           <input
             value={form.username}
             onChange={(e) => set("username", e.target.value)}
@@ -91,7 +92,7 @@ export default function MaintenanceCreateAccountModal({ onClose, onSuccess, onSw
           />
         </label>
         <label className="maint-modal-field">
-          <span>Email</span>
+          <span>{t("maintenance.modal.field.email")}</span>
           <input
             type="email"
             value={form.email}
@@ -101,7 +102,7 @@ export default function MaintenanceCreateAccountModal({ onClose, onSuccess, onSw
           />
         </label>
         <label className="maint-modal-field">
-          <span>Mot de passe</span>
+          <span>{t("maintenance.modal.field.password")}</span>
           <input
             type="password"
             value={form.password}
@@ -111,7 +112,7 @@ export default function MaintenanceCreateAccountModal({ onClose, onSuccess, onSw
           />
         </label>
         <label className="maint-modal-field">
-          <span>Confirmer le mot de passe</span>
+          <span>{t("maintenance.modal.field.confirm")}</span>
           <input
             type="password"
             value={form.confirm}
@@ -122,10 +123,10 @@ export default function MaintenanceCreateAccountModal({ onClose, onSuccess, onSw
         </label>
         {error && <p className="maint-modal-error" data-testid="maint-register-error">{error}</p>}
         <button type="submit" className="maint-modal-primary" disabled={loading} data-testid="maint-register-submit">
-          {loading ? <Loader2 className="maint-modal-spin" strokeWidth={2} /> : "Créer le compte"}
+          {loading ? <Loader2 className="maint-modal-spin" strokeWidth={2} /> : t("maintenance.modal.create.submit")}
         </button>
         <button type="button" className="maint-modal-link" onClick={onSwitchToBeta}>
-          J&apos;ai déjà un compte
+          {t("maintenance.modal.create.has_account")}
         </button>
       </form>
     </MaintenanceModalShell>

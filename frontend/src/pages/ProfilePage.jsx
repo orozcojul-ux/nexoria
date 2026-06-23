@@ -5,6 +5,7 @@ import ClassImage from "@/components/ClassImage";
 import LastConnection from "@/components/LastConnection";
 import VipPassStatus from "@/components/VipPassStatus";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
+import { getDiscordDisplayName } from "@/lib/discord-display";
 import styles from "./ProfilePage.module.css";
 
 /* Normalise un identifiant social en URL absolue cliquable. */
@@ -223,7 +224,7 @@ export default function ProfilePage({
   const quote = hero.quote || "";
   const story = hero.story || "";
   const rankTitle = (hero.active_title_name || hero.title_name || "Roi des Créateurs").toUpperCase();
-  const discordName = hero.discord_username || hero.discord_global_name || hero.username;
+  const discordLabel = getDiscordDisplayName(hero);
 
   const socials = hero.social_links || {};
   const socialLinks = [
@@ -296,7 +297,9 @@ export default function ProfilePage({
               {rankTitle}
             </div>
             <h1 className={styles.heroName} data-testid="profile-username" style={{ textShadow: `0 0 18px ${accent}88` }}>{name}</h1>
-            <div className={styles.discordLine} data-testid="profile-discord-name">Discord · {discordName}</div>
+            {discordLabel && (
+              <div className={styles.discordLine} data-testid="profile-discord-name">Discord · {discordLabel}</div>
+            )}
             <div className={styles.lastSeenLine} data-testid="profile-last-connection">
               <LastConnection
                 user={hero}

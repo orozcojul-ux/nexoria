@@ -1349,3 +1349,109 @@
   height: 1rem;
   animation: maint-beta-rotate 0.9s linear infinite;
 }
+
+/* ── Language selector (fixed top-right) ── */
+.maint-lang-selector {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 50;
+}
+
+.maint-lang-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  background: rgba(5, 8, 22, 0.72);
+  backdrop-filter: blur(10px);
+  color: #d4d4d8;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s;
+}
+
+.maint-lang-trigger:hover {
+  border-color: rgba(167, 139, 250, 0.45);
+  color: #f4f1ff;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.12);
+}
+
+.maint-lang-globe {
+  width: 0.9rem;
+  height: 0.9rem;
+  color: #22d3ee;
+  flex-shrink: 0;
+}
+
+.maint-lang-current {
+  max-width: 7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.maint-lang-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.45rem);
+  min-width: 10.5rem;
+  padding: 0.35rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(167, 139, 250, 0.22);
+  background: rgba(8, 6, 20, 0.94);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 0 20px rgba(34, 211, 238, 0.08);
+}
+
+.maint-lang-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: none;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: #d4d4d8;
+  font-size: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.maint-lang-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f8fafc;
+}
+
+.maint-lang-option--active {
+  background: rgba(34, 211, 238, 0.1);
+  color: #a5f3fc;
+}
+
+.maint-lang-check {
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .maint-lang-selector {
+    top: 0.65rem;
+    right: 0.65rem;
+  }
+
+  .maint-lang-current {
+    display: none;
+  }
+
+  .maint-lang-trigger {
+    padding: 0.45rem 0.55rem;
+  }
+}

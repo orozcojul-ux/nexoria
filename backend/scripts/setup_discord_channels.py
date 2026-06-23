@@ -37,6 +37,14 @@ ROLE_SAGE = os.environ.get("DISCORD_SAGE_ROLE_ID", "1515273094258888775").strip(
 ROLE_SENTINELLE = os.environ.get("DISCORD_SENTINELLE_ROLE_ID", "1515273095663980554").strip()
 ROLE_BETA_TESTER = os.environ.get("DISCORD_BETA_TESTER_ROLE_ID", "").strip()
 PERM_VIEW, PERM_SEND, PERM_HISTORY = 1024, 2048, 65536
+PERM_CREATE_PUBLIC_THREADS = 34359738368
+PERM_SEND_IN_THREADS = 17179869184
+
+
+def _beta_signup_forum_overwrites(guild_id: str) -> list[dict]:
+    """Forum inscriptions-beta — visible et ouvert à tous (@everyone)."""
+    public = PERM_VIEW | PERM_SEND | PERM_CREATE_PUBLIC_THREADS | PERM_SEND_IN_THREADS | PERM_HISTORY
+    return [{"id": guild_id, "type": 0, "allow": str(public)}]
 
 
 def _beta_test_overwrites(guild_id: str) -> list[dict]:
@@ -60,9 +68,9 @@ CHANNELS = [
     {
         "env": "DISCORD_BETA_SIGNUP_CHANNEL_ID",
         "name": "📝┃inscriptions-beta",
-        "type": 0,
-        "topic": "Candidatures beta — salon privé Conseil (Sages). Formulaire sur la page maintenance.",
-        "staff_only": True,
+        "type": 15,  # forum — public
+        "topic": "Forum public — candidatures beta NEXORIA (crée d'abord ton compte sur le site).",
+        "forum_public": True,
     },
     {
         "env": "DISCORD_VIP_LOUNGE_CHANNEL_ID",
@@ -120,7 +128,9 @@ async def create_channel(
         ch_id = existing["id"]
         print(f"Salon existant : #{spec['name']} ({ch_id})")
         patch: dict = {"topic": spec.get("topic", "")}
-        if spec.get("staff_only"):
+        if spec.get("forum_public"):
+            patch["permission_overwrites"] = _beta_signup_forum_overwrites(guild_id)
+        elif spec.get("staff_only"):
             patch["permission_overwrites"] = [
                 {"id": guild_id, "type": 0, "deny": str(PERM_VIEW | PERM_SEND)},
                 {"id": ROLE_GARDIEN, "type": 0, "allow": str(PERM_VIEW | PERM_SEND | PERM_HISTORY)},
@@ -152,7 +162,9 @@ async def create_channel(
         "topic": spec.get("topic", ""),
     }
 
-    if spec.get("staff_only"):
+    if spec.get("forum_public"):
+        payload["permission_overwrites"] = _beta_signup_forum_overwrites(guild_id)
+    elif spec.get("staff_only"):
         payload["permission_overwrites"] = [
             {"id": guild_id, "type": 0, "deny": str(PERM_VIEW | PERM_SEND)},
             {"id": ROLE_GARDIEN, "type": 0, "allow": str(PERM_VIEW | PERM_SEND | PERM_HISTORY)},
@@ -182,22 +194,21 @@ async def create_channel(
 
 async def post_signup_form_message(client: httpx.AsyncClient, channel_id: str, token: str) -> None:
     embed = {
-        "title": "📝 Inscriptions Beta testeur — 100 places",
+        "title": "📝 Forum inscriptions beta — public",
         "description": (
             "NEXORIA recrute **100 pionniers** pour tester le **site web** avant le lancement officiel.\n\n"
-            "**Important :** ce beta ne couvre **pas** **Nexus Online** (monde virtuel) — "
-            "il **n'est pas encore développé**.\n\n"
             "**Comment candidater :**\n"
-            f"1. Remplis le formulaire sur la [page maintenance]({SITE_URL}/maintenance)\n"
+            f"1. Crée ton compte NEXORIA sur [{SITE_URL}/maintenance]({SITE_URL}/maintenance)\n"
             "2. Rejoins le Discord si ce n'est pas déjà fait\n"
-            "3. Attends la validation de l'équipe — tu recevras ta clé beta\n\n"
-            "Chaque candidature apparaît automatiquement dans ce salon (Conseil uniquement)."
+            "3. Ouvre un **thread** dans ce forum avec ton pseudo NEXORIA, ton Discord et ta motivation\n"
+            "4. Si tu es retenu, l'équipe te transmettra ta clé bêta\n\n"
+            "Ce forum est **visible par tous**. Le salon **#🧪┃beta-test** reste **privé** "
+            "— réservé aux testeurs avec clé activée pour remonter les bugs."
         ),
         "color": 0xA78BFA,
         "fields": [
             {"name": "Places", "value": "100 beta testeurs", "inline": True},
-            {"name": "Salon testeurs", "value": "#🧪┃beta-test", "inline": True},
-            {"name": "VIP", "value": "#👑┃salon-vip (Pass Ascendant)", "inline": True},
+            {"name": "Bugs & retours", "value": "#🧪┃beta-test (privé testeurs)", "inline": True},
         ],
         "footer": {"text": "NEXORIA — Programme Beta"},
     }

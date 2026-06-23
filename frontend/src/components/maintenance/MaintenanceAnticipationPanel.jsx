@@ -1,9 +1,12 @@
 import React, { useState } from "react";
 import { KeyRound, UserPlus, CheckCircle2 } from "lucide-react";
+import { useI18n } from "@/i18n/LanguageProvider";
+import { translateMaintenanceApiSuccess } from "@/lib/maintenance-i18n";
 import MaintenanceCreateAccountModal from "./MaintenanceCreateAccountModal";
 import MaintenanceBetaAccessModal from "./MaintenanceBetaAccessModal";
 
 export default function MaintenanceAnticipationPanel() {
+  const { t } = useI18n();
   const [createOpen, setCreateOpen] = useState(false);
   const [betaOpen, setBetaOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
@@ -11,19 +14,17 @@ export default function MaintenanceAnticipationPanel() {
   const openCreate = () => { setBetaOpen(false); setCreateOpen(true); };
   const openBeta = () => { setCreateOpen(false); setBetaOpen(true); };
 
+  const handleSuccess = (message) => {
+    setSuccessMsg(translateMaintenanceApiSuccess(t, message) || message);
+  };
+
   return (
     <>
       <div className="maint-panel maint-anticipation-panel" data-testid="maintenance-anticipation">
-        <h2 className="maint-panel-title maint-anticipation-title">Le Nexus se prépare.</h2>
+        <h2 className="maint-panel-title maint-anticipation-title">{t("maintenance.anticipation.title")}</h2>
 
-        <p className="maint-anticipation-lead">
-          Le Nexus est encore scellé. Crée ton compte dès maintenant afin d&apos;être prêt pour l&apos;ouverture.
-          Si tu es sélectionné comme bêta-testeur, une clé bêta te permettra de débloquer l&apos;accès complet.
-        </p>
-        <p className="maint-anticipation-body">
-          Les comptes créés pendant la maintenance seront prêts pour l&apos;ouverture.
-          Si tu es sélectionné pour la bêta, une clé d&apos;accès te permettra de débloquer le royaume avant l&apos;ouverture officielle.
-        </p>
+        <p className="maint-anticipation-lead">{t("maintenance.anticipation.lead")}</p>
+        <p className="maint-anticipation-body">{t("maintenance.anticipation.body")}</p>
 
         {successMsg && (
           <div className="maint-anticipation-success" data-testid="maint-register-success">
@@ -40,7 +41,7 @@ export default function MaintenanceAnticipationPanel() {
             data-testid="maint-btn-create-account"
           >
             <UserPlus strokeWidth={1.75} />
-            Créer mon compte
+            {t("maintenance.btn.create_account")}
           </button>
           <button
             type="button"
@@ -49,7 +50,7 @@ export default function MaintenanceAnticipationPanel() {
             data-testid="maint-btn-beta-key"
           >
             <KeyRound strokeWidth={1.75} />
-            J&apos;ai une clé bêta
+            {t("maintenance.btn.beta_key")}
           </button>
         </div>
       </div>
@@ -57,14 +58,14 @@ export default function MaintenanceAnticipationPanel() {
       {createOpen && (
         <MaintenanceCreateAccountModal
           onClose={() => setCreateOpen(false)}
-          onSuccess={setSuccessMsg}
+          onSuccess={handleSuccess}
           onSwitchToBeta={openBeta}
         />
       )}
       {betaOpen && (
         <MaintenanceBetaAccessModal
           onClose={() => setBetaOpen(false)}
-          onSuccess={setSuccessMsg}
+          onSuccess={handleSuccess}
           onSwitchToCreate={openCreate}
         />
       )}

@@ -1,8 +1,11 @@
 import React, { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useI18n } from "@/i18n/LanguageProvider";
 
 export default function MaintenanceModalShell({ title, onClose, children, testId }) {
+  const { t } = useI18n();
+
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -25,7 +28,7 @@ export default function MaintenanceModalShell({ title, onClose, children, testId
       >
         <div className="maint-modal-head">
           <h2 id="maint-modal-title" className="maint-modal-title">{title}</h2>
-          <button type="button" className="maint-modal-close" onClick={onClose} aria-label="Fermer">
+          <button type="button" className="maint-modal-close" onClick={onClose} aria-label={t("common.close", "Fermer")}>
             <X strokeWidth={2} />
           </button>
         </div>

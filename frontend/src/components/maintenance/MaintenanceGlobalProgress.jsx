@@ -1,28 +1,31 @@
 import React, { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Clock, Activity } from "lucide-react";
+import { useI18n } from "@/i18n/LanguageProvider";
+import { formatMaintRelativeTime } from "@/lib/maintenance-i18n";
 
-function formatRelativeTime(iso) {
-  if (!iso) return "À l'instant";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "Récemment";
-  const diffMin = Math.max(0, Math.floor((Date.now() - then) / 60000));
-  if (diffMin < 1) return "À l'instant";
-  if (diffMin < 60) return `Il y a ${diffMin} min`;
-  const hours = Math.floor(diffMin / 60);
-  if (hours < 24) return `Il y a ${hours} h`;
-  return new Date(iso).toLocaleString("fr-FR", {
-    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-  });
-}
-
-function globalPhase(percent) {
-  if (percent >= 85) return { label: "Finalisation", hint: "Le Nexus rouvre très bientôt." };
-  if (percent >= 50) return { label: "Synchronisation", hint: "Les Sentinelles stabilisent les systèmes." };
-  return { label: "Stabilisation", hint: "Phase initiale — fondations en cours." };
+function globalPhase(percent, t) {
+  if (percent >= 85) {
+    return {
+      label: t("maintenance.global.phase.finalization"),
+      hint: t("maintenance.global.hint.finalization"),
+    };
+  }
+  if (percent >= 50) {
+    return {
+      label: t("maintenance.global.phase.sync"),
+      hint: t("maintenance.global.hint.sync"),
+    };
+  }
+  return {
+    label: t("maintenance.global.phase.stabilization"),
+    hint: t("maintenance.global.hint.stabilization"),
+  };
 }
 
 export default function MaintenanceGlobalProgress({ systems, updatedAt, subtitle }) {
+  const { t, fmtDate } = useI18n();
+
   const { overall, phase } = useMemo(() => {
     const values = Object.values(systems || {})
       .map((s) => Number(s?.progress))
@@ -30,12 +33,12 @@ export default function MaintenanceGlobalProgress({ systems, updatedAt, subtitle
     const avg = values.length
       ? Math.round(values.reduce((a, b) => a + b, 0) / values.length)
       : 0;
-    return { overall: Math.max(0, Math.min(100, avg)), phase: globalPhase(avg) };
-  }, [systems]);
+    return { overall: Math.max(0, Math.min(100, avg)), phase: globalPhase(avg, t) };
+  }, [systems, t]);
 
   return (
     <div className="maint-panel maint-global-panel" data-testid="maintenance-global-progress">
-      <h2 className="maint-panel-title maint-global-title">Avancement global</h2>
+      <h2 className="maint-panel-title maint-global-title">{t("maintenance.global.title")}</h2>
 
       <div className="maint-global-compact">
         <div className="maint-global-ring" style={{ "--pct": overall }}>
@@ -57,7 +60,7 @@ export default function MaintenanceGlobalProgress({ systems, updatedAt, subtitle
           </div>
           <p className="maint-global-updated">
             <Clock className="maint-global-updated-icon" strokeWidth={2} aria-hidden />
-            {formatRelativeTime(updatedAt)}
+            {formatMaintRelativeTime(updatedAt, t, fmtDate)}
           </p>
         </div>
       </div>

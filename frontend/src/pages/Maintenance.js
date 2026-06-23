@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   Database, Globe, Crosshair,
@@ -6,6 +6,7 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/i18n/LanguageProvider";
 import MaintenanceBootShell from "@/components/maintenance/MaintenanceBootShell";
 import MaintenanceBrand from "@/components/maintenance/MaintenanceBrand";
 import MaintenanceGlobalProgress from "@/components/maintenance/MaintenanceGlobalProgress";
@@ -13,7 +14,9 @@ import MaintenanceDiscordCommunity from "@/components/maintenance/MaintenanceDis
 import MaintenanceStaffGate from "@/components/maintenance/MaintenanceStaffGate";
 import MaintenanceAnticipationPanel from "@/components/maintenance/MaintenanceAnticipationPanel";
 import MaintenanceCountdown from "@/components/maintenance/MaintenanceCountdown";
-import { resolveMaintenanceText, normalizeMaintenanceSystems } from "@/lib/maintenance-content";
+import MaintenanceLanguageSelector from "@/components/maintenance/MaintenanceLanguageSelector";
+import { normalizeMaintenanceSystems } from "@/lib/maintenance-content";
+import { resolveMaintenanceTextI18n, resolveMaintenanceSystemsI18n } from "@/lib/maintenance-i18n";
 import { stripHtml } from "@/lib/stripHtml";
 import "@/pages/Maintenance.css";
 
@@ -33,9 +36,9 @@ function OrnatePanel({ title, children, className = "" }) {
   );
 }
 
-function SystemsPanel({ systems }) {
+function SystemsPanel({ systems, title }) {
   return (
-    <OrnatePanel title="État des systèmes">
+    <OrnatePanel title={title}>
       <ul className="maint-systems-list" data-testid="maintenance-systems">
         {SYSTEM_ORDER.map((key) => {
           const sys = systems[key];
@@ -71,9 +74,9 @@ function SystemsPanel({ systems }) {
 export default function Maintenance() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useI18n();
   const [searchParams] = useSearchParams();
   const [statusData, setStatusData] = useState(null);
-  // Error message forwarded from mobile Discord OAuth callback
   const discordError = searchParams.get("error");
 
   const loadStatus = useCallback(async () => {
@@ -96,16 +99,24 @@ export default function Maintenance() {
     return () => clearInterval(id);
   }, [loadStatus]);
 
-  const systems = normalizeMaintenanceSystems(statusData?.systems);
+  const systems = useMemo(
+    () => resolveMaintenanceSystemsI18n(statusData?.systems, t),
+    [statusData?.systems, t],
+  );
 
-  const text = resolveMaintenanceText(statusData?.html);
+  const text = useMemo(
+    () => resolveMaintenanceTextI18n(statusData?.html, t),
+    [statusData?.html, t],
+  );
 
   if (!statusData) {
-    return <MaintenanceBootShell label="Chargement de la maintenance…" />;
+    return <MaintenanceBootShell label={t("maintenance.loading")} />;
   }
 
   return (
     <div className="maintenance-page" data-testid="maintenance-page">
+      <MaintenanceLanguageSelector />
+
       <div className="maintenance-bg" style={{ backgroundImage: `url(${BG_URL})` }} aria-hidden />
       <div className="maintenance-bg-overlay" aria-hidden />
       <div className="maintenance-glow" aria-hidden />
@@ -153,7 +164,7 @@ export default function Maintenance() {
         >
           <div className="maint-panels-row">
             <div className="maint-panels-col maint-panels-col--status">
-              <SystemsPanel systems={systems} />
+              <SystemsPanel systems={systems} title={t("maintenance.systems.title")} />
               <MaintenanceGlobalProgress
                 systems={systems}
                 updatedAt={statusData?.updated_at}

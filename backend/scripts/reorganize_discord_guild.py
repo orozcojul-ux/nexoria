@@ -2,7 +2,8 @@
 
 Actions :
   - Repositionne les catégories et salons
-  - Restreint #inscriptions-beta aux Sages (+ Gardien Suprême)
+  - Restreint #beta-test aux testeurs beta (+ staff)
+  - Forum #inscriptions-beta ouvert à tous (@everyone)
   - Nettoie les messages de chaque salon texte/annonce
   - Republie un message de présentation par salon
 
@@ -46,6 +47,8 @@ ROLE_VIP = os.environ.get("DISCORD_VIP_ROLE_ID", "1516862967801446400").strip()
 PERM_VIEW = 1024
 PERM_SEND = 2048
 PERM_HISTORY = 65536
+PERM_CREATE_PUBLIC_THREADS = 34359738368
+PERM_SEND_IN_THREADS = 17179869184
 PERM_PIN = 1 << 35  # MANAGE_MESSAGES for pin? Actually PIN_MESSAGES = 1<<5 = 32... use SEND
 
 TEXT_TYPES = {0, 5, 15, 16}
@@ -143,6 +146,12 @@ def council_overwrites(guild_id: str) -> list[dict]:
     ]
 
 
+def beta_signup_forum_overwrites(guild_id: str) -> list[dict]:
+    """Forum inscriptions-beta — visible et ouvert à tous."""
+    public = PERM_VIEW | PERM_SEND | PERM_CREATE_PUBLIC_THREADS | PERM_SEND_IN_THREADS | PERM_HISTORY
+    return [{"id": guild_id, "type": 0, "allow": str(public)}]
+
+
 def beta_test_overwrites(guild_id: str) -> list[dict]:
     """Salon bugs — Beta testeurs + staff (Gardien, Sage, Sentinelle)."""
     rows = [{"id": guild_id, "type": 0, "deny": str(PERM_VIEW | PERM_SEND)}]
@@ -155,8 +164,8 @@ def beta_test_overwrites(guild_id: str) -> list[dict]:
 
 
 SPECIAL_OVERWRITES = {
-    "1517470910427168770": staff_view_overwrites,      # inscriptions-beta
-    "1517470908476821575": beta_test_overwrites,         # beta-test
+    "1517470910427168770": beta_signup_forum_overwrites,  # inscriptions-beta (forum public)
+    "1517470908476821575": beta_test_overwrites,         # beta-test (privé testeurs)
     "1517470912256016534": vip_overwrites,              # salon-vip
     "1514271209272115200": council_overwrites,
     "1514271211679650013": council_overwrites,

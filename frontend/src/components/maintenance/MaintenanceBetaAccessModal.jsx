@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Loader2 } from "lucide-react";
 import api, { formatApiError, setBetaKey, setToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/i18n/LanguageProvider";
+import { translateMaintenanceApiError, translateMaintenanceApiSuccess } from "@/lib/maintenance-i18n";
 import MaintenanceModalShell from "./MaintenanceModalShell";
 import MaintenanceDiscordOAuthButton from "./MaintenanceDiscordOAuthButton";
 import {
@@ -12,6 +14,7 @@ import {
 
 export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitchToCreate }) {
   const { setUser } = useAuth();
+  const { t } = useI18n();
   const [form, setForm] = useState({ login: "", password: "", betaKey: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -26,7 +29,7 @@ export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitc
     if (form.betaKey.trim()) {
       setBetaKey(form.betaKey.trim().toUpperCase());
     }
-    onSuccess(data.message || "Accès bêta activé. Bienvenue dans le Nexus.");
+    onSuccess(translateMaintenanceApiSuccess(t, data.message) || t("maintenance.success.beta_activated"));
     onClose();
     if (shouldRedirectFeedAfterMaintDiscord(data)) {
       setTimeout(() => window.location.replace("/feed"), 800);
@@ -42,7 +45,7 @@ export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitc
     e.preventDefault();
     setError("");
     if (!form.login.trim() || !form.password || !form.betaKey.trim()) {
-      setError("Remplis tous les champs.");
+      setError(t("maintenance.error.all_fields"));
       return;
     }
     setLoading(true);
@@ -54,7 +57,7 @@ export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitc
       });
       finishSuccess(data);
     } catch (err) {
-      setError(formatApiError(err) || "Erreur serveur");
+      setError(translateMaintenanceApiError(t, formatApiError(err)));
     } finally {
       setLoading(false);
     }
@@ -62,18 +65,15 @@ export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitc
 
   return (
     <MaintenanceModalShell
-      title="Débloquer mon accès bêta"
+      title={t("maintenance.modal.beta.title")}
       onClose={onClose}
       testId="maintenance-beta-access-modal"
     >
       <form onSubmit={submit} className="maint-modal-form">
-        <p className="maint-modal-lead">
-          Connecte-toi avec le compte créé pendant la maintenance, puis saisis ta clé bêta.
-          Sans clé valide, l&apos;accès au site reste bloqué.
-        </p>
+        <p className="maint-modal-lead">{t("maintenance.modal.beta.lead")}</p>
 
         <label className="maint-modal-field">
-          <span>Clé bêta</span>
+          <span>{t("maintenance.modal.field.beta_key")}</span>
           <input
             value={form.betaKey}
             onChange={(e) => set("betaKey", e.target.value.toUpperCase())}
@@ -90,18 +90,18 @@ export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitc
           flow={MAINT_DISCORD_FLOW_BETA}
           betaKey={form.betaKey}
           disabled={loading}
-          label="Se connecter avec Discord"
+          label={t("maintenance.modal.beta.discord")}
           testId="maint-beta-discord"
           onComplete={handleDiscordComplete}
-          onError={(err) => setError(err?.message || formatApiError(err) || "Connexion Discord impossible")}
+          onError={(err) => setError(translateMaintenanceApiError(t, err?.message || formatApiError(err)))}
         />
 
         <div className="maint-modal-divider">
-          <span>ou par email</span>
+          <span>{t("maintenance.modal.divider_or_email")}</span>
         </div>
 
         <label className="maint-modal-field">
-          <span>Email ou pseudo</span>
+          <span>{t("maintenance.modal.field.login")}</span>
           <input
             value={form.login}
             onChange={(e) => set("login", e.target.value)}
@@ -110,7 +110,7 @@ export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitc
           />
         </label>
         <label className="maint-modal-field">
-          <span>Mot de passe</span>
+          <span>{t("maintenance.modal.field.password")}</span>
           <input
             type="password"
             value={form.password}
@@ -121,10 +121,10 @@ export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitc
         </label>
         {error && <p className="maint-modal-error" data-testid="maint-beta-error">{error}</p>}
         <button type="submit" className="maint-modal-primary" disabled={loading} data-testid="maint-beta-submit">
-          {loading ? <Loader2 className="maint-modal-spin" strokeWidth={2} /> : "Débloquer l'accès"}
+          {loading ? <Loader2 className="maint-modal-spin" strokeWidth={2} /> : t("maintenance.modal.beta.submit")}
         </button>
         <button type="button" className="maint-modal-link" onClick={onSwitchToCreate}>
-          Créer un compte
+          {t("maintenance.modal.beta.create_account")}
         </button>
       </form>
     </MaintenanceModalShell>

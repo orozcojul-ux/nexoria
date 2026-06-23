@@ -1,5 +1,6 @@
 import React from "react";
 import { FlaskConical, Megaphone, KeyRound } from "lucide-react";
+import { useI18n } from "@/i18n/LanguageProvider";
 
 const DISCORD_URL = process.env.REACT_APP_DISCORD_URL || "https://discord.gg/RC5QjcWDCH";
 
@@ -12,29 +13,29 @@ function DiscordLogo({ className }) {
 }
 
 export default function MaintenanceDiscordCommunity() {
+  const { t } = useI18n();
+
   return (
     <div className="maint-panel maint-discord-panel" data-testid="maintenance-discord-community">
-      <h2 className="maint-panel-title">Communauté Discord</h2>
+      <h2 className="maint-panel-title">{t("maintenance.discord.title")}</h2>
 
       <div className="maint-discord-head">
         <div className="maint-discord-icon-wrap" aria-hidden>
           <DiscordLogo className="maint-discord-icon" />
         </div>
-        <p className="maint-discord-lead">
-          Rejoins le royaume sur Discord — annonces, previews et échanges avec les Sentinelles
-          et les pionniers du Nexus.
-        </p>
+        <p className="maint-discord-lead">{t("maintenance.discord.lead")}</p>
       </div>
 
       <p className="maint-discord-beta-note">
-        Les inscriptions au <strong>beta test</strong> se font sur le Discord&nbsp;: crée d&apos;abord ton compte NEXORIA,
-        puis propose-toi sur le serveur pour recevoir ta clé d&apos;accès si tu es sélectionné.
+        {t("maintenance.discord.beta_note_before")}
+        <strong>{t("maintenance.discord.beta_note_strong")}</strong>
+        {t("maintenance.discord.beta_note_after")}
       </p>
 
       <ul className="maint-discord-perks">
-        <li><FlaskConical strokeWidth={1.75} /> Candidatures beta test</li>
-        <li><Megaphone strokeWidth={1.75} /> Annonces &amp; previews exclusives</li>
-        <li><KeyRound strokeWidth={1.75} /> Réception de ta clé bêta</li>
+        <li><FlaskConical strokeWidth={1.75} /> {t("maintenance.discord.perk.beta")}</li>
+        <li><Megaphone strokeWidth={1.75} /> {t("maintenance.discord.perk.announcements")}</li>
+        <li><KeyRound strokeWidth={1.75} /> {t("maintenance.discord.perk.key")}</li>
       </ul>
 
       <a
@@ -44,7 +45,7 @@ export default function MaintenanceDiscordCommunity() {
         className="maint-discord-cta"
         data-testid="maintenance-discord-link"
       >
-        Rejoindre le Discord
+        {t("maintenance.discord.cta")}
       </a>
     </div>
   );

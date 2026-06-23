@@ -17,6 +17,7 @@ import asyncio
 import httpx
 
 import discord_translate
+import discord_international
 
 logger = logging.getLogger("nexoria.discord_sync")
 
@@ -374,6 +375,7 @@ async def sync_discord_roles(db, user_id: str) -> dict:
                     msg = f"profile_updated; {profile_result.get('discord_display_name', '')}"
                 result.update({"ok": True, "applied": False, "reason": "no_change"})
                 await _log_sync(db, user_id, True, msg)
+                await discord_international.sync_language_role_if_missing(db, user_id, member, user)
                 return result
 
             await _modify_member_roles(
@@ -385,6 +387,7 @@ async def sync_discord_roles(db, user_id: str) -> dict:
                 db, user_id, True,
                 f"class={class_id or '-'}; tier={progression_name}; discord={profile_result.get('discord_display_name', '')}",
             )
+            await discord_international.sync_language_role_if_missing(db, user_id, member, user)
             return result
     except Exception as e:
         result.update({"error": str(e)[:300]})

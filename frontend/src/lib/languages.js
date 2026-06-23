@@ -5,7 +5,7 @@ export const LANGS = {
   es: { code: "es", label: "Español", flagCode: "es" },
   de: { code: "de", label: "Deutsch", flagCode: "de" },
   it: { code: "it", label: "Italiano", flagCode: "it" },
-  pt: { code: "pt", label: "Português", flagCode: "br" },
+  pt: { code: "pt", label: "Português BR", flagCode: "br" },
   nl: { code: "nl", label: "Nederlands", flagCode: "nl" },
   ja: { code: "ja", label: "日本語", flagCode: "jp" },
 };

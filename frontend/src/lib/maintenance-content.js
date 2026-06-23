@@ -82,6 +82,11 @@ export function normalizeMaintenanceSystems(stored) {
 
 function parseMaintenanceTitle(raw) {
   const clean = stripHtml(raw, { preserveBreaks: true });
+  return parseMaintenanceTitleFromClean(clean);
+}
+
+/** Parse title text (already stripped) into two lines. */
+export function parseMaintenanceTitleFromClean(clean) {
   const lines = clean.split("\n").map((s) => s.trim()).filter(Boolean);
   if (lines.length >= 2) {
     return { line1: lines[0], line2: lines.slice(1).join(" ") };

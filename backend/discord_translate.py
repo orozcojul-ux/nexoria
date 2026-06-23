@@ -19,6 +19,7 @@ import httpx
 
 import discord_i18n
 import libretranslate_client
+import discord_international
 
 logger = logging.getLogger("nexoria.discord_translate")
 
@@ -74,6 +75,13 @@ def lang_meta(code: str) -> dict[str, str]:
         if lang["code"] == code:
             return lang
     return {"code": code, "label": code, "label_full": code.upper(), "flag": "🌐"}
+
+
+def member_lang_from_interaction(payload: dict | None) -> str:
+    """Langue préférée du membre Discord (rôles langue) — fallback fr."""
+    if not payload:
+        return DEFAULT_SOURCE_LANG
+    return discord_international.get_user_preferred_language(payload.get("member"))
 
 
 def normalize_select_lang(value: str) -> str:
@@ -869,7 +877,7 @@ async def _handle_translation_request(
             message_id=message_id,
         )
         if translated is None:
-            return _ephemeral_response(content="Traduction indisponible pour le moment.")
+            return _ephemeral_response(content=discord_international.t_bot(member_lang_from_interaction(payload), "translation_unavailable"))
         logger.info(
             "Discord translation ok message_id=%s target=%s source=%s provider=%s cache_key=%s",
             message_id,
@@ -915,7 +923,7 @@ async def _handle_translation_request(
             source_lang,
             provider_name,
         )
-        return _ephemeral_response(content="Traduction indisponible pour le moment.")
+        return _ephemeral_response(content=discord_international.t_bot(member_lang_from_interaction(payload), "translation_unavailable"))
 
     logger.info(
         "Discord translation ok message_id=%s target=%s source=%s provider=%s cache_key=%s",
@@ -950,7 +958,7 @@ def _parse_translation_target(payload: dict) -> str:
 async def handle_component_interaction(payload: dict) -> dict:
     target = _parse_translation_target(payload)
     if not target:
-        return _ephemeral_response(content="Action inconnue.")
+        return _ephemeral_response(content=discord_international.t_bot(member_lang_from_interaction(payload), "unknown_action"))
     return await _handle_translation_request(payload=payload, target=target)
 
 
@@ -961,7 +969,7 @@ async def handle_interaction(body: bytes) -> dict:
         return {"type": 1}
     if itype == 3:
         return await handle_component_interaction(data)
-    return _ephemeral_response(content="Interaction non prise en charge.")
+    return _ephemeral_response(content=discord_international.t_bot(member_lang_from_interaction(data), "unknown_action"))
 
 
 def attach_translate_components(payload: dict) -> dict:

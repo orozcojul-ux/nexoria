@@ -72,6 +72,7 @@ import discord_sync
 import discord_rewards
 import discord_auth_forum
 import discord_beta
+import discord_international
 import beta_access
 import discord_translate
 import online_gate
@@ -352,6 +353,7 @@ def public_user(user: dict) -> dict:
     user["vip_plan"] = user.get("vip_plan")
     user["vip_total_days_purchased"] = int(user.get("vip_total_days_purchased", 0) or 0)
     user["is_nexus_supreme"] = (user.get("username") or "").lower() == OWNER_USERNAME.lower()
+    user["discord_linked"] = bool(user.get("discord_id"))
 
     return user
 
@@ -1813,11 +1815,7 @@ async def maintenance_discord_register(req: MaintenanceDiscordCodeReq, response:
     if existing:
         enforce_ban_or_raise(existing)
         user_id = existing["user_id"]
-        patch = _discord_profile_fields(profile)
-        if _avatar_should_sync_from_discord(existing, profile):
-            patch["avatar_url"] = profile.get("discord_avatar_url")
-        if not existing.get("discord_id"):
-            patch["auth_provider"] = existing.get("auth_provider") or "discord"
+        patch = _discord_link_patch(existing, profile)
         await db.users.update_one({"user_id": user_id}, {"$set": patch})
         user = await db.users.find_one({"user_id": user_id})
         if user.get("beta_access"):
@@ -1840,31 +1838,11 @@ async def maintenance_discord_register(req: MaintenanceDiscordCodeReq, response:
             result["message"] = "Accès bêta déjà actif. Bienvenue dans le Nexus."
             return result
         await add_chronicle(user_id, "Connexion via Discord (maintenance)", "login")
+        discord_beta.schedule_maybe_grant_beta_on_link(db, user_id, user.get("email") or "")
     else:
-        user_id = generate_user_id()
-        username = await _unique_discord_username(profile.get("username") or profile.get("discord_global_name") or "")
-        email = profile["email"].lower()
-        user_doc = _new_user_doc(
-            user_id=user_id,
-            email=email,
-            username=username,
-            password=_secrets.token_urlsafe(24),
-            class_id="explorer",
-            beta_access_flag=False,
-        )
-        user_doc["password_hash"] = None
-        user_doc.update(_discord_profile_fields(profile))
-        user_doc["auth_provider"] = "discord"
-        user_doc["needs_class_selection"] = True
-        user_doc["avatar_url"] = profile.get("discord_avatar_url") or user_doc["avatar_url"]
-        for stat in ("creativity", "sociability", "curiosity"):
-            if stat in user_doc["dna"]:
-                user_doc["dna"][stat] += 3
-        await db.users.insert_one(user_doc)
-        await add_chronicle(user_id, f"{username} a créé un compte via Discord en anticipation de l'ouverture", "creation")
-        discord_auth_forum.schedule_auth_event("register", user_doc, method="discord")
-        await claim_founder_reward(user_id)
-        user = await db.users.find_one({"user_id": user_id})
+        user = await _create_maintenance_discord_user(profile)
+        user_id = user["user_id"]
+        is_new_account = True
 
     token = create_session_token()
     await db.user_sessions.insert_one({
@@ -1885,7 +1863,8 @@ async def maintenance_discord_register(req: MaintenanceDiscordCodeReq, response:
     result["session_token"] = token
     result["ok"] = True
     result["is_new_account"] = is_new_account
-    result["beta_access"] = False
+    result["beta_access"] = bool(user.get("beta_access"))
+    result["discord_linked"] = bool(user.get("discord_id"))
     result["redirect_feed"] = False
     if is_new_account:
         result["message"] = (
@@ -1914,11 +1893,7 @@ async def maintenance_discord_beta(req: MaintenanceDiscordBetaReq, response: Res
 
     enforce_ban_or_raise(existing)
     user_id = existing["user_id"]
-    patch = _discord_profile_fields(profile)
-    if _avatar_should_sync_from_discord(existing, profile):
-        patch["avatar_url"] = profile.get("discord_avatar_url")
-    if not existing.get("discord_id"):
-        patch["auth_provider"] = existing.get("auth_provider") or "discord"
+    patch = _discord_link_patch(existing, profile)
     await db.users.update_one({"user_id": user_id}, {"$set": patch})
     user = await db.users.find_one({"user_id": user_id})
 
@@ -2429,6 +2404,7 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         distinct_count = await db.user_languages.count_documents({"user_id": user["user_id"]})
         if distinct_count >= 2:
             await grant_badge(user["user_id"], "polyglot")
+        discord_international.schedule_sync_language_role(db, user["user_id"], update["language"])
 
     ops = {}
     if update:
@@ -5894,6 +5870,47 @@ def _discord_profile_fields(profile: dict) -> dict:
         "discord_global_name": profile.get("discord_global_name"),
         "discord_avatar_url": profile.get("discord_avatar_url"),
     }
+
+
+def _discord_link_patch(existing: dict | None, profile: dict) -> dict:
+    """Champs MongoDB pour lier un compte NEXORIA à Discord."""
+    patch = _discord_profile_fields(profile)
+    patch["discord_linked_at"] = now_utc().isoformat()
+    if existing is None or _avatar_should_sync_from_discord(existing, profile):
+        if profile.get("discord_avatar_url"):
+            patch["avatar_url"] = profile.get("discord_avatar_url")
+    if not existing or not existing.get("discord_id"):
+        patch["auth_provider"] = (existing or {}).get("auth_provider") or "discord"
+    return patch
+
+
+async def _create_maintenance_discord_user(profile: dict) -> dict:
+    """Nouveau compte via Discord pendant la maintenance — lié dès la création."""
+    user_id = generate_user_id()
+    username = await _unique_discord_username(profile.get("username") or profile.get("discord_global_name") or "")
+    email = profile["email"].lower()
+    user_doc = _new_user_doc(
+        user_id=user_id,
+        email=email,
+        password=_secrets.token_urlsafe(24),
+        class_id="explorer",
+        beta_access_flag=False,
+    )
+    user_doc["password_hash"] = None
+    user_doc.update(_discord_link_patch(None, profile))
+    user_doc["needs_class_selection"] = True
+    for stat in ("creativity", "sociability", "curiosity"):
+        if stat in user_doc["dna"]:
+            user_doc["dna"][stat] += 3
+    await db.users.insert_one(user_doc)
+    await add_chronicle(user_id, f"{username} a créé un compte via Discord en anticipation de l'ouverture", "creation")
+    discord_auth_forum.schedule_auth_event("register", user_doc, method="discord")
+    if DISCORD_SIGNUP_XP_BONUS > 0:
+        await grant_xp(user_id, DISCORD_SIGNUP_XP_BONUS, "Inscription via Discord")
+    await grant_badge(user_id, DISCORD_SIGNUP_BADGE_ID)
+    await claim_founder_reward(user_id)
+    discord_beta.schedule_maybe_grant_beta_on_link(db, user_id, email)
+    return await db.users.find_one({"user_id": user_id})
 
 
 def _avatar_should_sync_from_discord(user: dict, profile: dict) -> bool:
