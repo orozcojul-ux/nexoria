@@ -14,14 +14,16 @@ import httpx
 import websockets
 
 import discord_translate
+import discord_welcome
 
 logger = logging.getLogger("nexoria.discord_gateway")
 
 DISCORD_API = "https://discord.com/api/v10"
 GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json"
 
-# GUILDS | GUILD_MESSAGES | GUILD_MESSAGE_REACTIONS
-GATEWAY_INTENTS = (1 << 0) | (1 << 9) | (1 << 10)
+# GUILDS | GUILD_MEMBERS | GUILD_MESSAGES | GUILD_MESSAGE_REACTIONS
+# GUILD_MEMBERS is privileged — enable Server Members Intent in Developer Portal.
+GATEWAY_INTENTS = (1 << 0) | (1 << 1) | (1 << 9) | (1 << 10)
 
 _gateway_task: asyncio.Task | None = None
 _bot_user_id: str = ""
@@ -92,6 +94,17 @@ async def _handle_dispatch(event: str, data: dict[str, Any]) -> None:
                     thread_id=thread_id,
                 )
             )
+        return
+
+    if event == "GUILD_MEMBER_ADD":
+        guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
+        if guild_id and str(data.get("guild_id") or "") == guild_id:
+            logger.info(
+                "discord member join detected: %s",
+                (data.get("user") or {}).get("id"),
+            )
+            asyncio.create_task(discord_welcome.send_member_welcome(data))
+        return
 
 
 async def _gateway_loop() -> None:
@@ -197,7 +210,7 @@ def start() -> None:
         return
     _stop_event = asyncio.Event()
     _gateway_task = asyncio.create_task(_gateway_loop())
-    logger.info("discord gateway starting (reaction translate 🌍)")
+    logger.info("discord gateway starting (reactions 🌍 + member welcome)")
 
 
 def stop() -> None:

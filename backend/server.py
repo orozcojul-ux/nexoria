@@ -8906,8 +8906,13 @@ async def startup():
             )
         await db.discord_translatable_messages.create_index("message_id", unique=True)
         await db.discord_translate_thread_helpers.create_index("thread_id", unique=True)
+        await db.discord_welcome_log.create_index(
+            [("guild_id", 1), ("discord_id", 1)], unique=True,
+        )
         discord_sync.start_periodic_sync(db, interval=30)
         try:
+            import discord_welcome
+            discord_welcome.init(db)
             import discord_gateway
             discord_gateway.start()
         except Exception as gw_exc:  # noqa: BLE001
