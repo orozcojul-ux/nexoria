@@ -1,0 +1,58 @@
+"""Tests discord_welcome and lock channel classification."""
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "scripts"
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(SCRIPTS))
+
+from discord_welcome import avatar_url, build_welcome_embed, is_enabled
+
+
+def test_build_welcome_embed_mention_and_title():
+    user = {"id": "123456789012345678", "avatar": "abc123"}
+    embed = build_welcome_embed(user)
+    assert embed["title"] == "🌌 Bienvenue dans NEXORIA"
+    assert "<@123456789012345678>" in embed["description"]
+    assert "Welcome to NEXORIA" in embed["description"]
+    assert embed["thumbnail"]["url"].startswith("https://cdn.discordapp.com/")
+    assert "Communauté fantasy" in embed["footer"]["text"]
+
+
+def test_avatar_url_default():
+    user = {"id": "123456789012345678"}
+    url = avatar_url(user)
+    assert "embed/avatars" in url
+
+
+def test_welcome_enabled_by_default():
+    assert is_enabled() in (True, False)
+
+
+def test_classify_lock_bienvenue():
+    from lock_discord_info_channels import classify_channel
+
+    ch = {"id": "1514271114405216359", "name": "🌟┃bienvenue", "type": 0}
+    assert classify_channel(ch) == "lock"
+
+
+def test_classify_open_global_chat():
+    from lock_discord_info_channels import classify_channel
+
+    ch = {"id": "999", "name": "🌐┃global-chat", "type": 0}
+    assert classify_channel(ch) == "open"
+
+
+def test_classify_skip_inscriptions_beta():
+    from lock_discord_info_channels import classify_channel
+
+    ch = {"id": "1517470910427168770", "name": "inscriptions-beta", "type": 15}
+    assert classify_channel(ch) == "skip"
+
+
+def test_classify_skip_beta_test():
+    from lock_discord_info_channels import classify_channel
+
+    ch = {"id": "1517470908476821575", "name": "beta-test", "type": 0}
+    assert classify_channel(ch) == "skip"

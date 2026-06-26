@@ -8895,6 +8895,8 @@ async def startup():
     # Auto-sync Discord roles/ranks on a rotating 30s schedule.
     try:
         discord_translate.init(db)
+        import discord_welcome
+        discord_welcome.init(db)
         migrated = await discord_translate.migrate_source_lang_to_french()
         if migrated:
             logger.info("NEXORIA: migrated %d discord message(s) to source_lang=fr", migrated)
@@ -8906,6 +8908,7 @@ async def startup():
             )
         await db.discord_translatable_messages.create_index("message_id", unique=True)
         await db.discord_translate_thread_helpers.create_index("thread_id", unique=True)
+        await db.discord_welcome_sent.create_index("user_id", unique=True)
         discord_sync.start_periodic_sync(db, interval=30)
         try:
             import discord_gateway

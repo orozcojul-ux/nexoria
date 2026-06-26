@@ -1,4 +1,4 @@
-"""Discord Gateway — réactions 🌍 et création de threads (helpers forum).
+"""Discord Gateway — réactions 🌍, threads forum, bienvenue membres.
 
 Connexion WebSocket légère (sans discord.py) pour compléter l'endpoint Interactions HTTP.
 """
@@ -14,14 +14,15 @@ import httpx
 import websockets
 
 import discord_translate
+import discord_welcome
 
 logger = logging.getLogger("nexoria.discord_gateway")
 
 DISCORD_API = "https://discord.com/api/v10"
 GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json"
 
-# GUILDS | GUILD_MESSAGES | GUILD_MESSAGE_REACTIONS
-GATEWAY_INTENTS = (1 << 0) | (1 << 9) | (1 << 10)
+# GUILDS | GUILD_MEMBERS | GUILD_MESSAGES | GUILD_MESSAGE_REACTIONS
+GATEWAY_INTENTS = (1 << 0) | (1 << 1) | (1 << 9) | (1 << 10)
 
 _gateway_task: asyncio.Task | None = None
 _bot_user_id: str = ""
@@ -29,11 +30,17 @@ _stop_event: asyncio.Event | None = None
 
 
 def is_enabled() -> bool:
-    if os.environ.get("DISCORD_REACTION_TRANSLATE_ENABLED", "true").strip().lower() in (
+    if os.environ.get("DISCORD_GATEWAY_ENABLED", "true").strip().lower() in (
         "0", "false", "off", "no",
     ):
         return False
     return bool(os.environ.get("DISCORD_BOT_TOKEN", "").strip())
+
+
+def _reaction_translate_enabled() -> bool:
+    return os.environ.get("DISCORD_REACTION_TRANSLATE_ENABLED", "true").strip().lower() not in (
+        "0", "false", "off", "no",
+    )
 
 
 def _token() -> str:
@@ -60,7 +67,14 @@ def _is_globe_reaction(emoji: dict | None) -> bool:
 
 
 async def _handle_dispatch(event: str, data: dict[str, Any]) -> None:
+    if event == "GUILD_MEMBER_ADD":
+        guild_id = str(data.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", ""))
+        asyncio.create_task(discord_welcome.handle_member_join(data, guild_id=guild_id))
+        return
+
     if event == "MESSAGE_REACTION_ADD":
+        if not _reaction_translate_enabled():
+            return
         emoji = data.get("emoji") or {}
         if not _is_globe_reaction(emoji):
             return
@@ -191,13 +205,13 @@ def start() -> None:
     """Démarre la connexion Gateway en tâche de fond."""
     global _gateway_task, _stop_event
     if not is_enabled():
-        logger.info("discord gateway disabled (token missing or DISCORD_REACTION_TRANSLATE_ENABLED=0)")
+        logger.info("discord gateway disabled (token missing or DISCORD_GATEWAY_ENABLED=0)")
         return
     if _gateway_task and not _gateway_task.done():
         return
     _stop_event = asyncio.Event()
     _gateway_task = asyncio.create_task(_gateway_loop())
-    logger.info("discord gateway starting (reaction translate 🌍)")
+    logger.info("discord gateway starting (welcome + reactions + threads)")
 
 
 def stop() -> None:
