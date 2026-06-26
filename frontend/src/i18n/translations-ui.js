@@ -70,6 +70,20 @@ export const TRANSLATIONS_UI = {
   "feed.aether_label": T("Écus", "Écus"),
   "feed.enter_nexus": T("Entrer dans le Nexus", "Enter the Nexus"),
   "feed.world_map": T("Carte du monde", "World map"),
+  "feed.online_heroes_title": T("Héros connectés au Royaume", "Heroes connected to the Realm"),
+  "feed.online_heroes_empty": T("Aucun héros dans le Nexus Online pour le moment.", "No heroes in Nexus Online right now."),
+
+  // ─── Footer ───
+  "footer.socials": T("Réseaux sociaux", "Social networks"),
+  "footer.useful_links": T("Liens utiles", "Useful links"),
+  "footer.help": T("Aide", "Help"),
+  "footer.community": T("Communauté", "Community"),
+  "footer.support": T("Support", "Support"),
+  "footer.terms": T("Conditions", "Terms"),
+  "footer.privacy": T("Confidentialité", "Privacy"),
+  "footer.copyright_title": T("Copyright Nexoria", "Copyright Nexoria"),
+  "footer.rights": T("© {{year}} NEXORIA. All Rights Reserved.", "© {{year}} NEXORIA. All Rights Reserved."),
+  "footer.tagline": T("Univers MMORPG social · Forge ta légende", "Social MMORPG universe · Forge your legend"),
 
   // ─── Dashboard / CMS panels ───
   "dashboard.activity": T("Activité en temps réel", "Live activity"),

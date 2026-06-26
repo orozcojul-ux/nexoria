@@ -1,23 +1,23 @@
 /**
- * Global language provider for NEXORIA.
- * Wraps the entire app — exposes lang, setLang, t(), fmtDate().
+ * Provider global i18n — i18next + API NEXORIA (lang, setLang, t, fmtDate).
  */
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
+import { I18nextProvider } from "react-i18next";
 import api, { getToken } from "@/lib/api";
-import { LANGS, LOCALE_MAP, LANG_CODES } from "@/lib/languages";
-import {
-  createTranslator,
-  readStoredLanguage,
-  persistLanguage,
-} from "@/i18n/index";
-import { getTranslationEntries } from "@/i18n/loadTranslations";
+import { LANGS, LOCALE_MAP } from "./languages";
+import i18n, { createAppT } from "./setupI18n";
+import { persistLanguage } from "./storage";
 
 const LanguageContext = createContext(null);
 
-export function LanguageProvider({ children }) {
-  const entries = useMemo(() => getTranslationEntries(), []);
+function LanguageBridge({ children }) {
+  const [lang, setLangState] = useState(() => i18n.language || "fr");
 
-  const [lang, setLangState] = useState(() => readStoredLanguage(LANG_CODES));
+  useEffect(() => {
+    const onChanged = (lng) => setLangState(lng);
+    i18n.on("languageChanged", onChanged);
+    return () => i18n.off("languageChanged", onChanged);
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -26,7 +26,7 @@ export function LanguageProvider({ children }) {
   const setLang = useCallback((l) => {
     if (!LANGS[l]) return;
     persistLanguage(l);
-    setLangState(l);
+    i18n.changeLanguage(l);
     window.dispatchEvent(new CustomEvent("nexoria:language-changed", { detail: { language: l } }));
     if (getToken()) {
       api.put("/profile", { language: l }).catch(() => {});
@@ -36,14 +36,11 @@ export function LanguageProvider({ children }) {
   const syncFromUser = useCallback((user) => {
     if (user?.language && LANGS[user.language]) {
       persistLanguage(user.language);
-      setLangState(user.language);
+      i18n.changeLanguage(user.language);
     }
   }, []);
 
-  const t = useCallback(
-    (key, varsOrFallback) => createTranslator(entries, lang)(key, varsOrFallback),
-    [entries, lang],
-  );
+  const t = useMemo(() => createAppT(i18n), [lang]);
 
   const fmtDate = useCallback((iso, opts = {}) => {
     if (!iso) return "—";
@@ -69,7 +66,14 @@ export function LanguageProvider({ children }) {
   );
 }
 
-/** @deprecated Use LanguageProvider — kept for backward compatibility */
+export function LanguageProvider({ children }) {
+  return (
+    <I18nextProvider i18n={i18n}>
+      <LanguageBridge>{children}</LanguageBridge>
+    </I18nextProvider>
+  );
+}
+
 export const I18nProvider = LanguageProvider;
 
 export function useI18n() {
@@ -78,7 +82,6 @@ export function useI18n() {
   return ctx;
 }
 
-/** Alias for useI18n */
 export const useTranslation = useI18n;
 
 export function useLanguage() {

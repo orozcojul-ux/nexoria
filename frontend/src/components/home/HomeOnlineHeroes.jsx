@@ -50,7 +50,7 @@ export default function HomeOnlineHeroes() {
   return (
     <div className="feed-col-widget" data-testid="home-online-heroes">
       <HomePanel
-        label="Héros connectés au Royaume"
+        label={t("feed.online_heroes_title")}
         color="var(--home-cyan)"
         icon={Users}
         count={total}
@@ -58,7 +58,7 @@ export default function HomeOnlineHeroes() {
       >
         {total === 0 ? (
           <div className="feed-empty feed-empty--compact">
-            Aucun héros dans le Nexus Online pour le moment.
+            {t("feed.online_heroes_empty")}
           </div>
         ) : (
           <div className="feed-staff-groups">
@@ -90,8 +90,8 @@ export default function HomeOnlineHeroes() {
                             <HeroName user={p} size="sm" showIcon nameColor={staff?.color || null} />
                           </div>
                           <div className="feed-staff-sub">
-                            {p.class_name || "Héros"}
-                            {p.level ? ` · Niv.${p.level}` : ""}
+                            {p.class_name || t("common.hero")}
+                            {p.level ? ` · ${t("feed.level_short")}${p.level}` : ""}
                             {p.room ? ` · ${p.room}` : ""}
                           </div>
                         </div>
