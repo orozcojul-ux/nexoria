@@ -14,27 +14,14 @@ import { useProfileSync } from "@/hooks/useProfileSync";
 import { RARITY } from "@/lib/design-tokens";
 import { PremiumButton, PremiumCard, PageShell, PremiumModal } from "@/components/ui-premium";
 import { usePageBanner } from "@/lib/page-banners";
+import { useI18n } from "@/contexts/I18nContext";
 import { CRAFT_GUIDE } from "@/lib/itemUsageHelp";
 import "@/pages/craft.css";
 
-const CATEGORIES = [
-  { id: "all", label: "Toutes" },
-  { id: "weapon", label: "Armes" },
-  { id: "accessory", label: "Accessoires" },
-  { id: "consumable", label: "Consommables" },
-];
-
-const RARITIES = [
-  { id: "all", label: "Toutes" },
-  { id: "rare", label: "Rare" },
-  { id: "epic", label: "Épique" },
-  { id: "legendary", label: "Légendaire" },
-];
-
-const METRIC_LABELS = {
-  attempts: "tentatives",
-  successes: "réussites",
-  legendary_successes: "forges légendaires",
+const METRIC_KEYS = {
+  attempts: "craft.metric.attempts",
+  successes: "craft.metric.successes",
+  legendary_successes: "craft.metric.legendary",
 };
 
 const MILESTONE_ICONS = {
@@ -45,7 +32,22 @@ const MILESTONE_ICONS = {
 };
 
 export default function Craft() {
+  const { t, locale } = useI18n();
   const { user, refresh } = useAuth();
+
+  const CATEGORIES = [
+    { id: "all", label: t("craft.filter.all_cats") },
+    { id: "weapon", label: t("craft.filter.weapons") },
+    { id: "accessory", label: t("craft.filter.accessories") },
+    { id: "consumable", label: t("craft.filter.consumables") },
+  ];
+
+  const RARITIES = [
+    { id: "all", label: t("craft.filter.all_rarities") },
+    { id: "rare", label: t("craft.filter.rare") },
+    { id: "epic", label: t("craft.filter.epic") },
+    { id: "legendary", label: t("craft.filter.legendary") },
+  ];
   const [resources, setResources] = useState([]);
   const [recipes, setRecipes] = useState([]);
   const [history, setHistory] = useState([]);
@@ -102,15 +104,18 @@ export default function Craft() {
       if (data.progress) setProgress(data.progress);
       if (data.success) {
         sfx.success();
-        toast.success(`Forge réussie — « ${data.resultItem?.name || recipe.name} » créé !`);
+        toast.success(t("craft.toast.success", { name: data.resultItem?.name || recipe.name }));
       } else {
         sfx.error?.() || sfx.click?.();
-        toast.error(`Échec de forge — ${data.compensation?.name || "Poussière cosmique"} ×${data.compensation?.quantity || 2} en compensation`);
+        toast.error(t("craft.toast.fail", {
+          name: data.compensation?.name || "Poussière cosmique",
+          qty: data.compensation?.quantity || 2,
+        }));
       }
       await load();
       await refresh();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Forge impossible");
+      toast.error(e.response?.data?.detail || t("craft.toast.impossible"));
     } finally {
       setCraftingId(null);
     }
@@ -123,8 +128,8 @@ export default function Craft() {
         <div className="flex flex-wrap items-center gap-3 mb-3">
           <div className="flex items-center gap-2 text-amber-200 font-display font-bold">
             <Coins className="w-4 h-4 text-amber-400" />
-            <span className="font-mono-stat">{ecus.toLocaleString("fr-FR")}</span>
-            <span className="text-xs text-zinc-500 font-normal">Écus</span>
+            <span className="font-mono-stat">{ecus.toLocaleString(locale)}</span>
+            <span className="text-xs text-zinc-500 font-normal">{t("craft.ecus")}</span>
           </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
@@ -143,16 +148,17 @@ export default function Craft() {
         </div>
       </div>
 
-      <CraftProgressPanel progress={progress} />
+      <CraftProgressPanel progress={progress} t={t} />
 
       {/* Rubrique — Comment fonctionne la Forge */}
       <CraftGuideRubrique
         open={guideOpen}
         onToggle={() => setGuideOpen((v) => !v)}
         onOpenFull={() => setGuideModalOpen(true)}
+        t={t}
       />
 
-      <CraftGuideModal open={guideModalOpen} onClose={() => setGuideModalOpen(false)} />
+      <CraftGuideModal open={guideModalOpen} onClose={() => setGuideModalOpen(false)} t={t} />
 
       {/* Résultat dernière forge */}
       <AnimatePresence>
@@ -167,14 +173,16 @@ export default function Craft() {
             {lastResult.success ? (
               <>
                 <Check className="w-5 h-5" />
-                <span>Succès — <strong>{lastResult.resultItem?.name}</strong> ajouté à votre inventaire.</span>
+                <span>{t("craft.result.success", { name: lastResult.resultItem?.name })}</span>
               </>
             ) : (
               <>
                 <X className="w-5 h-5" />
                 <span>
-                  Échec — ressources consommées. Compensation :
-                  {" "}<strong>{lastResult.compensation?.name || "Poussière cosmique"} ×{lastResult.compensation?.quantity || 2}</strong>
+                  {t("craft.result.fail", {
+                    name: lastResult.compensation?.name || "Poussière cosmique",
+                    qty: lastResult.compensation?.quantity || 2,
+                  })}
                 </span>
               </>
             )}
@@ -185,7 +193,7 @@ export default function Craft() {
       {/* Filtres */}
       <div className="flex flex-wrap gap-4 mb-6 items-center justify-center">
         <div className="flex items-center gap-2 text-zinc-500 text-xs uppercase tracking-widest">
-          <Filter className="w-3.5 h-3.5" /> Catégorie
+          <Filter className="w-3.5 h-3.5" /> {t("craft.category_label")}
         </div>
         <div className="flex flex-wrap gap-2">
           {CATEGORIES.map((c) => (
@@ -219,7 +227,7 @@ export default function Craft() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10" data-testid="craft-recipes-grid">
         {filtered.length === 0 && (
           <PremiumCard tone="violet" className="col-span-full p-10 text-center text-zinc-500 italic">
-            Aucune recette pour ces filtres.
+            {t("craft.no_recipes")}
           </PremiumCard>
         )}
         {filtered.map((recipe) => (
@@ -230,6 +238,7 @@ export default function Craft() {
             ecus={ecus}
             crafting={craftingId === recipe.id}
             onForge={() => forge(recipe)}
+            t={t}
           />
         ))}
       </div>
@@ -239,11 +248,11 @@ export default function Craft() {
         <div className="flex items-center gap-2 mb-4">
           <History className="w-4 h-4 text-violet-300" />
           <h2 className="text-sm font-display font-bold uppercase tracking-[0.2em] text-violet-200">
-            Forge récente
+            {t("craft.recent_forge")}
           </h2>
         </div>
         {history.length === 0 ? (
-          <p className="text-sm text-zinc-500 italic">Aucun craft pour le moment.</p>
+          <p className="text-sm text-zinc-500 italic">{t("craft.no_history")}</p>
         ) : (
           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
             {history.map((h) => (
@@ -253,7 +262,7 @@ export default function Craft() {
                 </span>
                 <span className="font-bold text-white">{h.recipe_name}</span>
                 <span className="text-zinc-500 text-xs">
-                  {h.created_at ? new Date(h.created_at).toLocaleString("fr-FR") : ""}
+                  {h.created_at ? new Date(h.created_at).toLocaleString(locale) : ""}
                 </span>
                 <span className="text-amber-300/80 text-xs font-mono-stat ml-auto">-{h.cost_ecus} ✦</span>
               </div>
@@ -265,7 +274,7 @@ export default function Craft() {
   );
 }
 
-function RecipeCard({ recipe, ownedMap, ecus, crafting, onForge }) {
+function RecipeCard({ recipe, ownedMap, ecus, crafting, onForge, t }) {
   const tok = RARITY[recipe.rarity] || RARITY.common;
   const result = recipe.resultItem || {};
   const I = Lucide[result.icon] || Lucide[recipe.category === "weapon" ? "Sword" : "Gem"];
@@ -295,7 +304,7 @@ function RecipeCard({ recipe, ownedMap, ecus, crafting, onForge }) {
       </div>
 
       <div className="mt-4 space-y-1.5">
-        <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Ressources</div>
+        <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t("craft.resources_label")}</div>
         {(recipe.requiredResourcesDetail || []).map((req) => {
           const owned = ownedMap[req.id] ?? 0;
           const need = req.required || 0;
@@ -315,16 +324,16 @@ function RecipeCard({ recipe, ownedMap, ecus, crafting, onForge }) {
 
       <div className="mt-4 flex flex-wrap items-center gap-3 text-xs">
         <span className="text-amber-300 font-mono-stat font-bold flex items-center gap-1">
-          <Coins className="w-3.5 h-3.5" /> {recipe.costEcus} Écus
+          <Coins className="w-3.5 h-3.5" /> {recipe.costEcus} {t("craft.ecus")}
         </span>
         <span className="text-cyan-300 flex items-center gap-1">
-          <Sparkles className="w-3.5 h-3.5" /> {ratePct}% réussite
+          <Sparkles className="w-3.5 h-3.5" /> {t("craft.success_rate", { pct: ratePct })}
         </span>
         {recipe.insufficientEcus && (
-          <span className="text-red-400">Écus insuffisants</span>
+          <span className="text-red-400">{t("craft.insufficient_ecus")}</span>
         )}
         {recipe.missingResources && !recipe.insufficientEcus && (
-          <span className="text-red-400">Ressources manquantes</span>
+          <span className="text-red-400">{t("craft.missing_resources")}</span>
         )}
       </div>
 
@@ -337,13 +346,13 @@ function RecipeCard({ recipe, ownedMap, ecus, crafting, onForge }) {
         onClick={onForge}
         testid={`craft-btn-${recipe.id}`}
       >
-        {crafting ? "Forge en cours…" : "Forger"}
+        {crafting ? t("craft.forging") : t("craft.forge_btn")}
       </PremiumButton>
     </PremiumCard>
   );
 }
 
-function CraftProgressPanel({ progress }) {
+function CraftProgressPanel({ progress, t }) {
   if (!progress) return null;
 
   const tier = progress.tier || { label: "Apprenti", color: "#9CA3AF" };
@@ -362,22 +371,21 @@ function CraftProgressPanel({ progress }) {
             <Hammer className="w-6 h-6" style={{ color: tier.color }} />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-[0.25em] text-zinc-500 font-bold">Palier forge</div>
+            <div className="text-[10px] uppercase tracking-[0.25em] text-zinc-500 font-bold">{t("craft.tier_label")}</div>
             <div className="font-display font-black text-xl text-white" style={{ color: tier.color }}>
               {tier.label}
             </div>
             {nextTier && (
               <div className="text-xs text-zinc-400 mt-0.5">
-                Prochain : <span style={{ color: nextTier.color }}>{nextTier.label}</span>
-                {" "}({progress.attempts ?? 0}/{nextTier.min} tentatives)
+                {t("craft.next_tier", { label: nextTier.label, current: progress.attempts ?? 0, min: nextTier.min })}
               </div>
             )}
           </div>
         </div>
         <div className="flex flex-wrap gap-3 flex-1 justify-end">
-          <StatPill label="Tentatives" value={progress.attempts ?? 0} />
-          <StatPill label="Réussites" value={progress.successes ?? 0} accent="#34D399" />
-          <StatPill label="Échecs" value={progress.failures ?? 0} accent="#F87171" />
+          <StatPill label={t("craft.attempts")} value={progress.attempts ?? 0} />
+          <StatPill label={t("craft.successes")} value={progress.successes ?? 0} accent="#34D399" />
+          <StatPill label={t("craft.failures")} value={progress.failures ?? 0} accent="#F87171" />
         </div>
       </div>
 
@@ -389,7 +397,7 @@ function CraftProgressPanel({ progress }) {
 
       <div className="flex items-center gap-2 mb-3 text-violet-200">
         <Trophy className="w-4 h-4 text-amber-300" />
-        <h2 className="text-sm font-display font-bold uppercase tracking-wider">Paliers & récompenses</h2>
+        <h2 className="text-sm font-display font-bold uppercase tracking-wider">{t("craft.milestones")}</h2>
       </div>
       <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
         {milestones.map((m) => {
@@ -407,15 +415,15 @@ function CraftProgressPanel({ progress }) {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-display font-bold text-white">
-                  {m.threshold} {METRIC_LABELS[m.metric] || m.metric}
+                  {m.threshold} {t(METRIC_KEYS[m.metric] || m.metric)}
                 </div>
                 <div className="text-[11px] text-zinc-400 truncate">{m.label}</div>
               </div>
               <div className="text-[10px] font-bold uppercase tracking-wider shrink-0">
                 {done ? (
-                  <span className="text-emerald-300">Obtenu</span>
+                  <span className="text-emerald-300">{t("craft.obtained")}</span>
                 ) : ready ? (
-                  <span className="text-amber-300">Débloqué</span>
+                  <span className="text-amber-300">{t("craft.unlocked")}</span>
                 ) : (
                   <span className="text-zinc-500">{m.progress}/{m.threshold}</span>
                 )}
@@ -437,7 +445,7 @@ function StatPill({ label, value, accent = "#67E8F9" }) {
   );
 }
 
-function CraftGuideRubrique({ open, onToggle, onOpenFull }) {
+function CraftGuideRubrique({ open, onToggle, onOpenFull, t }) {
   return (
     <section className="forge-guide-rubrique mb-6" data-testid="craft-guide-rubrique">
       <div className="forge-guide-rubrique-header">
@@ -450,14 +458,14 @@ function CraftGuideRubrique({ open, onToggle, onOpenFull }) {
         >
           <BookOpen className="w-4 h-4 text-cyan-300" />
           <span className="text-sm font-display font-bold uppercase tracking-[0.18em] text-cyan-200">
-            Comment fonctionne la Forge ?
+            {t("craft.guide.title")}
           </span>
         </button>
         <button
           type="button"
           onClick={onOpenFull}
           className="forge-guide-info-btn"
-          aria-label="Guide complet"
+          aria-label={t("craft.guide.full")}
           data-testid="craft-guide-full-btn"
         >
           <Info className="w-3.5 h-3.5" />
@@ -466,7 +474,7 @@ function CraftGuideRubrique({ open, onToggle, onOpenFull }) {
           type="button"
           onClick={onToggle}
           className="forge-guide-chevron-btn"
-          aria-label={open ? "Replier le guide" : "Déplier le guide"}
+          aria-label={open ? t("craft.guide.collapse") : t("craft.guide.expand")}
         >
           <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
@@ -487,7 +495,7 @@ function CraftGuideRubrique({ open, onToggle, onOpenFull }) {
               <div className="grid md:grid-cols-2 gap-4 mb-4">
                 <div>
                   <h3 className="forge-guide-subtitle">
-                    <Target className="w-3.5 h-3.5" /> Étapes
+                    <Target className="w-3.5 h-3.5" /> {t("craft.guide.steps")}
                   </h3>
                   <ol className="forge-guide-list">
                     {CRAFT_GUIDE.steps.map((step) => (
@@ -497,7 +505,7 @@ function CraftGuideRubrique({ open, onToggle, onOpenFull }) {
                 </div>
                 <div>
                   <h3 className="forge-guide-subtitle">
-                    <Sparkles className="w-3.5 h-3.5" /> Taux de réussite
+                    <Sparkles className="w-3.5 h-3.5" /> {t("craft.guide.rates")}
                   </h3>
                   <div className="space-y-1.5 mb-4">
                     {CRAFT_GUIDE.successRates.map((row) => (
@@ -510,14 +518,13 @@ function CraftGuideRubrique({ open, onToggle, onOpenFull }) {
                   <div className="forge-guide-fail-box">
                     <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
                     <span>
-                      En cas d&apos;échec, ressources et Écus sont perdus. Compensation :
-                      <strong> 2× Poussière cosmique</strong>.
+                      {t("craft.guide.fail_note")}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <h3 className="forge-guide-subtitle mb-2">Où obtenir les ressources</h3>
+              <h3 className="forge-guide-subtitle mb-2">{t("craft.guide.where")}</h3>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {CRAFT_GUIDE.resources.map((r) => (
                   <div key={r.name} className="forge-guide-resource-row">
@@ -534,12 +541,12 @@ function CraftGuideRubrique({ open, onToggle, onOpenFull }) {
   );
 }
 
-function CraftGuideModal({ open, onClose }) {
+function CraftGuideModal({ open, onClose, t }) {
   return (
     <PremiumModal
       open={open}
       onClose={onClose}
-      title="Guide de la Forge du Nexus"
+      title={t("craft.guide.modal_title")}
       icon={BookOpen}
       maxWidth="max-w-2xl"
       testid="craft-guide-modal"
@@ -548,7 +555,7 @@ function CraftGuideModal({ open, onClose }) {
         <p className="leading-relaxed">{CRAFT_GUIDE.intro}</p>
 
         <section>
-          <h3 className="text-[10px] uppercase tracking-[0.25em] text-cyan-300 font-bold mb-2">Étapes</h3>
+          <h3 className="text-[10px] uppercase tracking-[0.25em] text-cyan-300 font-bold mb-2">{t("craft.guide.steps")}</h3>
           <ol className="space-y-1.5 list-decimal list-inside">
             {CRAFT_GUIDE.steps.map((s) => (
               <li key={s} className="leading-relaxed">{s}</li>
@@ -557,7 +564,7 @@ function CraftGuideModal({ open, onClose }) {
         </section>
 
         <section>
-          <h3 className="text-[10px] uppercase tracking-[0.25em] text-amber-300 font-bold mb-2">Taux de réussite</h3>
+          <h3 className="text-[10px] uppercase tracking-[0.25em] text-amber-300 font-bold mb-2">{t("craft.guide.rates")}</h3>
           <div className="grid grid-cols-2 gap-2">
             {CRAFT_GUIDE.successRates.map((row) => (
               <div key={row.rarity} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 flex justify-between">
@@ -569,7 +576,7 @@ function CraftGuideModal({ open, onClose }) {
         </section>
 
         <section>
-          <h3 className="text-[10px] uppercase tracking-[0.25em] text-violet-300 font-bold mb-2">Sources de ressources</h3>
+          <h3 className="text-[10px] uppercase tracking-[0.25em] text-violet-300 font-bold mb-2">{t("craft.guide.sources")}</h3>
           <div className="space-y-2">
             {CRAFT_GUIDE.resources.map((r) => (
               <div key={r.name} className="rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2">
@@ -581,7 +588,7 @@ function CraftGuideModal({ open, onClose }) {
         </section>
 
         <section>
-          <h3 className="text-[10px] uppercase tracking-[0.25em] text-emerald-300 font-bold mb-2">Bon à savoir</h3>
+          <h3 className="text-[10px] uppercase tracking-[0.25em] text-emerald-300 font-bold mb-2">{t("craft.guide.tips")}</h3>
           <ul className="space-y-1.5 list-disc list-inside text-zinc-400">
             {CRAFT_GUIDE.tips.map((t) => (
               <li key={t}>{t}</li>

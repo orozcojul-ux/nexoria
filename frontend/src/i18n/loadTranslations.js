@@ -7,6 +7,7 @@ import { TRANSLATIONS } from "./translations.js";
 import { TRANSLATIONS_EXTENDED } from "./translations-extended.js";
 import { TRANSLATIONS_UI } from "./translations-ui.js";
 import { TRANSLATIONS_LEGACY } from "./translations-legacy.js";
+import { TRANSLATIONS_PAGES } from "./translations-pages.js";
 
 let _cache = null;
 
@@ -17,6 +18,7 @@ export function getTranslationEntries() {
       ...TRANSLATIONS,
       ...TRANSLATIONS_EXTENDED,
       ...TRANSLATIONS_UI,
+      ...TRANSLATIONS_PAGES,
     };
   }
   return _cache;

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
+import { useI18n } from "@/contexts/I18nContext";
 import { PageShell } from "@/components/ui-premium";
 import StarField from "@/components/StarField";
 import HeroName from "@/components/HeroName";
@@ -17,6 +18,7 @@ import { usePageBanner } from "@/lib/page-banners";
 import "./friends.css";
 
 export default function Friends() {
+  const { t } = useI18n();
   const banner = usePageBanner("friends");
   const [friends, setFriends] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -43,11 +45,11 @@ export default function Friends() {
         detail: { pendingCount: (r.data || []).length },
       }));
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Impossible de charger vos compagnons");
+      toast.error(err.response?.data?.detail || t("friends.load_error"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -72,42 +74,42 @@ export default function Friends() {
   const cancelRequest = async (id) => {
     try {
       await api.delete(`/friends/requests/${id}`);
-      toast.info("Demande annulée");
+      toast.info(t("friends.request_cancelled"));
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("common.error"));
     }
   };
 
   const accept = async (id) => {
     try {
       await api.post(`/friends/requests/${id}/accept`);
-      toast.success("Pacte d'amitié forgé");
+      toast.success(t("friends.pact_forged"));
       sfx.success();
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Acceptation impossible");
+      toast.error(err.response?.data?.detail || t("friends.accept_failed"));
     }
   };
 
   const decline = async (id) => {
     try {
       await api.post(`/friends/requests/${id}/decline`);
-      toast.info("Demande refusée");
+      toast.info(t("friends.request_declined"));
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("common.error"));
     }
   };
 
   const unfriend = async (uid) => {
-    if (!window.confirm("Rompre ce lien d'amitié ?")) return;
+    if (!window.confirm(t("friends.unlink_confirm"))) return;
     try {
       await api.delete(`/friends/${uid}`);
-      toast.success("Lien rompu");
+      toast.success(t("friends.link_broken"));
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("common.error"));
     }
   };
 
@@ -125,27 +127,50 @@ export default function Friends() {
 
       <div className="friends-topbar">
         <div className="friends-topbar-stats">
-          <span className="hub-stat-pill"><Users className="w-3 h-3" /> {friends.length} compagnon{friends.length > 1 ? "s" : ""}</span>
-          <span className="hub-stat-pill"><Circle className="w-3 h-3 text-emerald-400 fill-emerald-400" /> {onlineCount} en ligne</span>
+          <span className="hub-stat-pill">
+            <Users className="w-3 h-3" />{" "}
+            {friends.length <= 1
+              ? t("friends.companion_count", { count: friends.length })
+              : t("friends.companions_count", { count: friends.length })}
+          </span>
+          <span className="hub-stat-pill">
+            <Circle className="w-3 h-3 text-emerald-400 fill-emerald-400" />{" "}
+            {t("friends.online_count", { count: onlineCount })}
+          </span>
           {requests.length > 0 && (
-            <span className="hub-stat-pill"><Inbox className="w-3 h-3 text-amber-400" /> {requests.length} reçue{requests.length > 1 ? "s" : ""}</span>
+            <span className="hub-stat-pill">
+              <Inbox className="w-3 h-3 text-amber-400" />{" "}
+              {requests.length <= 1
+                ? t("friends.requests_received", { count: requests.length })
+                : t("friends.requests_received_plural", { count: requests.length })}
+            </span>
           )}
           {sentRequests.length > 0 && (
-            <span className="hub-stat-pill"><Send className="w-3 h-3 text-violet-400" /> {sentRequests.length} envoyée{sentRequests.length > 1 ? "s" : ""}</span>
+            <span className="hub-stat-pill">
+              <Send className="w-3 h-3 text-violet-400" />{" "}
+              {sentRequests.length <= 1
+                ? t("friends.requests_sent_count", { count: sentRequests.length })
+                : t("friends.requests_sent_plural", { count: sentRequests.length })}
+            </span>
           )}
           {chatUnread > 0 && (
-            <span className="hub-stat-pill"><MessageCircle className="w-3 h-3 text-cyan-400" /> {chatUnread} non lu{chatUnread > 1 ? "s" : ""}</span>
+            <span className="hub-stat-pill">
+              <MessageCircle className="w-3 h-3 text-cyan-400" />{" "}
+              {chatUnread <= 1
+                ? t("friends.unread", { count: chatUnread })
+                : t("friends.unread_plural", { count: chatUnread })}
+            </span>
           )}
         </div>
         <button type="button" className="friends-add-btn" onClick={() => setShowAdd(true)} data-testid="friends-add-btn">
-          <UserPlus className="w-3.5 h-3.5" /> Ajouter
+          <UserPlus className="w-3.5 h-3.5" /> {t("friends.add")}
         </button>
       </div>
 
       {sentRequests.length > 0 && (
         <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-4 mb-3" data-testid="sent-requests-section">
           <div className="text-[10px] uppercase tracking-[0.25em] text-violet-300 font-bold mb-3 flex items-center gap-2">
-            <Send className="w-3.5 h-3.5" /> Demandes envoyées ({sentRequests.length})
+            <Send className="w-3.5 h-3.5" /> {t("friends.sent_requests_title", { count: sentRequests.length })}
           </div>
           <div className="space-y-2">
             {sentRequests.map((r) => (
@@ -157,9 +182,9 @@ export default function Friends() {
                   <div className="text-sm font-bold text-white truncate">{r.to?.username || "?"}</div>
                   <div className="text-[10px] text-zinc-500 uppercase tracking-widest">{r.to?.class_name} · Niv. {r.to?.level}</div>
                 </div>
-                <span className="text-[10px] text-violet-300 italic shrink-0">En attente</span>
+                <span className="text-[10px] text-violet-300 italic shrink-0">{t("friends.pending")}</span>
                 <button type="button" onClick={() => cancelRequest(r.request_id)}
-                  className="text-zinc-500 hover:text-red-400 p-1 shrink-0" title="Annuler la demande"
+                  className="text-zinc-500 hover:text-red-400 p-1 shrink-0" title={t("friends.cancel_request")}
                   data-testid={`cancel-req-${r.request_id}`}>
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -172,7 +197,7 @@ export default function Friends() {
       {requests.length > 0 && (
         <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 mb-5" data-testid="friend-requests-section">
           <div className="text-[10px] uppercase tracking-[0.25em] text-amber-300 font-bold mb-3 flex items-center gap-2">
-            <Mail className="w-3.5 h-3.5" /> Demandes reçues ({requests.length})
+            <Mail className="w-3.5 h-3.5" /> {t("friends.received_requests_title", { count: requests.length })}
           </div>
           <div className="space-y-2">
             {requests.map((r) => (
@@ -190,7 +215,7 @@ export default function Friends() {
                 </HeroCardOpener>
                 <div className="friend-request-actions">
                   <button type="button" onClick={() => accept(r.request_id)} data-testid={`req-accept-${r.request_id}`} className="friend-btn-accept">
-                    <UserCheck className="w-3 h-3 inline mr-1" /> Accepter
+                    <UserCheck className="w-3 h-3 inline mr-1" /> {t("friends.accept")}
                   </button>
                   <button type="button" onClick={() => decline(r.request_id)} data-testid={`req-decline-${r.request_id}`} className="friend-btn-decline">
                     <UserX className="w-3 h-3" />
@@ -206,22 +231,22 @@ export default function Friends() {
         <section className="friends-chat-block" data-testid="friends-chat-block">
           <div className="friends-chat-header">
             <MessageCircle className="w-4 h-4 text-cyan-400" />
-            <span className="friends-chat-header-label">Échos privés</span>
+            <span className="friends-chat-header-label">{t("friends.private_echoes")}</span>
           </div>
           <FriendChat initialFriendId={chatFriendId} onUnreadChange={setChatUnread} />
         </section>
 
         <aside>
           <div className="friends-list-head">
-            <Users className="w-3.5 h-3.5" /> Liste ({friends.length})
+            <Users className="w-3.5 h-3.5" /> {t("friends.list", { count: friends.length })}
           </div>
           <div className="friends-list" data-testid="friends-grid">
             {loading && (
-              <div className="text-center text-zinc-500 italic py-8 text-sm">Chargement…</div>
+              <div className="text-center text-zinc-500 italic py-8 text-sm">{t("common.loading")}</div>
             )}
             {!loading && friends.length === 0 && (
               <div className="friends-empty">
-                Aucun compagnon — ajoute des héros pour commencer.
+                {t("friends.empty_short")}
               </div>
             )}
             {friends.map((f, i) => (
@@ -251,10 +276,10 @@ export default function Friends() {
                   </div>
                 </div>
                 <div className="friend-card-actions">
-                  <button type="button" onClick={() => openChat(f.user_id)} className="friend-card-msg" data-testid={`friend-message-${f.user_id}`} title="Envoyer un message">
+                  <button type="button" onClick={() => openChat(f.user_id)} className="friend-card-msg" data-testid={`friend-message-${f.user_id}`} title={t("friends.send_message")}>
                     <MessageCircle className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => unfriend(f.user_id)} data-testid={`unfriend-${f.user_id}`} className="friend-card-unfriend" title="Rompre le lien">
+                  <button type="button" onClick={() => unfriend(f.user_id)} data-testid={`unfriend-${f.user_id}`} className="friend-card-unfriend" title={t("friends.break_link")}>
                     <UserX className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -274,15 +299,16 @@ export default function Friends() {
 }
 
 function AddFriendDialog({ onClose, onSent }) {
+  const { t } = useI18n();
   const [username, setUsername] = useState("");
   const submit = async (e) => {
     e.preventDefault();
     try {
       await api.post("/friends/request", { target_username: username.trim() });
-      toast.success(`Demande envoyée à ${username}`);
+      toast.success(t("friends.request_sent", { username }));
       onSent();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("common.error"));
     }
   };
   return (
@@ -300,7 +326,7 @@ function AddFriendDialog({ onClose, onSent }) {
         data-testid="add-friend-dialog"
       >
         <div className="flex justify-between">
-          <h3 className="font-display font-black text-lg text-gradient">Ajouter un compagnon</h3>
+          <h3 className="font-display font-black text-lg text-gradient">{t("friends.add_companion")}</h3>
           <button type="button" onClick={onClose}><X className="w-4 h-4 text-zinc-500" /></button>
         </div>
         <div className="relative">
@@ -310,13 +336,13 @@ function AddFriendDialog({ onClose, onSent }) {
             onChange={(e) => setUsername(e.target.value)}
             required
             minLength={3}
-            placeholder="Pseudo du héros"
+            placeholder={t("friends.hero_username")}
             className="w-full bg-[#0A0A0E] border border-white/10 rounded pl-8 pr-3 py-2 text-sm"
             data-testid="add-friend-username"
           />
         </div>
         <button type="submit" className="w-full py-2 rounded border border-emerald-500/40 text-emerald-300 font-bold text-sm" data-testid="add-friend-submit">
-          Envoyer la demande
+          {t("friends.send_request")}
         </button>
       </motion.form>
     </motion.div>
