@@ -18,6 +18,7 @@ import { drawPixelBanner } from "@/lib/pixelArtUi";
 import { usePageBanner } from "@/lib/page-banners";
 import { useI18n } from "@/contexts/I18nContext";
 import { itemActivationInfo } from "@/lib/itemUsageHelp";
+import { translateShopItem, translateRarity, translateItem } from "@/lib/translate-game";
 
 const CAT_KEYS = [
   { id: "all", key: "shop.cat.all", icon: ShoppingBag },
@@ -32,12 +33,11 @@ const CAT_KEYS = [
   { id: "kingdom", key: "shop.cat.kingdom", icon: Shield },
 ];
 
-// Bannières pixel art — style Dofus/WoW (plus d'images IA)
-const FEATURED_VISUALS = [
-  { id: "f1", theme: "gold", title: "Lames Cosmiques", subtitle: "Collection Légendaire" },
-  { id: "f2", theme: "violet", title: "Armures du Néant", subtitle: "Édition Cosmique" },
-  { id: "f3", theme: "cyan", title: "Montures Mythiques", subtitle: "Compagnons Stellaires" },
-  { id: "f4", theme: "emerald", title: "Coffres Divins", subtitle: "Trésors Sacrés" },
+const FEATURED_KEYS = [
+  { id: "f1", theme: "gold", titleKey: "shop.featured.cosmicBlades.title", subKey: "shop.featured.cosmicBlades.sub" },
+  { id: "f2", theme: "violet", titleKey: "shop.featured.voidArmor.title", subKey: "shop.featured.voidArmor.sub" },
+  { id: "f3", theme: "cyan", titleKey: "shop.featured.mythicMounts.title", subKey: "shop.featured.mythicMounts.sub" },
+  { id: "f4", theme: "emerald", titleKey: "shop.featured.divineChests.title", subKey: "shop.featured.divineChests.sub" },
 ];
 
 export default function Shop() {
@@ -74,7 +74,7 @@ export default function Shop() {
 
   // Featured carousel auto-cycle
   useEffect(() => {
-    const id = setInterval(() => setFeaturedIdx((i) => (i + 1) % FEATURED_VISUALS.length), 6000);
+    const id = setInterval(() => setFeaturedIdx((i) => (i + 1) % FEATURED_KEYS.length), 6000);
     return () => clearInterval(id);
   }, []);
 
@@ -100,14 +100,16 @@ export default function Shop() {
     return s;
   }, [owned]);
 
+  const localizedItems = useMemo(() => items.map((it) => translateShopItem(t, it)), [items, t]);
+
   // Les objets VIP exclusifs n'apparaissent QUE dans l'onglet VIP.
   const filtered = useMemo(() => {
-    const base = items.filter((i) => !i.vip_only);
+    const base = localizedItems.filter((i) => !i.vip_only);
     if (cat === "all") return base;
     return base.filter((i) => i.category === cat);
-  }, [items, cat]);
+  }, [localizedItems, cat]);
 
-  const vipItems = useMemo(() => items.filter((i) => i.vip_only), [items]);
+  const vipItems = useMemo(() => localizedItems.filter((i) => i.vip_only), [localizedItems]);
   const [vipCat, setVipCat] = useState("all");
   const vipCategories = useMemo(
     () => Array.from(new Set(vipItems.map((i) => i.category))),
@@ -119,9 +121,15 @@ export default function Shop() {
   );
 
   const bestSellers = useMemo(() => {
-    // Use items with `popularity` as "best sellers" (VIP exclusives excluded)
-    return [...items].filter((i) => !i.vip_only).sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, 4);
-  }, [items]);
+    return [...localizedItems].filter((i) => !i.vip_only).sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, 4);
+  }, [localizedItems]);
+
+  const featuredKeys = FEATURED_KEYS[featuredIdx];
+  const featured = {
+    ...featuredKeys,
+    title: t(featuredKeys.titleKey),
+    subtitle: t(featuredKeys.subKey),
+  };
 
   const buyOne = async (sku) => {
     setBuying(sku);
@@ -132,13 +140,13 @@ export default function Shop() {
         sfx.chest?.();
         setChestReveal({ name: data.purchase.name, items: chestItems });
       } else {
-        toast.success(`« ${data.purchase.name} » acquis !`);
+        toast.success(t("shop.purchase.success", { name: data.purchase.name }));
       }
       // WebSocket event will trigger refresh; but optimistic immediately
       await load();
       await refresh();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Échec de l'achat");
+      toast.error(e.response?.data?.detail || t("shop.purchase.failed"));
     } finally {
       setBuying(null);
     }
@@ -146,7 +154,7 @@ export default function Shop() {
 
   const addToCart = (item) => {
     if (cart.find((c) => c.sku === item.sku)) {
-      toast.info("Déjà dans le panier");
+      toast.info(t("shop.cart.alreadyIn"));
       return;
     }
     setCart((c) => [...c, item]);
@@ -164,10 +172,9 @@ export default function Shop() {
     }
     setCart([]);
     setCartOpen(false);
-    toast.success("Panier vidé — tous les articles acquis !");
+    toast.success(t("shop.cart.checkoutDone"));
   };
 
-  const featured = FEATURED_VISUALS[featuredIdx];
   const featuredBanner = useMemo(
     () => drawPixelBanner(900, 224, featured.theme),
     [featured.theme],
@@ -186,8 +193,8 @@ export default function Shop() {
           <div className="flex items-center gap-3">
             <ShoppingBag className="w-6 h-6 text-cyan-300" />
             <div>
-              <h1 className="font-display font-black text-2xl text-cyan-200">Boutique <span className="text-gradient">d'Écus</span></h1>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500">Bazar cosmique de NEXORIA</div>
+              <h1 className="font-display font-black text-2xl text-cyan-200">{t("shop.header.title")} <span className="text-gradient">{t("shop.header.titleAccent")}</span></h1>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500">{t("shop.header.tagline")}</div>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -197,9 +204,9 @@ export default function Shop() {
               <span className="font-mono-stat text-yellow-200 font-bold" data-testid="shop-balance">
                 {user?.aether ?? 0}
               </span>
-              <span className="text-[10px] text-yellow-300/70">⟡ ÉCUS</span>
+              <span className="text-[10px] text-yellow-300/70">⟡ {t("shop.header.ecusUnit")}</span>
               <button onClick={() => setCat("buy_ecus")} data-testid="shop-topup-btn"
-                title="Recharger des écus"
+                title={t("shop.header.topUpTitle")}
                 className="ml-1 w-6 h-6 rounded-md bg-yellow-400/20 border border-yellow-300/50 text-yellow-200 hover:bg-yellow-400/30 flex items-center justify-center">
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -207,13 +214,13 @@ export default function Shop() {
             {/* Cart trigger */}
             <button onClick={() => setCartOpen(true)} data-testid="cart-toggle"
               className="relative px-3 py-2 rounded-lg border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-200 font-bold text-xs flex items-center gap-1">
-              <ShoppingBag className="w-4 h-4" /> Panier
+              <ShoppingBag className="w-4 h-4" /> {t("shop.cart")}
               {cart.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-cyan-500 text-[10px] font-bold text-white flex items-center justify-center">{cart.length}</span>
               )}
             </button>
             <div className="text-[10px] text-zinc-500 flex items-center gap-1" data-testid="shop-sync-indicator">
-              <Wifi className="w-3 h-3 text-green-400" /> Sync temps réel
+              <Wifi className="w-3 h-3 text-green-400" /> {t("shop.header.syncLive")}
             </div>
           </div>
         </div>
@@ -225,8 +232,8 @@ export default function Shop() {
           {CATS.map((c) => {
             const Ico = c.icon;
             const count = c.id === "all"
-              ? items.filter((i) => !i.vip_only).length
-              : items.filter((i) => i.category === c.id && !i.vip_only).length;
+              ? localizedItems.filter((i) => !i.vip_only).length
+              : localizedItems.filter((i) => i.category === c.id && !i.vip_only).length;
             return (
               <React.Fragment key={c.id}>
                 <button onClick={() => setCat(c.id)} data-testid={`shop-cat-${c.id}`}
@@ -250,7 +257,7 @@ export default function Shop() {
                     <Gem className="w-4 h-4 shrink-0 text-amber-300 relative z-10" style={{ filter: "drop-shadow(0 0 5px rgba(251,191,36,0.9))" }} />
                     <span className="flex-1 font-display font-black text-sm relative z-10"
                       style={{ background: "linear-gradient(92deg,#fde68a,#fbbf24 45%,#c084fc)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
-                      Pass Ascendant
+                      {t("shop.sidebar.vipPass")}
                     </span>
                     <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-400/25 text-amber-100 border border-amber-300/50 relative z-10">VIP</span>
                   </button>
@@ -262,7 +269,7 @@ export default function Shop() {
                     <Gem className="w-4 h-4 shrink-0 text-amber-300" style={{ filter: "drop-shadow(0 0 4px rgba(251,191,36,0.8))" }} />
                     <span className="flex-1 font-display font-bold text-sm"
                       style={{ background: "linear-gradient(92deg,#fde68a,#fbbf24)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
-                      Boutique VIP
+                      {t("shop.sidebar.vipShop")}
                     </span>
                     <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-400/25 text-amber-100 border border-amber-300/50">{vipItems.length}</span>
                   </button>
@@ -271,7 +278,7 @@ export default function Shop() {
                   <button onClick={() => setCat("buy_ecus")} data-testid="shop-cat-buy-ecus"
                     className={`w-full text-left px-3 py-2 rounded-lg border flex items-center gap-2 transition-all ${cat === "buy_ecus" ? "border-yellow-400/70 bg-yellow-400/10 text-yellow-200" : "border-yellow-500/30 text-yellow-300/80 hover:border-yellow-400/60 hover:bg-yellow-400/5"}`}>
                     <Coins className="w-4 h-4" />
-                    <span className="flex-1 font-display font-bold text-sm">Recharger des Écus</span>
+                    <span className="flex-1 font-display font-bold text-sm">{t("shop.sidebar.topUp")}</span>
                     <Plus className="w-3.5 h-3.5 opacity-70" />
                   </button>
                 )}
@@ -279,16 +286,16 @@ export default function Shop() {
             );
           })}
           <div className="pt-3 mt-3 border-t border-white/10">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-2 px-2">Mes acquis</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-2 px-2">{t("shop.sidebar.ownedTitle")}</div>
             <div className="px-2 space-y-1 text-xs text-zinc-400">
-              <div>✨ Cosmétiques : <span className="text-cyan-200">{owned.cosmetics?.length || 0}</span></div>
-              <div>🐺 Montures : <span className="text-purple-200">{owned.mounts?.length || 0}</span></div>
-              <div>🏷 Titres : <span className="text-amber-200">{owned.titles?.length || 0}</span></div>
-              <div>🔥 Auras : <span className="text-orange-200">{owned.auras?.length || 0}</span></div>
-              <div>⚡ Boosts : <span className="text-purple-200">{owned.boosts?.length || 0}</span></div>
-              <div>🧪 Consommables : <span className="text-emerald-200">{owned.consumables?.length || 0}</span></div>
-              <div>🎫 Passe : <span className="text-pink-200">{owned.passes?.length || 0}</span></div>
-              <div>🏰 Royaume : <span className="text-yellow-200">{owned.perks?.length || 0}</span></div>
+              <div>✨ {t("shop.sidebar.ownedCount", { label: t("shop.sidebar.owned.cosmetics"), count: owned.cosmetics?.length || 0 })}</div>
+              <div>🐺 {t("shop.sidebar.ownedCount", { label: t("shop.sidebar.owned.mounts"), count: owned.mounts?.length || 0 })}</div>
+              <div>🏷 {t("shop.sidebar.ownedCount", { label: t("shop.sidebar.owned.titles"), count: owned.titles?.length || 0 })}</div>
+              <div>🔥 {t("shop.sidebar.ownedCount", { label: t("shop.sidebar.owned.auras"), count: owned.auras?.length || 0 })}</div>
+              <div>⚡ {t("shop.sidebar.ownedCount", { label: t("shop.sidebar.owned.boosts"), count: owned.boosts?.length || 0 })}</div>
+              <div>🧪 {t("shop.sidebar.ownedCount", { label: t("shop.sidebar.owned.consumables"), count: owned.consumables?.length || 0 })}</div>
+              <div>🎫 {t("shop.sidebar.ownedCount", { label: t("shop.sidebar.owned.passes"), count: owned.passes?.length || 0 })}</div>
+              <div>🏰 {t("shop.sidebar.ownedCount", { label: t("shop.sidebar.owned.kingdom"), count: owned.perks?.length || 0 })}</div>
             </div>
           </div>
         </aside>
@@ -311,17 +318,17 @@ export default function Shop() {
                   <div>
                     <h2 className="font-display font-black text-xl"
                       style={{ background: "linear-gradient(92deg,#fde68a,#fbbf24 45%,#c084fc)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
-                      Boutique de l'Ascendant
+                      {t("shop.vipShop.title")}
                     </h2>
                     <p className="text-xs text-amber-100/80 mt-0.5">
                       {user?.is_vip
-                        ? "Objets inédits réservés aux détenteurs du Pass Ascendant."
-                        : "🔒 Réservée aux VIP — activez le Pass Ascendant pour débloquer ces exclusivités."}
+                        ? t("shop.vipShop.subVip")
+                        : `🔒 ${t("shop.vipShop.subLocked")}`}
                     </p>
                   </div>
                   {!user?.is_vip && (
                     <button onClick={() => setCat("vip")} className="ml-auto shrink-0 px-3 py-1.5 rounded-lg border border-amber-400/60 bg-amber-400/15 text-amber-100 text-xs font-bold hover:bg-amber-400/25">
-                      Devenir VIP
+                      {t("shop.vipShop.becomeVip")}
                     </button>
                   )}
                 </div>
@@ -331,7 +338,7 @@ export default function Shop() {
               <div className="flex flex-wrap gap-2" data-testid="vip-shop-filters">
                 <button onClick={() => setVipCat("all")}
                   className={`px-3 py-1.5 rounded text-xs font-bold font-display tracking-wide border ${vipCat === "all" ? "border-amber-400/70 text-amber-200" : "border-white/10 text-zinc-400 hover:border-white/30"}`}>
-                  Tout
+                  {t("shop.vipFilter.all")}
                 </button>
                 {vipCategories.map((vc) => {
                   const meta = CAT_KEYS.find((c) => c.id === vc);
@@ -345,7 +352,7 @@ export default function Shop() {
               </div>
 
               {vipFiltered.length === 0 ? (
-                <PremiumCard tone="gold" className="p-12 text-center text-zinc-500">Aucun objet dans cette catégorie.</PremiumCard>
+                <PremiumCard tone="gold" className="p-12 text-center text-zinc-500">{t("shop.vipShop.emptyCategory")}</PremiumCard>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" data-testid="vip-shop-grid">
                   {vipFiltered.map((it) => (
@@ -385,12 +392,12 @@ export default function Shop() {
                 <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0A0613] via-transparent to-transparent" />
                 <div className="absolute left-6 bottom-6 max-w-md">
-                  <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-300 font-bold mb-1">Mis en avant</div>
+                  <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-300 font-bold mb-1">{t("shop.featured")}</div>
                   <h2 className="font-display font-black text-3xl text-white">{featured.title}</h2>
                   <p className="text-zinc-300 text-sm mt-1">{featured.subtitle}</p>
                   <button onClick={() => setCat("cosmetic")}
                     className="mt-3 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-bold text-xs flex items-center gap-1 hover:scale-105 transition-transform">
-                    Explorer <ChevronRight className="w-3 h-3" />
+                    {t("shop.explore")} <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
                 {/* Cosmic glow dots */}
@@ -405,7 +412,7 @@ export default function Shop() {
             </AnimatePresence>
             {/* Pagination */}
             <div className="absolute right-4 bottom-4 flex gap-1">
-              {FEATURED_VISUALS.map((f, i) => (
+              {FEATURED_KEYS.map((f, i) => (
                 <button key={f.id} onClick={() => setFeaturedIdx(i)}
                   className={`w-2 h-2 rounded-full transition-all ${i === featuredIdx ? "w-6 bg-cyan-300" : "bg-white/30"}`} />
               ))}
@@ -414,7 +421,7 @@ export default function Shop() {
 
           {/* Best sellers */}
           {bestSellers.length > 0 && (
-            <Section title="Reliques populaires" icon={Trophy} accent="text-yellow-300">
+            <Section title={t("shop.section.popular")} icon={Trophy} accent="text-yellow-300">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {bestSellers.map((it, i) => (
                   <ItemCard key={it.sku} item={it} compact rank={i + 1}
@@ -427,10 +434,10 @@ export default function Shop() {
           )}
 
           {/* All items */}
-          <Section title={cat === "all" ? "Tous les articles" : (CATS.find((c) => c.id === cat)?.label || "")}
+          <Section title={cat === "all" ? t("shop.section.allItems") : (CATS.find((c) => c.id === cat)?.label || "")}
             icon={CATS.find((c) => c.id === cat)?.icon || ShoppingBag} accent="text-cyan-300">
             {filtered.length === 0 ? (
-              <div className="text-center py-12 text-zinc-500 italic">Aucun article dans cette catégorie.</div>
+              <div className="text-center py-12 text-zinc-500 italic">{t("shop.emptyCategory")}</div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {filtered.map((it) => (
@@ -461,14 +468,14 @@ export default function Shop() {
               onClick={(e) => e.stopPropagation()}
               className="absolute right-0 top-0 bottom-0 w-full sm:w-96 bg-gradient-to-br from-[#0F0820] via-[#0A0613] to-[#0F0820] border-l border-purple-500/40 flex flex-col">
               <div className="flex items-center justify-between p-4 border-b border-white/10">
-                <h3 className="font-display font-black text-lg text-cyan-200">Panier ({cart.length})</h3>
+                <h3 className="font-display font-black text-lg text-cyan-200">{t("shop.cart.title", { count: cart.length })}</h3>
                 <button onClick={() => setCartOpen(false)} className="text-zinc-400 hover:text-white">
                   <X className="w-5 h-5" />
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-2">
                 {cart.length === 0 && (
-                  <div className="text-center py-12 text-zinc-500 italic">Le panier est vide.</div>
+                  <div className="text-center py-12 text-zinc-500 italic">{t("shop.cart_empty")}</div>
                 )}
                 {cart.map((it) => (
                   <div key={it.sku} className="p-3 rounded-lg border border-white/10 bg-white/5 flex items-center gap-3">
@@ -486,13 +493,13 @@ export default function Shop() {
               </div>
               <div className="p-4 border-t border-white/10">
                 <div className="flex justify-between mb-3 text-sm">
-                  <span className="text-zinc-400">Total</span>
+                  <span className="text-zinc-400">{t("shop.cart.total")}</span>
                   <span className="font-mono-stat text-yellow-300 font-black text-lg">{cartTotal} ⟡</span>
                 </div>
                 <button onClick={checkout} disabled={cart.length === 0 || cartTotal > (user?.aether ?? 0)}
                   data-testid="cart-checkout"
                   className="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-display font-black uppercase tracking-widest text-sm disabled:opacity-40 hover:scale-[1.02] transition-transform">
-                  Valider l'achat
+                  {t("shop.cart.checkoutValidate")}
                 </button>
               </div>
             </motion.aside>
@@ -505,6 +512,7 @@ export default function Shop() {
 
 /* ============== Subcomponents ============== */
 function ChestRevealModal({ reveal, onClose }) {
+  const { t } = useI18n();
   return (
     <AnimatePresence>
       {reveal && (
@@ -520,20 +528,23 @@ function ChestRevealModal({ reveal, onClose }) {
             onClick={(e) => e.stopPropagation()}
             className="relative w-full max-w-lg rounded-2xl border border-yellow-500/40 bg-gradient-to-br from-[#15100a] via-[#0A0613] to-[#120a18] p-6 shadow-[0_0_60px_rgba(251,191,36,0.25)]"
           >
-            <button onClick={onClose} className="absolute top-3 right-3 text-zinc-400 hover:text-white" aria-label="Fermer">
+            <button onClick={onClose} className="absolute top-3 right-3 text-zinc-400 hover:text-white" aria-label={t("common.close")}>
               <X className="w-5 h-5" />
             </button>
             <div className="text-center mb-5">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl border-2 border-yellow-500/50 bg-yellow-500/10 mb-3">
                 <Gift className="w-8 h-8 text-yellow-300" />
               </div>
-              <h3 className="font-display font-black text-2xl text-yellow-200">Coffre ouvert !</h3>
+              <h3 className="font-display font-black text-2xl text-yellow-200">{t("shop.chest.opened")}</h3>
               <p className="text-xs text-zinc-400 mt-1">
-                {reveal.items.length} relique{reveal.items.length > 1 ? "s" : ""} ajoutée{reveal.items.length > 1 ? "s" : ""} à votre inventaire
+                {reveal.items.length === 1
+                  ? t("shop.chest.added_one")
+                  : t("shop.chest.added_other", { count: reveal.items.length })}
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {reveal.items.map((it, i) => {
+                const localized = translateItem(t, it);
                 const r = RARITY[it.rarity] || RARITY.common;
                 return (
                   <motion.div
@@ -547,8 +558,8 @@ function ChestRevealModal({ reveal, onClose }) {
                   >
                     <div className="text-3xl shrink-0">{it.icon || "✨"}</div>
                     <div className="min-w-0">
-                      <div className="font-display font-bold text-sm truncate" style={{ color: r.color }}>{it.name}</div>
-                      <div className="text-[10px] uppercase tracking-widest text-zinc-500">{r.fr}</div>
+                      <div className="font-display font-bold text-sm truncate" style={{ color: r.color }}>{localized.name}</div>
+                      <div className="text-[10px] uppercase tracking-widest text-zinc-500">{translateRarity(t, it.rarity)}</div>
                     </div>
                   </motion.div>
                 );
@@ -559,7 +570,7 @@ function ChestRevealModal({ reveal, onClose }) {
               className="mt-5 w-full px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-400 text-black font-display font-black uppercase tracking-widest text-sm hover:scale-[1.02] transition-transform"
               data-testid="chest-reveal-close"
             >
-              Récupérer le butin
+              {t("shop.chest.collect")}
             </button>
           </motion.div>
         </motion.div>
@@ -568,10 +579,10 @@ function ChestRevealModal({ reveal, onClose }) {
   );
 }
 
-const BOOST_LABELS = {
-  xp_multiplier: { label: "XP", color: "#a855f7", icon: Zap },
-  aether_multiplier: { label: "Écus", color: "#FCD34D", icon: Coins },
-  luck: { label: "Chance", color: "#34D399", icon: Sparkles },
+const BOOST_LABEL_KEYS = {
+  xp_multiplier: { key: "shop.boost.xp", color: "#a855f7", icon: Zap },
+  aether_multiplier: { key: "shop.boost.ecus", color: "#FCD34D", icon: Coins },
+  luck: { key: "shop.boost.luck", color: "#34D399", icon: Sparkles },
 };
 
 function fmtCountdown(ms) {
@@ -585,6 +596,7 @@ function fmtCountdown(ms) {
 }
 
 function ActiveBoostsPanel({ boosts, onExpire }) {
+  const { t } = useI18n();
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -607,21 +619,22 @@ function ActiveBoostsPanel({ boosts, onExpire }) {
     <div className="rounded-2xl border border-purple-500/40 bg-gradient-to-r from-purple-900/30 to-cyan-900/20 p-4" data-testid="active-boosts-panel">
       <div className="flex items-center gap-2 mb-3">
         <Zap className="w-4 h-4 text-purple-300" />
-        <h2 className="font-display font-black text-sm uppercase tracking-widest text-purple-200">Effets actifs</h2>
+        <h2 className="font-display font-black text-sm uppercase tracking-widest text-purple-200">{t("shop.boost.active")}</h2>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
         {active.map((b) => {
-          const cfg = BOOST_LABELS[b.boost_type] || { label: b.boost_type, color: "#22D3EE", icon: Zap };
+          const cfg = BOOST_LABEL_KEYS[b.boost_type] || { key: b.boost_type, color: "#22D3EE", icon: Zap };
           const BIco = cfg.icon;
+          const boostLabel = t(cfg.key);
           const urgent = b.remaining < 60000;
           return (
             <div key={b.sku + b.expires_at} className="flex items-center gap-3 p-3 rounded-xl border bg-black/40"
               style={{ borderColor: `${cfg.color}55` }} data-testid={`active-boost-${b.sku}`}>
               <BIco className="w-5 h-5 shrink-0" style={{ color: cfg.color }} />
               <div className="min-w-0 flex-1">
-                <div className="font-bold text-sm text-white truncate">{b.name || cfg.label}</div>
+                <div className="font-bold text-sm text-white truncate">{b.name || boostLabel}</div>
                 <div className="text-[10px] uppercase tracking-widest" style={{ color: cfg.color }}>
-                  {cfg.label} ×{b.boost_value}
+                  {boostLabel} ×{b.boost_value}
                 </div>
               </div>
               <div className={`font-mono-stat font-black text-sm ${urgent ? "text-red-300 animate-pulse" : "text-zinc-200"}`}>
@@ -658,7 +671,7 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, ra
   const seasonBlocked = item.category === "pass" && !seasonActive;
   const canBuy = canAfford && levelOk && !owned && !seasonBlocked && !vipLocked;
   const Ico = item.icon && Lucide[item.icon] ? Lucide[item.icon] : Sparkles;
-  const info = itemActivationInfo(item);
+  const info = itemActivationInfo(item, t);
   return (
     <PremiumCard
       tone="violet"
@@ -674,7 +687,7 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, ra
         onMouseEnter={() => setShowInfo(true)}
         onMouseLeave={() => setShowInfo(false)}
         data-testid={`shop-info-${item.sku}`}
-        aria-label="Informations sur l'article"
+        aria-label={t("shop.item.infoAria")}
         className="absolute top-2 right-2 z-20 w-5 h-5 rounded-full border border-cyan-400/50 bg-cyan-500/15 text-cyan-200 text-[11px] font-black flex items-center justify-center hover:bg-cyan-500/30 transition-colors"
       >
         i
@@ -684,7 +697,7 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, ra
           className="absolute top-9 right-2 z-30 w-52 p-3 rounded-lg border border-cyan-400/40 bg-[#0A0613]/95 backdrop-blur-md shadow-[0_8px_30px_rgba(0,0,0,0.6)] text-left"
           data-testid={`shop-info-popover-${item.sku}`}
         >
-          <div className="text-[10px] uppercase tracking-widest text-cyan-300 font-bold mb-1">Comment l'utiliser</div>
+          <div className="text-[10px] uppercase tracking-widest text-cyan-300 font-bold mb-1">{t("shop.item.howToUse")}</div>
           <p className="text-[11px] text-zinc-300 leading-relaxed">{info}</p>
         </div>
       )}
@@ -695,7 +708,7 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, ra
       )}
       {owned && (
         <div className="absolute top-2 left-2 text-[10px] font-black uppercase tracking-widest text-emerald-300 bg-emerald-500/20 border border-emerald-500/50 rounded px-2 py-0.5 flex items-center gap-1">
-          <Check className="w-3 h-3" /> Acquis
+          <Check className="w-3 h-3" /> {t("shop.owned")}
         </div>
       )}
       <div className="flex justify-center mb-2 mt-4">
@@ -710,7 +723,7 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, ra
       </div>
       <div className="text-center">
         <div className="font-display font-bold text-sm truncate" style={{ color: r.color }}>{item.name}</div>
-        <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{r.fr}</div>
+        <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{item.rarityLabel || translateRarity(t, item.rarity)}</div>
         {!compact && item.description && (
           <p className="text-[11px] text-zinc-400 line-clamp-2 mb-2 min-h-[28px]">{item.description}</p>
         )}
@@ -721,7 +734,7 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, ra
           <div className="text-[10px] text-amber-400/90 mt-1 font-semibold">{t("shop.level_required", { level: requiredLevel })}</div>
         )}
         {seasonBlocked && (
-          <div className="text-[10px] text-amber-400/90 mt-1 font-semibold">Aucune saison en cours</div>
+          <div className="text-[10px] text-amber-400/90 mt-1 font-semibold">{t("shop.noSeason")}</div>
         )}
       </div>
       <div className="mt-3 flex gap-1">
@@ -733,10 +746,10 @@ function ItemCard({ item, owned, buying, onBuy, onAdd, aether, userLevel = 1, ra
           <>
             <button onClick={onBuy} disabled={!canBuy || buying} data-testid={`shop-buy-${item.sku}`}
               className="flex-1 px-2 py-1.5 rounded border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 text-xs font-bold disabled:opacity-40">
-              {buying ? "..." : vipLocked ? "🔒 VIP requis" : seasonBlocked ? "Indisponible" : !levelOk ? t("shop.level_insufficient") : t("shop.buy")}
+              {buying ? "..." : vipLocked ? `🔒 ${t("shop.item.vipRequired")}` : seasonBlocked ? t("shop.item.unavailable") : !levelOk ? t("shop.level_insufficient") : t("shop.buy")}
             </button>
             {!vipLocked && (
-              <button onClick={onAdd} title="Ajouter au panier"
+              <button onClick={onAdd} title={t("shop.item.addToCart")}
                 data-testid={`shop-cart-${item.sku}`}
                 className="px-2 py-1.5 rounded border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-200">
                 <Plus className="w-3 h-3" />

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ChevronRight, Coins, Map } from "lucide-react";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import { useI18n } from "@/i18n/LanguageProvider";
+import { translateClassName } from "@/lib/translate-class";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
 import HeroCardOpener from "@/components/HeroCardOpener";
 
@@ -34,7 +35,7 @@ export default function HomePlayerCard({ user }) {
         </div>
         <div className="feed-player-info">
           <div className="feed-player-name">{username}</div>
-          <div className="feed-player-class">{user?.class_name || t("feed.default_hero")}</div>
+          <div className="feed-player-class">{translateClassName(t, user?.class_name)}</div>
           <div className="feed-player-meta">
             <span>{t("feed.level_short")} <strong>{user?.level ?? "—"}</strong></span>
             {user?.rank && <span>{user.rank}</span>}

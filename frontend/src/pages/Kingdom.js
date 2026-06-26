@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import * as Lucide from "lucide-react";
 import { Lock, Coins, Castle as CastleIcon } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
+import { translateApiError } from "@/lib/i18n-api";
 import { sfx } from "@/lib/sfx";
 import {
   PageShell,
@@ -13,8 +15,10 @@ import {
   PremiumButton,
 } from "@/components/ui-premium";
 import { usePageBanner } from "@/lib/page-banners";
+import { translateBuilding } from "@/lib/translate-game";
 
 export default function Kingdom() {
+  const { t } = useI18n();
   const { user, refresh } = useAuth();
   const banner = usePageBanner("kingdom", { name: user?.username, aether: user?.aether });
   const [buildings, setBuildings] = useState([]);
@@ -23,15 +27,22 @@ export default function Kingdom() {
     api.get("/game/buildings").then((r) => setBuildings(r.data));
   }, []);
 
+  const localizedBuildings = useMemo(
+    () => buildings.map((b) => translateBuilding(t, b)),
+    [buildings, t],
+  );
+
   if (!user) return null;
 
   const upgrade = async (id) => {
     try {
       const { data } = await api.post(`/kingdom/upgrade/${id}`);
       sfx.success();
-      toast.success(`Édifice ennobli au rang ${data.kingdom[id].level} (-${data.cost} Écus)`);
+      toast.success(t("kingdom.upgradeSuccess", { level: data.kingdom[id].level, cost: data.cost }));
       await refresh();
-    } catch (e) { toast.error(e.response?.data?.detail || "Les fondations résistent..."); }
+    } catch (e) {
+      toast.error(translateApiError(t, e, "kingdom.upgradeFailed"));
+    }
   };
 
   const kingdom = user.kingdom || {};
@@ -43,9 +54,9 @@ export default function Kingdom() {
       banner={banner}
     >
 
-      <PremiumSection title="Édifices" subtitle="Développez votre domaine" icon={CastleIcon} tone="gold">
+      <PremiumSection title={t("kingdom.buildingsTitle")} subtitle={t("kingdom.buildingsSubtitle")} icon={CastleIcon} tone="gold">
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5" data-testid="buildings-grid">
-          {buildings.map((b, i) => {
+          {localizedBuildings.map((b, i) => {
             const I = Lucide[b.icon] || Lucide.Castle;
             const data = kingdom[b.id] || { level: 0 };
             const locked = user.level < b.unlock_level;
@@ -65,7 +76,7 @@ export default function Kingdom() {
                     {locked ? <Lock className="w-4 h-4 text-zinc-500" /> : (
                       <div className="text-right">
                         <div className="font-mono-stat text-3xl font-bold text-cyan-300 leading-none">{data.level}</div>
-                        <div className="text-[9px] uppercase tracking-[0.3em] text-zinc-500 font-bold mt-1">Rang</div>
+                        <div className="text-[9px] uppercase tracking-[0.3em] text-zinc-500 font-bold mt-1">{t("kingdom.rank")}</div>
                       </div>
                     )}
                   </div>
@@ -73,11 +84,11 @@ export default function Kingdom() {
                   <div className="text-sm text-zinc-400 mt-1 mb-4">{b.description}</div>
                   {locked ? (
                     <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold border-t border-white/5 pt-3">
-                      Sceau levé au niveau {b.unlock_level}
+                      {t("kingdom.unlockedAt", { level: b.unlock_level })}
                     </div>
                   ) : (
                     <PremiumButton variant="cyan" size="sm" icon={Coins} className="w-full" onClick={() => upgrade(b.id)} testid={`upgrade-${b.id}`}>
-                      Ennoblir ({cost} Écus)
+                      {t("kingdom.ennoble", { cost })}
                     </PremiumButton>
                   )}
                 </PremiumCard>

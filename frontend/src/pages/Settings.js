@@ -75,55 +75,53 @@ function AccountSection({ user, refresh, t }) {
     e.preventDefault();
     try {
       await api.post("/profile/change-email", emailForm);
-      sfx.success(); toast.success("Email mis à jour");
+      sfx.success(); toast.success(t("settings.email.updated"));
       setEmailForm({ current_password: "", new_email: "" });
       await refresh();
-    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+    } catch (err) { toast.error(err.response?.data?.detail || t("settings.error.generic")); }
   };
 
   const changeName = async (e) => {
     e.preventDefault();
     try {
       await api.post("/profile/change-username", nameForm);
-      sfx.success(); toast.success("Pseudo mis à jour");
+      sfx.success(); toast.success(t("settings.username.updated"));
       setNameForm({ new_username: "" });
       await refresh();
-    } catch (err) { toast.error(err.response?.data?.detail || "Erreur (Parchemin de Renommée requis)"); }
+    } catch (err) { toast.error(err.response?.data?.detail || t("settings.username.scrollError")); }
   };
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="font-display font-bold text-xl mb-3">Email</h2>
+        <h2 className="font-display font-bold text-xl mb-3">{t("settings.email.title")}</h2>
         {(user.email || "").endsWith("@nexoria.local") && (
           <div
             className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200 leading-relaxed"
             data-testid="email-provisional-warning"
           >
-            ⚠️ Votre adresse e-mail est <strong>provisoire</strong> (générée via Discord). Vous devez
-            obligatoirement la remplacer par une adresse e-mail valide ci-dessous pour sécuriser et
-            pouvoir récupérer votre compte.
+            ⚠️ {t("settings.email.provisional")}
           </div>
         )}
-        <div className="text-xs text-zinc-500 mb-3 font-mono-stat">Actuel : {user.email}</div>
+        <div className="text-xs text-zinc-500 mb-3 font-mono-stat">{t("settings.email.current")} {user.email}</div>
         <form onSubmit={changeEmail} className="space-y-3">
           <Field label={t("settings.current_password")} type="password" value={emailForm.current_password} onChange={(v) => setEmailForm({ ...emailForm, current_password: v })} testid="email-current-pwd" />
-          <Field label="Nouvel email" type="email" value={emailForm.new_email} onChange={(v) => setEmailForm({ ...emailForm, new_email: v })} testid="new-email" />
+          <Field label={t("settings.email.new")} type="email" value={emailForm.new_email} onChange={(v) => setEmailForm({ ...emailForm, new_email: v })} testid="new-email" />
           <button type="submit" data-testid="change-email-btn"
             className="px-4 py-2 rounded-md border border-cyan-500/40 text-cyan-300 font-bold text-sm">
-            <Mail className="w-3 h-3 inline mr-1" /> Mettre à jour l'email
+            <Mail className="w-3 h-3 inline mr-1" /> {t("settings.email.update")}
           </button>
         </form>
       </div>
 
       <div>
-        <h2 className="font-display font-bold text-xl mb-2">Pseudo</h2>
-        <div className="text-xs text-zinc-500 mb-3 font-mono-stat">Actuel : {user.username} <span className="text-yellow-500">· nécessite un Parchemin de Renommée</span></div>
+        <h2 className="font-display font-bold text-xl mb-2">{t("settings.username.title")}</h2>
+        <div className="text-xs text-zinc-500 mb-3 font-mono-stat">{t("settings.username.current")} {user.username} <span className="text-yellow-500">{t("settings.username.scrollRequired")}</span></div>
         <form onSubmit={changeName} className="space-y-3">
-          <Field label="Nouveau pseudo" value={nameForm.new_username} onChange={(v) => setNameForm({ new_username: v })} testid="new-username" />
+          <Field label={t("settings.username.new")} value={nameForm.new_username} onChange={(v) => setNameForm({ new_username: v })} testid="new-username" />
           <button type="submit" data-testid="change-username-btn"
             className="px-4 py-2 rounded-md border border-violet-500/40 text-violet-300 font-bold text-sm">
-            <AtSign className="w-3 h-3 inline mr-1" /> Renommer mon héros
+            <AtSign className="w-3 h-3 inline mr-1" /> {t("settings.username.update")}
           </button>
         </form>
       </div>
@@ -244,13 +242,13 @@ function SecuritySection({ t }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (form.new_password !== form.confirm) { toast.error("Les mots de passe ne correspondent pas"); return; }
+    if (form.new_password !== form.confirm) { toast.error(t("settings.password.mismatch")); return; }
     try {
       await api.post("/profile/change-password", { current_password: form.current_password, new_password: form.new_password });
-      sfx.success(); toast.success("Mot de passe modifié — reconnectez-vous");
+      sfx.success(); toast.success(t("settings.password.changed"));
       setForm({ current_password: "", new_password: "", confirm: "" });
       setTimeout(() => { window.location.href = "/login"; }, 1500);
-    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+    } catch (err) { toast.error(err.response?.data?.detail || t("settings.error.generic")); }
   };
 
   return (
@@ -259,7 +257,7 @@ function SecuritySection({ t }) {
         <h2 className="font-display font-bold text-xl mb-2">{t("settings.change_password")}</h2>
         <Field label={t("settings.current_password")} type="password" value={form.current_password} onChange={(v) => setForm({ ...form, current_password: v })} testid="current-pwd" />
         <Field label={t("settings.new_password")} type="password" value={form.new_password} onChange={(v) => setForm({ ...form, new_password: v })} testid="new-pwd" />
-        <Field label="Confirmer" type="password" value={form.confirm} onChange={(v) => setForm({ ...form, confirm: v })} testid="confirm-pwd" />
+        <Field label={t("common.confirm")} type="password" value={form.confirm} onChange={(v) => setForm({ ...form, confirm: v })} testid="confirm-pwd" />
         <button type="submit" data-testid="change-pwd-btn"
           className="px-5 py-2.5 rounded-md border border-cyan-500/50 text-cyan-300 font-bold font-display tracking-wide hover:shadow-[0_0_18px_rgba(0,229,255,0.3)] flex items-center gap-2">
           <KeyRound className="w-4 h-4" /> {t("settings.change_password")}
@@ -271,10 +269,10 @@ function SecuritySection({ t }) {
           <div className="border-t border-white/10 pt-6">
             <h2 className="font-display font-bold text-xl mb-1 flex items-center gap-2">
               <span className="w-5 h-5 text-violet-400">🔐</span>
-              Double Authentification (2FA)
+              {t("settings.2fa.title")}
             </h2>
             <p className="text-xs text-zinc-500 mb-4 leading-relaxed">
-              Protège l'accès au panel d'administration avec un code supplémentaire généré par votre application (Google Authenticator, Authy, Bitwarden…).
+              {t("settings.2fa.desc")}
             </p>
             <TwoFASetup />
           </div>
@@ -297,11 +295,11 @@ function PreferencesSection({ user, refresh, t }) {
       await api.put("/profile", { appear_offline: nextHidden });
       sfx.success();
       toast.success(nextHidden
-        ? "Présence masquée — vous apparaissez hors ligne sur le site et le Nexus"
-        : "Vous apparaissez désormais en ligne");
+        ? t("settings.presence.hidden")
+        : t("settings.presence.visible"));
       await refresh();
     } catch (err) {
-      toast.error(formatApiError(err) || "Erreur");
+      toast.error(formatApiError(err) || t("settings.error.generic"));
     } finally {
       setSavingPresence(false);
     }
@@ -314,11 +312,11 @@ function PreferencesSection({ user, refresh, t }) {
       await api.put("/profile", { nexus_auto_connect: next });
       sfx.success();
       toast.success(next
-        ? "Connexion automatique au Nexus activée"
-        : "Connexion automatique désactivée — vous n'apparaîtrez plus sur le ONLINE sans entrer manuellement");
+        ? t("settings.nexusAuto.on")
+        : t("settings.nexusAuto.off"));
       await refresh();
     } catch (err) {
-      toast.error(formatApiError(err) || "Erreur");
+      toast.error(formatApiError(err) || t("settings.error.generic"));
     } finally {
       setSavingAuto(false);
     }
@@ -337,15 +335,14 @@ function PreferencesSection({ user, refresh, t }) {
       </div>
 
       <div>
-        <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-400 font-bold mb-3">Présence</div>
+        <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-400 font-bold mb-3">{t("settings.presence.title")}</div>
         <div className="space-y-3">
           <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <div className="text-sm font-bold text-white mb-1">Apparaître en ligne</div>
+                <div className="text-sm font-bold text-white mb-1">{t("settings.presence.online")}</div>
                 <p className="text-xs text-zinc-400 leading-relaxed">
-                  Si vous décochez, vous passez en mode hors ligne : vous n'apparaissez plus
-                  comme connecté, ni sur le site (amis, joueurs, carte) ni sur le Nexus Online.
+                  {t("settings.presence.onlineDesc")}
                 </p>
               </div>
               <ToggleSwitch
@@ -360,11 +357,9 @@ function PreferencesSection({ user, refresh, t }) {
           <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <div className="text-sm font-bold text-white mb-1">Connexion automatique au Nexus (ONLINE)</div>
+                <div className="text-sm font-bold text-white mb-1">{t("settings.nexusAuto.title")}</div>
                 <p className="text-xs text-zinc-400 leading-relaxed">
-                  Quand c'est activé, vous rejoignez le Nexus Online automatiquement à chaque
-                  connexion au site. Désactivé, vous restez sur le site sans apparaître sur le
-                  ONLINE — vous pourrez toujours y entrer manuellement via le menu Nexus.
+                  {t("settings.nexusAuto.desc")}
                 </p>
               </div>
               <ToggleSwitch
@@ -426,21 +421,21 @@ function ReferralSection({ t }) {
     <div className="space-y-6" data-testid="settings-referral-section">
       <div>
         <h2 className="font-display font-bold text-xl mb-1 flex items-center gap-2">
-          <UserPlus className="w-5 h-5 text-emerald-400" /> Parrainage
+          <UserPlus className="w-5 h-5 text-emerald-400" /> {t("referral.title")}
         </h2>
         <p className="text-xs text-zinc-500 leading-relaxed">
-          Invitez des amis à rejoindre NEXORIA. Chaque héros qui s'inscrit avec votre code vous rapporte des récompenses.
+          {t("settings.referral.desc")}
         </p>
       </div>
 
       {!data ? (
-        <div className="text-xs text-zinc-500 italic">Chargement…</div>
+        <div className="text-xs text-zinc-500 italic">{t("common.loading")}</div>
       ) : (
         <>
           {/* Code + lien */}
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5 space-y-4">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-400 font-bold mb-2">Votre code de parrainage</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-400 font-bold mb-2">{t("settings.referral.yourCode")}</div>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-2xl font-black tracking-widest text-white bg-black/40 border border-white/15 rounded-lg px-4 py-2" data-testid="referral-code">
                   {data.code}
@@ -448,7 +443,7 @@ function ReferralSection({ t }) {
                 <button
                   onClick={() => copy(data.code)}
                   className="p-2 rounded-lg border border-white/15 text-zinc-400 hover:text-white hover:border-emerald-400/50 transition-colors"
-                  title="Copier le code"
+                  title={t("settings.referral.copyCode")}
                   data-testid="referral-copy-code"
                 >
                   {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
@@ -456,7 +451,7 @@ function ReferralSection({ t }) {
               </div>
             </div>
             <div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-bold mb-2">Lien d'invitation</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-bold mb-2">{t("settings.referral.inviteLink")}</div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-zinc-400 bg-black/40 border border-white/10 rounded px-3 py-2 flex-1 truncate font-mono" data-testid="referral-link">
                   {data.link}
@@ -464,7 +459,7 @@ function ReferralSection({ t }) {
                 <button
                   onClick={() => copy(data.link)}
                   className="p-2 rounded-lg border border-white/15 text-zinc-400 hover:text-white hover:border-cyan-400/50 transition-colors"
-                  title="Copier le lien"
+                  title={t("settings.referral.copyLink")}
                   data-testid="referral-copy-link"
                 >
                   <Copy className="w-4 h-4" />
@@ -474,21 +469,21 @@ function ReferralSection({ t }) {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 rounded-lg border border-white/15 text-zinc-400 hover:text-white transition-colors"
-                  title="Ouvrir le lien"
+                  title={t("settings.referral.openLink")}
                 >
                   <ExternalLink className="w-4 h-4" />
                 </a>
               </div>
             </div>
             <div className="flex items-center gap-2 pt-1 border-t border-white/10">
-              <span className="text-sm text-zinc-300">Filleuls :</span>
+              <span className="text-sm text-zinc-300">{t("settings.referral.referrals")}</span>
               <span className="font-mono-stat text-2xl font-black text-emerald-300" data-testid="referral-count">{data.count}</span>
             </div>
           </div>
 
           {/* Paliers */}
           <div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-amber-400 font-bold mb-3">Paliers de récompenses</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-amber-400 font-bold mb-3">{t("referral.milestones")}</div>
             <div className="space-y-2">
               {(data.milestones || []).map((ms) => {
                 const icon = MILESTONE_ICONS[ms.threshold] || "🎯";
@@ -506,16 +501,16 @@ function ReferralSection({ t }) {
                   >
                     <span className="text-xl shrink-0">{icon}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold text-white">{ms.threshold} filleul{ms.threshold > 1 ? "s" : ""}</div>
-                      <div className="text-xs text-zinc-400">{ms.label}</div>
+                      <div className="text-sm font-bold text-white">{t("settings.referral.milestoneCount", { count: ms.threshold })}</div>
+                      <div className="text-xs text-zinc-400">{t(`referral.milestone.${ms.threshold}`, ms.label)}</div>
                     </div>
                     <div className="shrink-0 text-right">
                       {ms.claimed ? (
                         <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide flex items-center gap-1">
-                          <Check className="w-3 h-3" /> Obtenu
+                          <Check className="w-3 h-3" /> {t("referral.obtained")}
                         </span>
                       ) : ms.reached ? (
-                        <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wide">En attente</span>
+                        <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wide">{t("settings.referral.milestonePending")}</span>
                       ) : (
                         <span className="text-[10px] text-zinc-600 font-mono-stat">{data.count} / {ms.threshold}</span>
                       )}
@@ -533,14 +528,14 @@ function ReferralSection({ t }) {
 
 function DangerSection({ logout, navigate, t }) {
   const del = async () => {
-    if (!window.confirm("Cette action est IRRÉVERSIBLE. Confirmer ?")) return;
-    if (!window.confirm("Vraiment vraiment sûr(e) ?")) return;
+    if (!window.confirm(t("settings.delete.confirm1"))) return;
+    if (!window.confirm(t("settings.delete.confirm2"))) return;
     try {
       await api.delete("/profile");
-      toast.success("Compte supprimé");
+      toast.success(t("settings.delete.done"));
       const dest = await logout();
       navigate(dest);
-    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+    } catch (err) { toast.error(err.response?.data?.detail || t("settings.error.generic")); }
   };
   return (
     <div className="space-y-4">

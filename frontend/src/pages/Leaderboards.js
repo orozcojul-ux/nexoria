@@ -1,7 +1,7 @@
 /**
  * NEXORIA — Hall des Légendes (classements).
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Crown, Zap, Shield, Coins, Flame } from "lucide-react";
 import api from "@/lib/api";
@@ -11,22 +11,34 @@ import StarField from "@/components/StarField";
 import { PageShell } from "@/components/ui-premium";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
 import { usePageBanner } from "@/lib/page-banners";
+import { useI18n } from "@/contexts/I18nContext";
 
-const CATEGORIES = [
-  { id: "xp", label: "Expérience", icon: Zap, color: "#00E5FF", suffix: "XP" },
-  { id: "level", label: "Rang", icon: Crown, color: "#9D4CDD", suffix: "Niv." },
-  { id: "reputation", label: "Réputation", icon: Shield, color: "#FCD34D", suffix: "Rep." },
-  { id: "aether", label: "Écus", icon: Coins, color: "#FBBF24", suffix: "✦" },
+const CAT_META = [
+  { id: "xp", labelKey: "leaderboards.cat.xp", icon: Zap, color: "#00E5FF", suffix: "XP" },
+  { id: "level", labelKey: "leaderboards.cat.level", icon: Crown, color: "#9D4CDD", suffixKey: "leaderboards.suffix.level" },
+  { id: "reputation", labelKey: "leaderboards.cat.reputation", icon: Shield, color: "#FCD34D", suffix: "Rep." },
+  { id: "aether", labelKey: "leaderboards.cat.aether", icon: Coins, color: "#FBBF24", suffix: "✦" },
 ];
 
 const PODIUM_TONE = ["#FCD34D", "#E5E7EB", "#F97316"];
 
 export default function Leaderboards() {
+  const { t } = useI18n();
   const banner = usePageBanner("leaderboards");
   const [cat, setCat] = useState("xp");
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const activeCat = CATEGORIES.find((c) => c.id === cat) || CATEGORIES[0];
+
+  const categories = useMemo(
+    () => CAT_META.map((c) => ({
+      ...c,
+      label: t(c.labelKey),
+      suffix: c.suffixKey ? t(c.suffixKey) : c.suffix,
+    })),
+    [t],
+  );
+
+  const activeCat = categories.find((c) => c.id === cat) || categories[0];
 
   useEffect(() => {
     setLoading(true);
@@ -52,14 +64,14 @@ export default function Leaderboards() {
       <div className="hub-page-header mb-5">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h2 className="font-display font-black text-lg text-white">Classement actif</h2>
+            <h2 className="font-display font-black text-lg text-white">{t("leaderboards.activeRanking")}</h2>
             <p className="text-xs text-zinc-500 mt-1">
-              {users.length} héros · N°1 : <HeroName user={users[0]} size="sm" showIcon={false} className="inline" />
+              {t("leaderboards.heroesCount", { count: users.length })} · {t("leaderboards.topHero")} : <HeroName user={users[0]} size="sm" showIcon={false} className="inline" />
               {users[0] ? ` · ${topValue.toLocaleString()} ${activeCat.suffix}` : ""}
             </p>
           </div>
           <div className="flex flex-wrap gap-2" data-testid="leaderboard-tabs">
-            {CATEGORIES.map((c) => {
+            {categories.map((c) => {
               const Ico = c.icon;
               const isActive = cat === c.id;
               return (
@@ -80,19 +92,19 @@ export default function Leaderboards() {
         </div>
         <div className="flex flex-wrap gap-2 mt-4">
           <span className="hub-stat-pill"><Trophy className="w-3 h-3 text-amber-400" /> {activeCat.label}</span>
-          <span className="hub-stat-pill"><Flame className="w-3 h-3 text-cyan-400" /> {users.length} classés</span>
-          <span className="hub-stat-pill"><Zap className="w-3 h-3 text-emerald-400" /> Live</span>
+          <span className="hub-stat-pill"><Flame className="w-3 h-3 text-cyan-400" /> {t("leaderboards.ranked", { count: users.length })}</span>
+          <span className="hub-stat-pill"><Zap className="w-3 h-3 text-emerald-400" /> {t("leaderboards.live")}</span>
         </div>
       </div>
 
       <div className="lb-layout">
         <section className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           <h3 className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold flex items-center gap-2">
-            <Crown className="w-3.5 h-3.5 text-amber-400" /> Podium
+            <Crown className="w-3.5 h-3.5 text-amber-400" /> {t("leaderboards.podium")}
           </h3>
           {podium.length === 0 && !loading ? (
             <div className="rounded-xl border border-white/10 bg-black/30 p-10 text-center text-zinc-500 italic text-sm">
-              Aucun héros classé pour l'instant.
+              {t("leaderboards.noRanked")}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3" data-testid="podium">
@@ -116,16 +128,16 @@ export default function Leaderboards() {
 
         <section>
           <h3 className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-3 flex items-center gap-2">
-            <Trophy className="w-3.5 h-3.5 text-cyan-400" /> Classement détaillé
+            <Trophy className="w-3.5 h-3.5 text-cyan-400" /> {t("leaderboards.detailed")}
           </h3>
           {loading ? (
             <div className="rounded-xl border border-white/10 bg-black/30 p-12 text-center">
               <Zap className="w-8 h-8 text-cyan-400 mx-auto animate-pulse mb-2" />
-              <div className="text-zinc-400 text-sm italic">Compilation des annales...</div>
+              <div className="text-zinc-400 text-sm italic">{t("leaderboards.compiling")}</div>
             </div>
           ) : rest.length === 0 ? (
             <div className="rounded-xl border border-white/10 bg-black/30 p-10 text-center text-zinc-500 italic text-sm">
-              {podium.length > 0 ? "Seuls les trois premiers trônent pour l'instant." : "Le classement est vide."}
+              {podium.length > 0 ? t("leaderboards.onlyTopThree") : t("leaderboards.emptyRanking")}
             </div>
           ) : (
             <div
@@ -164,7 +176,7 @@ export default function Leaderboards() {
                       <HeroCardOpener userId={u.user_id} username={u.username} className="flex-1 min-w-0 text-left">
                         <HeroName user={u} size="sm" />
                         <div className="text-[9px] uppercase tracking-wider text-zinc-500 truncate">
-                          {u.class_name || "—"} · {u.rank || `Niv. ${u.level || 1}`}
+                          {u.class_name || "—"} · {u.rank || t("friends.levelShort", { level: u.level || 1 })}
                         </div>
                       </HeroCardOpener>
                       <div className="text-right font-mono-stat shrink-0">

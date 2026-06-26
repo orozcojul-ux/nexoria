@@ -1,0 +1,1846 @@
+{
+  "inventory.tab.relics": {
+    "fr": "Reliques",
+    "en": "Relics"
+  },
+  "inventory.tab.cosmetics": {
+    "fr": "Cosmétiques",
+    "en": "Cosmetics"
+  },
+  "inventory.tab.boosts": {
+    "fr": "Élixirs actifs",
+    "en": "Active elixirs"
+  },
+  "inventory.tab.consumables": {
+    "fr": "Consommables",
+    "en": "Consumables"
+  },
+  "inventory.tab.mounts": {
+    "fr": "Montures",
+    "en": "Mounts"
+  },
+  "inventory.tab.auras": {
+    "fr": "Auras",
+    "en": "Auras"
+  },
+  "inventory.tab.perks": {
+    "fr": "Royaume",
+    "en": "Kingdom"
+  },
+  "inventory.guide.title": {
+    "fr": "Guide de l'inventaire",
+    "en": "Inventory guide"
+  },
+  "inventory.chest.reveal": {
+    "fr": "Révélation",
+    "en": "Revelation"
+  },
+  "inventory.chest.intro": {
+    "fr": "Les brumes s'écartent et révèlent leurs présents...",
+    "en": "The mists part and reveal their gifts..."
+  },
+  "inventory.equip.frame": {
+    "fr": "Cadre équipé — visible dans le Nexus",
+    "en": "Frame equipped — visible in the Nexus"
+  },
+  "inventory.equip.banner": {
+    "fr": "Bannière équipée",
+    "en": "Banner equipped"
+  },
+  "inventory.equip.aura": {
+    "fr": "Aura équipée — visible dans le Nexus",
+    "en": "Aura equipped — visible in the Nexus"
+  },
+  "inventory.equip.mount": {
+    "fr": "Monture équipée — visible dans le Nexus",
+    "en": "Mount equipped — visible in the Nexus"
+  },
+  "inventory.equip.failed": {
+    "fr": "Équipement impossible",
+    "en": "Could not equip"
+  },
+  "inventory.chest.duplicates": {
+    "fr": "Vous possédez déjà toutes ces reliques — {count} Écus restitué.",
+    "en": "You already own these relics — {count} Écus refunded."
+  },
+  "inventory.chest.failed": {
+    "fr": "Le coffre résiste...",
+    "en": "The chest resists..."
+  },
+  "inventory.compact.ok": {
+    "fr": "Coffre compacté — {count} doublon(s) fusionné(s).",
+    "en": "Chest compacted — {count} duplicate(s) merged."
+  },
+  "inventory.compact.none": {
+    "fr": "Aucun doublon à compacter.",
+    "en": "No duplicates to merge."
+  },
+  "inventory.compact.failed": {
+    "fr": "Compactage impossible",
+    "en": "Could not compact"
+  },
+  "inventory.send.title": {
+    "fr": "Envoyer des Écus",
+    "en": "Send Écus"
+  },
+  "inventory.send.placeholder": {
+    "fr": "Pseudo du héros",
+    "en": "Hero username"
+  },
+  "inventory.send.note": {
+    "fr": "Un petit mot…",
+    "en": "A short note…"
+  },
+  "inventory.send.submit": {
+    "fr": "Envoyer les Écus",
+    "en": "Send Écus"
+  },
+  "inventory.send.invalid": {
+    "fr": "Pseudo et montant valides requis",
+    "en": "Valid username and amount required"
+  },
+  "inventory.send.failed": {
+    "fr": "Envoi impossible",
+    "en": "Could not send"
+  },
+  "inventory.username.required": {
+    "fr": "Pseudo requis",
+    "en": "Username required"
+  },
+  "inventory.gift.failed": {
+    "fr": "Don impossible",
+    "en": "Gift failed"
+  },
+  "inventory.trade.sent": {
+    "fr": "Proposition d'échange envoyée à {name}",
+    "en": "Trade offer sent to {name}"
+  },
+  "inventory.trade.failed": {
+    "fr": "Échange impossible",
+    "en": "Trade failed"
+  },
+  "inventory.item.info": {
+    "fr": "Informations sur l'objet",
+    "en": "Item information"
+  },
+  "inventory.shop.added": {
+    "fr": "« {name} » ajouté à ton inventaire",
+    "en": "« {name} » added to your inventory"
+  },
+  "forum.loading": {
+    "fr": "Ouverture de la Tribune…",
+    "en": "Opening the Forum…"
+  },
+  "forum.loadFailed": {
+    "fr": "Impossible de charger le forum",
+    "en": "Could not load the forum"
+  },
+  "forum.createPost": {
+    "fr": "Nouveau sujet",
+    "en": "New topic"
+  },
+  "forum.reply": {
+    "fr": "Répondre",
+    "en": "Reply"
+  },
+  "forum.noPosts": {
+    "fr": "Aucun sujet pour le moment.",
+    "en": "No topics yet."
+  },
+  "forum.search": {
+    "fr": "Rechercher un sujet…",
+    "en": "Search a topic…"
+  },
+  "forum.threads": {
+    "fr": "Sujets",
+    "en": "Topics"
+  },
+  "forum.replies": {
+    "fr": "Réponses",
+    "en": "Replies"
+  },
+  "forum.views": {
+    "fr": "Vues",
+    "en": "Views"
+  },
+  "forum.lastActivity": {
+    "fr": "Dernière activité",
+    "en": "Last activity"
+  },
+  "forum.pinned": {
+    "fr": "Épinglé",
+    "en": "Pinned"
+  },
+  "forum.locked": {
+    "fr": "Verrouillé",
+    "en": "Locked"
+  },
+  "forum.publish": {
+    "fr": "Publier",
+    "en": "Publish"
+  },
+  "forum.titlePlaceholder": {
+    "fr": "Titre du sujet",
+    "en": "Topic title"
+  },
+  "forum.contentPlaceholder": {
+    "fr": "Votre message…",
+    "en": "Your message…"
+  },
+  "forum.backCategories": {
+    "fr": "Retour aux catégories",
+    "en": "Back to categories"
+  },
+  "forum.recent": {
+    "fr": "Activité récente",
+    "en": "Recent activity"
+  },
+  "craft.recipes": {
+    "fr": "Recettes",
+    "en": "Recipes"
+  },
+  "craft.craft": {
+    "fr": "Forger",
+    "en": "Craft"
+  },
+  "craft.materials": {
+    "fr": "Matériaux",
+    "en": "Materials"
+  },
+  "craft.insufficient": {
+    "fr": "Ressources insuffisantes",
+    "en": "Insufficient resources"
+  },
+  "craft.success": {
+    "fr": "Objet forgé avec succès",
+    "en": "Item crafted successfully"
+  },
+  "guilds.create": {
+    "fr": "Fonder une guilde",
+    "en": "Create a guild"
+  },
+  "guilds.join": {
+    "fr": "Rejoindre",
+    "en": "Join"
+  },
+  "guilds.leave": {
+    "fr": "Quitter",
+    "en": "Leave"
+  },
+  "guilds.members": {
+    "fr": "Membres",
+    "en": "Members"
+  },
+  "guilds.deposit": {
+    "fr": "Déposer",
+    "en": "Deposit"
+  },
+  "guilds.treasury": {
+    "fr": "Coffre",
+    "en": "Treasury"
+  },
+  "guilds.empty": {
+    "fr": "Aucune guilde trouvée.",
+    "en": "No guilds found."
+  },
+  "tickets.new": {
+    "fr": "Nouveau ticket",
+    "en": "New ticket"
+  },
+  "tickets.subject": {
+    "fr": "Sujet",
+    "en": "Subject"
+  },
+  "tickets.message": {
+    "fr": "Message",
+    "en": "Message"
+  },
+  "tickets.send": {
+    "fr": "Envoyer",
+    "en": "Send"
+  },
+  "tickets.empty": {
+    "fr": "Aucun ticket ouvert.",
+    "en": "No open tickets."
+  },
+  "tickets.status.open": {
+    "fr": "Ouvert",
+    "en": "Open"
+  },
+  "tickets.status.closed": {
+    "fr": "Fermé",
+    "en": "Closed"
+  },
+  "guilds.founded": {
+    "fr": "L'ordre « {name} » est fondé !",
+    "en": "The order « {name} » has been founded!"
+  },
+  "guilds.disbanded": {
+    "fr": "L'ordre a été dissous",
+    "en": "The order has been disbanded"
+  },
+  "guilds.left": {
+    "fr": "Vous avez quitté l'ordre",
+    "en": "You left the order"
+  },
+  "guilds.leaveConfirm": {
+    "fr": "Quitter cet ordre ?",
+    "en": "Leave this order?"
+  },
+  "guilds.allOrders": {
+    "fr": "Tous les ordres",
+    "en": "All orders"
+  },
+  "guilds.invite": {
+    "fr": "Inviter",
+    "en": "Invite"
+  },
+  "guilds.abandon": {
+    "fr": "Abandonner",
+    "en": "Abandon"
+  },
+  "guilds.level": {
+    "fr": "Niveau {level}",
+    "en": "Level {level}"
+  },
+  "guilds.vault": {
+    "fr": "Coffre : {amount} ✦",
+    "en": "Vault: {amount} ✦"
+  },
+  "guilds.kickSuccess": {
+    "fr": "Membre exclu",
+    "en": "Member removed"
+  },
+  "guilds.kickTitle": {
+    "fr": "Exclure",
+    "en": "Remove"
+  },
+  "guilds.promoted": {
+    "fr": "Promu {role}",
+    "en": "Promoted to {role}"
+  },
+  "guilds.changeRole": {
+    "fr": "Changer rôle",
+    "en": "Change role"
+  },
+  "guilds.role.chef": {
+    "fr": "Chef",
+    "en": "Leader"
+  },
+  "guilds.role.officier": {
+    "fr": "Officier",
+    "en": "Officer"
+  },
+  "guilds.role.membre": {
+    "fr": "Membre",
+    "en": "Member"
+  },
+  "guilds.chatEmpty": {
+    "fr": "Aucun message — entamez la conversation",
+    "en": "No messages — start the conversation"
+  },
+  "guilds.chatPlaceholder": {
+    "fr": "Parler à l'ordre...",
+    "en": "Speak to the order..."
+  },
+  "guilds.depositSuccess": {
+    "fr": "Dépôt effectué",
+    "en": "Deposit completed"
+  },
+  "guilds.chooseMember": {
+    "fr": "Choisir un membre",
+    "en": "Choose a member"
+  },
+  "guilds.rewardSuccess": {
+    "fr": "Récompense versée",
+    "en": "Reward sent"
+  },
+  "guilds.commonVault": {
+    "fr": "Coffre commun",
+    "en": "Common vault"
+  },
+  "guilds.depositXp": {
+    "fr": "Déposer (gagne de l'XP pour l'ordre)",
+    "en": "Deposit (earns XP for the order)"
+  },
+  "guilds.rewardMember": {
+    "fr": "Récompenser un membre",
+    "en": "Reward a member"
+  },
+  "guilds.chooseMemberPlaceholder": {
+    "fr": "Choisir un membre...",
+    "en": "Choose a member..."
+  },
+  "guilds.reward": {
+    "fr": "Récompenser",
+    "en": "Reward"
+  },
+  "guilds.inviteTitle": {
+    "fr": "Inviter un héros",
+    "en": "Invite a hero"
+  },
+  "guilds.exactUsername": {
+    "fr": "Pseudo exact",
+    "en": "Exact username"
+  },
+  "guilds.inviteSent": {
+    "fr": "Invitation envoyée à {name}",
+    "en": "Invitation sent to {name}"
+  },
+  "guilds.bannerSub": {
+    "fr": "Unissez-vous et fondez un ordre dont le nom résonnera dans l'éternité.",
+    "en": "Unite and found an order whose name will echo through eternity."
+  },
+  "guilds.foundOrder": {
+    "fr": "+ Fonder un Ordre",
+    "en": "+ Found an Order"
+  },
+  "guilds.pulseTitle": {
+    "fr": "Pulse des Ordres",
+    "en": "Orders Pulse"
+  },
+  "guilds.pulseSub": {
+    "fr": "Vue globale",
+    "en": "Global view"
+  },
+  "guilds.stat.founded": {
+    "fr": "Ordres fondés",
+    "en": "Orders founded"
+  },
+  "guilds.stat.enrolled": {
+    "fr": "Héros enrôlés",
+    "en": "Heroes enrolled"
+  },
+  "guilds.stat.dominant": {
+    "fr": "Ordre dominant",
+    "en": "Dominant order"
+  },
+  "guilds.stat.invitations": {
+    "fr": "Invitations",
+    "en": "Invitations"
+  },
+  "guilds.existingOrders": {
+    "fr": "Ordres existants",
+    "en": "Existing orders"
+  },
+  "guilds.bannerCount": {
+    "fr": "{count} bannière(s)",
+    "en": "{count} banner(s)"
+  },
+  "guilds.bannerCount_one": {
+    "fr": "{count} bannière",
+    "en": "{count} banner"
+  },
+  "guilds.bannerCount_other": {
+    "fr": "{count} bannière(s)",
+    "en": "{count} banners"
+  },
+  "guilds.noOrdersYet": {
+    "fr": "Aucun ordre n'a encore été fondé…",
+    "en": "No order has been founded yet…"
+  },
+  "guilds.beFirst": {
+    "fr": "Sois le premier à hisser ta bannière.",
+    "en": "Be the first to raise your banner."
+  },
+  "guilds.myOrder": {
+    "fr": "Mon ordre",
+    "en": "My order"
+  },
+  "guilds.heroCount": {
+    "fr": "{count} héros",
+    "en": "{count} heroes"
+  },
+  "guilds.heroCount_one": {
+    "fr": "{count} héros",
+    "en": "{count} hero"
+  },
+  "guilds.heroCount_other": {
+    "fr": "{count} héros",
+    "en": "{count} heroes"
+  },
+  "craft.ecus": {
+    "fr": "Écus",
+    "en": "Écus"
+  },
+  "craft.category": {
+    "fr": "Catégorie",
+    "en": "Category"
+  },
+  "craft.cat.all": {
+    "fr": "Toutes",
+    "en": "All"
+  },
+  "craft.cat.weapon": {
+    "fr": "Armes",
+    "en": "Weapons"
+  },
+  "craft.cat.accessory": {
+    "fr": "Accessoires",
+    "en": "Accessories"
+  },
+  "craft.cat.consumable": {
+    "fr": "Consommables",
+    "en": "Consumables"
+  },
+  "craft.rarity.all": {
+    "fr": "Toutes",
+    "en": "All"
+  },
+  "craft.rarity.rare": {
+    "fr": "Rare",
+    "en": "Rare"
+  },
+  "craft.rarity.epic": {
+    "fr": "Épique",
+    "en": "Epic"
+  },
+  "craft.rarity.legendary": {
+    "fr": "Légendaire",
+    "en": "Legendary"
+  },
+  "craft.forgeSuccess": {
+    "fr": "Forge réussie — « {name} » créé !",
+    "en": "Forge successful — « {name} » created!"
+  },
+  "craft.forgeFail": {
+    "fr": "Échec de forge — {name} ×{qty} en compensation",
+    "en": "Forge failed — {name} ×{qty} as compensation"
+  },
+  "craft.cosmicDust": {
+    "fr": "Poussière cosmique",
+    "en": "Cosmic dust"
+  },
+  "craft.forgeImpossible": {
+    "fr": "Forge impossible",
+    "en": "Cannot forge"
+  },
+  "craft.resultSuccess": {
+    "fr": "Succès — {name} ajouté à votre inventaire.",
+    "en": "Success — {name} added to your inventory."
+  },
+  "craft.resultFail": {
+    "fr": "Échec — ressources consommées. Compensation : {name} ×{qty}",
+    "en": "Failed — resources consumed. Compensation: {name} ×{qty}"
+  },
+  "craft.noRecipes": {
+    "fr": "Aucune recette pour ces filtres.",
+    "en": "No recipes for these filters."
+  },
+  "craft.recentForge": {
+    "fr": "Forge récente",
+    "en": "Recent forges"
+  },
+  "craft.noHistory": {
+    "fr": "Aucun craft pour le moment.",
+    "en": "No crafts yet."
+  },
+  "craft.resourcesLabel": {
+    "fr": "Ressources",
+    "en": "Resources"
+  },
+  "craft.successRate": {
+    "fr": "{rate}% réussite",
+    "en": "{rate}% success rate"
+  },
+  "craft.insufficientEcus": {
+    "fr": "Écus insuffisants",
+    "en": "Insufficient Écus"
+  },
+  "craft.missingResources": {
+    "fr": "Ressources manquantes",
+    "en": "Missing resources"
+  },
+  "craft.forging": {
+    "fr": "Forge en cours…",
+    "en": "Forging…"
+  },
+  "craft.tierLabel": {
+    "fr": "Palier forge",
+    "en": "Forge tier"
+  },
+  "craft.nextTier": {
+    "fr": "Prochain : {label} ({current}/{min} tentatives)",
+    "en": "Next: {label} ({current}/{min} attempts)"
+  },
+  "craft.attempts": {
+    "fr": "Tentatives",
+    "en": "Attempts"
+  },
+  "craft.successes": {
+    "fr": "Réussites",
+    "en": "Successes"
+  },
+  "craft.failures": {
+    "fr": "Échecs",
+    "en": "Failures"
+  },
+  "craft.milestones": {
+    "fr": "Paliers & récompenses",
+    "en": "Tiers & rewards"
+  },
+  "craft.metric.attempts": {
+    "fr": "tentatives",
+    "en": "attempts"
+  },
+  "craft.metric.successes": {
+    "fr": "réussites",
+    "en": "successes"
+  },
+  "craft.metric.legendary_successes": {
+    "fr": "forges légendaires",
+    "en": "legendary forges"
+  },
+  "craft.milestone.obtained": {
+    "fr": "Obtenu",
+    "en": "Obtained"
+  },
+  "craft.milestone.unlocked": {
+    "fr": "Débloqué",
+    "en": "Unlocked"
+  },
+  "craft.guide.title": {
+    "fr": "Comment fonctionne la Forge ?",
+    "en": "How does the Forge work?"
+  },
+  "craft.guide.fullTitle": {
+    "fr": "Guide complet",
+    "en": "Full guide"
+  },
+  "craft.guide.collapse": {
+    "fr": "Replier le guide",
+    "en": "Collapse guide"
+  },
+  "craft.guide.expand": {
+    "fr": "Déplier le guide",
+    "en": "Expand guide"
+  },
+  "craft.guide.modalTitle": {
+    "fr": "Guide de la Forge du Nexus",
+    "en": "Nexus Forge guide"
+  },
+  "craft.guide.steps": {
+    "fr": "Étapes",
+    "en": "Steps"
+  },
+  "craft.guide.rates": {
+    "fr": "Taux de réussite",
+    "en": "Success rates"
+  },
+  "craft.guide.failNote": {
+    "fr": "En cas d'échec, ressources et Écus sont perdus. Compensation : 2× Poussière cosmique.",
+    "en": "On failure, resources and Écus are lost. Compensation: 2× Cosmic dust."
+  },
+  "craft.guide.sources": {
+    "fr": "Où obtenir les ressources",
+    "en": "Where to get resources"
+  },
+  "craft.guide.resourceSources": {
+    "fr": "Sources de ressources",
+    "en": "Resource sources"
+  },
+  "craft.guide.tips": {
+    "fr": "Bon à savoir",
+    "en": "Good to know"
+  },
+  "craft.guide.intro": {
+    "fr": "La Forge du Nexus transforme vos matériaux en reliques. Chaque tentative coûte des ressources et des Écus. Le résultat dépend du taux de réussite de la recette.",
+    "en": "The Nexus Forge transforms your materials into relics. Each attempt costs resources and Écus. The outcome depends on the recipe's success rate."
+  },
+  "craft.guide.step0": {
+    "fr": "Vérifiez vos ressources en haut de page et votre solde d'Écus.",
+    "en": "Check your resources at the top and your Écus balance."
+  },
+  "craft.guide.step1": {
+    "fr": "Choisissez une recette : les lignes rouges indiquent les matériaux manquants.",
+    "en": "Choose a recipe: red lines indicate missing materials."
+  },
+  "craft.guide.step2": {
+    "fr": "Consultez le taux de réussite (%) affiché sur la carte.",
+    "en": "Check the success rate (%) shown on the card."
+  },
+  "craft.guide.step3": {
+    "fr": "Cliquez sur « Forger » — le serveur valide tout côté backend.",
+    "en": "Click « Craft » — the server validates everything on the backend."
+  },
+  "craft.guide.step4": {
+    "fr": "Succès : l'objet apparaît dans votre Inventaire (onglet Reliques).",
+    "en": "Success: the item appears in your Inventory (Relics tab)."
+  },
+  "craft.guide.step5": {
+    "fr": "Échec : ressources et Écus sont consommés ; vous recevez 2× Poussière cosmique en compensation.",
+    "en": "Failure: resources and Écus are consumed; you receive 2× Cosmic dust as compensation."
+  },
+  "craft.guide.tip0": {
+    "fr": "Les matériaux obtenus en combat ou à la roue sont aussi visibles dans l'Inventaire (type matériau).",
+    "en": "Materials from combat or the wheel are also visible in Inventory (material type)."
+  },
+  "craft.guide.tip1": {
+    "fr": "L'historique en bas de page liste vos dernières tentatives.",
+    "en": "History at the bottom lists your recent attempts."
+  },
+  "craft.guide.tip2": {
+    "fr": "Certaines recettes ont un délai entre deux forgements (cooldown).",
+    "en": "Some recipes have a cooldown between forges."
+  },
+  "craft.guide.tip3": {
+    "fr": "Tout est calculé côté serveur : impossible de forger sans ressources ou Écus suffisants.",
+    "en": "Everything is server-side: you cannot forge without enough resources or Écus."
+  },
+  "craft.guide.tip4": {
+    "fr": "Progression : paliers (Apprenti → Grand Maître), badges forge et quêtes quotidiennes/hebdo/mensuelles.",
+    "en": "Progression: tiers (Apprentice → Grand Master), forge badges and daily/weekly/monthly quests."
+  },
+  "craft.guide.tip5": {
+    "fr": "Les paliers récompensent Écus, XP et badges — consultez la section « Paliers & récompenses » sur /craft.",
+    "en": "Tiers reward Écus, XP and badges — see « Tiers & rewards » on /craft."
+  },
+  "craft.guide.res.dust": {
+    "fr": "Coffres (Briser un sceau, boutique, roue), combat Rat d'ombre, roue, échec de forge.",
+    "en": "Chests (Break seal, shop, wheel), Shadow Rat combat, wheel, forge failure."
+  },
+  "craft.guide.res.crystal": {
+    "fr": "Cristal du Nexus",
+    "en": "Nexus Crystal"
+  },
+  "craft.guide.res.crystalSrc": {
+    "fr": "Coffres (épique+), Roue du Nexus.",
+    "en": "Chests (epic+), Nexus Wheel."
+  },
+  "craft.guide.res.steel": {
+    "fr": "Acier sombre",
+    "en": "Dark Steel"
+  },
+  "craft.guide.res.steelSrc": {
+    "fr": "Coffres (rare+), combat Garde corrompu, Roue du Nexus.",
+    "en": "Chests (rare+), Corrupted Guard combat, Nexus Wheel."
+  },
+  "craft.guide.res.essence": {
+    "fr": "Essence arcanique",
+    "en": "Arcane Essence"
+  },
+  "craft.guide.res.essenceSrc": {
+    "fr": "Coffres (rare+), combat Spectre mineur.",
+    "en": "Chests (rare+), Minor Specter combat."
+  },
+  "craft.guide.res.fragment": {
+    "fr": "Fragment ancien",
+    "en": "Ancient Fragment"
+  },
+  "craft.guide.res.fragmentSrc": {
+    "fr": "Coffres (épique+), combat Golem fissuré.",
+    "en": "Chests (epic+), Cracked Golem combat."
+  },
+  "craft.guide.res.heart": {
+    "fr": "Cœur d'ombre",
+    "en": "Shadow Heart"
+  },
+  "craft.guide.res.heartSrc": {
+    "fr": "Coffres (légendaire+), combat Garde/Golem, Roue du Nexus.",
+    "en": "Chests (legendary+), Guard/Golem combat, Nexus Wheel."
+  },
+  "tickets.count": {
+    "fr": "{count} ticket",
+    "en": "{count} ticket"
+  },
+  "tickets.count_one": {
+    "fr": "{count} ticket",
+    "en": "{count} ticket"
+  },
+  "tickets.count_other": {
+    "fr": "{count} tickets",
+    "en": "{count} tickets"
+  },
+  "tickets.inProgress": {
+    "fr": "{count} en cours",
+    "en": "{count} in progress"
+  },
+  "tickets.inProgress_one": {
+    "fr": "{count} en cours",
+    "en": "{count} in progress"
+  },
+  "tickets.inProgress_other": {
+    "fr": "{count} en cours",
+    "en": "{count} in progress"
+  },
+  "tickets.emptyHint": {
+    "fr": "Ouvre un ticket si tu as besoin d'aide.",
+    "en": "Open a ticket if you need help."
+  },
+  "tickets.createTitle": {
+    "fr": "Ouvrir un ticket",
+    "en": "Open a ticket"
+  },
+  "tickets.category": {
+    "fr": "Catégorie",
+    "en": "Category"
+  },
+  "tickets.cat.general": {
+    "fr": "Général",
+    "en": "General"
+  },
+  "tickets.cat.bug": {
+    "fr": "Anomalie / Bug",
+    "en": "Issue / Bug"
+  },
+  "tickets.cat.account": {
+    "fr": "Compte",
+    "en": "Account"
+  },
+  "tickets.cat.other": {
+    "fr": "Autre",
+    "en": "Other"
+  },
+  "tickets.subjectPlaceholder": {
+    "fr": "Décrivez brièvement votre demande...",
+    "en": "Briefly describe your request..."
+  },
+  "tickets.bodyPlaceholder": {
+    "fr": "Détaillez votre problème ou question...",
+    "en": "Detail your issue or question..."
+  },
+  "tickets.submit": {
+    "fr": "Envoyer le ticket",
+    "en": "Submit ticket"
+  },
+  "tickets.sent": {
+    "fr": "Ticket envoyé — l'équipe te répondra bientôt",
+    "en": "Ticket sent — the team will reply soon"
+  },
+  "tickets.status.in_progress": {
+    "fr": "En cours",
+    "en": "In progress"
+  },
+  "tickets.status.resolved": {
+    "fr": "Résolu",
+    "en": "Resolved"
+  },
+  "tickets.statusChanged": {
+    "fr": "Statut : {status}",
+    "en": "Status: {status}"
+  },
+  "tickets.loading": {
+    "fr": "Chargement...",
+    "en": "Loading..."
+  },
+  "tickets.myTickets": {
+    "fr": "Mes tickets",
+    "en": "My tickets"
+  },
+  "tickets.support": {
+    "fr": "Support",
+    "en": "Support"
+  },
+  "tickets.replyPlaceholder": {
+    "fr": "Ajouter un message...",
+    "en": "Add a message..."
+  },
+  "tickets.markResolved": {
+    "fr": "Marquer comme résolu",
+    "en": "Mark as resolved"
+  },
+  "forum.kicker": {
+    "fr": "Tribune de NEXORIA",
+    "en": "NEXORIA Forum"
+  },
+  "forum.categoriesCount": {
+    "fr": "{cats} catégories · {threads} sujets",
+    "en": "{cats} categories · {threads} topics"
+  },
+  "forum.noSearchResults": {
+    "fr": "Aucun sujet ne correspond à votre recherche.",
+    "en": "No topics match your search."
+  },
+  "forum.noRecentTopics": {
+    "fr": "Aucun sujet récent — ouvrez le premier débat.",
+    "en": "No recent topics — start the first debate."
+  },
+  "forum.defaultCategory": {
+    "fr": "Tribune",
+    "en": "Forum"
+  },
+  "forum.filterTopics": {
+    "fr": "Filtrer les sujets...",
+    "en": "Filter topics..."
+  },
+  "forum.rulesTitle": {
+    "fr": "Règles de la Tribune",
+    "en": "Forum rules"
+  },
+  "forum.rule.respect": {
+    "fr": "Respecter les autres héros",
+    "en": "Respect other heroes"
+  },
+  "forum.rule.onTopic": {
+    "fr": "Rester dans le thème de la catégorie",
+    "en": "Stay on category topic"
+  },
+  "forum.rule.noSpam": {
+    "fr": "Pas de spam",
+    "en": "No spam"
+  },
+  "forum.rule.noOffensive": {
+    "fr": "Pas de contenu offensant",
+    "en": "No offensive content"
+  },
+  "forum.rule.clearTitle": {
+    "fr": "Utiliser un titre clair",
+    "en": "Use a clear title"
+  },
+  "forum.defaultDescription": {
+    "fr": "Espace de discussion de la Tribune de NEXORIA.",
+    "en": "Discussion space of the NEXORIA Forum."
+  },
+  "forum.loginToCreate": {
+    "fr": "Connecte-toi pour créer un sujet dans le Nexus.",
+    "en": "Log in to create a topic in the Nexus."
+  },
+  "forum.filter.all": {
+    "fr": "Tous",
+    "en": "All"
+  },
+  "forum.filter.pinned": {
+    "fr": "Épinglés",
+    "en": "Pinned"
+  },
+  "forum.filter.recent": {
+    "fr": "Récents",
+    "en": "Recent"
+  },
+  "forum.filter.unanswered": {
+    "fr": "Sans réponse",
+    "en": "Unanswered"
+  },
+  "forum.breadcrumb": {
+    "fr": "Fil d'Ariane",
+    "en": "Breadcrumb"
+  },
+  "forum.noTopicsInSection": {
+    "fr": "Aucun sujet n'a encore été ouvert dans cette section du Nexus.",
+    "en": "No topics have been opened in this Nexus section yet."
+  },
+  "forum.newTopic": {
+    "fr": "Nouveau sujet",
+    "en": "New topic"
+  },
+  "forum.messageTooShort": {
+    "fr": "Le message doit contenir au moins 10 caractères",
+    "en": "Message must be at least 10 characters"
+  },
+  "forum.topicCreated": {
+    "fr": "Sujet créé (+30 XP)",
+    "en": "Topic created (+30 XP)"
+  },
+  "forum.createFailed": {
+    "fr": "Erreur lors de la création du sujet",
+    "en": "Error creating topic"
+  },
+  "forum.openDebate": {
+    "fr": "Ouvrir un débat",
+    "en": "Open a debate"
+  },
+  "forum.eloquentTitle": {
+    "fr": "Titre éloquent...",
+    "en": "Eloquent title..."
+  },
+  "forum.topicContent": {
+    "fr": "Contenu du sujet",
+    "en": "Topic content"
+  },
+  "forum.contentHint": {
+    "fr": "Mise en forme, émojis :sword: :crown:, images et liens",
+    "en": "Formatting, emojis :sword: :crown:, images and links"
+  },
+  "forum.deleteTopicConfirm": {
+    "fr": "Supprimer ce sujet ?",
+    "en": "Delete this topic?"
+  },
+  "forum.topicRemoved": {
+    "fr": "Sujet retiré",
+    "en": "Topic removed"
+  },
+  "forum.deleteReplyConfirm": {
+    "fr": "Supprimer cette réponse ?",
+    "en": "Delete this reply?"
+  },
+  "forum.replyRemoved": {
+    "fr": "Réponse supprimée",
+    "en": "Reply removed"
+  },
+  "forum.contentTooShort": {
+    "fr": "Contenu trop court",
+    "en": "Content too short"
+  },
+  "forum.replyEdited": {
+    "fr": "Réponse modifiée",
+    "en": "Reply edited"
+  },
+  "forum.replyPosted": {
+    "fr": "Réponse publiée (+10 XP)",
+    "en": "Reply posted (+10 XP)"
+  },
+  "forum.cat.salle-commune": {
+    "fr": "La Salle commune est l'espace principal d'échange entre les héros du Nexus.",
+    "en": "The Common Hall is the main exchange space between Nexus heroes."
+  },
+  "forum.cat.strategies": {
+    "fr": "Partagez vos tactiques, compositions, conseils de classes et théories de combat.",
+    "en": "Share tactics, compositions, class tips and combat theories."
+  },
+  "forum.cat.mythes": {
+    "fr": "Explorez le lore de NEXORIA, les récits anciens, les prophéties et les chroniques.",
+    "en": "Explore NEXORIA lore, ancient tales, prophecies and chronicles."
+  },
+  "forum.cat.comptoir": {
+    "fr": "Discutez des objets, badges, reliques, valeurs et échanges du Nexus.",
+    "en": "Discuss items, badges, relics, values and Nexus trades."
+  },
+  "forum.cat.recrutement": {
+    "fr": "Présentez votre ordre, recrutez ou trouvez une guilde.",
+    "en": "Present your order, recruit or find a guild."
+  },
+  "forum.cat.conseil": {
+    "fr": "Posez vos questions, trouvez de l'aide et accompagnez les nouveaux héros.",
+    "en": "Ask questions, find help and guide new heroes."
+  },
+  "forum.mutedUntilCreate": {
+    "fr": "Vous êtes réduit au silence jusqu'au {date}. Vous ne pouvez pas créer de sujet.",
+    "en": "You are muted until {date}. You cannot create a topic."
+  },
+  "forum.mutedUntilReply": {
+    "fr": "Vous êtes réduit au silence jusqu'au {date}. Vous ne pouvez pas répondre.",
+    "en": "You are muted until {date}. You cannot reply."
+  },
+  "forum.mutedCreateFailed": {
+    "fr": "Vous êtes réduit au silence jusqu'au {date}. Création impossible.",
+    "en": "You are muted until {date}. Cannot create."
+  },
+  "forum.mutedReadOnly": {
+    "fr": "Vous êtes en mute forum — lecture seule jusqu'au {date}.",
+    "en": "You are forum-muted — read-only until {date}."
+  },
+  "forum.muteActive": {
+    "fr": "Mute actif",
+    "en": "Mute active"
+  },
+  "forum.mutedUntil": {
+    "fr": "Publication désactivée jusqu'au {date}",
+    "en": "Posting disabled until {date}"
+  },
+  "forum.muteReason": {
+    "fr": "Motif : {reason}",
+    "en": "Reason: {reason}"
+  },
+  "forum.portalBack": {
+    "fr": "← Portail communautaire",
+    "en": "← Community portal"
+  },
+  "forum.createTopic": {
+    "fr": "Créer un sujet",
+    "en": "Create a topic"
+  },
+  "forum.recentTopics": {
+    "fr": "Sujets récents",
+    "en": "Recent topics"
+  },
+  "forum.topicCount_one": {
+    "fr": "{count} sujet",
+    "en": "{count} topic"
+  },
+  "forum.topicCount_other": {
+    "fr": "{count} sujets",
+    "en": "{count} topics"
+  },
+  "forum.about": {
+    "fr": "À propos",
+    "en": "About"
+  },
+  "forum.rules": {
+    "fr": "Règles",
+    "en": "Rules"
+  },
+  "forum.stats": {
+    "fr": "Statistiques",
+    "en": "Statistics"
+  },
+  "forum.stat.topics": {
+    "fr": "Sujets",
+    "en": "Topics"
+  },
+  "forum.stat.messages": {
+    "fr": "Messages",
+    "en": "Messages"
+  },
+  "forum.stat.heroes": {
+    "fr": "Héros actifs",
+    "en": "Active heroes"
+  },
+  "forum.stat.rooms": {
+    "fr": "Salles",
+    "en": "Rooms"
+  },
+  "forum.pinnedTopics": {
+    "fr": "Sujets épinglés",
+    "en": "Pinned topics"
+  },
+  "forum.badge.new": {
+    "fr": "Nouveau",
+    "en": "New"
+  },
+  "forum.badge.closed": {
+    "fr": "Fermé",
+    "en": "Closed"
+  },
+  "forum.statsPanelTitle": {
+    "fr": "Tribune en chiffres",
+    "en": "Forum at a glance"
+  },
+  "forum.searchLabel": {
+    "fr": "Recherche",
+    "en": "Search"
+  },
+  "forum.popularRooms": {
+    "fr": "Salles populaires",
+    "en": "Popular rooms"
+  },
+  "forum.charterTitle": {
+    "fr": "Charte de la Tribune",
+    "en": "Forum charter"
+  },
+  "forum.charter.respect": {
+    "fr": "Respect et courtoisie entre héros.",
+    "en": "Respect and courtesy among heroes."
+  },
+  "forum.charter.noSpam": {
+    "fr": "Pas de spam ni contenu hors-sujet.",
+    "en": "No spam or off-topic content."
+  },
+  "forum.charter.exclusion": {
+    "fr": "Exclusion forum ≠ ban du site (Conseil).",
+    "en": "Forum exclusion ≠ site ban (Council)."
+  },
+  "forum.publishWithXp": {
+    "fr": "Publier (+30 XP)",
+    "en": "Publish (+30 XP)"
+  },
+  "forum.topicEdited": {
+    "fr": "Sujet modifié",
+    "en": "Topic edited"
+  },
+  "forum.messageTooShortEdit": {
+    "fr": "Message trop court",
+    "en": "Message too short"
+  },
+  "forum.loadingThread": {
+    "fr": "Chargement...",
+    "en": "Loading..."
+  },
+  "forum.viewsWithCount": {
+    "fr": "{count} vues",
+    "en": "{count} views"
+  },
+  "forum.repliesWithCount": {
+    "fr": "{count} réponses",
+    "en": "{count} replies"
+  },
+  "forum.pinAction": {
+    "fr": "Épingler",
+    "en": "Pin"
+  },
+  "forum.lockAction": {
+    "fr": "Verrouiller",
+    "en": "Lock"
+  },
+  "forum.firstToReply": {
+    "fr": "Soyez le premier à réagir",
+    "en": "Be the first to reply"
+  },
+  "forum.yourReply": {
+    "fr": "Votre réponse",
+    "en": "Your reply"
+  },
+  "forum.xpPerReply": {
+    "fr": "+10 XP par contribution",
+    "en": "+10 XP per contribution"
+  },
+  "forum.editReplyTitle": {
+    "fr": "Modifier la réponse",
+    "en": "Edit reply"
+  },
+  "forum.editTopicTitle": {
+    "fr": "Modifier le sujet",
+    "en": "Edit topic"
+  },
+  "forum.contentLabel": {
+    "fr": "Contenu",
+    "en": "Content"
+  },
+  "forum.replyReportContext": {
+    "fr": "Réponse de {username}",
+    "en": "Reply by {username}"
+  },
+  "forum.errorGeneric": {
+    "fr": "Erreur",
+    "en": "Error"
+  },
+  "legends.globalTop": {
+    "fr": "Top 10 mondial",
+    "en": "Global top 10"
+  },
+  "legends.pantheonChosen": {
+    "fr": "Élu du Panthéon",
+    "en": "Chosen of the Pantheon"
+  },
+  "nexusWheel.loadFailed": {
+    "fr": "Impossible de charger la Roue du Nexus.",
+    "en": "Could not load the Nexus Wheel."
+  },
+  "nexusWheel.status.vipMulti": {
+    "fr": "Le Nexus t'accorde {count} chances aujourd'hui (VIP).",
+    "en": "The Nexus grants you {count} chances today (VIP)."
+  },
+  "nexusWheel.status.daily": {
+    "fr": "Le Nexus t'accorde une chance aujourd'hui.",
+    "en": "The Nexus grants you one chance today."
+  },
+  "nexusWheel.status.cooldown": {
+    "fr": "La Roue du Nexus se régénère dans {time}.",
+    "en": "The Nexus Wheel regenerates in {time}."
+  },
+  "nexusWheel.vipBadge": {
+    "fr": "VIP · {count} tours/jour",
+    "en": "VIP · {count} spins/day"
+  },
+  "nexusWheel.spinsLeft_one": {
+    "fr": "{count} tour restant",
+    "en": "{count} spin left"
+  },
+  "nexusWheel.spinsLeft_other": {
+    "fr": "{count} tours restants",
+    "en": "{count} spins left"
+  },
+  "nexusWheel.spinning": {
+    "fr": "Le Nexus tourne…",
+    "en": "The Nexus spins…"
+  },
+  "nexusWheel.spinBtnMulti": {
+    "fr": "Lancer la roue ({count})",
+    "en": "Spin the wheel ({count})"
+  },
+  "nexusWheel.spinBtn": {
+    "fr": "Lancer la roue",
+    "en": "Spin the wheel"
+  },
+  "nexusWheel.history.title": {
+    "fr": "Derniers gains",
+    "en": "Recent wins"
+  },
+  "nexusWheel.history.loading": {
+    "fr": "Chargement…",
+    "en": "Loading…"
+  },
+  "nexusWheel.history.empty": {
+    "fr": "Aucun tour enregistré. Le Nexus t'attend.",
+    "en": "No spins recorded yet. The Nexus awaits you."
+  },
+  "nexusWheel.rewards.title": {
+    "fr": "Récompenses possibles",
+    "en": "Possible rewards"
+  },
+  "nexusWheel.modal.title": {
+    "fr": "Récompense du Nexus",
+    "en": "Nexus reward"
+  },
+  "nexusWheel.modal.thanks": {
+    "fr": "Merci, Nexus",
+    "en": "Thank you, Nexus"
+  },
+  "nexusWheel.modal.offer": {
+    "fr": "Le Nexus t'offre : {label}.",
+    "en": "The Nexus offers you: {label}."
+  },
+  "nexusWheel.toast.cooldown": {
+    "fr": "La Roue du Nexus se régénère encore.",
+    "en": "The Nexus Wheel is still regenerating."
+  },
+  "nexusWheel.toast.refused": {
+    "fr": "Le Nexus refuse ce tour pour l'instant.",
+    "en": "The Nexus refuses this spin for now."
+  },
+  "nexusWheel.reward.ecus_50.label": {
+    "fr": "50 Écus",
+    "en": "50 Écus"
+  },
+  "nexusWheel.reward.ecus_50.description": {
+    "fr": "Une poignée d'Écus scintillants.",
+    "en": "A handful of shimmering Écus."
+  },
+  "nexusWheel.reward.ecus_100.label": {
+    "fr": "100 Écus",
+    "en": "100 Écus"
+  },
+  "nexusWheel.reward.ecus_100.description": {
+    "fr": "Le Nexus récompense ta fidélité.",
+    "en": "The Nexus rewards your loyalty."
+  },
+  "nexusWheel.reward.nothing.label": {
+    "fr": "Silence du Nexus",
+    "en": "Nexus Silence"
+  },
+  "nexusWheel.reward.nothing.description": {
+    "fr": "Les runes s'éteignent… le vide murmure encore.",
+    "en": "The runes fade… the void still whispers."
+  },
+  "nexusWheel.reward.nothing.flavor": {
+    "fr": "Le Nexus médite en silence. Ta chance n'est pas morte — seulement repoussée.",
+    "en": "The Nexus meditates in silence. Your luck is not dead — only delayed."
+  },
+  "nexusWheel.reward.xp_500.label": {
+    "fr": "500 XP",
+    "en": "500 XP"
+  },
+  "nexusWheel.reward.xp_500.description": {
+    "fr": "Une onde d'expérience traverse ton âme.",
+    "en": "A wave of experience flows through your soul."
+  },
+  "nexusWheel.reward.ecus_250.label": {
+    "fr": "250 Écus",
+    "en": "250 Écus"
+  },
+  "nexusWheel.reward.ecus_250.description": {
+    "fr": "Un flux d'Écus rares du Conseil.",
+    "en": "A stream of rare Écus from the Council."
+  },
+  "nexusWheel.reward.dust_5.label": {
+    "fr": "Poussière cosmique ×5",
+    "en": "Cosmic dust ×5"
+  },
+  "nexusWheel.reward.dust_5.description": {
+    "fr": "Poussière stellaire pour vos crafts.",
+    "en": "Stellar dust for your crafts."
+  },
+  "nexusWheel.reward.dust_5.resourceName": {
+    "fr": "Poussière cosmique",
+    "en": "Cosmic dust"
+  },
+  "nexusWheel.reward.xp_1000.label": {
+    "fr": "1000 XP",
+    "en": "1000 XP"
+  },
+  "nexusWheel.reward.xp_1000.description": {
+    "fr": "Une décharge d'expérience majeure.",
+    "en": "A major surge of experience."
+  },
+  "nexusWheel.reward.crystal_1.label": {
+    "fr": "Cristal du Nexus ×1",
+    "en": "Nexus Crystal ×1"
+  },
+  "nexusWheel.reward.crystal_1.description": {
+    "fr": "Un cristal pulsant d'énergie du Nexus.",
+    "en": "A crystal pulsing with Nexus energy."
+  },
+  "nexusWheel.reward.crystal_1.resourceName": {
+    "fr": "Cristal du Nexus",
+    "en": "Nexus Crystal"
+  },
+  "nexusWheel.reward.shadow_heart_1.label": {
+    "fr": "Cœur d'ombre ×1",
+    "en": "Shadow Heart ×1"
+  },
+  "nexusWheel.reward.shadow_heart_1.description": {
+    "fr": "Essence sombre pour forger la Lame d'Obsidienne.",
+    "en": "Dark essence to forge the Obsidian Blade."
+  },
+  "nexusWheel.reward.shadow_heart_1.resourceName": {
+    "fr": "Cœur d'ombre",
+    "en": "Shadow Heart"
+  },
+  "nexusWheel.reward.steel_2.label": {
+    "fr": "Acier sombre ×2",
+    "en": "Dark Steel ×2"
+  },
+  "nexusWheel.reward.steel_2.description": {
+    "fr": "Alliage corrompu des profondeurs du Nexus.",
+    "en": "Corrupted alloy from the depths of the Nexus."
+  },
+  "nexusWheel.reward.steel_2.resourceName": {
+    "fr": "Acier sombre",
+    "en": "Dark Steel"
+  },
+  "nexusWheel.reward.chest_common.label": {
+    "fr": "Coffre commun",
+    "en": "Common chest"
+  },
+  "nexusWheel.reward.chest_common.description": {
+    "fr": "Un coffre scellé par les runes du royaume.",
+    "en": "A chest sealed by the realm's runes."
+  },
+  "nexusWheel.reward.chest_rare.label": {
+    "fr": "Coffre rare",
+    "en": "Rare chest"
+  },
+  "nexusWheel.reward.chest_rare.description": {
+    "fr": "Un coffre aux runes violettes — récompense rare.",
+    "en": "A violet-rune chest — rare reward."
+  },
+  "nexusWheel.reward.badge_blessed.label": {
+    "fr": "Béni du Nexus",
+    "en": "Nexus Blessed"
+  },
+  "nexusWheel.reward.badge_blessed.description": {
+    "fr": "Aura temporaire du Nexus (24 h).",
+    "en": "Temporary Nexus aura (24 h)."
+  },
+  "forum.catName.general": {
+    "fr": "Salle Commune",
+    "en": "Common Hall"
+  },
+  "forum.catName.strategy": {
+    "fr": "Stratégies de Combat",
+    "en": "Combat Strategies"
+  },
+  "forum.catName.lore": {
+    "fr": "Mythes & Légendes",
+    "en": "Myths & Legends"
+  },
+  "forum.catName.trade": {
+    "fr": "Comptoir d'Échanges",
+    "en": "Trading Post"
+  },
+  "forum.catName.guilds": {
+    "fr": "Recrutement d'Ordres",
+    "en": "Order Recruitment"
+  },
+  "forum.catName.support": {
+    "fr": "Conseil & Entraide",
+    "en": "Advice & Help"
+  },
+  "forum.cat.general": {
+    "fr": "La Salle commune est l'espace principal d'échange entre les héros du Nexus.",
+    "en": "The Common Hall is the main exchange space between Nexus heroes."
+  },
+  "forum.cat.strategy": {
+    "fr": "Partagez vos tactiques, compositions, conseils de classes et théories de combat.",
+    "en": "Share tactics, compositions, class tips and combat theories."
+  },
+  "forum.cat.lore": {
+    "fr": "Explorez le lore de NEXORIA, les récits anciens, les prophéties et les chroniques.",
+    "en": "Explore NEXORIA lore, ancient tales, prophecies and chronicles."
+  },
+  "forum.cat.trade": {
+    "fr": "Discutez des objets, badges, reliques, valeurs et échanges du Nexus.",
+    "en": "Discuss items, badges, relics, values and Nexus trades."
+  },
+  "forum.cat.guilds": {
+    "fr": "Présentez votre ordre, recrutez ou trouvez une guilde.",
+    "en": "Present your order, recruit or find a guild."
+  },
+  "forum.cat.support": {
+    "fr": "Posez vos questions, trouvez de l'aide et accompagnez les nouveaux héros.",
+    "en": "Ask questions, find help and guide new heroes."
+  },
+  "guilds.modal.title": {
+    "fr": "Fonder un Ordre",
+    "en": "Found an Order"
+  },
+  "guilds.modal.close": {
+    "fr": "Fermer",
+    "en": "Close"
+  },
+  "guilds.modal.cost": {
+    "fr": "Coût :",
+    "en": "Cost:"
+  },
+  "guilds.modal.costDetail": {
+    "fr": " · Requiert le niveau 10 minimum.",
+    "en": " · Requires level 10 minimum."
+  },
+  "guilds.modal.currentLevel": {
+    "fr": "Niveau actuel :",
+    "en": "Current level:"
+  },
+  "guilds.modal.currentEcus": {
+    "fr": " · Écus :",
+    "en": " · Écus:"
+  },
+  "guilds.modal.errLevel": {
+    "fr": "Tu dois atteindre le niveau 10 pour fonder un ordre.",
+    "en": "You must reach level 10 to found an order."
+  },
+  "guilds.modal.errEcus": {
+    "fr": "Tu n'as pas assez d'Écus (1000 requis).",
+    "en": "You don't have enough Écus (1000 required)."
+  },
+  "guilds.modal.errGeneric": {
+    "fr": "Une erreur est survenue.",
+    "en": "An error occurred."
+  },
+  "guilds.modal.namePlaceholder": {
+    "fr": "Nom de l'Ordre",
+    "en": "Order name"
+  },
+  "guilds.modal.tagPlaceholder": {
+    "fr": "TAG (2-5 lettres, ex : ZEN)",
+    "en": "TAG (2-5 letters, e.g. ZEN)"
+  },
+  "guilds.modal.mottoPlaceholder": {
+    "fr": "Devise de l'ordre...",
+    "en": "Order motto..."
+  },
+  "guilds.modal.color": {
+    "fr": "Couleur",
+    "en": "Color"
+  },
+  "guilds.modal.colorAria": {
+    "fr": "Couleur {name}",
+    "en": "Color {name}"
+  },
+  "guilds.modal.submitting": {
+    "fr": "Fondation en cours…",
+    "en": "Founding in progress…"
+  },
+  "guilds.modal.submit": {
+    "fr": "Fonder l'Ordre",
+    "en": "Found the Order"
+  },
+  "guilds.modal.submitCost": {
+    "fr": "(-1000 Écus)",
+    "en": "(-1000 Écus)"
+  },
+  "inventory.openChest": {
+    "fr": "Briser un sceau — 50 ✦",
+    "en": "Break a seal — 50 ✦"
+  },
+  "inventory.compact": {
+    "fr": "Compacter",
+    "en": "Compact"
+  },
+  "inventory.forgeLink": {
+    "fr": "Forge du Nexus",
+    "en": "Nexus Forge"
+  },
+  "inventory.sendEcus": {
+    "fr": "Envoyer des écus",
+    "en": "Send Écus"
+  },
+  "inventory.trades": {
+    "fr": "Échanges",
+    "en": "Trades"
+  },
+  "inventory.guide.btn": {
+    "fr": "Guide",
+    "en": "Guide"
+  },
+  "inventory.learnMore": {
+    "fr": "En savoir plus",
+    "en": "Learn more"
+  },
+  "inventory.filter.all": {
+    "fr": "Tous",
+    "en": "All"
+  },
+  "inventory.empty.relics": {
+    "fr": "Le cabinet attend ses premières trouvailles...",
+    "en": "The cabinet awaits its first finds..."
+  },
+  "inventory.hover.giftTrade": {
+    "fr": "Offrir / Échanger",
+    "en": "Gift / Trade"
+  },
+  "inventory.chest.sealBroken": {
+    "fr": "Sceau brisé",
+    "en": "Seal broken"
+  },
+  "inventory.chest.reseal": {
+    "fr": "Sceller à nouveau",
+    "en": "Seal again"
+  },
+  "inventory.info.howToUse": {
+    "fr": "Comment l'utiliser",
+    "en": "How to use"
+  },
+  "inventory.info.aria": {
+    "fr": "Informations sur l'objet",
+    "en": "Item information"
+  },
+  "inventory.guide.currentTab": {
+    "fr": "Onglet actuel — {title}",
+    "en": "Current tab — {title}"
+  },
+  "inventory.guide.actionsTitle": {
+    "fr": "Boutons de la page",
+    "en": "Page buttons"
+  },
+  "inventory.guide.tabsTitle": {
+    "fr": "Tous les onglets",
+    "en": "All tabs"
+  },
+  "inventory.guide.sourcesTitle": {
+    "fr": "Où obtenir des objets",
+    "en": "Where to get items"
+  },
+  "inventory.guide.footer": {
+    "fr": "Sur chaque carte d'objet, le petit « i » explique comment utiliser cet objet précis sur le site.",
+    "en": "On each item card, the small « i » explains how to use that specific item on the site."
+  },
+  "inventory.send.recipient": {
+    "fr": "Destinataire",
+    "en": "Recipient"
+  },
+  "inventory.send.amount": {
+    "fr": "Montant (Écus)",
+    "en": "Amount (Écus)"
+  },
+  "inventory.send.messageOptional": {
+    "fr": "Message (optionnel)",
+    "en": "Message (optional)"
+  },
+  "inventory.send.sending": {
+    "fr": "Envoi…",
+    "en": "Sending…"
+  },
+  "inventory.send.success": {
+    "fr": "{amount} Écus envoyés à {name}",
+    "en": "{amount} Écus sent to {name}"
+  },
+  "inventory.action.gift": {
+    "fr": "Offrir",
+    "en": "Gift"
+  },
+  "inventory.action.giftSub": {
+    "fr": "Don gratuit",
+    "en": "Free gift"
+  },
+  "inventory.action.trade": {
+    "fr": "Échanger",
+    "en": "Trade"
+  },
+  "inventory.action.tradeSub": {
+    "fr": "Contre une contrepartie",
+    "en": "For consideration"
+  },
+  "inventory.action.quantity": {
+    "fr": "Quantité",
+    "en": "Quantity"
+  },
+  "inventory.action.ecusOptional": {
+    "fr": "+ Écus à ajouter à votre offre (optionnel)",
+    "en": "+ Écus to add to your offer (optional)"
+  },
+  "inventory.action.note": {
+    "fr": "Note (ce que vous souhaitez en retour)",
+    "en": "Note (what you want in return)"
+  },
+  "inventory.action.notePlaceholder": {
+    "fr": "Ex : contre une relique légendaire…",
+    "en": "E.g.: for a legendary relic…"
+  },
+  "inventory.action.reserveNote": {
+    "fr": "Vos objets et écus sont mis en réserve jusqu'à ce que le destinataire accepte ou refuse.",
+    "en": "Your items and Écus are held in reserve until the recipient accepts or declines."
+  },
+  "inventory.action.back": {
+    "fr": "Retour",
+    "en": "Back"
+  },
+  "inventory.action.proposeTrade": {
+    "fr": "Proposer l'échange",
+    "en": "Propose trade"
+  },
+  "inventory.action.giftSuccess": {
+    "fr": "« {item} » offert à {name}",
+    "en": "« {item} » gifted to {name}"
+  },
+  "inventory.trades.incoming": {
+    "fr": "Propositions reçues ({count})",
+    "en": "Incoming offers ({count})"
+  },
+  "inventory.trades.incomingEmpty": {
+    "fr": "Aucune proposition pour le moment.",
+    "en": "No offers at the moment."
+  },
+  "inventory.trades.proposes": {
+    "fr": "{name} vous propose :",
+    "en": "{name} proposes:"
+  },
+  "inventory.trades.counterparty": {
+    "fr": "Votre contrepartie",
+    "en": "Your counteroffer"
+  },
+  "inventory.trades.ecusOptional": {
+    "fr": "Écus à donner (optionnel)",
+    "en": "Écus to give (optional)"
+  },
+  "inventory.trades.noRelics": {
+    "fr": "Aucune relique à proposer.",
+    "en": "No relics to offer."
+  },
+  "inventory.trades.conclude": {
+    "fr": "Conclure l'échange",
+    "en": "Complete trade"
+  },
+  "inventory.trades.respond": {
+    "fr": "Répondre",
+    "en": "Respond"
+  },
+  "inventory.trades.decline": {
+    "fr": "Refuser",
+    "en": "Decline"
+  },
+  "inventory.trades.outgoing": {
+    "fr": "Mes propositions ({count})",
+    "en": "My offers ({count})"
+  },
+  "inventory.trades.outgoingEmpty": {
+    "fr": "Vous n'avez aucune offre en attente.",
+    "en": "You have no pending offers."
+  },
+  "inventory.trades.toUser": {
+    "fr": "À {name} — vous offrez :",
+    "en": "To {name} — you offer:"
+  },
+  "inventory.trades.cancel": {
+    "fr": "Annuler l'offre",
+    "en": "Cancel offer"
+  },
+  "inventory.trades.declined": {
+    "fr": "Échange refusé — objets restitués à l'expéditeur",
+    "en": "Trade declined — items returned to sender"
+  },
+  "inventory.trades.cancelled": {
+    "fr": "Offre annulée — vos biens vous sont rendus",
+    "en": "Offer cancelled — your items returned"
+  },
+  "inventory.trades.completed": {
+    "fr": "Échange conclu ! Inventaire mis à jour.",
+    "en": "Trade completed! Inventory updated."
+  },
+  "inventory.trades.acceptFailed": {
+    "fr": "Acceptation impossible",
+    "en": "Could not accept"
+  },
+  "inventory.trades.expired": {
+    "fr": "expiré",
+    "en": "expired"
+  },
+  "inventory.trades.expiresIn": {
+    "fr": "Expire dans {time}",
+    "en": "Expires in {time}"
+  },
+  "inventory.shop.emptyCategory": {
+    "fr": "Aucun objet de cette catégorie pour le moment.",
+    "en": "No items in this category yet."
+  },
+  "inventory.shop.equipped": {
+    "fr": "Équipé",
+    "en": "Equipped"
+  },
+  "inventory.shop.equip": {
+    "fr": "Équiper",
+    "en": "Equip"
+  },
+  "inventory.shop.auraActive": {
+    "fr": "Aura active",
+    "en": "Aura active"
+  },
+  "inventory.shop.equipAura": {
+    "fr": "Équiper l'aura",
+    "en": "Equip aura"
+  },
+  "inventory.shop.mountActive": {
+    "fr": "Monture active",
+    "en": "Mount active"
+  },
+  "inventory.shop.equipMount": {
+    "fr": "Équiper la monture",
+    "en": "Equip mount"
+  },
+  "inventory.shop.expires": {
+    "fr": "Expire le {date}",
+    "en": "Expires on {date}"
+  },
+  "page.inventory.kicker": {
+    "fr": "Cabinet de curiosités",
+    "en": "Curiosity cabinet"
+  },
+  "page.inventory.title": {
+    "fr": "Vos Reliques",
+    "en": "Your Relics"
+  },
+  "page.inventory.subtitle": {
+    "fr": "{count} trésor(s) arraché(s) aux brumes oubliées.",
+    "en": "{count} treasure(s) torn from forgotten mists."
+  },
+  "page.craft.kicker": {
+    "fr": "Atelier des forgerons",
+    "en": "Smiths' workshop"
+  },
+  "page.craft.title": {
+    "fr": "Forge du Nexus",
+    "en": "Nexus Forge"
+  },
+  "page.craft.subtitle": {
+    "fr": "Combinez vos ressources et forgez des reliques légendaires.",
+    "en": "Combine your resources and forge legendary relics."
+  },
+  "page.nexusWheel.kicker": {
+    "fr": "Fortune du Royaume",
+    "en": "Realm Fortune"
+  },
+  "page.nexusWheel.title": {
+    "fr": "Roue du Nexus",
+    "en": "Nexus Wheel"
+  },
+  "page.nexusWheel.subtitle": {
+    "fr": "Une chance quotidienne offerte par les runes cosmiques.",
+    "en": "A daily chance granted by the cosmic runes."
+  },
+  "page.guilds.kicker": {
+    "fr": "Ordres mystiques",
+    "en": "Mystic orders"
+  },
+  "page.guilds.title": {
+    "fr": "Les Guildes",
+    "en": "Guilds"
+  },
+  "page.guilds.subtitle": {
+    "fr": "Unissez-vous et fondez un ordre dont le nom résonnera dans l'éternité.",
+    "en": "Unite and found an order whose name will echo through eternity."
+  },
+  "page.forum.kicker": {
+    "fr": "Tribune",
+    "en": "Forum"
+  },
+  "page.forum.title": {
+    "fr": "Forum des Héros",
+    "en": "Heroes Forum"
+  },
+  "page.forum.subtitle": {
+    "fr": "Là où les voix s'élèvent et où les idées forgent l'histoire.",
+    "en": "Where voices rise and ideas forge history."
+  },
+  "page.tickets.kicker": {
+    "fr": "Assistance",
+    "en": "Support"
+  },
+  "page.tickets.title": {
+    "fr": "Service Client",
+    "en": "Customer Service"
+  },
+  "page.tickets.subtitle": {
+    "fr": "Signale un bug, pose une question ou contacte l'équipe Nexoria.",
+    "en": "Report a bug, ask a question or contact the Nexoria team."
+  },
+  "page.legends.kicker": {
+    "fr": "Mémoire éternelle",
+    "en": "Eternal memory"
+  },
+  "page.legends.title": {
+    "fr": "Panthéon",
+    "en": "Pantheon"
+  },
+  "page.legends.subtitle": {
+    "fr": "Les héros dont les enfants chanteront les légendes.",
+    "en": "Heroes whose legends children will sing."
+  }
+}

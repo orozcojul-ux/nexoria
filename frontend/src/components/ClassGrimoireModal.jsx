@@ -1,17 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { getClassImageSrc } from "@/lib/badge-assets";
+import { useI18n } from "@/i18n/LanguageProvider";
+import { translateClassDetail, translateStatKey } from "@/lib/translate-game";
 import styles from "./ClassGrimoireModal.module.css";
-
-const STAT_LABEL = {
-  creativity: "Créativité",
-  persistence: "Persévérance",
-  curiosity: "Curiosité",
-  leadership: "Leadership",
-  sociability: "Sociabilité",
-  ambition: "Ambition",
-  expertise: "Expertise",
-  discovery: "Découverte",
-};
 
 function hexToRgba(hex, a) {
   const m = String(hex || "#9D4CDD").replace("#", "");
@@ -22,7 +13,6 @@ function hexToRgba(hex, a) {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-/* Filigrane doré de coin (orienté haut-gauche, miroir via CSS pour les autres) */
 function CornerFlourish({ className }) {
   return (
     <svg className={className} viewBox="0 0 64 64" fill="none" aria-hidden="true">
@@ -38,7 +28,9 @@ function CornerFlourish({ className }) {
 }
 
 export default function ClassGrimoireModal({ cls, onClose }) {
+  const { t } = useI18n();
   const [imgFailed, setImgFailed] = useState(false);
+  const detail = useMemo(() => translateClassDetail(t, cls), [t, cls]);
 
   useEffect(() => {
     setImgFailed(false);
@@ -56,13 +48,13 @@ export default function ClassGrimoireModal({ cls, onClose }) {
     };
   }, [cls, onClose]);
 
-  if (!cls) return null;
+  if (!cls || !detail) return null;
 
-  const accent = cls.color || "#9D4CDD";
-  const stats = Object.entries(cls.stat_bonus || {}).sort((a, b) => b[1] - a[1]);
+  const accent = detail.color || "#9D4CDD";
+  const stats = Object.entries(detail.stat_bonus || {}).sort((a, b) => b[1] - a[1]);
   const maxVal = stats.length ? stats[0][1] : 1;
-  const src = getClassImageSrc(cls.id || cls.name);
-  const powers = cls.powers || [];
+  const src = getClassImageSrc(detail.id || detail.name);
+  const powers = detail.powers || [];
 
   return (
     <div
@@ -70,7 +62,7 @@ export default function ClassGrimoireModal({ cls, onClose }) {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label={cls.name}
+      aria-label={detail.name}
       data-testid="class-modal"
     >
       <div
@@ -100,7 +92,7 @@ export default function ClassGrimoireModal({ cls, onClose }) {
           type="button"
           className={styles.close}
           onClick={onClose}
-          aria-label="Fermer"
+          aria-label={t("common.close")}
           data-testid="class-modal-close"
         >
           ×
@@ -116,7 +108,7 @@ export default function ClassGrimoireModal({ cls, onClose }) {
             ) : (
               <img
                 src={src}
-                alt={cls.name}
+                alt={detail.name}
                 className={styles.portrait}
                 draggable={false}
                 onError={() => setImgFailed(true)}
@@ -125,16 +117,16 @@ export default function ClassGrimoireModal({ cls, onClose }) {
           </div>
 
           <div className={styles.info}>
-            <h2 className={`${styles.title} font-display`}>{cls.name}</h2>
-            {cls.tagline && <p className={styles.tagline}>{cls.tagline}</p>}
+            <h2 className={`${styles.title} font-display`}>{detail.name}</h2>
+            {detail.tagline && <p className={styles.tagline}>{detail.tagline}</p>}
 
             {stats.length > 0 && (
               <>
-                <div className={styles.sectionLabel}>Affinités cosmiques</div>
+                <div className={styles.sectionLabel}>{t("grimoire.affinitiesTitle")}</div>
                 <div className={styles.affinities}>
                   {stats.map(([k, v]) => (
                     <div className={styles.affRow} key={k}>
-                      <span className={styles.affName}>{STAT_LABEL[k] || k}</span>
+                      <span className={styles.affName}>{translateStatKey(t, k)}</span>
                       <span className={styles.affRail}>
                         <span
                           className={styles.affFill}
@@ -154,7 +146,7 @@ export default function ClassGrimoireModal({ cls, onClose }) {
 
             {powers.length > 0 && (
               <>
-                <div className={styles.sectionLabel}>Pouvoirs de la Voie</div>
+                <div className={styles.sectionLabel}>{t("grimoire.powersTitle")}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
                   {powers.map((p) => (
                     <div
@@ -187,13 +179,9 @@ export default function ClassGrimoireModal({ cls, onClose }) {
             )}
 
             <div className={styles.gmBox}>
-              <div className={styles.gmTitle}>Conseils du Maître de Jeu</div>
+              <div className={styles.gmTitle}>{t("grimoire.gmTitle")}</div>
               <p className={styles.gmText}>
-                Les héros de la voie{" "}
-                <span className={styles.gmAccent}>{cls.name}</span> excellent dans les
-                actions liées à leurs affinités cosmiques. Investis tes points de talent
-                dans l'<em>Arbre des Voies</em> pour multiplier ces bonus, et grave ton nom
-                dans le Hall des Légendes.
+                {t("grimoire.gmAdvice", { className: detail.name })}
               </p>
             </div>
           </div>

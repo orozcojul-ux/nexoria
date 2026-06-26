@@ -4,6 +4,8 @@ import {
   MessageSquare, ScrollText, Sparkles, Castle, Users, Flame, ChevronRight,
 } from "lucide-react";
 import { PremiumCard } from "@/components/ui-premium";
+import { useI18n } from "@/i18n/LanguageProvider";
+import { translateChallenge } from "@/lib/translate-game";
 
 const ICONS = {
   MessageSquare,
@@ -52,16 +54,17 @@ const TONE_STYLES = {
   },
 };
 
-function ChallengeCard({ challenge, compact = false }) {
-  const tone = TONE_STYLES[challenge.tone] || TONE_STYLES.violet;
-  const Icon = ICONS[challenge.icon] || Flame;
-  const pct = Math.min(100, challenge.percent ?? ((challenge.progress / Math.max(1, challenge.target)) * 100));
+function ChallengeCard({ challenge, compact = false, t }) {
+  const c = translateChallenge(t, challenge);
+  const tone = TONE_STYLES[c.tone] || TONE_STYLES.violet;
+  const Icon = ICONS[c.icon] || Flame;
+  const pct = Math.min(100, c.percent ?? ((c.progress / Math.max(1, c.target)) * 100));
 
   return (
     <Link
-      to={challenge.link || "/events"}
+      to={c.link || "/events"}
       className={`block rounded-lg border ${tone.border} bg-black/25 p-3 transition-colors hover:bg-white/[0.03]`}
-      data-testid={`community-challenge-${challenge.challenge_id}`}
+      data-testid={`community-challenge-${c.challenge_id}`}
     >
       <div className="flex items-start gap-2.5">
         <div
@@ -72,21 +75,21 @@ function ChallengeCard({ challenge, compact = false }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className={`text-[9px] uppercase tracking-widest font-bold ${tone.label}`}>
-            Défi communautaire
+            {t("feed.challenge_tag")}
           </div>
           <h4 className="font-display font-bold text-sm text-white leading-snug mt-0.5">
-            {challenge.name}
+            {c.name}
           </h4>
-          {!compact && challenge.description && (
+          {!compact && c.description && (
             <p className="text-[11px] text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
-              {challenge.description}
+              {c.description}
             </p>
           )}
           <div className="mt-2.5">
             <div className="flex justify-between text-[10px] font-mono-stat mb-1">
-              <span className="text-zinc-500">{challenge.action_label}</span>
+              <span className="text-zinc-500">{c.action_label}</span>
               <span className={tone.label}>
-                {challenge.progress?.toLocaleString()} / {challenge.target?.toLocaleString()}
+                {c.progress?.toLocaleString()} / {c.target?.toLocaleString()}
               </span>
             </div>
             <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden border border-white/[0.04]">
@@ -108,24 +111,25 @@ export default function CommunityChallengesWidget({
   compact = false,
   testid = "community-challenges-widget",
 }) {
+  const { t } = useI18n();
   const visible = challenges.slice(0, limit);
   if (visible.length === 0) return null;
 
   return (
     <PremiumCard tone="violet" testid={testid} className="!border-[var(--nx-border)] !bg-[var(--nx-surface)]">
       <div className="text-[10px] uppercase tracking-widest text-violet-300 font-bold mb-3 flex items-center gap-1.5">
-        <Flame className="w-3 h-3" /> Défis du royaume
+        <Flame className="w-3 h-3" /> {t("feed.challenges_title")}
       </div>
       <div className="space-y-2">
         {visible.map((c) => (
-          <ChallengeCard key={c.challenge_id} challenge={c} compact={compact} />
+          <ChallengeCard key={c.challenge_id} challenge={c} compact={compact} t={t} />
         ))}
       </div>
       <Link
         to="/events"
         className="mt-3 inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold text-violet-300 hover:text-violet-200"
       >
-        Tous les défis <ChevronRight className="w-3 h-3" />
+        {t("feed.all_challenges")} <ChevronRight className="w-3 h-3" />
       </Link>
     </PremiumCard>
   );

@@ -227,7 +227,7 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
         className={styles.toggle}
         onClick={onOpen}
         data-testid="drawer-toggle"
-        aria-label="Ouvrir le menu"
+        aria-label={tr("drawer.openMenu", "Open menu")}
       >
         <Menu className="w-5 h-5" />
       </button>
@@ -276,7 +276,7 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
             type="button"
             className={styles.closeBtn}
             onClick={onClose}
-            aria-label="Fermer le menu"
+            aria-label={tr("drawer.closeMenu", "Close menu")}
           >
             <X className="w-4 h-4" />
           </button>
@@ -370,7 +370,7 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
             <div className={styles.godMode}>
               <span className={styles.godModeTitle}>{tr("sidebar.godmode", "Mode Dieu")}</span>
               <div className={styles.godModeRow}>
-                <span className={styles.godLabelOff}>Off</span>
+                <span className={styles.godLabelOff}>{tr("sidebar.godmode_off", "Off")}</span>
                 <button
                   type="button"
                   className={`${styles.switch} ${godMode ? styles.switchOn : ""}`}
@@ -378,11 +378,11 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
                   data-testid="godmode-toggle"
                   role="switch"
                   aria-checked={godMode}
-                  aria-label="Mode Dieu"
+                  aria-label={tr("sidebar.godmode", "God Mode")}
                 >
                   <span className={styles.switchThumb} />
                 </button>
-                <span className={styles.godLabelOn}>On</span>
+                <span className={styles.godLabelOn}>{tr("sidebar.godmode_on", "On")}</span>
               </div>
             </div>
           )}

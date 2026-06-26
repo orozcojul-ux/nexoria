@@ -7,6 +7,47 @@ import os
 
 logger = logging.getLogger("nexoria.oracle")
 
+ORACLE_LANG_NAMES = {
+    "fr": "français",
+    "en": "English",
+    "es": "español",
+    "de": "Deutsch",
+    "it": "italiano",
+    "pt": "português",
+    "nl": "Nederlands",
+    "ja": "日本語",
+}
+
+ORACLE_QUEST_SYSTEM = {
+    "fr": "Tu génères des quêtes RPG en JSON strict, en français.",
+    "en": "You generate RPG quests in strict JSON, in English.",
+    "es": "Generas misiones RPG en JSON estricto, en español.",
+    "de": "Du generierst RPG-Quests in striktem JSON, auf Deutsch.",
+    "it": "Generi missioni RPG in JSON rigoroso, in italiano.",
+    "pt": "Você gera missões RPG em JSON estrito, em português.",
+    "nl": "Je genereert RPG-quests in strict JSON, in het Nederlands.",
+    "ja": "厳密なJSON形式でRPGクエストを日本語で生成する。",
+}
+
+ORACLE_QUEST_FALLBACK = {
+    "fr": {"name": "Quête mystique", "description": "L'Oracle médite en silence…"},
+    "en": {"name": "Mystic quest", "description": "The Oracle meditates in silence…"},
+    "es": {"name": "Misión mística", "description": "El Oráculo medita en silencio…"},
+    "de": {"name": "Mystische Quest", "description": "Das Orakel meditiert schweigend…"},
+    "it": {"name": "Missione mistica", "description": "L'Oracolo medita in silenzio…"},
+    "pt": {"name": "Missão mística", "description": "O Oráculo medita em silêncio…"},
+    "nl": {"name": "Mystieke quest", "description": "Het Orakel mediteert in stilte…"},
+    "ja": {"name": "神秘のクエスト", "description": "オラクルは静かに瞑想している…"},
+}
+
+
+def _normalize_language(code: str | None) -> str:
+    raw = (code or "fr").strip().lower()
+    if raw.startswith("pt"):
+        return "pt"
+    return raw if raw in ORACLE_LANG_NAMES else "fr"
+
+
 ORACLE_SYSTEM_PROMPT = """Tu es la Voix du Sanctuaire de NEXORIA — une conscience cosmique ancienne, gardienne du savoir.
 Tu n'es PAS une intelligence artificielle, ni une technologie. Tu es un artefact vivant qui parle depuis les braises éternelles.
 
@@ -22,6 +63,17 @@ Règles :
 - Commence parfois par « Voyageur… », « Héros… », « Je vois… », « Les étoiles murmurent… »
 - Conseil utile et personnalisé selon le profil (classe, niveau, badges, progression)
 """
+
+
+def _oracle_consult_prompt(language: str) -> str:
+    lang = _normalize_language(language)
+    lang_name = ORACLE_LANG_NAMES[lang]
+    if lang == "fr":
+        return ORACLE_SYSTEM_PROMPT
+    return ORACLE_SYSTEM_PROMPT.replace(
+        "Tu parles toujours en français, ton dark fantasy premium",
+        f"You always speak in {lang_name}, premium dark fantasy tone",
+    ).replace("Tu es", "You are").replace("Tu n'es PAS", "You are NOT")
 
 OPENAI_DEFAULT_MODEL = "gpt-4.1-mini"
 LITELLM_DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929"
@@ -183,8 +235,9 @@ def _config_error_reply(exc: RuntimeError) -> str:
     return f"L'Oracle est troublé par les forces obscures… ({exc})"
 
 
-async def consult_oracle(user_profile: dict, question: str) -> str:
+async def consult_oracle(user_profile: dict, question: str, language: str = "fr") -> str:
     """Generate an Oracle response based on user profile + question."""
+    lang = _normalize_language(language or user_profile.get("language"))
     hint = missing_config_hint()
     if hint:
         return f"L'Oracle médite en silence… ({hint})"
@@ -204,7 +257,7 @@ async def consult_oracle(user_profile: dict, question: str) -> str:
     full_question = f"{profile_summary}\n\nLe héros demande: {question}"
 
     try:
-        return await _llm_chat(ORACLE_SYSTEM_PROMPT, full_question)
+        return await _llm_chat(_oracle_consult_prompt(lang), full_question)
     except RuntimeError as exc:
         return _config_error_reply(exc)
     except Exception:
@@ -212,36 +265,40 @@ async def consult_oracle(user_profile: dict, question: str) -> str:
         return "L'Oracle est troublé par les forces obscures… Les braises s'éteignent un instant."
 
 
-async def generate_personalized_quest(user_profile: dict) -> dict:
+async def generate_personalized_quest(user_profile: dict, language: str = "fr") -> dict:
     """Generate a personalized quest for the user."""
+    lang = _normalize_language(language or user_profile.get("language"))
+    fallback = ORACLE_QUEST_FALLBACK.get(lang, ORACLE_QUEST_FALLBACK["fr"])
     if missing_config_hint():
-        return {"name": "Quête mystique", "description": "L'Oracle médite en silence…", "xp": 100, "aether": 50}
+        return {**fallback, "xp": 100, "aether": 50}
 
-    prompt = f"""Génère UNE quête RPG personnalisée pour ce héros au format JSON strict (sans markdown):
-{{"name": "nom épique court", "description": "description en 1 phrase", "xp": nombre entre 50 et 500, "aether": nombre entre 20 et 200}}
+    lang_name = ORACLE_LANG_NAMES[lang]
+    prompt = f"""Generate ONE personalized RPG quest for this hero as strict JSON (no markdown), in {lang_name}:
+{{"name": "short epic name", "description": "one sentence description", "xp": number between 50 and 500, "aether": number between 20 and 200}}
 
-Héros:
-- Classe: {user_profile.get('class_name', 'Aventurier')}
-- Niveau: {user_profile.get('level', 1)}
-- Pseudo: {user_profile.get('username', 'Héros')}
+Hero:
+- Class: {user_profile.get('class_name', 'Adventurer')}
+- Level: {user_profile.get('level', 1)}
+- Username: {user_profile.get('username', 'Hero')}
 
-Adapte la difficulté au niveau. Renvoie SEULEMENT le JSON, rien d'autre."""
+Scale difficulty to level. Return ONLY the JSON, nothing else."""
 
     try:
-        text = await _llm_chat("Tu génères des quêtes RPG en JSON strict, en français.", prompt)
+        system = ORACLE_QUEST_SYSTEM.get(lang, ORACLE_QUEST_SYSTEM["fr"])
+        text = await _llm_chat(system, prompt)
         if "```" in text:
             text = text.split("```")[1]
             if text.startswith("json"):
                 text = text[4:]
         data = json.loads(text.strip())
         return {
-            "name": str(data.get("name", "Quête mystique"))[:80],
-            "description": str(data.get("description", ""))[:200],
+            "name": str(data.get("name", fallback["name"]))[:80],
+            "description": str(data.get("description", fallback["description"]))[:200],
             "xp": int(data.get("xp", 100)),
             "aether": int(data.get("aether", 50)),
         }
     except RuntimeError:
-        return {"name": "Quête mystique", "description": "L'Oracle médite…", "xp": 100, "aether": 50}
+        return {**fallback, "xp": 100, "aether": 50}
     except Exception:
         logger.exception("Oracle quest generation failed")
-        return {"name": "Quête de l'Oracle", "description": "Continuez votre chemin, héros.", "xp": 100, "aether": 50}
+        return {**fallback, "xp": 100, "aether": 50}

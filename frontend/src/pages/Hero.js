@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import * as Lucide from "lucide-react";
@@ -18,8 +18,13 @@ import { getRankStyle } from "@/lib/rank-styles";
 import { useInventorySync } from "@/hooks/useInventorySync";
 
 import { usePageBanner } from "@/lib/page-banners";
+import { translateBadge, translateTitle, translateDnaStat, translateClassDetail } from "@/lib/translate-game";
+import { translateClassName } from "@/lib/translate-class";
+import { translateChronicle } from "@/lib/translate-chronicle";
+import { useI18n } from "@/contexts/I18nContext";
 
 export default function Hero() {
+  const { t, fmtDate } = useI18n();
   const { user, refresh } = useAuth();
   const banner = usePageBanner("hero");
   const [badges, setBadges] = useState([]);
@@ -40,13 +45,13 @@ export default function Hero() {
       api.get("/rifts/check"),
       api.post("/quests/daily-login").catch(() => {}),
       api.get("/game/classes").catch(() => ({ data: [] })),
-    ]).then(([b, ab, c, t, r, , cls]) => {
-      setBadges(b.data); setAllBadges(ab.data); setChronicle(c.data); setTitles(t.data);
+    ]).then(([b, ab, c, titlesRes, r, , cls]) => {
+      setBadges(b.data); setAllBadges(ab.data); setChronicle(c.data); setTitles(titlesRes.data);
       if (r.data?.rift) { setRift(r.data.rift); sfx.rift(); }
       const myClass = (cls.data || []).find((x) => x.id === (user.class_id || user.class_name?.toLowerCase()));
-      setClassPowers(myClass?.powers || []);
+      setClassPowers(translateClassDetail(t, myClass)?.powers || myClass?.powers || []);
     });
-  }, [user]);
+  }, [user, t]);
 
   useEffect(() => { loadHeroData(); }, [loadHeroData]);
 
@@ -54,6 +59,16 @@ export default function Hero() {
     loadHeroData();
     refresh();
   }, [loadHeroData, refresh]));
+
+  const dna = user?.dna || {};
+  const radarData = useMemo(() => [
+    { stat: translateDnaStat(t, "creativity"), value: dna.creativity || 0, fullMark: 100 },
+    { stat: translateDnaStat(t, "ambition"), value: dna.ambition || 0, fullMark: 100 },
+    { stat: translateDnaStat(t, "sociability"), value: dna.sociability || 0, fullMark: 100 },
+    { stat: translateDnaStat(t, "curiosity"), value: dna.curiosity || 0, fullMark: 100 },
+    { stat: translateDnaStat(t, "persistence"), value: dna.persistence || 0, fullMark: 100 },
+    { stat: translateDnaStat(t, "influence"), value: dna.influence || 0, fullMark: 100 },
+  ], [dna, t]);
 
   if (!user) return null;
 
@@ -63,44 +78,37 @@ export default function Hero() {
   const xpNext = user.xp_next ?? user.xp;
   const xpPct = user.xp_pct ?? 0;
 
-  const dna = user.dna || {};
-  const radarData = [
-    { stat: "Créativité", value: dna.creativity || 0, fullMark: 100 },
-    { stat: "Ambition", value: dna.ambition || 0, fullMark: 100 },
-    { stat: "Sociabilité", value: dna.sociability || 0, fullMark: 100 },
-    { stat: "Curiosité", value: dna.curiosity || 0, fullMark: 100 },
-    { stat: "Persévérance", value: dna.persistence || 0, fullMark: 100 },
-    { stat: "Influence", value: dna.influence || 0, fullMark: 100 },
-  ];
+  const classDisplayName = translateClassName(t, user.class_id || user.class_name) || user.class_name;
 
   const badgeMap = Object.fromEntries(allBadges.map((b) => [b.id, b]));
   const ownedBadges = badges.map((b) => badgeMap[b.badge_id]).filter(Boolean);
-  const activeTitle = titles.find((t) => t.id === user.active_title);
+  const activeTitle = titles.find((title) => title.id === user.active_title);
+  const activeTitleLabel = activeTitle ? translateTitle(t, activeTitle) : translateTitle(t, user.active_title);
 
   const claimRift = async () => {
     try {
       const { data } = await api.post(`/rifts/${rift.rift_id}/claim`);
       sfx.chest();
-      toast.success(`Trésors arrachés : ${data.rewards.join(", ")}`);
+      toast.success(t("page.hero.rift.claimed", { rewards: data.rewards.join(", ") }));
       setRift(null);
       await refresh();
-    } catch (e) { toast.error("Erreur"); }
+    } catch (e) { toast.error(t("common.error")); }
   };
 
   const setTitle = async (titleId) => {
     try {
       await api.put("/profile/title", { title_id: titleId });
       sfx.success();
-      toast.success("Titre scellé sur votre étendard");
+      toast.success(t("page.hero.titleEquipped"));
       await refresh();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Impossible d'équiper ce titre");
+      toast.error(err.response?.data?.detail || t("page.hero.titleEquipFailed"));
     }
   };
 
   const shareCard = () => {
     const url = `${window.location.origin}/profile/${user.username}`;
-    navigator.clipboard.writeText(url).then(() => toast.success("Sceau de votre carte copié"));
+    navigator.clipboard.writeText(url).then(() => toast.success(t("page.hero.shareCopied")));
     sfx.click();
   };
 
@@ -153,11 +161,11 @@ export default function Hero() {
           </div>
 
           <div className="relative z-10 flex-1 min-w-0">
-            <div className="text-[9px] uppercase tracking-[0.5em] text-violet-300/80 font-bold mb-0.5">⚡ Déchirure dans la trame</div>
+            <div className="text-[9px] uppercase tracking-[0.5em] text-violet-300/80 font-bold mb-0.5">⚡ {t("page.hero.rift.kicker")}</div>
             <div className="font-display font-black text-xl text-white">{rift.name}</div>
             <div className="text-sm text-zinc-300 italic mt-0.5">{rift.description}</div>
             <div className="mt-2 text-[11px] text-violet-200/70">
-              Récompense : <span className="font-bold text-violet-200">{rift.reward || "Inconnu"}</span>
+              {t("page.hero.rift.reward")} : <span className="font-bold text-violet-200">{rift.reward || t("page.hero.rift.unknown")}</span>
             </div>
           </div>
 
@@ -170,7 +178,7 @@ export default function Hero() {
               boxShadow: "0 0 24px rgba(124,58,237,0.6)",
             }}
           >
-            ⚔ Saisir
+            ⚔ {t("page.hero.rift.claim")}
           </button>
         </motion.div>
       )}
@@ -182,7 +190,7 @@ export default function Hero() {
           <PremiumCard tone="cyan" className="p-6 relative overflow-hidden">
 
           <div className="relative">
-            <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-400 font-bold mb-3 text-center">Carte du Héros</div>
+            <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-400 font-bold mb-3 text-center">{t("page.hero.cardTitle")}</div>
             <div className="border-t border-white/10 mb-5" />
 
             <div className="flex items-start gap-4 mb-6">
@@ -191,25 +199,25 @@ export default function Hero() {
                   {heroAvatarUrl ? <img src={heroAvatarUrl} alt="" className="w-full h-full object-cover rounded-xl" /> : user.username[0]?.toUpperCase()}
                 </div>
                 <div className="absolute -bottom-1 -right-1 bg-[#0A0A0E] border border-cyan-500/50 rounded-full px-2 py-0.5 text-[10px] font-mono-stat text-cyan-300 font-bold">
-                  Niv. {user.level}
+                  {t("page.hero.levelShort")} {user.level}
                 </div>
               </div>
               <div className="flex-1 min-w-0">
                 <div data-testid="hero-username"><HeroName user={user} size="xl" showIcon={false} /></div>
                 <div className="text-[10px] uppercase tracking-[0.3em] text-violet-300 font-bold flex items-center gap-1 mt-1" data-testid="hero-title">
                   <Crown className="w-3 h-3" />
-                  {activeTitle?.name || "Novice"}
+                  {activeTitleLabel}
                 </div>
                 <div className="flex items-center gap-2 mt-1" data-testid="hero-class">
                   <ClassImage classId={user.class_id || user.class_name} color="#22d3ee" size={28} alt={user.class_name || ""} />
-                  <span className="text-sm text-cyan-400 font-display tracking-wide">{user.class_name}</span>
+                  <span className="text-sm text-cyan-400 font-display tracking-wide">{classDisplayName}</span>
                   <button
                     onClick={() => setClassModal(true)}
                     data-testid="hero-change-class-btn"
                     className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-violet-500/40 text-violet-300 text-[10px] font-bold uppercase tracking-wider hover:bg-violet-500/10 transition-colors"
-                    title="Changer de classe"
+                    title={t("page.hero.changeClass")}
                   >
-                    <Lucide.Repeat className="w-3 h-3" /> Changer
+                    <Lucide.Repeat className="w-3 h-3" /> {t("page.hero.changeClassShort")}
                   </button>
                 </div>
               </div>
@@ -228,16 +236,16 @@ export default function Hero() {
 
               <div className="grid grid-cols-3 gap-3 pt-2 border-t border-white/5">
                 <div className="text-center flex flex-col items-center gap-1">
-                  <div className="text-[9px] uppercase tracking-[0.25em] text-zinc-500 font-bold">Rang</div>
+                  <div className="text-[9px] uppercase tracking-[0.25em] text-zinc-500 font-bold">{t("page.hero.rank")}</div>
                   <RankBadge rank={user.rank} size="md" />
                   <div className="font-bold text-sm" style={{ color: getRankStyle(user.rank).color }} data-testid="hero-rank">{user.rank}</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-[9px] uppercase tracking-[0.25em] text-zinc-500 font-bold">Réputation</div>
+                  <div className="text-[9px] uppercase tracking-[0.25em] text-zinc-500 font-bold">{t("profile.stats.reputation")}</div>
                   <div className="text-violet-300 font-bold text-base" data-testid="hero-reputation">{user.reputation}</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-[9px] uppercase tracking-[0.25em] text-zinc-500 font-bold">Écus</div>
+                  <div className="text-[9px] uppercase tracking-[0.25em] text-zinc-500 font-bold">{t("profile.stats.ecus")}</div>
                   <div className="text-yellow-400 font-bold text-base flex items-center justify-center gap-1" data-testid="hero-aether"><Coins className="w-3 h-3" />{user.aether}</div>
                 </div>
               </div>
@@ -245,7 +253,7 @@ export default function Hero() {
 
             <button onClick={shareCard} data-testid="share-card-btn"
               className="mt-6 w-full py-2.5 rounded-md border border-cyan-500/30 text-cyan-300 hover:border-cyan-500/60 text-sm font-display font-bold tracking-wide flex items-center justify-center gap-2 transition-all">
-              <Share2 className="w-3 h-3" /> Sceller en cristal partageable
+              <Share2 className="w-3 h-3" /> {t("page.hero.shareCrystal")}
             </button>
           </div>
           </PremiumCard>
@@ -255,8 +263,8 @@ export default function Hero() {
           className="lg:col-span-4" data-testid="dna-radar">
           <PremiumCard tone="violet" className="p-6 relative">
           <div className="relative">
-            <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-400 font-bold mb-1">Empreinte éthérique</div>
-            <div className="font-display font-bold text-lg mb-2">Lecture d'âme</div>
+            <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-400 font-bold mb-1">{t("page.hero.dnaKicker")}</div>
+            <div className="font-display font-bold text-lg mb-2">{t("page.hero.dnaTitle")}</div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart data={radarData}>
@@ -273,13 +281,13 @@ export default function Hero() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="lg:col-span-3" data-testid="stats-card">
           <PremiumCard tone="cyan" className="p-6 space-y-2">
-          <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-400 font-bold">Annales</div>
-          <div className="font-display font-bold text-base mb-3">Vos faits</div>
+          <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-400 font-bold">{t("page.hero.annalesKicker")}</div>
+          <div className="font-display font-bold text-base mb-3">{t("page.hero.annalesTitle")}</div>
           {[
-            { label: "Badges scellés", value: `${badges.length}/${allBadges.length}`, link: null },
-            { label: "Étoiles à allumer", value: user.skill_points || 0, link: "/skills" },
-            { label: "Disciples", value: user.followers || 0, link: null },
-            { label: "Compagnons", value: user.following || 0, link: null },
+            { label: t("page.hero.stat.badges"), value: `${badges.length}/${allBadges.length}`, link: null },
+            { label: t("page.hero.stat.skillPoints"), value: user.skill_points || 0, link: "/skills" },
+            { label: t("page.hero.stat.disciples"), value: user.followers || 0, link: null },
+            { label: t("page.hero.stat.companions"), value: user.following || 0, link: null },
           ].map((s) => (
             <div key={s.label} className="flex justify-between items-center py-2 border-b border-white/5 last:border-0">
               <span className="text-xs text-zinc-400 uppercase tracking-widest font-bold">{s.label}</span>
@@ -295,8 +303,8 @@ export default function Hero() {
 
       {classPowers.length > 0 && (
         <PremiumCard tone="violet" className="p-6">
-          <div className="text-[10px] uppercase tracking-[0.4em] text-violet-400 font-bold mb-1">Voie de la classe</div>
-          <div className="font-display font-bold text-xl mb-4">Pouvoirs de {user.class_name || "votre classe"}</div>
+          <div className="text-[10px] uppercase tracking-[0.4em] text-violet-400 font-bold mb-1">{t("page.hero.classPathKicker")}</div>
+          <div className="font-display font-bold text-xl mb-4">{t("page.hero.powersOfClass", { className: classDisplayName })}</div>
           <div className="grid sm:grid-cols-3 gap-3">
             {classPowers.map((p) => (
               <div key={p.id} className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-4">
@@ -314,8 +322,8 @@ export default function Hero() {
       <PremiumCard tone="violet" className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-400 font-bold">Sceaux gravés</div>
-            <div className="font-display font-bold text-xl">Badges du voyageur — {badges.length}/{allBadges.length}</div>
+            <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-400 font-bold">{t("page.hero.badgesKicker")}</div>
+            <div className="font-display font-bold text-xl">{t("page.hero.badgesTitle", { owned: badges.length, total: allBadges.length })}</div>
           </div>
         </div>
         <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 gap-3" data-testid="badges-grid">
@@ -324,7 +332,7 @@ export default function Hero() {
             return (
               <div key={b.id} className={owned ? "" : "opacity-30 grayscale"}>
                 <PremiumBadge badge={{ ...b, badge_id: b.id }} size="sm" testid={`badge-${b.id}`} />
-                <div className="text-[8px] uppercase tracking-[0.15em] mt-1 text-center font-bold leading-tight text-zinc-400">{b.name}</div>
+                <div className="text-[8px] uppercase tracking-[0.15em] mt-1 text-center font-bold leading-tight text-zinc-400">{translateBadge(t, b).name}</div>
               </div>
             );
           })}
@@ -332,25 +340,25 @@ export default function Hero() {
       </PremiumCard>
 
       <PremiumCard tone="cyan" className="p-6" testid="titles-section">
-        <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-400 font-bold">Étendards</div>
-        <div className="font-display font-bold text-xl mb-4">Vos titres d'honneur</div>
+        <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-400 font-bold">{t("page.hero.titlesKicker")}</div>
+        <div className="font-display font-bold text-xl mb-4">{t("page.hero.titlesTitle")}</div>
         <div className="flex flex-wrap gap-2">
-          {titles.map((t) => {
-            const unlocked = t.unlocked ?? user.level >= t.unlock_level;
-            const active = user.active_title === t.id;
+          {titles.map((titleItem) => {
+            const unlocked = titleItem.unlocked ?? user.level >= titleItem.unlock_level;
+            const active = user.active_title === titleItem.id;
             return (
               <button
-                key={t.id}
+                key={titleItem.id}
                 disabled={!unlocked}
-                onClick={() => unlocked && setTitle(t.id)}
-                data-testid={`title-${t.id}`}
-                title={t.shop_only && !unlocked ? "À acheter en boutique" : undefined}
+                onClick={() => unlocked && setTitle(titleItem.id)}
+                data-testid={`title-${titleItem.id}`}
+                title={titleItem.shop_only && !unlocked ? t("page.hero.titleShopHint") : undefined}
                 className={`px-3 py-1.5 rounded-md text-xs font-display font-bold tracking-wide border transition-all ${active ? "bg-cyan-500/15 border-cyan-500/60 text-cyan-300 shadow-[0_0_16px_rgba(0,229,255,0.3)]" : unlocked ? "border-white/10 text-zinc-200 hover:border-cyan-500/30" : "border-white/5 text-zinc-600 cursor-not-allowed opacity-60"}`}
               >
                 <Crown className="w-3 h-3 inline mr-1" />
-                {t.name}
-                {t.shop_only && !unlocked && <span className="ml-1 text-[10px] text-amber-500/80">Boutique</span>}
-                {!t.shop_only && !unlocked && <span className="ml-1 text-[10px] opacity-60">Niv. {t.unlock_level}</span>}
+                {translateTitle(t, titleItem)}
+                {titleItem.shop_only && !unlocked && <span className="ml-1 text-[10px] text-amber-500/80">{t("page.hero.titleShopTag")}</span>}
+                {!titleItem.shop_only && !unlocked && <span className="ml-1 text-[10px] opacity-60">{t("page.hero.titleLevel", { level: titleItem.unlock_level })}</span>}
               </button>
             );
           })}
@@ -360,17 +368,17 @@ export default function Hero() {
       <PremiumCard tone="gold" className="p-6">
         <div className="flex items-center gap-2 mb-1">
           <Flame className="w-4 h-4 text-yellow-500" />
-          <div className="text-[10px] uppercase tracking-[0.4em] text-yellow-400 font-bold">Chronique vivante</div>
+          <div className="text-[10px] uppercase tracking-[0.4em] text-yellow-400 font-bold">{t("page.hero.chronicleKicker")}</div>
         </div>
-        <div className="font-display font-bold text-xl mb-4">Le récit de votre voyage</div>
+        <div className="font-display font-bold text-xl mb-4">{t("page.hero.chronicleTitle")}</div>
         <div className="space-y-2 max-h-80 overflow-y-auto pr-2" data-testid="chronicle-list">
-          {chronicle.length === 0 && <div className="text-sm text-zinc-500 italic">Le parchemin attend votre première trace...</div>}
+          {chronicle.length === 0 && <div className="text-sm text-zinc-500 italic">{t("page.hero.chronicleEmpty")}</div>}
           {chronicle.map((c) => (
             <div key={c.chronicle_id || c.created_at} className="flex gap-3 py-2 border-b border-yellow-500/10 last:border-0">
               <div className="w-1 bg-gradient-to-b from-yellow-500 to-cyan-400 rounded-full" />
               <div className="flex-1">
-                <div className="text-sm text-zinc-200">{c.text}</div>
-                <div className="text-[10px] font-mono-stat text-zinc-500 mt-0.5 uppercase tracking-widest">{new Date(c.created_at).toLocaleString("fr-FR")}</div>
+                <div className="text-sm text-zinc-200">{translateChronicle(t, c)}</div>
+                <div className="text-[10px] font-mono-stat text-zinc-500 mt-0.5 uppercase tracking-widest">{fmtDate(c.created_at)}</div>
               </div>
             </div>
           ))}

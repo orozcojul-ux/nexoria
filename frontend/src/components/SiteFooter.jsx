@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Youtube, Instagram, Twitter } from "lucide-react";
 import { DiscordIcon } from "@/components/auth/AuthMedievalCard";
+import { useI18n } from "@/contexts/I18nContext";
 import styles from "./SiteFooter.module.css";
 
 const YEAR = new Date().getFullYear();
@@ -11,14 +12,6 @@ const SOCIALS = [
   { key: "twitter", label: "Twitter / X", href: "https://twitter.com", Icon: Twitter },
   { key: "youtube", label: "YouTube", href: "https://youtube.com", Icon: Youtube },
   { key: "instagram", label: "Instagram", href: "https://instagram.com", Icon: Instagram },
-];
-
-const LINKS = [
-  { label: "Aide", action: "guide" },
-  { label: "Communauté", to: "/communaute" },
-  { label: "Support", to: "/tickets" },
-  { label: "Conditions", to: "/conditions" },
-  { label: "Confidentialité", to: "/confidentialite" },
 ];
 
 function openGuide() {
@@ -48,13 +41,22 @@ function TikTokIcon({ className }) {
 }
 
 export default function SiteFooter() {
+  const { t } = useI18n();
+
+  const links = [
+    { labelKey: "footer.help", action: "guide" },
+    { labelKey: "footer.community", to: "/communaute" },
+    { labelKey: "footer.support", to: "/tickets" },
+    { labelKey: "footer.terms", to: "/conditions" },
+    { labelKey: "footer.privacy", to: "/confidentialite" },
+  ];
+
   return (
     <footer className={styles.footer} data-testid="site-footer">
       <span className={`${styles.aura} ${styles.auraL}`} aria-hidden />
       <span className={`${styles.aura} ${styles.auraR}`} aria-hidden />
 
       <div className={styles.panel}>
-        {/* Coins dorés */}
         <span className={`${styles.corner} ${styles.cTL}`}><CornerSVG /></span>
         <span className={`${styles.corner} ${styles.cTR}`}><CornerSVG /></span>
         <span className={`${styles.corner} ${styles.cBL}`}><CornerSVG /></span>
@@ -65,14 +67,12 @@ export default function SiteFooter() {
           </svg>
         </span>
 
-        {/* Bandes runiques latérales */}
         <span className={`${styles.runes} ${styles.runesL}`} aria-hidden>ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾ</span>
         <span className={`${styles.runes} ${styles.runesR}`} aria-hidden>ᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗ</span>
 
         <div className={styles.cols}>
-          {/* Réseaux sociaux */}
           <div className={styles.col}>
-            <h3 className={styles.title}>Réseaux sociaux</h3>
+            <h3 className={styles.title}>{t("footer.socials")}</h3>
             <div className={styles.socials}>
               {SOCIALS.map(({ key, label, href, Icon }) => (
                 <a key={key} href={href} target="_blank" rel="noreferrer noopener" className={styles.social} aria-label={label} title={label}>
@@ -85,27 +85,25 @@ export default function SiteFooter() {
             </div>
           </div>
 
-          {/* Liens utiles */}
           <div className={styles.col}>
-            <h3 className={styles.title}>Liens utiles</h3>
+            <h3 className={styles.title}>{t("footer.useful_links")}</h3>
             <div className={styles.links}>
-              {LINKS.map((l) =>
+              {links.map((l) =>
                 l.action === "guide" ? (
-                  <button key={l.label} type="button" className={styles.link} onClick={openGuide}>
-                    {l.label}
+                  <button key={l.labelKey} type="button" className={styles.link} onClick={openGuide}>
+                    {t(l.labelKey)}
                   </button>
                 ) : (
-                  <Link key={l.to} to={l.to} className={styles.link}>{l.label}</Link>
+                  <Link key={l.to} to={l.to} className={styles.link}>{t(l.labelKey)}</Link>
                 )
               )}
             </div>
           </div>
 
-          {/* Copyright */}
           <div className={styles.col}>
-            <h3 className={styles.title}>Copyright Nexoria</h3>
-            <p className={styles.copy}>© {YEAR} NEXORIA. All Rights Reserved.</p>
-            <p className={styles.tagline}>Univers MMORPG social · Forge ta légende</p>
+            <h3 className={styles.title}>{t("footer.copyright_title")}</h3>
+            <p className={styles.copy}>{t("footer.rights", { year: YEAR })}</p>
+            <p className={styles.tagline}>{t("footer.tagline")}</p>
           </div>
         </div>
       </div>

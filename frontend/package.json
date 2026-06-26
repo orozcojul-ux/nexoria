@@ -43,6 +43,7 @@
     "dayjs": "1.11.13",
     "embla-carousel-react": "8.6.0",
     "framer-motion": "11.18.0",
+    "i18next": "^26.3.2",
     "input-otp": "1.4.2",
     "lodash": "4.18.1",
     "lucide-react": "0.516.0",
@@ -52,6 +53,7 @@
     "react-day-picker": "8.10.1",
     "react-dom": "19.0.0",
     "react-hook-form": "7.56.2",
+    "react-i18next": "^17.0.8",
     "react-resizable-panels": "3.0.1",
     "react-router-dom": "7.5.1",
     "react-scripts": "5.0.1",
@@ -69,6 +71,8 @@
     "build": "craco build",
     "test": "craco test",
     "i18n:sync": "node scripts/sync-i18n-json.mjs",
+    "i18n:catalog": "node scripts/gen-catalog-i18n.mjs",
+    "i18n:shop": "node scripts/gen-shop-i18n.mjs",
     "i18n:check": "node scripts/check-i18n-keys.mjs"
   },
   "browserslist": {

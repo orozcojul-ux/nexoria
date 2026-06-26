@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
-  Database, Globe, Crosshair,
+  Database, Globe, Crosshair, Languages,
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "@/lib/api";
@@ -22,8 +22,8 @@ import "@/pages/Maintenance.css";
 
 const BG_URL = `${process.env.PUBLIC_URL || ""}/maintenance-bg.jpg`;
 
-const SYSTEM_ORDER = ["database", "site", "server"];
-const SYSTEM_ICONS = { database: Database, site: Globe, server: Crosshair };
+const SYSTEM_ORDER = ["database", "site", "international", "server"];
+const SYSTEM_ICONS = { database: Database, site: Globe, international: Languages, server: Crosshair };
 
 const DEFAULT_SYSTEMS = normalizeMaintenanceSystems();
 

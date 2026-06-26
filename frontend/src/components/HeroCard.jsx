@@ -15,6 +15,7 @@ import HeroName from "@/components/HeroName";
 import { useInventorySync } from "@/hooks/useInventorySync";
 import { getHeroAvatarDataURL } from "@/lib/NexusPixelArt";
 import { getTitleLabel } from "@/lib/title-labels";
+import { useI18n } from "@/contexts/I18nContext";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
 import ClassImage from "@/components/ClassImage";
 import ClassChangeModal from "@/components/ClassChangeModal";
@@ -22,6 +23,10 @@ import HeroCardCustomizeTab from "@/components/HeroCardCustomizeTab";
 import LastConnection from "@/components/LastConnection";
 import VipPassStatus from "@/components/VipPassStatus";
 import { formatStaffMembership, getStaffVisuals } from "@/lib/staff-roles";
+import { translateDnaStat, translateRarity, translateItem, translateTitle, translateShopItem } from "@/lib/translate-game";
+import { translateClassName } from "@/lib/translate-class";
+import { translateChronicle } from "@/lib/translate-chronicle";
+import { translateApiError } from "@/lib/i18n-api";
 import styles from "./HeroCard.module.css";
 
 /** @deprecated Use PremiumBadge — kept for backward compatibility */
@@ -29,13 +34,13 @@ export function BadgeCard({ badge, size = "md" }) {
   return <PremiumBadge badge={badge} size={size} />;
 }
 
-const BASE_TABS = [
-  { id: "overview", label: "Aperçu", icon: Crown },
-  { id: "inventory", label: "Inventaire", icon: Package },
-  { id: "badges", label: "Badges", icon: Award },
-  { id: "history", label: "Historique", icon: History },
-  { id: "relations", label: "Relations", icon: Users },
-  { id: "customize", label: "Personnaliser", icon: Settings2 },
+const TAB_KEYS = [
+  { id: "overview", key: "heroCard.tab.overview", icon: Crown },
+  { id: "inventory", key: "heroCard.tab.inventory", icon: Package },
+  { id: "badges", key: "heroCard.tab.badges", icon: Award },
+  { id: "history", key: "heroCard.tab.history", icon: History },
+  { id: "relations", key: "heroCard.tab.relations", icon: Users },
+  { id: "customize", key: "heroCard.tab.customize", icon: Settings2 },
 ];
 
 const CLASS_HEX = {
@@ -55,14 +60,7 @@ const TITLE_AURA = {
   novice: { icon: "🌱", color: "#8892a0" },
 };
 
-const DNA_AXES = [
-  { key: "creativity", label: "Créativité" },
-  { key: "ambition", label: "Ambition" },
-  { key: "sociability", label: "Sociabilité" },
-  { key: "curiosity", label: "Curiosité" },
-  { key: "persistence", label: "Persévérance" },
-  { key: "influence", label: "Influence" },
-];
+const DNA_AXIS_KEYS = ["creativity", "ambition", "sociability", "curiosity", "persistence", "influence"];
 
 function FrameCorner({ className }) {
   return (
@@ -74,19 +72,21 @@ function FrameCorner({ className }) {
   );
 }
 
-function HeroDnaRadar({ dna }) {
+function HeroDnaRadar({ dna, t }) {
   const cx = 180;
   const cy = 150;
   const maxR = 72;
   const levels = [0.33, 0.66, 1];
 
-  const points = DNA_AXES.map((axis, i) => {
-    const angle = (Math.PI * 2 * i) / DNA_AXES.length - Math.PI / 2;
-    const raw = dna?.[axis.key] ?? 0;
+  const points = DNA_AXIS_KEYS.map((axisKey, i) => {
+    const angle = (Math.PI * 2 * i) / DNA_AXIS_KEYS.length - Math.PI / 2;
+    const raw = dna?.[axisKey] ?? 0;
     const norm = Math.min(1, Math.max(0, raw / 100));
     const r = maxR * norm;
+    const label = translateDnaStat(t, axisKey);
     return {
-      label: axis.label,
+      label,
+      axisKey,
       x: cx + r * Math.cos(angle),
       y: cy + r * Math.sin(angle),
       lx: cx + (maxR + 28) * Math.cos(angle),
@@ -98,12 +98,12 @@ function HeroDnaRadar({ dna }) {
 
   return (
     <div className={styles.radarWrap}>
-      <svg viewBox="0 0 360 300" width="100%" height="auto" role="img" aria-label="ADN du héros">
+      <svg viewBox="0 0 360 300" width="100%" height="auto" role="img" aria-label={t("profile.dna.aria")}>
         {levels.map((lv) => (
           <polygon
             key={lv}
-            points={DNA_AXES.map((_, i) => {
-              const angle = (Math.PI * 2 * i) / DNA_AXES.length - Math.PI / 2;
+            points={DNA_AXIS_KEYS.map((_, i) => {
+              const angle = (Math.PI * 2 * i) / DNA_AXIS_KEYS.length - Math.PI / 2;
               const r = maxR * lv;
               return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
             }).join(" ")}
@@ -112,8 +112,8 @@ function HeroDnaRadar({ dna }) {
             strokeWidth="1"
           />
         ))}
-        {DNA_AXES.map((_, i) => {
-          const angle = (Math.PI * 2 * i) / DNA_AXES.length - Math.PI / 2;
+        {DNA_AXIS_KEYS.map((_, i) => {
+          const angle = (Math.PI * 2 * i) / DNA_AXIS_KEYS.length - Math.PI / 2;
           return (
             <line
               key={i}
@@ -134,7 +134,7 @@ function HeroDnaRadar({ dna }) {
         />
         {points.map((p) => (
           <text
-            key={p.label}
+            key={p.axisKey}
             x={p.lx}
             y={p.ly}
             textAnchor="middle"
@@ -159,6 +159,7 @@ function badgeGlowClass(rarity) {
 }
 
 export default function HeroCard({ userId, open, onClose }) {
+  const { t, fmtDate } = useI18n();
   const { user: me, refresh: refreshAuth, loading: authLoading, checkAuth } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
@@ -173,12 +174,13 @@ export default function HeroCard({ userId, open, onClose }) {
 
   const isStaff = me?.role === "admin" || me?.role === "moderator";
   const canEditProfile = Boolean(data?.can_edit_profile);
-  const tabs = canEditProfile ? BASE_TABS : BASE_TABS.filter((t) => t.id !== "customize");
+  const tabs = (canEditProfile ? TAB_KEYS : TAB_KEYS.filter((tab) => tab.id !== "customize"))
+    .map((tab) => ({ ...tab, label: t(tab.key) }));
 
   const loadCard = useCallback(async (retry = false) => {
     if (!userId) return;
     if (!getToken()) {
-      toast.error("Session expirée — reconnectez-vous");
+      toast.error(t("heroCard.sessionExpired"));
       onClose?.();
       return;
     }
@@ -195,15 +197,15 @@ export default function HeroCard({ userId, open, onClose }) {
             return;
           }
         } catch { /* fall through */ }
-        toast.error("Session expirée — reconnectez-vous");
+        toast.error(t("heroCard.sessionExpired"));
         onClose?.();
         return;
       }
-      toast.error("Impossible de charger la carte héros");
+      toast.error(t("heroCard.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [userId, onClose, checkAuth]);
+  }, [userId, onClose, checkAuth, t]);
 
   useEffect(() => {
     if (!open || !userId || authLoading) return;
@@ -233,10 +235,10 @@ export default function HeroCard({ userId, open, onClose }) {
     if (!u?.username) return;
     try {
       await api.post("/friends/request", { target_username: u.username });
-      toast.success("Demande d'amitié envoyée");
+      toast.success(t("friends.requestSent"));
       loadCard();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Impossible d'envoyer la demande");
+      toast.error(translateApiError(t, e, "heroCard.friendRequestFailed"));
     }
   };
 
@@ -245,11 +247,11 @@ export default function HeroCard({ userId, open, onClose }) {
     if (!rid) return;
     try {
       await api.post(`/friends/requests/${rid}/accept`);
-      toast.success("Pacte d'amitié forgé");
+      toast.success(t("friends.pactForged"));
       window.dispatchEvent(new CustomEvent("nexoria:friends-updated"));
       loadCard();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Acceptation impossible");
+      toast.error(translateApiError(t, e, "friends.acceptFailed"));
     }
   };
 
@@ -258,11 +260,11 @@ export default function HeroCard({ userId, open, onClose }) {
     if (!rid) return;
     try {
       await api.post(`/friends/requests/${rid}/decline`);
-      toast.info("Demande refusée");
+      toast.info(t("friends.requestDeclined"));
       window.dispatchEvent(new CustomEvent("nexoria:friends-updated"));
       loadCard();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Erreur");
+      toast.error(translateApiError(t, e));
     }
   };
 
@@ -272,7 +274,7 @@ export default function HeroCard({ userId, open, onClose }) {
       onClose?.();
       return;
     }
-    toast.info("Message privé : ajoutez cet aventurier en ami pour lui écrire.");
+    toast.info(t("heroCard.messageNeedFriend"));
   };
 
   const frameCosmetic = data?.equipped_cosmetics?.frame;
@@ -310,34 +312,34 @@ export default function HeroCard({ userId, open, onClose }) {
             <div className={styles.header}>
               <div className={styles.headerTitle}>
                 <Crown className="w-5 h-5" style={{ color: "#f5a623" }} />
-                Carte Héros
+                {t("profile.heroCard")}
               </div>
               <button
                 type="button"
                 onClick={onClose}
                 data-testid="hero-card-close"
                 className={styles.closeBtn}
-                aria-label="Fermer"
+                aria-label={t("common.close")}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {loading ? (
-              <div className={styles.loading}>Chargement de la carte...</div>
+              <div className={styles.loading}>{t("heroCard.loading")}</div>
             ) : data?.hidden ? (
               <div className={styles.hiddenPanel}>
                 <Shield className="w-12 h-12 mx-auto opacity-60" style={{ color: "#00e5cc" }} />
-                <h3 className={styles.hiddenTitle}>Carte scellée</h3>
+                <h3 className={styles.hiddenTitle}>{t("heroCard.hiddenTitle")}</h3>
                 <p className={styles.empty}>
                   {data.reason === "friends_only"
-                    ? "Cette carte héros est réservée aux compagnons de l'aventurier."
-                    : "Ce héros a choisi de garder sa carte confidentielle."}
+                    ? t("heroCard.hiddenFriendsOnly")
+                    : t("heroCard.hiddenPrivate")}
                 </p>
                 <p style={{ fontSize: 12, color: "#8892a0" }}>{data.username}</p>
               </div>
             ) : !u ? (
-              <div className={styles.empty}>Carte introuvable</div>
+              <div className={styles.empty}>{t("heroCard.notFound")}</div>
             ) : (
               <div className={styles.body}>
                 <aside className={styles.leftCol}>
@@ -364,7 +366,7 @@ export default function HeroCard({ userId, open, onClose }) {
                           type="button"
                           className={styles.portraitEditBtn}
                           onClick={() => setTab("customize")}
-                          title="Modifier le profil"
+                          title={t("profile.editProfile")}
                           data-testid="hero-card-edit-portrait"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -385,7 +387,7 @@ export default function HeroCard({ userId, open, onClose }) {
                   >
                     {u.username}
                   </h2>
-                  <p className={styles.heroSubtitle}>{getTitleLabel(u)}</p>
+                  <p className={styles.heroSubtitle}>{getTitleLabel(u, null, t)}</p>
                   {(u.class_id || u.class_name) && (
                     <div
                       style={{
@@ -412,7 +414,7 @@ export default function HeroCard({ userId, open, onClose }) {
                           textShadow: `0 0 12px ${classColor}66`,
                         }}
                       >
-                        {u.class_name}
+                        {translateClassName(t, u.class_id) || u.class_name}
                       </span>
                       {data?.is_self && (
                         <button
@@ -435,16 +437,16 @@ export default function HeroCard({ userId, open, onClose }) {
                             cursor: "pointer",
                           }}
                         >
-                          <Repeat className="w-3 h-3" /> Changer
+                          <Repeat className="w-3 h-3" /> {t("page.hero.changeClassShort")}
                         </button>
                       )}
                     </div>
                   )}
                   <p className={styles.levelLine}>
-                    <span className={styles.levelLabel}>Niveau </span>
+                    <span className={styles.levelLabel}>{t("profile.level")} </span>
                     <span className={styles.levelNum}>{u.level || 1}</span>
                     <span className={styles.levelLabel}> – </span>
-                    <span className={styles.levelRank}>{u.rank || "Novice"}</span>
+                    <span className={styles.levelRank}>{u.rank || t("page.hero.rank")}</span>
                   </p>
 
                   <div className={styles.xpBlock}>
@@ -452,31 +454,34 @@ export default function HeroCard({ userId, open, onClose }) {
                       <div className={styles.xpFill} style={{ width: `${xpPct}%` }} />
                     </div>
                     <div className={styles.xpText}>
-                      XP : {u.xp || 0}{u.xp_next ? ` / ${u.xp_next}` : ""}
+                      {t("heroCard.xpLabel", {
+                        current: u.xp || 0,
+                        max: u.xp_next ? ` / ${u.xp_next}` : "",
+                      })}
                     </div>
                   </div>
 
                   <div className={styles.sidebarInfo}>
-                    <SidebarRow label="Pseudo" value={u.username} />
-                    <SidebarRow label="Classe" value={u.class_name} color={classColor} />
+                    <SidebarRow label={t("heroCard.field.username")} value={u.username} />
+                    <SidebarRow label={t("heroCard.field.class")} value={translateClassName(t, u.class_id) || u.class_name} color={classColor} />
                     <SidebarRow
-                      label="Membre du staff"
+                      label={t("heroCard.field.staff")}
                       value={formatStaffMembership(u)}
                       color={getStaffVisuals(u)?.color || "#8892a0"}
                     />
                     <SidebarRow
-                      label="Guilde"
+                      label={t("heroCard.field.guild")}
                       value={data.guild?.name ? `${data.guild.name}${data.guild.rank ? ` · ${data.guild.rank}` : ""}` : "—"}
                       color={data.guild?.color || undefined}
                     />
                     {data.active_aura && (
-                      <SidebarRow label="Aura" value={data.active_aura.title_name} color="#00d4ff" />
+                      <SidebarRow label={t("heroCard.field.aura")} value={data.active_aura.title_name} color="#00d4ff" />
                     )}
                     <SidebarRow
-                      label="Inscription"
-                      value={u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
+                      label={t("heroCard.field.joined")}
+                      value={u.created_at ? fmtDate(u.created_at, { hour: undefined, minute: undefined }) : "—"}
                     />
-                    <SidebarRow label="Dernière connexion" stacked>
+                    <SidebarRow label={t("heroCard.field.lastConnection")} stacked>
                       <LastConnection
                         user={u}
                         includePrefix={false}
@@ -487,7 +492,7 @@ export default function HeroCard({ userId, open, onClose }) {
                         nexusOfflineClassName={styles.sidebarNexusOffline}
                       />
                     </SidebarRow>
-                    <SidebarRow label="Pass Ascendant (VIP)" stacked>
+                    <SidebarRow label={t("heroCard.field.vipPass")} stacked>
                       <VipPassStatus
                         user={u}
                         valueOnly
@@ -496,8 +501,8 @@ export default function HeroCard({ userId, open, onClose }) {
                       />
                     </SidebarRow>
                     <SidebarRow
-                      label="Localisation"
-                      value={data.location ? prettyRoom(data.location.room) : "—"}
+                      label={t("heroCard.field.location")}
+                      value={data.location ? prettyRoom(t, data.location.room) : "—"}
                       color={data.location ? "#00d4ff" : undefined}
                     />
                   </div>
@@ -513,7 +518,7 @@ export default function HeroCard({ userId, open, onClose }) {
                             className={`${styles.actionBtn} ${styles.actionBtnAccent}`}
                           >
                             <UserPlus className="w-3 h-3 inline mr-1" />
-                            Accepter
+                            {t("friends.accept")}
                           </button>
                           <button
                             type="button"
@@ -521,7 +526,7 @@ export default function HeroCard({ userId, open, onClose }) {
                             data-testid="hero-card-decline-friend"
                             className={styles.actionBtn}
                           >
-                            Refuser
+                            {t("friends.decline")}
                           </button>
                         </>
                       )}
@@ -533,16 +538,16 @@ export default function HeroCard({ userId, open, onClose }) {
                           className={styles.actionBtn}
                         >
                           <UserPlus className="w-3 h-3 inline mr-1" />
-                          Ajouter ami
+                          {t("heroCard.action.addFriend")}
                         </button>
                       )}
                       {data.friend_request_pending && (
-                        <span className={`${styles.actionBtn} ${styles.actionBtnMuted}`}>Demande envoyée</span>
+                        <span className={`${styles.actionBtn} ${styles.actionBtnMuted}`}>{t("friends.requestSent")}</span>
                       )}
                       {data.is_friend && (
                         <span className={`${styles.actionBtn} ${styles.actionBtnAccent}`}>
                           <Users className="w-3 h-3 inline mr-1" />
-                          Ami
+                          {t("heroCard.action.friend")}
                         </span>
                       )}
                       <button
@@ -552,7 +557,7 @@ export default function HeroCard({ userId, open, onClose }) {
                         className={styles.actionBtn}
                       >
                         <MessageCircle className="w-3 h-3 inline mr-1" />
-                        Message
+                        {t("heroCard.action.message")}
                       </button>
                     </div>
                   )}
@@ -560,19 +565,19 @@ export default function HeroCard({ userId, open, onClose }) {
 
                 <main className={styles.rightCol}>
                   <div className={styles.tabs}>
-                    {tabs.map((t) => {
-                      const Ico = t.icon;
-                      const active = tab === t.id;
+                    {tabs.map((tabDef) => {
+                      const Ico = tabDef.icon;
+                      const active = tab === tabDef.id;
                       return (
                         <button
-                          key={t.id}
+                          key={tabDef.id}
                           type="button"
-                          onClick={() => setTab(t.id)}
-                          data-testid={`hero-tab-${t.id}`}
+                          onClick={() => setTab(tabDef.id)}
+                          data-testid={`hero-tab-${tabDef.id}`}
                           className={`${styles.tab} ${active ? styles.tabActive : ""}`}
                         >
                           <Ico className="w-3.5 h-3.5" />
-                          {t.label}
+                          {tabDef.label}
                         </button>
                       );
                     })}
@@ -653,6 +658,7 @@ function Section({ title, action, children }) {
 }
 
 function OverviewTab({ data, u, classColor, onViewBadges }) {
+  const { t, fmtDate } = useI18n();
   const badges = data.badges || [];
   const titles = (data.titles_progress || []).slice(-4);
   const dna = data.dna || {};
@@ -660,13 +666,14 @@ function OverviewTab({ data, u, classColor, onViewBadges }) {
 
   return (
     <>
-      <Section title="Titres & Progression">
+      <Section title={t("heroCard.section.titlesProgress")}>
         <div className={styles.titlesGrid}>
-          {titles.map((t) => {
-            const aura = TITLE_AURA[t.id] || TITLE_AURA.novice;
-            const locked = !t.unlocked;
+          {titles.map((titleRow) => {
+            const aura = TITLE_AURA[titleRow.id] || TITLE_AURA.novice;
+            const locked = !titleRow.unlocked;
+            const localizedName = translateTitle(t, titleRow);
             return (
-              <div key={t.id} className={`${styles.titleCell} ${t.active ? styles.titleActive : ""}`}>
+              <div key={titleRow.id} className={`${styles.titleCell} ${titleRow.active ? styles.titleActive : ""}`}>
                 <span
                   className={`${styles.titleIcon} ${locked ? styles.titleIconLocked : ""}`}
                   style={{ color: locked ? "#8892a0" : aura.color, filter: locked ? undefined : `drop-shadow(0 0 8px ${aura.color})` }}
@@ -674,9 +681,12 @@ function OverviewTab({ data, u, classColor, onViewBadges }) {
                   {aura.icon}
                 </span>
                 <div className={locked ? styles.titleNameLocked : styles.titleName} style={locked ? undefined : { color: aura.color }}>
-                  {t.name}
+                  {localizedName}
                 </div>
-                <div className={styles.titleLevel}>niv {t.unlock_level}{t.active ? " · actif" : ""}</div>
+                <div className={styles.titleLevel}>
+                  {t("heroCard.titleLevel", { level: titleRow.unlock_level })}
+                  {titleRow.active ? ` · ${t("heroCard.titleActive")}` : ""}
+                </div>
               </div>
             );
           })}
@@ -684,16 +694,17 @@ function OverviewTab({ data, u, classColor, onViewBadges }) {
       </Section>
 
       {cosmetics.length > 0 && (
-        <Section title="Cosmétiques équipés">
+        <Section title={t("heroCard.section.cosmeticsEquipped")}>
           <div className={styles.titlesGrid}>
             {cosmetics.map((c) => {
+              const localized = translateShopItem(t, c);
               const r = RARITY[c.rarity] || RARITY.common;
               const SlotIcon = c.slot === "banner" ? Flag : Frame;
               return (
                 <div key={c.sku} className={styles.titleCell} style={{ border: `1px solid ${r.color}44`, borderRadius: 8, padding: 8 }}>
                   <SlotIcon className="w-6 h-6 mx-auto mb-1" style={{ color: r.color }} />
-                  <div className={styles.titleName} style={{ color: r.color }}>{c.name}</div>
-                  <div className={styles.titleLevel}>{r.fr}</div>
+                  <div className={styles.titleName} style={{ color: r.color }}>{localized.name}</div>
+                  <div className={styles.titleLevel}>{translateRarity(t, c.rarity)}</div>
                 </div>
               );
             })}
@@ -701,22 +712,22 @@ function OverviewTab({ data, u, classColor, onViewBadges }) {
         </Section>
       )}
 
-      <Section title="ADN du Héros">
-        <HeroDnaRadar dna={dna} />
+      <Section title={t("page.hero.dnaTitle")}>
+        <HeroDnaRadar dna={dna} t={t} />
       </Section>
 
       <Section
-        title={`Badges (${badges.length})`}
+        title={t("heroCard.badgesCount", { count: badges.length })}
         action={
           badges.length > 6 ? (
             <button type="button" className={styles.sectionLink} onClick={onViewBadges}>
-              Voir tous
+              {t("heroCard.viewAll")}
             </button>
           ) : null
         }
       >
         {badges.length === 0 ? (
-          <div className={styles.empty}>Aucun badge — Explorez le monde !</div>
+          <div className={styles.empty}>{t("heroCard.badgesEmpty")}</div>
         ) : (
           <div className={styles.badgesRow}>
             {badges.slice(0, 6).map((b, i) => (
@@ -725,52 +736,52 @@ function OverviewTab({ data, u, classColor, onViewBadges }) {
               </div>
             ))}
             {badges.length > 6 && (
-              <span className={styles.badgeMore}>+{badges.length - 6} autres</span>
+              <span className={styles.badgeMore}>{t("heroCard.badgesMore", { count: badges.length - 6 })}</span>
             )}
           </div>
         )}
       </Section>
 
-      <Section title="Informations détaillées">
+      <Section title={t("heroCard.section.detailedInfo")}>
         <div className={styles.infoGrid}>
           <div className={styles.infoCol}>
-            <InfoEntry label="Pseudo" value={u.username} />
-            <InfoEntry label="Classe" value={u.class_name} color={classColor} />
+            <InfoEntry label={t("heroCard.field.username")} value={u.username} />
+            <InfoEntry label={t("heroCard.field.class")} value={translateClassName(t, u.class_id) || u.class_name} color={classColor} />
             <InfoEntry
-              label="Membre du staff"
+              label={t("heroCard.field.staff")}
               value={formatStaffMembership(u)}
               color={getStaffVisuals(u)?.color || "#8892a0"}
             />
-            <InfoEntry label="Guilde" value={data.guild?.name || "—"} muted={!data.guild?.name} />
+            <InfoEntry label={t("heroCard.field.guild")} value={data.guild?.name || "—"} muted={!data.guild?.name} />
           </div>
           <div className={styles.infoDivider} aria-hidden>
             <span className={styles.infoDividerDiamond} />
           </div>
           <div className={styles.infoCol}>
-            <InfoEntry label="Rang" value={getTitleLabel(u)} color="#00d4ff" />
+            <InfoEntry label={t("heroCard.field.rank")} value={getTitleLabel(u, null, t)} color="#00d4ff" />
             <InfoEntry
-              label="Inscription"
-              value={u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
+              label={t("heroCard.field.joined")}
+              value={u.created_at ? fmtDate(u.created_at, { hour: undefined, minute: undefined }) : "—"}
             />
-            <InfoEntry label="Dernière connexion">
+            <InfoEntry label={t("heroCard.field.lastConnection")}>
               <LastConnection user={u} includePrefix={false} />
             </InfoEntry>
             <InfoEntry
-              label="Localisation"
-              value={data.location ? prettyRoom(data.location.room) : "—"}
+              label={t("heroCard.field.location")}
+              value={data.location ? prettyRoom(t, data.location.room) : "—"}
               muted={!data.location}
             />
           </div>
         </div>
       </Section>
 
-      <Section title="Statistiques">
+      <Section title={t("heroCard.section.stats")}>
         <div className={styles.statsGrid}>
-          <StatCell icon={Sword} label="Combat" value={u.combat_wins || u.pvp_wins || 0} sub="Victoires" color="#EF4444" />
-          <StatCell icon={Flame} label="Boss" value={u.boss_kills || 0} sub="Vaincus" color="#7c3aed" />
-          <StatCell icon={Trophy} label="Quêtes" value={u.quests_completed || 0} sub="Complétées" color="#f5a623" />
-          <StatCell icon={Compass} label="Exploration" value={`${u.exploration || 0}%`} sub="Carte" color="#00d4ff" />
-          <StatCell icon={Package} label="Collections" value={(data.inventory || []).length} sub="Objets" color="#10B981" />
+          <StatCell icon={Sword} label={t("heroCard.stat.combat")} value={u.combat_wins || u.pvp_wins || 0} sub={t("heroCard.stat.combatSub")} color="#EF4444" />
+          <StatCell icon={Flame} label={t("heroCard.stat.boss")} value={u.boss_kills || 0} sub={t("heroCard.stat.bossSub")} color="#7c3aed" />
+          <StatCell icon={Trophy} label={t("heroCard.stat.quests")} value={u.quests_completed || 0} sub={t("heroCard.stat.questsSub")} color="#f5a623" />
+          <StatCell icon={Compass} label={t("heroCard.stat.exploration")} value={`${u.exploration || 0}%`} sub={t("heroCard.stat.explorationSub")} color="#00d4ff" />
+          <StatCell icon={Package} label={t("heroCard.stat.collections")} value={(data.inventory || []).length} sub={t("heroCard.stat.collectionsSub")} color="#10B981" />
         </div>
       </Section>
     </>
@@ -793,17 +804,19 @@ function InfoEntry({ label, value, color, bold, muted, children }) {
 }
 
 function InventoryTab({ inv }) {
-  if (!inv?.length) return <div className={styles.empty}>Inventaire vide.</div>;
+  const { t } = useI18n();
+  if (!inv?.length) return <div className={styles.empty}>{t("heroCard.inventoryEmpty")}</div>;
   return (
-    <Section title="Reliques & objets">
+    <Section title={t("heroCard.inventoryTitle")}>
       <div className={styles.gridInv}>
         {inv.map((it, i) => {
+          const localized = translateItem(t, it);
           const r = RARITY[it.rarity] || RARITY.common;
           return (
             <div key={i} className={styles.itemCard} style={{ borderColor: `${r.color}55`, boxShadow: `0 0 10px ${r.glow}` }}>
               <div className={styles.itemIcon}>{it.icon || "✨"}</div>
-              <div className={styles.itemName} style={{ color: r.color }}>{it.name}</div>
-              <div className={styles.itemRarity}>{r.fr}</div>
+              <div className={styles.itemName} style={{ color: r.color }}>{localized.name}</div>
+              <div className={styles.itemRarity}>{translateRarity(t, it.rarity)}</div>
             </div>
           );
         })}
@@ -813,16 +826,15 @@ function InventoryTab({ inv }) {
 }
 
 function BadgesTab({ badges }) {
-  if (!badges?.length) return <div className={styles.empty}>Aucun badge débloqué.</div>;
+  const { t } = useI18n();
+  if (!badges?.length) return <div className={styles.empty}>{t("heroCard.badgesNone")}</div>;
   const groups = {};
   badges.forEach((b) => { (groups[b.rarity || "common"] = groups[b.rarity || "common"] || []).push(b); });
   const order = ["cosmic", "divine", "mythic", "legendary", "epic", "rare", "common"];
   return (
     <>
-      {order.filter((r) => groups[r]).map((r) => {
-        const cfg = RARITY[r];
-        return (
-          <Section key={r} title={`${cfg.fr} (${groups[r].length})`}>
+      {order.filter((r) => groups[r]).map((r) => (
+          <Section key={r} title={t("heroCard.rarityCount", { rarity: translateRarity(t, r), count: groups[r].length })}>
             <div className={styles.badgesRow}>
               {groups[r].map((b, i) => (
                 <div key={b.badge_id || b.id || i} className={`${styles.badgeSlot} ${badgeGlowClass(r)}`}>
@@ -831,21 +843,21 @@ function BadgesTab({ badges }) {
               ))}
             </div>
           </Section>
-        );
-      })}
+        ))}
     </>
   );
 }
 
 function HistoryTab({ chronicles }) {
-  if (!chronicles?.length) return <div className={styles.empty}>Aucun historique.</div>;
+  const { t, fmtDate } = useI18n();
+  if (!chronicles?.length) return <div className={styles.empty}>{t("heroCard.historyEmpty")}</div>;
   return (
-    <Section title="Chroniques">
+    <Section title={t("profile.chronicle.title")}>
       {chronicles.map((c, i) => (
-        <div key={i} className={styles.chronicleItem}>
-          <div className={styles.chronicleText}>{c.text}</div>
+        <div key={c.chronicle_id || i} className={styles.chronicleItem}>
+          <div className={styles.chronicleText}>{translateChronicle(t, c)}</div>
           <div className={styles.chronicleDate}>
-            {c.created_at ? new Date(c.created_at).toLocaleString() : ""}
+            {c.created_at ? fmtDate(c.created_at) : ""}
           </div>
         </div>
       ))}
@@ -854,19 +866,20 @@ function HistoryTab({ chronicles }) {
 }
 
 function RelationsTab({ data }) {
+  const { t } = useI18n();
   const friends = data.friends || [];
   return (
     <>
-      <Section title="Aperçu social">
+      <Section title={t("heroCard.socialOverview")}>
         <div className={styles.statsGrid}>
-          <StatCell icon={Users} label="Amis" value={data.friends_count || 0} sub="Liens forgés" color="#10B981" />
-          <StatCell icon={Shield} label="Guilde" value={data.guild?.name || "—"} sub={data.guild?.rank || data.guild_tag || ""} color="#7c3aed" />
-          <StatCell icon={Star} label="Followers" value={data.user?.followers || 0} sub="Influence" color="#f5a623" />
+          <StatCell icon={Users} label={t("heroCard.friendsLabel")} value={data.friends_count || 0} sub={t("heroCard.friendsLinksForged")} color="#10B981" />
+          <StatCell icon={Shield} label={t("heroCard.field.guild")} value={data.guild?.name || "—"} sub={data.guild?.rank || data.guild_tag || ""} color="#7c3aed" />
+          <StatCell icon={Star} label={t("profile.stats.followers")} value={data.user?.followers || 0} sub={t("dna.influence")} color="#f5a623" />
         </div>
       </Section>
-      <Section title={`Amis (${friends.length})`}>
+      <Section title={t("heroCard.friendsCount", { count: friends.length })}>
         {friends.length === 0 ? (
-          <div className={styles.empty}>Aucun ami lié pour le moment.</div>
+          <div className={styles.empty}>{t("heroCard.noFriends")}</div>
         ) : (
           <div className={styles.grid2}>
             {friends.map((f) => {
@@ -883,7 +896,11 @@ function RelationsTab({ data }) {
                   <div className="min-w-0 flex-1">
                     <HeroName user={f} className="text-sm truncate" />
                     <div style={{ fontSize: 10, color: "#8892a0" }}>
-                      {f.class_name} · niv {f.level}{f.rank ? ` · ${f.rank}` : ""}
+                      {t("heroCard.friendMeta", {
+                        className: translateClassName(t, f.class_id) || f.class_name || "",
+                        level: f.level,
+                        rank: f.rank ? ` · ${f.rank}` : "",
+                      })}
                     </div>
                     <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
                       <LastConnection user={f} />
@@ -910,13 +927,8 @@ function StatCell({ icon: Icon, label, value, sub, color }) {
   );
 }
 
-function prettyRoom(r) {
-  const map = {
-    place_centrale: "Place Centrale",
-    quartier_guildes: "Quartier des Guildes",
-    arene: "Arène du Nexus",
-    salle_conseil: "Salle du Conseil",
-    salon_vip: "Salon des Ascendants",
-  };
-  return map[r] || r;
+function prettyRoom(t, r) {
+  const key = `heroCard.room.${r}`;
+  const label = t(key);
+  return label && label !== key ? label : r;
 }

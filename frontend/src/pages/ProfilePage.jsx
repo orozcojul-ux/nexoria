@@ -1,6 +1,11 @@
 import React, { useMemo } from "react";
 import { Globe, Twitter, Twitch, Youtube } from "lucide-react";
 import { PremiumBadge } from "@/components/ui-premium";
+import { useI18n } from "@/contexts/I18nContext";
+import { getTitleLabel } from "@/lib/title-labels";
+import { translateClassName } from "@/lib/translate-class";
+import { translateDnaStat } from "@/lib/translate-game";
+import { translateChronicle } from "@/lib/translate-chronicle";
 import ClassImage from "@/components/ClassImage";
 import LastConnection from "@/components/LastConnection";
 import VipPassStatus from "@/components/VipPassStatus";
@@ -76,32 +81,26 @@ function FrameDecor() {
 /* ============================================================
    Radar ADN — SVG pur, trigonométrie maison
    ============================================================ */
-const DNA_AXES = [
-  { key: "creativity", label: "Créativité" },
-  { key: "ambition", label: "Ambition" },
-  { key: "sociability", label: "Sociabilité" },
-  { key: "curiosity", label: "Curiosité" },
-  { key: "persistence", label: "Persévérance" },
-  { key: "influence", label: "Influence" },
-];
+const DNA_AXIS_KEYS = ["creativity", "ambition", "sociability", "curiosity", "persistence", "influence"];
 
-function DnaRadar({ dna }) {
+function DnaRadar({ dna, t }) {
+  const axes = DNA_AXIS_KEYS.map((key) => ({ key, label: translateDnaStat(t, key) }));
   const size = 300;
   const cx = size / 2;
   const cy = size / 2;
   const maxR = 95;
-  const n = DNA_AXES.length;
+  const n = axes.length;
 
   const angleFor = (i) => (Math.PI * 2 * i) / n - Math.PI / 2;
 
   const ringPoints = (factor) =>
-    DNA_AXES.map((_, i) => {
+    axes.map((_, i) => {
       const a = angleFor(i);
       const r = maxR * factor;
       return `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`;
     }).join(" ");
 
-  const data = DNA_AXES.map((axis, i) => {
+  const data = axes.map((axis, i) => {
     const a = angleFor(i);
     const raw = Number(dna?.[axis.key] ?? 0);
     const norm = Math.min(1, Math.max(0, raw / 100));
@@ -117,7 +116,7 @@ function DnaRadar({ dna }) {
   const polygon = data.map((d) => `${d.x},${d.y}`).join(" ");
 
   return (
-    <svg className={styles.radarSvg} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="ADN du héros">
+    <svg className={styles.radarSvg} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={t("profile.dna.aria")}>
       <defs>
         <filter id="dnaGlow" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="3" result="b" />
@@ -138,7 +137,7 @@ function DnaRadar({ dna }) {
         <polygon key={f} points={ringPoints(f)} fill="none" stroke="rgba(0,229,200,0.12)" strokeWidth="1" />
       ))}
 
-      {DNA_AXES.map((_, i) => {
+      {DNA_AXIS_KEYS.map((_, i) => {
         const a = angleFor(i);
         return (
           <line
@@ -217,28 +216,29 @@ export default function ProfilePage({
   onToggleFollow,
   reportSlot = null,
 }) {
-  const name = hero.username || "Héros";
+  const { t, fmtDate } = useI18n();
+  const name = hero.username || t("profile.defaultHero");
   const accent = hero.profile_accent || "#7B2FF7";
   const statusMessage = hero.status_message || "";
   const bio = hero.bio || "";
   const quote = hero.quote || "";
   const story = hero.story || "";
-  const rankTitle = (hero.active_title_name || hero.title_name || "Roi des Créateurs").toUpperCase();
+  const rankTitle = getTitleLabel(hero, null, t).toUpperCase();
   const discordLabel = getDiscordDisplayName(hero);
 
   const socials = hero.social_links || {};
   const socialLinks = [
-    { key: "website", url: buildSocialUrl("website", hero.website_url), Icon: Globe, label: "Site web" },
-    { key: "twitter", url: buildSocialUrl("twitter", socials.twitter), Icon: Twitter, label: "Twitter / X" },
-    { key: "twitch", url: buildSocialUrl("twitch", socials.twitch), Icon: Twitch, label: "Twitch" },
-    { key: "youtube", url: buildSocialUrl("youtube", socials.youtube), Icon: Youtube, label: "YouTube" },
+    { key: "website", url: buildSocialUrl("website", hero.website_url), Icon: Globe, label: t("profile.social.website") },
+    { key: "twitter", url: buildSocialUrl("twitter", socials.twitter), Icon: Twitter, label: t("profile.social.twitter") },
+    { key: "twitch", url: buildSocialUrl("twitch", socials.twitch), Icon: Twitch, label: t("profile.social.twitch") },
+    { key: "youtube", url: buildSocialUrl("youtube", socials.youtube), Icon: Youtube, label: t("profile.social.youtube") },
   ].filter((s) => s.url);
   const hasAbout = !!(bio || quote || story || socialLinks.length);
-  const className = hero.class_name || "Aventurier";
+  const className = translateClassName(t, hero.class_id || hero.class_name) || t("profile.defaultAdventurer");
   const level = hero.level ?? 1;
   const cosmicRank = hero.rank || "Cosmique";
   const archonteLabel =
-    hero.role === "admin" ? "ARCHONTE" : hero.role === "moderator" ? "SENTINELLE" : (hero.rank || "ARCHONTE").toUpperCase();
+    hero.role === "admin" ? t("profile.role.admin") : hero.role === "moderator" ? t("profile.role.moderator") : (hero.rank || t("profile.role.admin")).toUpperCase();
 
   const avatarSrc = getUserAvatarUrl(hero);
   const bannerUrl = hero.banner_url;
@@ -284,7 +284,7 @@ export default function ProfilePage({
               <span className={styles.logoText}>NEXORIA</span>
             </div>
             {isSelf && (
-              <button type="button" className={styles.camBtn} onClick={onEditAvatar} aria-label="Changer d'avatar" data-testid="edit-avatar-btn">
+              <button type="button" className={styles.camBtn} onClick={onEditAvatar} aria-label={t("profile.editAvatar")} data-testid="edit-avatar-btn">
                 📷
               </button>
             )}
@@ -298,7 +298,7 @@ export default function ProfilePage({
             </div>
             <h1 className={styles.heroName} data-testid="profile-username" style={{ textShadow: `0 0 18px ${accent}88` }}>{name}</h1>
             {discordLabel && (
-              <div className={styles.discordLine} data-testid="profile-discord-name">Discord · {discordLabel}</div>
+              <div className={styles.discordLine} data-testid="profile-discord-name">{t("profile.discordPrefix")} {discordLabel}</div>
             )}
             <div className={styles.lastSeenLine} data-testid="profile-last-connection">
               <LastConnection
@@ -355,7 +355,7 @@ export default function ProfilePage({
                 alt={className}
                 style={{ marginRight: 4, verticalAlign: "middle" }}
               />
-              <span>{className} · Niveau <span data-testid="profile-level">{level}</span></span>
+              <span>{className} · {t("profile.level")} <span data-testid="profile-level">{level}</span></span>
               <span className={styles.classArrow}>▶</span>
               <span className={styles.rankWord}>{cosmicRank}</span>
             </div>
@@ -374,19 +374,19 @@ export default function ProfilePage({
                 </span>
               </div>
               <div className={styles.statCol}>
-                <span className={styles.statLabel}>Réputation</span>
+                <span className={styles.statLabel}>{t("profile.stats.reputation")}</span>
                 <span className={`${styles.statValue} ${styles.statNeutral}`}>{reputation.toLocaleString("fr-FR")}</span>
               </div>
               <div className={styles.statCol}>
-                <span className={styles.statLabel}>Écus</span>
+                <span className={styles.statLabel}>{t("profile.stats.ecus")}</span>
                 <span className={`${styles.statValue} ${styles.statNeutral}`}>{aether.toLocaleString("fr-FR")}</span>
               </div>
               <div className={styles.statCol}>
-                <span className={styles.statLabel}>Abonnés</span>
+                <span className={styles.statLabel}>{t("profile.stats.followers")}</span>
                 <span className={`${styles.statValue} ${styles.statNeutral}`}>{followers}</span>
               </div>
               <div className={styles.statCol}>
-                <span className={styles.statLabel}>Badges</span>
+                <span className={styles.statLabel}>{t("profile.stats.badges")}</span>
                 <span className={`${styles.statValue} ${styles.statNeutral}`}>{badgeCount}</span>
               </div>
             </div>
@@ -398,16 +398,16 @@ export default function ProfilePage({
             {isSelf ? (
               <>
                 <button type="button" className={styles.actionBtn} onClick={onEditProfile} data-testid="edit-profile-btn">
-                  <span>⚙</span> Modifier le profil
+                  <span>⚙</span> {t("profile.editProfile")}
                 </button>
                 <button type="button" className={styles.actionBtn} onClick={onEditBanner} data-testid="edit-banner-btn">
-                  <span>🏳</span> Bannière
+                  <span>🏳</span> {t("profile.editBanner")}
                 </button>
               </>
             ) : (
               <>
                 <button type="button" className={styles.actionBtn} onClick={onToggleFollow} data-testid="follow-btn">
-                  <span>{following ? "✓" : "+"}</span> {following ? "Suivi" : "Suivre"}
+                  <span>{following ? "✓" : "+"}</span> {following ? t("profile.following") : t("profile.follow")}
                 </button>
                 {reportSlot}
               </>
@@ -416,14 +416,14 @@ export default function ProfilePage({
               type="button"
               className={`${styles.actionBtn} ${styles.actionIcon}`}
               onClick={onShare}
-              aria-label="Partager"
+              aria-label={t("profile.share")}
               data-testid="share-profile-btn"
             >
               ↗
             </button>
             {showHeroCard && (
               <button type="button" className={styles.actionBtn} onClick={onOpenHeroCard} data-testid="open-hero-card-btn">
-                <span>👑</span> Carte Héros
+                <span>👑</span> {t("profile.heroCard")}
               </button>
             )}
           </div>
@@ -435,19 +435,19 @@ export default function ProfilePage({
         {/* Panel ADN */}
         <section className={`${styles.frame} ${styles.panel}`}>
           <FrameDecor />
-          <div className={styles.panelLabel}>ADN</div>
+          <div className={styles.panelLabel}>{t("profile.dna.title")}</div>
           <div className={styles.radarWrap}>
-            <DnaRadar dna={dna} />
+            <DnaRadar dna={dna} t={t} />
           </div>
         </section>
 
         {/* Panel Badges */}
         <section className={`${styles.frame} ${styles.panel}`}>
           <FrameDecor />
-          <div className={styles.panelLabel}>BADGES ({badgeCount})</div>
+          <div className={styles.panelLabel}>{t("profile.badges.title")} ({badgeCount})</div>
 
           {badgeCount === 0 ? (
-            <div className={styles.badgeEmpty}>Aucun badge débloqué — explorez le monde !</div>
+            <div className={styles.badgeEmpty}>{t("profile.badges.empty")}</div>
           ) : (
             <div className={styles.badgesGrid}>
               {badges.slice(0, 18).map((b, i) => (
@@ -464,7 +464,7 @@ export default function ProfilePage({
       {hasAbout && (
         <section className={`${styles.frame} ${styles.panel} ${styles.aboutPanel}`}>
           <FrameDecor />
-          <div className={styles.panelLabel} style={{ color: accent }}>À PROPOS</div>
+          <div className={styles.panelLabel} style={{ color: accent }}>{t("profile.about.title")}</div>
 
           {quote && (
             <blockquote className={styles.aboutQuote} data-testid="profile-quote" style={{ borderColor: accent, color: "#f0e9d6" }}>
@@ -474,14 +474,14 @@ export default function ProfilePage({
 
           {bio && (
             <div className={styles.aboutBlock} data-testid="profile-bio">
-              <div className={styles.aboutHeading} style={{ color: accent }}>Biographie</div>
+              <div className={styles.aboutHeading} style={{ color: accent }}>{t("profile.about.bio")}</div>
               <p className={styles.aboutText}>{bio}</p>
             </div>
           )}
 
           {story && (
             <div className={styles.aboutBlock} data-testid="profile-story">
-              <div className={styles.aboutHeading} style={{ color: accent }}>Histoire du personnage</div>
+              <div className={styles.aboutHeading} style={{ color: accent }}>{t("profile.about.story")}</div>
               <p className={styles.aboutText}>{story}</p>
             </div>
           )}
@@ -490,7 +490,7 @@ export default function ProfilePage({
 
       {/* ===================== BLOC 3 — CHRONIQUE ===================== */}
       <section>
-        <h2 className={styles.chronTitle}>Chronique</h2>
+        <h2 className={styles.chronTitle}>{t("profile.chronicle.title")}</h2>
         <div className={styles.scrollWrap}>
           <div className={styles.scrollTop} />
           <div className={styles.scrollBody}>
@@ -498,15 +498,15 @@ export default function ProfilePage({
             <div className={styles.chronList} data-testid="profile-chronicle">
               {chronique.length === 0 ? (
                 <div className={styles.chronEntry}>
-                  <div className={styles.chronText}>Aucune chronique pour l'instant.</div>
+                  <div className={styles.chronText}>{t("profile.chronicle.empty")}</div>
                 </div>
               ) : (
                 chronique.map((c, i) => (
                   <div key={c.chronicle_id || c.created_at || i} className={styles.chronEntry}>
                     <span className={styles.chronBar} />
-                    <div className={styles.chronText}>{c.text}</div>
+                    <div className={styles.chronText}>{translateChronicle(t, c)}</div>
                     <div className={styles.chronDate}>
-                      {c.created_at ? new Date(c.created_at).toLocaleString("fr-FR") : ""}
+                      {c.created_at ? fmtDate(c.created_at) : ""}
                     </div>
                   </div>
                 ))

@@ -168,9 +168,24 @@ export const TRANSLATIONS_EXTENDED = {
   "page.leaderboards.kicker": T("Annales des héros", "Hero annals"),
   "page.leaderboards.title": T("Hall des Légendes", "Hall of Legends"),
   "page.leaderboards.subtitle": T("Les noms gravés ici résonnent dans toutes les tavernes du royaume.", "Names carved here echo in every tavern of the realm."),
-  "page.legends.kicker": T("Mémoire éternelle", "Eternal memory"),
-  "page.legends.title": T("Panthéon", "Pantheon"),
-  "page.legends.subtitle": T("Les héros dont les enfants chanteront les légendes.", "Heroes whose legends children will sing."),
+  "page.legends.kicker": T("Mémoire éternelle", "Eternal memory", {
+    es: "Memoria eterna", de: "Ewige Erinnerung", it: "Memoria eterna", pt: "Memória eterna", nl: "Eeuwige herinnering", ja: "永遠の記憶",
+  }),
+  "page.legends.title": T("Panthéon", "Pantheon", {
+    es: "Panteón", de: "Pantheon", it: "Pantheon", pt: "Panteão", nl: "Pantheon", ja: "パンテオン",
+  }),
+  "page.legends.subtitle": T(
+    "Les héros dont les enfants chanteront les légendes.",
+    "Heroes whose legends children will sing.",
+    {
+      es: "Héroes cuyas leyendas cantarán los niños.",
+      de: "Helden, deren Legenden Kinder singen werden.",
+      it: "Eroi di cui i bambini canteranno le leggende.",
+      pt: "Heróis cujas lendas as crianças cantarão.",
+      nl: "Helden waarvan kinderen de legendes zullen zingen.",
+      ja: "子どもたちが伝説を語り継ぐ英雄たち。",
+    },
+  ),
   "page.world.kicker": T("Atlas éthérique", "Ethereal atlas"),
   "page.world.title": T("Carte du Monde", "World Map"),
   "page.world.subtitle": T("Chaque étoile est un héros. La pulsation indique ceux qui veillent encore.", "Each star is a hero. The pulse shows those still watching."),

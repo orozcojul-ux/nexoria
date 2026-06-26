@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useI18n } from "@/contexts/I18nContext";
 import styles from "./FonderOrdreModal.module.css";
 
 const BASE = process.env.PUBLIC_URL || "";
@@ -93,6 +94,7 @@ function Spinner() {
 
 /* ---------- Composant ---------- */
 export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { level: 1, aether: 0 } }) {
+  const { t } = useI18n();
   const [nom, setNom] = useState("");
   const [tag, setTag] = useState("");
   const [devise, setDevise] = useState("");
@@ -170,7 +172,7 @@ export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { l
       await onFonder?.({ nom: nom.trim(), tag: tag.trim(), devise: devise.trim(), couleur });
     } catch (e) {
       if (mountedRef.current) {
-        setError(e?.response?.data?.detail || e?.message || "Une erreur est survenue.");
+        setError(e?.response?.data?.detail || e?.message || t("guilds.modal.errGeneric"));
       }
     } finally {
       if (mountedRef.current) setLoading(false);
@@ -189,7 +191,7 @@ export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { l
         ref={containerRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Fonder un Ordre"
+        aria-label={t("guilds.modal.title")}
         onClick={(e) => e.stopPropagation()}
         data-testid="fonder-ordre-modal"
       >
@@ -219,8 +221,8 @@ export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { l
               draggable={false}
             />
           )}
-          <h2 className={styles.title}>Fonder un Ordre</h2>
-          <button type="button" className={styles.close} onClick={onClose} aria-label="Fermer" data-testid="fonder-ordre-close">
+          <h2 className={styles.title}>{t("guilds.modal.title")}</h2>
+          <button type="button" className={styles.close} onClick={onClose} aria-label={t("guilds.modal.close")} data-testid="fonder-ordre-close">
             ×
           </button>
         </div>
@@ -228,21 +230,21 @@ export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { l
         {/* INFOS COÛT */}
         <div className={styles.costBox}>
           <div className={styles.costLine}>
-            <span className={styles.costMuted}>Coût : </span>
-            <span className={styles.costGold}>1000 Écus</span>
-            <span className={styles.costMuted}> · Requiert le niveau 10 minimum.</span>
+            <span className={styles.costMuted}>{t("guilds.modal.cost")} </span>
+            <span className={styles.costGold}>1000 {t("common.aether")}</span>
+            <span className={styles.costMuted}>{t("guilds.modal.costDetail")}</span>
           </div>
           <div className={styles.costLine}>
-            <span className={styles.costMuted}>Niveau actuel : </span>
+            <span className={styles.costMuted}>{t("guilds.modal.currentLevel")} </span>
             <span className={styles.costCyan}>{level}</span>
-            <span className={styles.costMuted}> · Écus : </span>
+            <span className={styles.costMuted}>{t("guilds.modal.currentEcus")} </span>
             <span className={styles.costGold}>{aether}</span>
           </div>
           {insufficient && (
             <div className={styles.errBanner}>
               {level < 10
-                ? "Tu dois atteindre le niveau 10 pour fonder un ordre."
-                : "Tu n'as pas assez d'Écus (1000 requis)."}
+                ? t("guilds.modal.errLevel")
+                : t("guilds.modal.errEcus")}
             </div>
           )}
           {error && <div className={styles.errBanner}>{error}</div>}
@@ -257,7 +259,7 @@ export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { l
               className={styles.input}
               value={nom}
               maxLength={NOM_MAX}
-              placeholder="Nom de l'Ordre"
+              placeholder={t("guilds.modal.namePlaceholder")}
               onChange={(e) => setNom(e.target.value)}
               data-testid="guild-name"
             />
@@ -271,7 +273,7 @@ export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { l
               className={`${styles.input} ${styles.inputTag}`}
               value={tag}
               maxLength={TAG_MAX}
-              placeholder="TAG (2-5 lettres, ex : ZEN)"
+              placeholder={t("guilds.modal.tagPlaceholder")}
               onChange={(e) => setTag(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
               style={{ borderColor: inputBorder(tagState) }}
               data-testid="guild-tag"
@@ -286,7 +288,7 @@ export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { l
               className={styles.textarea}
               value={devise}
               maxLength={DEVISE_MAX}
-              placeholder="Devise de l'ordre..."
+              placeholder={t("guilds.modal.mottoPlaceholder")}
               onChange={(e) => setDevise(e.target.value)}
               data-testid="guild-desc"
             />
@@ -300,7 +302,7 @@ export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { l
 
           {/* COULEUR */}
           <div className={styles.colorRow}>
-            <span className={styles.colorLabel}>Couleur</span>
+            <span className={styles.colorLabel}>{t("guilds.modal.color")}</span>
             <div className={styles.gems}>
               {GEMS.map((g) => {
                 const selected = couleur === g.color;
@@ -319,7 +321,7 @@ export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { l
                         : { "--gem": g.color }
                     }
                     onClick={() => setCouleur(g.color)}
-                    aria-label={`Couleur ${g.name}`}
+                    aria-label={t("guilds.modal.colorAria", { name: g.name })}
                     data-testid={`guild-color-${g.name}`}
                   >
                     <GemIcon name={g.name} color={g.color} />
@@ -357,9 +359,9 @@ export default function FonderOrdreModal({ isOpen, onClose, onFonder, hero = { l
               <span className={styles.submitBorder} />
               <span className={styles.submitText}>
                 <span className={styles.submitLine1}>
-                  {loading ? "Fondation en cours…" : "Fonder l'Ordre"}
+                  {loading ? t("guilds.modal.submitting") : t("guilds.modal.submit")}
                 </span>
-                {!loading && <span className={styles.submitLine2}>(-1000 Écus)</span>}
+                {!loading && <span className={styles.submitLine2}>{t("guilds.modal.submitCost")}</span>}
               </span>
             </button>
           </div>

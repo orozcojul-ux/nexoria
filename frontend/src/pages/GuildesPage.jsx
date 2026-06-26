@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useI18n } from "@/contexts/I18nContext";
 import styles from "./GuildesPage.module.css";
 
 const BASE = process.env.PUBLIC_URL || "";
@@ -63,10 +64,10 @@ function GridIcon() {
    Configuration des stats
    ============================================================ */
 const STAT_CONFIG = [
-  { key: "ordres_fondes", label: "Ordres fondés", icon: `${BASE}/assets/icons/gants-cyan.png`, emoji: "🧤", iconGlow: "0 0 12px rgba(0,200,255,0.6)", valueColor: "#00d4ff" },
-  { key: "heros_enroles", label: "Héros enrôlés", icon: `${BASE}/assets/icons/livre-violet.png`, emoji: "📖", iconGlow: "0 0 12px rgba(150,80,255,0.6)", valueColor: "#00d4ff" },
-  { key: "ordre_dominant", label: "Ordre dominant", icon: `${BASE}/assets/icons/couronne-violet.png`, emoji: "👑", iconGlow: "0 0 12px rgba(180,100,255,0.7)", valueColor: "#c8960a" },
-  { key: "invitations", label: "Invitations", icon: `${BASE}/assets/icons/parchemin.png`, emoji: "📜", iconGlow: "0 0 10px rgba(200,150,80,0.5)", valueColor: "#00d4ff" },
+  { key: "ordres_fondes", labelKey: "guilds.stat.founded", icon: `${BASE}/assets/icons/gants-cyan.png`, emoji: "🧤", iconGlow: "0 0 12px rgba(0,200,255,0.6)", valueColor: "#00d4ff" },
+  { key: "heros_enroles", labelKey: "guilds.stat.enrolled", icon: `${BASE}/assets/icons/livre-violet.png`, emoji: "📖", iconGlow: "0 0 12px rgba(150,80,255,0.6)", valueColor: "#00d4ff" },
+  { key: "ordre_dominant", labelKey: "guilds.stat.dominant", icon: `${BASE}/assets/icons/couronne-violet.png`, emoji: "👑", iconGlow: "0 0 12px rgba(180,100,255,0.7)", valueColor: "#c8960a" },
+  { key: "invitations", labelKey: "guilds.stat.invitations", icon: `${BASE}/assets/icons/parchemin.png`, emoji: "📜", iconGlow: "0 0 10px rgba(200,150,80,0.5)", valueColor: "#00d4ff" },
 ];
 
 function StatIcon({ src, emoji, glow }) {
@@ -86,7 +87,7 @@ function StatIcon({ src, emoji, glow }) {
   );
 }
 
-function StatCard({ cfg, value }) {
+function StatCard({ cfg, value, label }) {
   const isDash = value === "–" || value === "-" || value === null || value === undefined;
   const display = isDash ? "–" : String(value);
   const color = cfg.key === "ordre_dominant" && isDash ? "#4a4a6a" : cfg.valueColor;
@@ -94,7 +95,7 @@ function StatCard({ cfg, value }) {
     <div className={styles.statCard}>
       <Corners size={28} bar={16} dia={6} />
       <StatIcon src={cfg.icon} emoji={cfg.emoji} glow={cfg.iconGlow} />
-      <span className={styles.statLabel}>{cfg.label}</span>
+      <span className={styles.statLabel}>{label}</span>
       <span className={styles.statValue} style={{ color, textShadow: `0 0 12px ${color}99` }}>{display}</span>
     </div>
   );
@@ -122,6 +123,7 @@ function GuildEmblem({ g }) {
    GuildesPage
    ============================================================ */
 export default function GuildesPage({ guildes = [], stats = {}, onFonder }) {
+  const { t } = useI18n();
   const [, setModalOpen] = useState(false);
 
   const handleFonder = () => {
@@ -153,7 +155,7 @@ export default function GuildesPage({ guildes = [], stats = {}, onFonder }) {
           <Diamond size={18} className={styles.bannerTopDiamond} style={{ filter: "drop-shadow(0 0 6px rgba(200,150,10,0.7))" }} />
         </div>
         <p className={styles.bannerSub}>
-          Unissez-vous et fondez un ordre dont le nom résonnera dans l'éternité.
+          {t("guilds.bannerSub")}
         </p>
 
         {/* ===== BLOC 2 — BOUTON FONDER ===== */}
@@ -164,7 +166,7 @@ export default function GuildesPage({ guildes = [], stats = {}, onFonder }) {
             <Diamond size={16} className={styles.btnSideR} style={{ filter: "drop-shadow(0 0 6px rgba(200,150,10,0.8))" }} />
             <Diamond size={12} className={styles.btnTopDiamond} />
             <Diamond size={12} className={styles.btnBottomDiamond} />
-            <span className={styles.founderText}>+ Fonder un Ordre</span>
+            <span className={styles.founderText}>{t("guilds.foundOrder")}</span>
           </button>
         </div>
 
@@ -172,12 +174,12 @@ export default function GuildesPage({ guildes = [], stats = {}, onFonder }) {
         <section className={styles.section}>
           <div className={styles.sectionHead}>
             <CircleIcon />
-            <span className={styles.sectionTitle}>Pulse des Ordres</span>
-            <span className={styles.sectionSub}>Vue globale</span>
+            <span className={styles.sectionTitle}>{t("guilds.pulseTitle")}</span>
+            <span className={styles.sectionSub}>{t("guilds.pulseSub")}</span>
           </div>
           <div className={styles.statsGrid}>
             {STAT_CONFIG.map((cfg) => (
-              <StatCard key={cfg.key} cfg={cfg} value={statValues[cfg.key]} />
+              <StatCard key={cfg.key} cfg={cfg} value={statValues[cfg.key]} label={t(cfg.labelKey)} />
             ))}
           </div>
         </section>
@@ -186,8 +188,8 @@ export default function GuildesPage({ guildes = [], stats = {}, onFonder }) {
         <section className={styles.section}>
           <div className={styles.sectionHead}>
             <GridIcon />
-            <span className={styles.sectionTitle}>Ordres existants</span>
-            <span className={styles.sectionSub}>{guildes.length} bannière(s)</span>
+            <span className={styles.sectionTitle}>{t("guilds.existingOrders")}</span>
+            <span className={styles.sectionSub}>{t("guilds.bannerCount", { count: guildes.length })}</span>
           </div>
 
           <div className={styles.listBox} data-testid="guildes-list">
@@ -196,8 +198,8 @@ export default function GuildesPage({ guildes = [], stats = {}, onFonder }) {
             {guildes.length === 0 ? (
               <div className={styles.empty}>
                 <CrownEmpty />
-                <p className={styles.emptyMain}>Aucun ordre n'a encore été fondé…</p>
-                <p className={styles.emptySub}>Sois le premier à hisser ta bannière.</p>
+                <p className={styles.emptyMain}>{t("guilds.noOrdersYet")}</p>
+                <p className={styles.emptySub}>{t("guilds.beFirst")}</p>
               </div>
             ) : (
               <div className={styles.list}>
@@ -217,10 +219,10 @@ export default function GuildesPage({ guildes = [], stats = {}, onFonder }) {
                       <GuildEmblem g={g} />
                       <span className={styles.rowName}>
                         {g.name}
-                        {g.isMine && <span className={styles.rowMineBadge}>Mon ordre</span>}
+                        {g.isMine && <span className={styles.rowMineBadge}>{t("guilds.myOrder")}</span>}
                       </span>
-                      <span className={styles.rowMembers}>{g.member_count ?? 0} héros</span>
-                      <span className={styles.rowLevel}>Niv. {g.level ?? 1}</span>
+                      <span className={styles.rowMembers}>{t("guilds.heroCount", { count: g.member_count ?? 0 })}</span>
+                      <span className={styles.rowLevel}>{t("guilds.level", { level: g.level ?? 1 })}</span>
                     </div>
                   );
                 })}

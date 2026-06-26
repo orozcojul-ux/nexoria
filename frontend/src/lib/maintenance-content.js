@@ -63,6 +63,7 @@ export function normalizeMaintenanceHtml(stored) {
 export const DEFAULT_MAINTENANCE_SYSTEMS = {
   database: { label: "Base de données", status: "maintenance", progress: 50 },
   site: { label: "Site", status: "maintenance", progress: 30 },
+  international: { label: "Mode international (traduction)", status: "sync", progress: 85 },
   server: { label: "Serveur Online", status: "maintenance", progress: 10 },
 };
 

@@ -126,6 +126,18 @@ export const MAINTENANCE_TRANSLATIONS = {
     "Website",
     { es: "Sitio", de: "Website", it: "Sito", pt: "Site", nl: "Website", ja: "サイト" },
   ),
+  "maintenance.system.international": T(
+    "Mode international (traduction)",
+    "International mode (translation)",
+    {
+      es: "Modo internacional (traducción)",
+      de: "Internationaler Modus (Übersetzung)",
+      it: "Modalità internazionale (traduzione)",
+      pt: "Modo internacional (tradução)",
+      nl: "Internationale modus (vertaling)",
+      ja: "国際モード（翻訳）",
+    },
+  ),
   "maintenance.system.server": T(
     "Serveur Online",
     "Online server",

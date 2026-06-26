@@ -5,8 +5,11 @@ import api from "@/lib/api";
 import HeroName from "@/components/HeroName";
 import HeroCardOpener from "@/components/HeroCardOpener";
 import { usePageBanner } from "@/lib/page-banners";
+import { useI18n } from "@/contexts/I18nContext";
+import { PageShell, PremiumSection, PremiumCard } from "@/components/ui-premium";
 
 export default function HallOfLegends() {
+  const { t } = useI18n();
   const banner = usePageBanner("legends");
   const [legends, setLegends] = useState([]);
 
@@ -20,8 +23,12 @@ export default function HallOfLegends() {
       testid="legends-page"
       banner={banner}
     >
-
-      <PremiumSection title="Hall of Legends" subtitle="Top 10 mondial" icon={Flame} tone="gold">
+      <PremiumSection
+        title={t("badge.hall_of_legends.name")}
+        subtitle={t("legends.globalTop")}
+        icon={Flame}
+        tone="gold"
+      >
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {legends.map((u, i) => (
             <motion.div
@@ -42,14 +49,14 @@ export default function HallOfLegends() {
                 </HeroCardOpener>
                 <div className="text-sm text-violet-300 mt-1">{u.class_name}</div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-mono-stat">
-                  <div><span className="text-zinc-500">Niveau</span> <span className="text-cyan-300 font-bold">{u.level}</span></div>
-                  <div><span className="text-zinc-500">Rang</span> <span className="text-violet-300 font-bold">{u.rank}</span></div>
-                  <div><span className="text-zinc-500">XP</span> <span className="text-cyan-300 font-bold">{u.xp?.toLocaleString()}</span></div>
-                  <div><span className="text-zinc-500">Réputation</span> <span className="text-yellow-300 font-bold">{u.reputation}</span></div>
+                  <div><span className="text-zinc-500">{t("common.level")}</span> <span className="text-cyan-300 font-bold">{u.level}</span></div>
+                  <div><span className="text-zinc-500">{t("leaderboards.cat.level")}</span> <span className="text-violet-300 font-bold">{u.rank}</span></div>
+                  <div><span className="text-zinc-500">{t("common.xp")}</span> <span className="text-cyan-300 font-bold">{u.xp?.toLocaleString()}</span></div>
+                  <div><span className="text-zinc-500">{t("leaderboards.cat.reputation")}</span> <span className="text-yellow-300 font-bold">{u.reputation}</span></div>
                 </div>
                 {i === 0 && (
                   <div className="mt-3 flex items-center gap-1 text-[10px] uppercase tracking-widest text-yellow-300 font-bold">
-                    <Sparkles className="w-3 h-3" /> Élu du Panthéon
+                    <Sparkles className="w-3 h-3" /> {t("legends.pantheonChosen")}
                   </div>
                 )}
               </PremiumCard>

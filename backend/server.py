@@ -417,14 +417,25 @@ def is_staff_user(user: dict | None) -> bool:
     return bool(user and user.get("role") in ("admin", "moderator"))
 
 
-async def add_chronicle(user_id: str, text: str, kind: str = "event"):
-    await db.chronicles.insert_one({
+async def add_chronicle(
+    user_id: str,
+    text: str,
+    kind: str = "event",
+    *,
+    i18n_key: str | None = None,
+    i18n_params: dict | None = None,
+):
+    doc = {
         "chronicle_id": f"chr_{uuid.uuid4().hex[:12]}",
         "user_id": user_id,
         "text": text,
         "kind": kind,
         "created_at": now_utc().isoformat(),
-    })
+    }
+    if i18n_key:
+        doc["i18n_key"] = i18n_key
+        doc["i18n_params"] = i18n_params or {}
+    await db.chronicles.insert_one(doc)
 
 
 async def enforce_owner_roles():
@@ -480,7 +491,13 @@ async def grant_badge(user_id: str, badge_id: str):
         "badge_id": badge_id,
         "obtained_at": now_utc().isoformat(),
     })
-    await add_chronicle(user_id, f"A obtenu le badge « {badge_def['name']} »", "badge")
+    await add_chronicle(
+        user_id,
+        f"A obtenu le badge « {badge_def['name']} »",
+        "badge",
+        i18n_key="chronicle.badge.earned",
+        i18n_params={"badge_id": badge_id},
+    )
     # Send a notification with sound + icon
     await push_notification(
         db, user_id, "badge",
@@ -718,7 +735,13 @@ async def _repair_daily_login_quest(user_id: str, today: str, *, grant_if_new: b
     if grant_if_new and not was_completed:
         await grant_xp(user_id, q.get("xp", 0), f"quest:{q['quest_id']}")
         await grant_aether(user_id, q.get("aether", 0), f"Quête : {q.get('name', 'daily_login')}")
-        await add_chronicle(user_id, f"A accompli la quête « {q.get('name', 'Présence Quotidienne')} »", "quest")
+        await add_chronicle(
+            user_id,
+            f"A accompli la quête « {q.get('name', 'Présence Quotidienne')} »",
+            "quest",
+            i18n_key="chronicle.quest.completed",
+            i18n_params={"quest_id": q.get("quest_id", "daily_login")},
+        )
 
 
 async def count_site_online() -> int:
@@ -853,7 +876,13 @@ async def grant_xp(user_id: str, amount: int, reason: str = ""):
         new_tier = discord_sync.progression_tier_from_level(new_level)
         tier_changed = new_tier if new_tier != old_tier else None
         level_up_info = {"old": old_level, "new": new_level, "rank": new_rank, "tier": tier_changed}
-        await add_chronicle(user_id, f"A atteint le niveau {new_level} — Rang {new_rank}", "level_up")
+        await add_chronicle(
+            user_id,
+            f"A atteint le niveau {new_level} — Rang {new_rank}",
+            "level_up",
+            i18n_key="chronicle.level.up",
+            i18n_params={"level": new_level, "rank": new_rank},
+        )
         discord_rewards.schedule_levelup(db, user_id, new_level, new_rank)
         if tier_changed:
             discord_sync.schedule_sync(db, user_id)
@@ -1000,7 +1029,13 @@ async def progress_quests(user_id: str, action: str, amount: int = 1):
             await db.user_quests.update_one({"_id": q["_id"]}, {"$set": update})
             await grant_xp(user_id, q["xp"], f"quest:{q['quest_id']}")
             await grant_aether(user_id, q["aether"], f"Quête : {q.get('name', q['quest_id'])}")
-            await add_chronicle(user_id, f"A accompli la quête « {q['name']} »", "quest")
+            await add_chronicle(
+                user_id,
+                f"A accompli la quête « {q['name']} »",
+                "quest",
+                i18n_key="chronicle.quest.completed",
+                i18n_params={"quest_id": q["quest_id"]},
+            )
             # Quest count badges
             completed_count = await db.user_quests.count_documents({"user_id": user_id, "completed": True})
             if completed_count >= 10:
@@ -1134,7 +1169,17 @@ async def open_chest(user_id: str, min_rarity: str = None, luck_boost: float = 1
         item["duplicate"] = False
         owned_set.add((tmpl["name"], tmpl["rarity"]))
         items.append(item)
-        await add_chronicle(user_id, f"A découvert {tmpl['name']} ({RARITIES[tmpl['rarity']]['name']})", "item")
+        await add_chronicle(
+            user_id,
+            f"A découvert {tmpl['name']} ({RARITIES[tmpl['rarity']]['name']})",
+            "item",
+            i18n_key="chronicle.item.found",
+            i18n_params={
+                "item_id": tmpl.get("id") or tmpl.get("template_id"),
+                "item": tmpl["name"],
+                "rarity_id": tmpl["rarity"],
+            },
+        )
     return items
 
 
@@ -1639,7 +1684,13 @@ async def register(req: RegisterReq, response: Response):
 
     await record_user_connection(db, user_id)
     cls = CLASSES[req.class_id]
-    await add_chronicle(user_id, f"Le héros {username} ({cls['name']}) a rejoint NEXORIA", "creation")
+    await add_chronicle(
+        user_id,
+        f"Le héros {username} ({cls['name']}) a rejoint NEXORIA",
+        "creation",
+        i18n_key="chronicle.creation.joined",
+        i18n_params={"username": username, "class_id": req.class_id, "className": cls["name"]},
+    )
     discord_auth_forum.schedule_auth_event("register", user_doc, method="email")
 
     if req.referral_code:
@@ -2173,7 +2224,13 @@ async def google_session(req: SessionExchangeReq, response: Response):
             "needs_class_selection": True,
         }
         await db.users.insert_one(user_doc)
-        await add_chronicle(user_id, f"Le héros {username} a rejoint NEXORIA via Google", "creation")
+        await add_chronicle(
+            user_id,
+            f"Le héros {username} a rejoint NEXORIA via Google",
+            "creation",
+            i18n_key="chronicle.creation.google",
+            i18n_params={"username": username},
+        )
         user = user_doc
     else:
         # update avatar if missing
@@ -3273,7 +3330,13 @@ async def upgrade_building(building_id: str, user: dict = Depends(get_user_dep))
         {"user_id": user["user_id"]},
         {"$set": {f"kingdom.{building_id}": {"level": next_level}}},
     )
-    await add_chronicle(user["user_id"], f"A amélioré son {building['name']} au niveau {next_level}", "kingdom")
+    await add_chronicle(
+        user["user_id"],
+        f"A amélioré son {building['name']} au niveau {next_level}",
+        "kingdom",
+        i18n_key="chronicle.kingdom.upgrade",
+        i18n_params={"building_id": building_id, "building": building["name"], "level": next_level},
+    )
     if any(v.get("level", 0) >= 5 for v in kingdom.values()):
         await grant_badge(user["user_id"], "architect_master")
     await push_wallet_updated(user["user_id"])
@@ -3539,7 +3602,7 @@ async def oracle_consult(req: OracleReq, user: dict = Depends(get_user_dep)):
             raise HTTPException(429, f"Limite quotidienne ({daily_limit}/jour). Achetez le Lien à l'Oracle pour des consultations illimitées.")
     badge_count = await db.user_badges.count_documents({"user_id": user["user_id"]})
     profile = {**user, "badge_count": badge_count, "active_title": user.get("active_title", "novice")}
-    response = await consult_oracle(profile, req.question)
+    response = await consult_oracle(profile, req.question, user.get("language", "fr"))
     # log oracle consultations
     await db.oracle_logs.insert_one({
         "user_id": user["user_id"],
@@ -3556,7 +3619,7 @@ async def oracle_consult(req: OracleReq, user: dict = Depends(get_user_dep)):
 
 @api.post("/oracle/quest")
 async def oracle_quest(user: dict = Depends(get_user_dep)):
-    quest = await generate_personalized_quest(user)
+    quest = await generate_personalized_quest(user, user.get("language", "fr"))
     return quest
 
 
@@ -4073,6 +4136,7 @@ async def admin_logs(user: dict = Depends(get_staff_dep)):
 DEFAULT_MAINTENANCE_SYSTEMS = {
     "database": {"label": "Base de données", "status": "maintenance", "progress": 50, "icon": "database"},
     "site": {"label": "Site", "status": "maintenance", "progress": 30, "icon": "site"},
+    "international": {"label": "Mode international (traduction)", "status": "sync", "progress": 85, "icon": "international"},
     "server": {"label": "Serveur Online", "status": "maintenance", "progress": 10, "icon": "server"},
 }
 
@@ -5463,7 +5527,13 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
         await db.shop_purchases.delete_one({"purchase_id": purchase_doc["purchase_id"]})
         raise HTTPException(400, f"Catégorie boutique non supportée : {item['category']}")
 
-    await add_chronicle(user["user_id"], f"A acquis « {item['name']} » à la Boutique des Écus", "shop")
+    await add_chronicle(
+        user["user_id"],
+        f"A acquis « {item['name']} » à la Boutique des Écus",
+        "shop",
+        i18n_key="chronicle.shop.purchased",
+        i18n_params={"sku": sku, "item": item["name"]},
+    )
     await push_notification(db, user["user_id"], "shop", "Achat confirmé", f"« {item['name']} » est à vous", "ding", "ShoppingBag")
 
     # Quest progression — shop_purchase for any buy; vip_purchase specifically for VIP plans.
@@ -5983,7 +6053,7 @@ async def discord_exchange(req: DiscordExchangeReq, response: Response):
         user = await db.users.find_one({"user_id": user_id})
         if discord_linked:
             badge_granted = await grant_badge(user_id, DISCORD_SIGNUP_BADGE_ID)
-        await add_chronicle(user_id, "Connexion via Discord", "login")
+        await add_chronicle(user_id, "Connexion via Discord", "login", i18n_key="chronicle.login.discord")
     else:
         is_new_account = True
         user_id = generate_user_id()
@@ -6033,7 +6103,13 @@ async def discord_exchange(req: DiscordExchangeReq, response: Response):
             "needs_class_selection": True,
         }
         await db.users.insert_one(user)
-        await add_chronicle(user_id, f"Le héros {username} a rejoint NEXORIA via Discord", "creation")
+        await add_chronicle(
+            user_id,
+            f"Le héros {username} a rejoint NEXORIA via Discord",
+            "creation",
+            i18n_key="chronicle.creation.discord",
+            i18n_params={"username": username},
+        )
         if DISCORD_SIGNUP_XP_BONUS > 0:
             await grant_xp(user_id, DISCORD_SIGNUP_XP_BONUS, "Inscription via Discord")
             xp_bonus = DISCORD_SIGNUP_XP_BONUS
@@ -6641,7 +6717,13 @@ async def create_guild(req: GuildCreateReq, user: dict = Depends(get_user_dep)):
         "contribution_xp": 0,
     })
     await spend_aether(user["user_id"], GUILD_CREATE_COST, "guild_create")
-    await add_chronicle(user["user_id"], f"A fondé l'ordre « {name} » [{tag}]", "guild")
+    await add_chronicle(
+        user["user_id"],
+        f"A fondé l'ordre « {name} » [{tag}]",
+        "guild",
+        i18n_key="chronicle.guild.founded",
+        i18n_params={"name": name, "tag": tag},
+    )
     await grant_badge(user["user_id"], "founder_guild")
     guild.pop("_id", None)
     return guild
@@ -6738,7 +6820,13 @@ async def accept_guild_invite(invite_id: str, user: dict = Depends(get_user_dep)
     })
     await db.guilds.update_one({"guild_id": inv["guild_id"]}, {"$inc": {"member_count": 1}})
     await db.guild_invites.update_one({"invite_id": invite_id}, {"$set": {"status": "accepted", "responded_at": now_utc().isoformat()}})
-    await add_chronicle(user["user_id"], f"A rejoint l'ordre « {guild['name']} »", "guild")
+    await add_chronicle(
+        user["user_id"],
+        f"A rejoint l'ordre « {guild['name']} »",
+        "guild",
+        i18n_key="chronicle.guild.joined",
+        i18n_params={"name": guild["name"]},
+    )
     return {"ok": True, "guild_id": inv["guild_id"]}
 
 
@@ -7035,7 +7123,13 @@ async def create_forum_thread(req: ForumThreadReq, user: dict = Depends(get_user
     await db.forum_threads.insert_one(thread)
     await progress_quests(user["user_id"], "forum_thread", 1)
     await grant_xp(user["user_id"], 30, "forum_thread")
-    await add_chronicle(user["user_id"], f"A ouvert le débat « {title} »", "forum")
+    await add_chronicle(
+        user["user_id"],
+        f"A ouvert le débat « {title} »",
+        "forum",
+        i18n_key="chronicle.forum.thread",
+        i18n_params={"title": title},
+    )
     await grant_badge(user["user_id"], "scholar")
     thread.pop("_id", None)
     return thread

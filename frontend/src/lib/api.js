@@ -27,6 +27,11 @@ api.interceptors.request.use((config) => {
     config.headers = config.headers || {};
     config.headers["X-Beta-Key"] = beta;
   }
+  const lang = localStorage.getItem("nexoria_language");
+  if (lang) {
+    config.headers = config.headers || {};
+    config.headers["Accept-Language"] = lang;
+  }
   // FormData : laisser le navigateur définir le boundary multipart
   if (config.data instanceof FormData && config.headers) {
     if (typeof config.headers.set === "function") {

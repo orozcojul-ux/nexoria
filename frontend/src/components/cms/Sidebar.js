@@ -92,7 +92,7 @@ function UserCard({ user, t }) {
               {user.username}
             </div>
             <div className="text-[11px] text-amber-400/95 font-medium truncate">
-              {getTitleLabel(user)}
+              {getTitleLabel(user, null, t)}
             </div>
             <div className="text-[9px] tracking-wider font-medium mt-0.5 leading-tight">
               <LastConnection

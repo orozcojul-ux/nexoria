@@ -5,11 +5,15 @@ import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { sfx } from "@/lib/sfx";
+import { useI18n } from "@/contexts/I18nContext";
+import { translateEcuPackLabel } from "@/lib/translate-game";
+import { translateApiError } from "@/lib/i18n-api";
 
 const EUR = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
 export default function BuyEcusSection() {
   const { refresh } = useAuth();
+  const { t } = useI18n();
   const [data, setData] = useState({ enabled: false, packs: [], currency: "eur" });
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState(null);
@@ -41,7 +45,7 @@ export default function BuyEcusSection() {
       window.history.replaceState({}, "", url.pathname + url.search);
     };
     if (state === "cancel") {
-      toast.info("Paiement annulé — aucun écu débité.");
+      toast.info(t("shop.ecus.cancelled"));
       clean();
       return;
     }
@@ -51,16 +55,16 @@ export default function BuyEcusSection() {
         .then(async (r) => {
           if (r.data?.credited) {
             sfx.success?.();
-            toast.success(`Paiement validé — +${r.data.ecus} Écus crédités !`);
+            toast.success(t("shop.ecus.success", { count: r.data.ecus }));
             await refresh();
           } else {
-            toast.info("Paiement en cours de validation… vos écus arriveront sous peu.");
+            toast.info(t("shop.ecus.pending"));
           }
         })
-        .catch(() => toast.error("Impossible de confirmer le paiement pour le moment."))
+        .catch(() => toast.error(t("shop.ecus.confirmFailed")))
         .finally(() => { setConfirming(false); clean(); });
     }
-  }, [refresh]);
+  }, [refresh, t]);
 
   const buy = async (packId) => {
     setBuying(packId);
@@ -69,10 +73,10 @@ export default function BuyEcusSection() {
       if (res?.url) {
         window.location.href = res.url;
       } else {
-        toast.error("Lien de paiement indisponible.");
+        toast.error(t("shop.ecus.linkUnavailable"));
       }
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Paiement indisponible pour le moment.");
+      toast.error(translateApiError(t, e, "shop.ecus.paymentFailed"));
     } finally {
       setBuying(null);
     }
@@ -86,19 +90,19 @@ export default function BuyEcusSection() {
             <Coins className="w-6 h-6 text-yellow-300" />
           </div>
           <div>
-            <h2 className="font-display font-black text-2xl text-yellow-100">Recharger des Écus</h2>
-            <p className="text-xs text-zinc-400">Créditez votre solde instantanément et dépensez-les dans toute la boutique.</p>
+            <h2 className="font-display font-black text-2xl text-yellow-100">{t("shop.ecus.title")}</h2>
+            <p className="text-xs text-zinc-400">{t("shop.ecus.subtitle")}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-3">
-          <span className="flex items-center gap-1"><CreditCard className="w-3.5 h-3.5 text-cyan-300" /> Carte bancaire, Apple&nbsp;Pay, Google&nbsp;Pay</span>
-          <span className="flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-emerald-300" /> Paiement sécurisé via Stripe</span>
+          <span className="flex items-center gap-1"><CreditCard className="w-3.5 h-3.5 text-cyan-300" /> {t("shop.ecus.payMethods")}</span>
+          <span className="flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-emerald-300" /> {t("shop.ecus.stripeSecure")}</span>
         </div>
       </div>
 
       {confirming && (
         <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-4 flex items-center gap-3 text-sm text-cyan-200">
-          <Loader2 className="w-4 h-4 animate-spin" /> Validation de votre paiement…
+          <Loader2 className="w-4 h-4 animate-spin" /> {t("shop.ecus.confirming")}
         </div>
       )}
 
@@ -109,10 +113,9 @@ export default function BuyEcusSection() {
       ) : !data.enabled ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-6 text-center" data-testid="ecus-disabled-notice">
           <Sparkles className="w-7 h-7 text-amber-300 mx-auto mb-2" />
-          <div className="font-display font-bold text-amber-100 mb-1">Bientôt disponible</div>
+          <div className="font-display font-bold text-amber-100 mb-1">{t("shop.ecus.soonTitle")}</div>
           <p className="text-sm text-zinc-400 max-w-md mx-auto">
-            L'achat d'écus par carte bancaire sera activé très prochainement. Les packs ci-dessous
-            sont déjà prêts.
+            {t("shop.ecus.soonBody")}
           </p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-5 opacity-60 pointer-events-none">
             {data.packs.map((p) => <PackCard key={p.id} pack={p} disabled />)}
@@ -136,6 +139,8 @@ export default function BuyEcusSection() {
 }
 
 function PackCard({ pack, onBuy, buying, disabled }) {
+  const { t } = useI18n();
+  const localized = translateEcuPackLabel(t, pack);
   const total = (pack.ecus || 0) + (pack.bonus || 0);
   const highlight = pack.best_value || pack.popular;
   return (
@@ -153,24 +158,24 @@ function PackCard({ pack, onBuy, buying, disabled }) {
     >
       {pack.best_value && (
         <span className="absolute top-2 right-2 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-400/25 text-amber-100 border border-amber-300/50 flex items-center gap-0.5">
-          <Star className="w-2.5 h-2.5" /> Top
+          <Star className="w-2.5 h-2.5" /> {t("shop.ecus.packBest")}
         </span>
       )}
       {pack.popular && !pack.best_value && (
         <span className="absolute top-2 right-2 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-400/20 text-cyan-100 border border-cyan-300/40">
-          Populaire
+          {t("shop.ecus.packPopular")}
         </span>
       )}
 
       <Coins className="w-8 h-8 text-yellow-300 mb-2" style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.7))" }} />
       <div className="font-mono-stat font-black text-2xl text-yellow-100">{total.toLocaleString("fr-FR")}</div>
-      <div className="text-[10px] uppercase tracking-[0.25em] text-yellow-400/70 mb-1">Écus</div>
+      <div className="text-[10px] uppercase tracking-[0.25em] text-yellow-400/70 mb-1">{t("shop.ecus.unit")}</div>
       {pack.bonus > 0 && (
         <div className="text-[11px] text-emerald-300 font-bold mb-1">
-          dont +{pack.bonus.toLocaleString("fr-FR")} bonus
+          {t("shop.ecus.bonus", { count: pack.bonus.toLocaleString("fr-FR") })}
         </div>
       )}
-      <div className="text-xs text-zinc-400 mb-4">{pack.label}</div>
+      <div className="text-xs text-zinc-400 mb-4">{localized.label}</div>
 
       <button
         onClick={onBuy}

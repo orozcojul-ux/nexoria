@@ -146,6 +146,9 @@ export const TRANSLATIONS_UI = {
   "rarity.rare": T("Rare", "Rare"),
   "rarity.epic": T("Épique", "Epic"),
   "rarity.legendary": T("Légendaire", "Legendary"),
+  "rarity.mythic": T("Mythique", "Mythic"),
+  "rarity.divine": T("Divin", "Divine"),
+  "rarity.cosmic": T("Cosmique", "Cosmic"),
   "action.validate": T("Valider", "Confirm"),
   "action.equip": T("Équiper", "Equip"),
   "action.use": T("Utiliser", "Use"),
@@ -167,4 +170,20 @@ export const TRANSLATIONS_UI = {
   "landing.status.server": T("Serveur", "Server"),
   "landing.status.database": T("Base de données", "Database"),
   "landing.status.web": T("Web", "Web"),
+
+  // ─── Site footer ───
+  "footer.socials": T("Réseaux sociaux", "Social networks"),
+  "footer.useful_links": T("Liens utiles", "Useful links"),
+  "footer.help": T("Aide", "Help"),
+  "footer.community": T("Communauté", "Community"),
+  "footer.support": T("Support", "Support"),
+  "footer.terms": T("Conditions", "Terms"),
+  "footer.privacy": T("Confidentialité", "Privacy"),
+  "footer.copyright_title": T("Copyright Nexoria", "Copyright Nexoria"),
+  "footer.rights": T("© {{year}} NEXORIA. Tous droits réservés.", "© {{year}} NEXORIA. All Rights Reserved."),
+  "footer.tagline": T("Univers MMORPG social · Forge ta légende", "Social MMORPG universe · Forge your legend"),
+
+  // ─── Feed online heroes ───
+  "feed.online_heroes": T("Héros connectés au Royaume", "Heroes connected to the Realm"),
+  "feed.online_heroes_empty": T("Aucun héros dans le Nexus Online pour le moment.", "No heroes in Nexus Online right now."),
 };

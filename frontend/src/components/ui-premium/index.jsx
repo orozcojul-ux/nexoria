@@ -7,6 +7,8 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { SECTION_TONE, RARITY } from "@/lib/design-tokens";
+import { useI18n } from "@/contexts/I18nContext";
+import { translateBadge, translateRarity } from "@/lib/translate-game";
 import PixelBanner from "@/components/PixelBanner";
 import PageBanner from "@/components/PageBanner";
 import { getAchievementBadgeSrc, getRarityBadgeSrc } from "@/lib/badge-assets";
@@ -177,10 +179,14 @@ export function PremiumHero({
 /* ============== PREMIUM BADGE (rarity-aware, pixel medallion) ============== */
 
 export function PremiumBadge({ badge, size = "md", testid }) {
+  const { t } = useI18n();
   const safe = badge || {};
+  const translated = translateBadge(t, safe);
   const r = RARITY[safe.rarity] || RARITY.common;
   const sz = size === "sm" ? "w-12 h-12" : size === "lg" ? "w-20 h-20" : "w-16 h-16";
-  const name = safe.name || "Badge Mystérieux";
+  const name = translated.name || t("catalog.badge.mysterious");
+  const description = translated.description || "";
+  const rarityLabel = translateRarity(t, safe.rarity) || r.fr;
   const badgeId = safe.badge_id || safe.id;
   const achievementSrc = getAchievementBadgeSrc(badgeId);
   const fallbackSrc = getRarityBadgeSrc(safe.rarity || "common");
@@ -193,7 +199,7 @@ export function PremiumBadge({ badge, size = "md", testid }) {
 
   return (
     <div
-      title={`${name}${safe.description ? ` — ${safe.description}` : ""} · ${r.fr}`}
+      title={`${name}${description ? ` — ${description}` : ""} · ${rarityLabel}`}
       data-testid={testid || `badge-${badgeId || name.toLowerCase().replace(/\s+/g, "-")}`}
       className={`relative ${sz} rounded-lg cursor-pointer group transition-all hover:scale-110`}
       style={{ boxShadow: `0 0 14px ${r.glow}` }}

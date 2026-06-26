@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import * as LucideIcons from "lucide-react";
 import { ChevronRight, Crown, Target } from "lucide-react";
 import { useI18n } from "@/i18n/LanguageProvider";
+import { translateChallenge } from "@/lib/translate-game";
 import HomePanel from "./HomePanel";
 
 const TONES = {
@@ -14,12 +15,13 @@ const TONES = {
   emerald:{ border: "rgba(60,255,158,0.25)", icon: "rgba(60,255,158,0.12)", text: "#3CFF9E" },
 };
 
-function ChallengeCard({ challenge, index, tagLabel }) {
-  const Icon = LucideIcons[challenge.icon] || Target;
-  const t = TONES[challenge.tone] || TONES.violet;
+function ChallengeCard({ challenge, index, tagLabel, i18n }) {
+  const dc = translateChallenge(i18n, challenge);
+  const Icon = LucideIcons[dc.icon] || Target;
+  const tone = TONES[dc.tone] || TONES.violet;
   const pct = Math.min(
     100,
-    challenge.percent ?? ((challenge.progress / Math.max(1, challenge.target)) * 100),
+    dc.percent ?? ((dc.progress / Math.max(1, dc.target)) * 100),
   );
 
   return (
@@ -28,32 +30,32 @@ function ChallengeCard({ challenge, index, tagLabel }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
       className="feed-challenge-card"
-      style={{ borderColor: t.border }}
+      style={{ borderColor: tone.border }}
     >
       <div className="feed-challenge-top">
-        <div className="feed-challenge-icon" style={{ background: t.icon, borderColor: t.border }}>
-          <Icon className="w-3.5 h-3.5" style={{ color: t.text }} />
+        <div className="feed-challenge-icon" style={{ background: tone.icon, borderColor: tone.border }}>
+          <Icon className="w-3.5 h-3.5" style={{ color: tone.text }} />
         </div>
         <div className="feed-challenge-copy">
           <div className="feed-challenge-tag">{tagLabel}</div>
-          <div className="feed-challenge-name">{challenge.name}</div>
-          {challenge.description && (
-            <div className="feed-challenge-desc">{challenge.description}</div>
+          <div className="feed-challenge-name">{dc.name}</div>
+          {dc.description && (
+            <div className="feed-challenge-desc">{dc.description}</div>
           )}
         </div>
       </div>
-      {challenge.reward_label && (
-        <div className="feed-challenge-reward">🏆 {challenge.reward_label}</div>
+      {dc.reward_label && (
+        <div className="feed-challenge-reward">🏆 {dc.reward_label}</div>
       )}
       <div className="feed-challenge-prog">
         <div className="feed-challenge-track">
           <div
             className="feed-challenge-fill"
-            style={{ width: `${pct}%`, background: `linear-gradient(90deg,${t.text}99,${t.text})` }}
+            style={{ width: `${pct}%`, background: `linear-gradient(90deg,${tone.text}99,${tone.text})` }}
           />
         </div>
-        <span className="feed-challenge-pct" style={{ color: t.text }}>
-          {challenge.progress ?? 0}/{challenge.target ?? 0}
+        <span className="feed-challenge-pct" style={{ color: tone.text }}>
+          {dc.progress ?? 0}/{dc.target ?? 0}
         </span>
       </div>
     </motion.div>
@@ -87,6 +89,7 @@ export default function HomeRealmChallenges({ challenges = [] }) {
                 challenge={c}
                 index={i}
                 tagLabel={t("feed.challenge_tag")}
+                i18n={t}
               />
             ))}
           </div>

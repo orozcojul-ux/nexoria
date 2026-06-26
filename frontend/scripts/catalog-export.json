@@ -1,0 +1,916 @@
+﻿{
+  "badges": [
+    {
+      "id": "first_step",
+      "name": "Premier Pas",
+      "description": "Premier post publi├®",
+      "category": "participation"
+    },
+    {
+      "id": "chatter_100",
+      "name": "Bavard",
+      "description": "100 messages ├®crits",
+      "category": "participation"
+    },
+    {
+      "id": "chatter_1000",
+      "name": "Orateur",
+      "description": "1000 messages ├®crits",
+      "category": "participation"
+    },
+    {
+      "id": "chatter_10000",
+      "name": "Conteur ├ëternel",
+      "description": "10000 messages ├®crits",
+      "category": "participation"
+    },
+    {
+      "id": "daily_streak_7",
+      "name": "Habitu├®",
+      "description": "7 jours cons├®cutifs",
+      "category": "participation"
+    },
+    {
+      "id": "daily_streak_30",
+      "name": "Pilier",
+      "description": "30 jours cons├®cutifs",
+      "category": "participation"
+    },
+    {
+      "id": "discord_herald",
+      "name": "H├®raut Discord",
+      "description": "Inscription ou liaison via Discord",
+      "category": "social"
+    },
+    {
+      "id": "loyal_friend",
+      "name": "Ami Fid├¿le",
+      "description": "10 abonnements",
+      "category": "social"
+    },
+    {
+      "id": "recruteur",
+      "name": "Recruteur",
+      "description": "A parrain├® 3 nouveaux h├®ros",
+      "category": "social"
+    },
+    {
+      "id": "mentor_heroe",
+      "name": "Mentor des H├®ros",
+      "description": "A parrain├® 15 nouveaux h├®ros",
+      "category": "social"
+    },
+    {
+      "id": "parrain_legendaire",
+      "name": "Parrain L├®gendaire",
+      "description": "A parrain├® 50 nouveaux h├®ros",
+      "category": "social"
+    },
+    {
+      "id": "vip_nexus",
+      "name": "VIP Nexus",
+      "description": "D├®tenteur du Pass Ascendant",
+      "category": "social"
+    },
+    {
+      "id": "pionnier_nexus",
+      "name": "Pionnier du Nexus",
+      "description": "Parmi les 100 premiers h├®ros ├á rejoindre NEXORIA",
+      "category": "social"
+    },
+    {
+      "id": "beta_testeur",
+      "name": "Beta Testeur",
+      "description": "Acc├¿s beta activ├® ÔÇö pionnier du Nexus scell├®",
+      "category": "social"
+    },
+    {
+      "id": "season_passholder",
+      "name": "D├®tenteur du Passe Saison",
+      "description": "A acquis le Passe Saison premium",
+      "category": "social"
+    },
+    {
+      "id": "mentor",
+      "name": "Mentor",
+      "description": "100 abonn├®s",
+      "category": "social"
+    },
+    {
+      "id": "influencer",
+      "name": "Influenceur",
+      "description": "1000 abonn├®s",
+      "category": "social"
+    },
+    {
+      "id": "social_butterfly",
+      "name": "Papillon Social",
+      "description": "50 r├®actions donn├®es",
+      "category": "social"
+    },
+    {
+      "id": "legend_status",
+      "name": "Statut L├®gende",
+      "description": "10000 abonn├®s",
+      "category": "social"
+    },
+    {
+      "id": "creator",
+      "name": "Cr├®ateur",
+      "description": "10 publications",
+      "category": "creation"
+    },
+    {
+      "id": "innovator",
+      "name": "Innovateur",
+      "description": "100 publications",
+      "category": "creation"
+    },
+    {
+      "id": "architect_master",
+      "name": "Architecte",
+      "description": "Royaume niveau 5",
+      "category": "creation"
+    },
+    {
+      "id": "viral_post",
+      "name": "Post Viral",
+      "description": "100 r├®actions sur un post",
+      "category": "creation"
+    },
+    {
+      "id": "relic_hunter",
+      "name": "Chasseur de Reliques",
+      "description": "10 objets rares collect├®s",
+      "category": "collection"
+    },
+    {
+      "id": "ultimate_collector",
+      "name": "Collectionneur Ultime",
+      "description": "100 objets collect├®s",
+      "category": "collection"
+    },
+    {
+      "id": "mythic_owner",
+      "name": "Possesseur Mythique",
+      "description": "Poss├®der un objet mythique",
+      "category": "collection"
+    },
+    {
+      "id": "divine_keeper",
+      "name": "Gardien Divin",
+      "description": "Poss├®der un objet divin",
+      "category": "collection"
+    },
+    {
+      "id": "cosmic_chosen",
+      "name": "├ëlu Cosmique",
+      "description": "Poss├®der un objet cosmique",
+      "category": "collection"
+    },
+    {
+      "id": "shapeshifter",
+      "name": "M├®tamorphe",
+      "description": "A modifi├® son apparence (avatar/banni├¿re)",
+      "category": "creation"
+    },
+    {
+      "id": "renamed",
+      "name": "Renaissance",
+      "description": "A chang├® de pseudo via un Parchemin de Renomm├®e",
+      "category": "creation"
+    },
+    {
+      "id": "storyteller",
+      "name": "Conteur",
+      "description": "A ├®crit l'histoire de son personnage",
+      "category": "creation"
+    },
+    {
+      "id": "polyglot",
+      "name": "Polyglotte",
+      "description": "A explor├® le royaume en plusieurs langues",
+      "category": "secrets"
+    },
+    {
+      "id": "merchant",
+      "name": "Marchand Avis├®",
+      "description": "Premier achat ├á la Boutique des ├ëcus",
+      "category": "collection"
+    },
+    {
+      "id": "big_spender",
+      "name": "M├®c├¿ne",
+      "description": "5000 ├ëcus d├®pens├®s ├á la Boutique",
+      "category": "collection"
+    },
+    {
+      "id": "class_master",
+      "name": "Ma├«tre de Classe",
+      "description": "Atteindre niveau 50 dans votre classe",
+      "category": "creation"
+    },
+    {
+      "id": "skill_tree_5",
+      "name": "Apprenti",
+      "description": "5 points de comp├®tence d├®pens├®s",
+      "category": "creation"
+    },
+    {
+      "id": "skill_tree_50",
+      "name": "Sp├®cialiste",
+      "description": "50 points de comp├®tence d├®pens├®s",
+      "category": "creation"
+    },
+    {
+      "id": "quest_finisher",
+      "name": "Finisseur",
+      "description": "10 qu├¬tes accomplies",
+      "category": "participation"
+    },
+    {
+      "id": "quest_champion",
+      "name": "Champion des Qu├¬tes",
+      "description": "100 qu├¬tes accomplies",
+      "category": "participation"
+    },
+    {
+      "id": "founder_guild",
+      "name": "Fondateur d'Ordre",
+      "description": "Fondateur d'un Ordre mystique",
+      "category": "social"
+    },
+    {
+      "id": "scholar",
+      "name": "├ërudit",
+      "description": "Premier sujet ouvert sur la Tribune",
+      "category": "creation"
+    },
+    {
+      "id": "nexus_blessed",
+      "name": "B├®ni du Nexus",
+      "description": "Touch├® par la Roue du Nexus",
+      "category": "secrets"
+    },
+    {
+      "id": "wheel_first_spin",
+      "name": "Tour de Fortune",
+      "description": "Premier tour ├á la Roue du Nexus",
+      "category": "participation"
+    },
+    {
+      "id": "wheel_spinner_7",
+      "name": "Fid├¿le du Nexus",
+      "description": "7 tours cumul├®s ├á la Roue du Nexus",
+      "category": "participation"
+    },
+    {
+      "id": "wheel_spinner_30",
+      "name": "Devin du Nexus",
+      "description": "30 tours cumul├®s ├á la Roue du Nexus",
+      "category": "participation"
+    },
+    {
+      "id": "wheel_spinner_100",
+      "name": "Ma├«tre de la Roue",
+      "description": "100 tours cumul├®s ├á la Roue du Nexus",
+      "category": "participation"
+    },
+    {
+      "id": "wheel_lucky",
+      "name": "Faveur Cosmique",
+      "description": "R├®compense l├®gendaire gagn├®e ├á la Roue du Nexus",
+      "category": "secrets"
+    },
+    {
+      "id": "craft_apprentice",
+      "name": "Apprenti Forgeron",
+      "description": "Premi├¿re tentative ├á la Forge du Nexus",
+      "category": "collection"
+    },
+    {
+      "id": "craft_first_success",
+      "name": "Premi├¿re Relique",
+      "description": "Premi├¿re forge r├®ussie",
+      "category": "collection"
+    },
+    {
+      "id": "craft_forger_10",
+      "name": "Forgeron",
+      "description": "10 tentatives ├á la Forge",
+      "category": "collection"
+    },
+    {
+      "id": "craft_forger_50",
+      "name": "Artisan du Nexus",
+      "description": "50 tentatives ├á la Forge",
+      "category": "collection"
+    },
+    {
+      "id": "craft_master",
+      "name": "Ma├«tre Forgeron",
+      "description": "25 forges r├®ussies",
+      "category": "collection"
+    },
+    {
+      "id": "craft_grandmaster",
+      "name": "Grand Ma├«tre du Nexus",
+      "description": "100 forges r├®ussies",
+      "category": "collection"
+    },
+    {
+      "id": "craft_epic_smith",
+      "name": "Forgeron ├ëpique",
+      "description": "A forg├® une relique ├®pique ou sup├®rieure",
+      "category": "collection"
+    },
+    {
+      "id": "craft_legend_smith",
+      "name": "Forge L├®gendaire",
+      "description": "A forg├® une relique l├®gendaire",
+      "category": "collection"
+    },
+    {
+      "id": "craft_obsidian",
+      "name": "Lame des Ombres",
+      "description": "A forg├® la Lame d'Obsidienne",
+      "category": "secrets"
+    },
+    {
+      "id": "craft_hoarder",
+      "name": "Collecteur Cosmique",
+      "description": "Poss├¿de les 6 mat├®riaux de forge en m├¬me temps",
+      "category": "collection"
+    },
+    {
+      "id": "craft_resilient",
+      "name": "Endurci par l'├ëchec",
+      "description": "A surmont├® 5 ├®checs de forge",
+      "category": "secrets"
+    },
+    {
+      "id": "season_champion",
+      "name": "Champion de la Saison",
+      "description": "1ßÁë╩│ d'une saison cl├┤tur├®e",
+      "category": "secrets"
+    },
+    {
+      "id": "season_elite",
+      "name": "├ëlite de la Saison",
+      "description": "Top 10 d'une saison cl├┤tur├®e",
+      "category": "secrets"
+    },
+    {
+      "id": "rift_walker",
+      "name": "Marcheur des Failles",
+      "description": "Surv├®cu ├á une faille dimensionnelle",
+      "category": "secrets"
+    },
+    {
+      "id": "oracle_blessed",
+      "name": "B├®ni de l'Oracle",
+      "description": "Consult├® l'Oracle 10 fois",
+      "category": "secrets"
+    },
+    {
+      "id": "news_scribe",
+      "name": "Scribe des Nouvelles",
+      "description": "Premier commentaire sur une actualit├®",
+      "category": "creation"
+    },
+    {
+      "id": "news_sage",
+      "name": "Sage du Royaume",
+      "description": "25 commentaires sur les actualit├®s",
+      "category": "creation"
+    },
+    {
+      "id": "news_herald",
+      "name": "H├®raut des Chroniques",
+      "description": "100 commentaires sur les actualit├®s",
+      "category": "creation"
+    },
+    {
+      "id": "guardian_just",
+      "name": "Gardien de la Justice",
+      "description": "Signalement valid├® par les mod├®rateurs",
+      "category": "social"
+    },
+    {
+      "id": "hall_of_legends",
+      "name": "Hall of Legends",
+      "description": "Atteindre le top 10 mondial",
+      "category": "secrets"
+    },
+    {
+      "id": "boss_slayer",
+      "name": "Tueur de Boss",
+      "description": "Particip├® ├á la d├®faite d'un boss mondial",
+      "category": "secrets"
+    }
+  ],
+  "titles": [
+    {
+      "id": "novice",
+      "name": "Novice"
+    },
+    {
+      "id": "voyageur",
+      "name": "Voyageur"
+    },
+    {
+      "id": "veteran",
+      "name": "V├®t├®ran"
+    },
+    {
+      "id": "maitre_ombres",
+      "name": "Ma├«tre des Ombres"
+    },
+    {
+      "id": "seigneur_temps",
+      "name": "Seigneur du Temps"
+    },
+    {
+      "id": "roi_createurs",
+      "name": "Roi des Cr├®ateurs"
+    },
+    {
+      "id": "legende_vivante",
+      "name": "L├®gende Vivante"
+    },
+    {
+      "id": "elu_cosmique",
+      "name": "├ëlu Cosmique"
+    },
+    {
+      "id": "starforged",
+      "name": "Forg├® des ├ëtoiles"
+    },
+    {
+      "id": "void_walker",
+      "name": "Marcheur du Vide"
+    },
+    {
+      "id": "ambassadeur_nexus",
+      "name": "Ambassadeur du Nexus"
+    },
+    {
+      "id": "ascendant_nexus",
+      "name": "Ascendant du Nexus"
+    },
+    {
+      "id": "beta_tester",
+      "name": "Beta Testeur"
+    }
+  ],
+  "items": [
+    {
+      "id": "rusty_blade",
+      "name": "Lame Rouill├®e",
+      "type": "weapon",
+      "rarity": "common"
+    },
+    {
+      "id": "iron_helm",
+      "name": "Heaume de Fer",
+      "type": "armor",
+      "rarity": "common"
+    },
+    {
+      "id": "minor_potion",
+      "name": "Potion Mineure",
+      "type": "consumable",
+      "rarity": "common"
+    },
+    {
+      "id": "torch_oil",
+      "name": "Huile de Torche",
+      "type": "consumable",
+      "rarity": "common"
+    },
+    {
+      "id": "leather_strap",
+      "name": "Lani├¿re de Cuir",
+      "type": "material",
+      "rarity": "common"
+    },
+    {
+      "id": "wooden_shield",
+      "name": "Pavois en Bois",
+      "type": "armor",
+      "rarity": "common"
+    },
+    {
+      "id": "copper_ring",
+      "name": "Anneau de Cuivre",
+      "type": "accessory",
+      "rarity": "common"
+    },
+    {
+      "id": "silver_amulet",
+      "name": "Amulette d'Argent",
+      "type": "accessory",
+      "rarity": "rare"
+    },
+    {
+      "id": "elven_bow",
+      "name": "Arc Elfique",
+      "type": "weapon",
+      "rarity": "rare"
+    },
+    {
+      "id": "rune_dagger",
+      "name": "Dague Runique",
+      "type": "weapon",
+      "rarity": "rare"
+    },
+    {
+      "id": "moonstone",
+      "name": "Pierre de Lune",
+      "type": "material",
+      "rarity": "rare"
+    },
+    {
+      "id": "mage_robe",
+      "name": "Robe d'Apprenti Mage",
+      "type": "armor",
+      "rarity": "rare"
+    },
+    {
+      "id": "healing_elixir",
+      "name": "├ëlixir Curatif",
+      "type": "consumable",
+      "rarity": "rare"
+    },
+    {
+      "id": "sage_tome",
+      "name": "Tome du Sage",
+      "type": "tome",
+      "rarity": "rare"
+    },
+    {
+      "id": "frost_staff",
+      "name": "B├óton de Givre",
+      "type": "weapon",
+      "rarity": "epic"
+    },
+    {
+      "id": "shadow_cloak",
+      "name": "Cape des Ombres",
+      "type": "armor",
+      "rarity": "epic"
+    },
+    {
+      "id": "ember_blade",
+      "name": "Lame de Braise",
+      "type": "weapon",
+      "rarity": "epic"
+    },
+    {
+      "id": "ancient_compass",
+      "name": "Boussole Ancienne",
+      "type": "accessory",
+      "rarity": "epic"
+    },
+    {
+      "id": "void_pendant",
+      "name": "Pendentif du Vide",
+      "type": "accessory",
+      "rarity": "epic"
+    },
+    {
+      "id": "warlord_helm",
+      "name": "Heaume du Seigneur de Guerre",
+      "type": "armor",
+      "rarity": "epic"
+    },
+    {
+      "id": "trickster_mask",
+      "name": "Masque de l'Escamoteur",
+      "type": "armor",
+      "rarity": "epic"
+    },
+    {
+      "id": "dragon_scale",
+      "name": "├ëcaille de Dragon",
+      "type": "material",
+      "rarity": "legendary"
+    },
+    {
+      "id": "phoenix_feather",
+      "name": "Plume de Ph├®nix",
+      "type": "material",
+      "rarity": "legendary"
+    },
+    {
+      "id": "starforged_blade",
+      "name": "Lame Forg├®e des ├ëtoiles",
+      "type": "weapon",
+      "rarity": "legendary"
+    },
+    {
+      "id": "leviathan_horn",
+      "name": "Corne du L├®viathan",
+      "type": "material",
+      "rarity": "legendary"
+    },
+    {
+      "id": "kingmaker_crown",
+      "name": "Couronne du Roi-Faiseur",
+      "type": "accessory",
+      "rarity": "legendary"
+    },
+    {
+      "id": "soul_lantern",
+      "name": "Lanterne des ├émes",
+      "type": "relic",
+      "rarity": "legendary"
+    },
+    {
+      "id": "rune_sigil",
+      "name": "Sceau Runique Majeur",
+      "type": "relic",
+      "rarity": "legendary"
+    },
+    {
+      "id": "world_anchor",
+      "name": "Ancre du Monde",
+      "type": "relic",
+      "rarity": "legendary"
+    },
+    {
+      "id": "mythic_orb",
+      "name": "Orbe Mythique",
+      "type": "relic",
+      "rarity": "mythic"
+    },
+    {
+      "id": "titan_gauntlet",
+      "name": "Gantelet du Titan",
+      "type": "armor",
+      "rarity": "mythic"
+    },
+    {
+      "id": "void_blade",
+      "name": "Lame du N├®ant",
+      "type": "weapon",
+      "rarity": "mythic"
+    },
+    {
+      "id": "celestial_tome",
+      "name": "Tome C├®leste",
+      "type": "tome",
+      "rarity": "mythic"
+    },
+    {
+      "id": "divine_crown",
+      "name": "Couronne Divine",
+      "type": "relic",
+      "rarity": "divine"
+    },
+    {
+      "id": "world_tree_branch",
+      "name": "Branche de l'Arbre-Monde",
+      "type": "relic",
+      "rarity": "divine"
+    },
+    {
+      "id": "godheart",
+      "name": "C┼ôur d'un Dieu",
+      "type": "relic",
+      "rarity": "divine"
+    },
+    {
+      "id": "cosmic_shard",
+      "name": "├ëclat Cosmique",
+      "type": "relic",
+      "rarity": "cosmic"
+    },
+    {
+      "id": "star_seed",
+      "name": "Graine d'├ëtoile",
+      "type": "relic",
+      "rarity": "cosmic"
+    },
+    {
+      "id": "infinity_loop",
+      "name": "Boucle d'Infini",
+      "type": "relic",
+      "rarity": "cosmic"
+    },
+    {
+      "id": "mat_cosmic_dust",
+      "name": "Poussi├¿re cosmique",
+      "type": "material",
+      "rarity": "rare"
+    },
+    {
+      "id": "mat_dark_steel",
+      "name": "Acier sombre",
+      "type": "material",
+      "rarity": "rare"
+    },
+    {
+      "id": "mat_arcane_essence",
+      "name": "Essence arcanique",
+      "type": "material",
+      "rarity": "rare"
+    },
+    {
+      "id": "mat_nexus_crystal",
+      "name": "Cristal du Nexus",
+      "type": "material",
+      "rarity": "epic"
+    },
+    {
+      "id": "mat_ancient_fragment",
+      "name": "Fragment ancien",
+      "type": "material",
+      "rarity": "epic"
+    },
+    {
+      "id": "mat_shadow_heart",
+      "name": "C┼ôur d'ombre",
+      "type": "material",
+      "rarity": "legendary"
+    }
+  ],
+  "rarities": [
+    {
+      "id": "common",
+      "name": "Commun"
+    },
+    {
+      "id": "rare",
+      "name": "Rare"
+    },
+    {
+      "id": "epic",
+      "name": "├ëpique"
+    },
+    {
+      "id": "legendary",
+      "name": "L├®gendaire"
+    },
+    {
+      "id": "mythic",
+      "name": "Mythique"
+    },
+    {
+      "id": "divine",
+      "name": "Divin"
+    },
+    {
+      "id": "cosmic",
+      "name": "Cosmique"
+    }
+  ],
+  "skills": [
+    {
+      "id": "creativity",
+      "name": "Cr├®ativit├®",
+      "description": "Augmente l'XP gagn├®e par publication"
+    },
+    {
+      "id": "influence",
+      "name": "Influence",
+      "description": "Multiplie la r├®putation re├ºue"
+    },
+    {
+      "id": "popularity",
+      "name": "Popularit├®",
+      "description": "Plus de r├®actions sur vos posts"
+    },
+    {
+      "id": "expertise",
+      "name": "Expertise",
+      "description": "D├®bloque des objets rares"
+    },
+    {
+      "id": "construction",
+      "name": "Construction",
+      "description": "Am├®liore votre royaume plus vite"
+    },
+    {
+      "id": "collection",
+      "name": "Collection",
+      "description": "Augmente le taux de drop"
+    },
+    {
+      "id": "leadership",
+      "name": "Leadership",
+      "description": "Bonus en guilde et ├®v├®nements"
+    },
+    {
+      "id": "discovery",
+      "name": "D├®couverte",
+      "description": "R├®v├¿le les failles dimensionnelles"
+    }
+  ],
+  "buildings": [
+    {
+      "id": "castle",
+      "name": "Ch├óteau",
+      "description": "Le coeur de votre royaume"
+    },
+    {
+      "id": "village",
+      "name": "Village",
+      "description": "Vos sujets prosp├¿rent ici"
+    },
+    {
+      "id": "library",
+      "name": "Biblioth├¿que",
+      "description": "Sagesse et connaissances anciennes"
+    },
+    {
+      "id": "forge",
+      "name": "Forge",
+      "description": "Forgez votre destin"
+    },
+    {
+      "id": "trophy_tower",
+      "name": "Tour des Troph├®es",
+      "description": "Exposez vos exploits"
+    },
+    {
+      "id": "sanctuary",
+      "name": "Sanctuaire",
+      "description": "Lieu sacr├® de m├®ditation"
+    }
+  ],
+  "craft_resources": [
+    {
+      "id": "dark_steel",
+      "name": "Acier sombre"
+    },
+    {
+      "id": "nexus_crystal",
+      "name": "Cristal du Nexus"
+    },
+    {
+      "id": "arcane_essence",
+      "name": "Essence arcanique"
+    },
+    {
+      "id": "cosmic_dust",
+      "name": "Poussi├¿re cosmique"
+    },
+    {
+      "id": "ancient_fragment",
+      "name": "Fragment ancien"
+    },
+    {
+      "id": "shadow_heart",
+      "name": "C┼ôur d'ombre"
+    }
+  ],
+  "craft_recipes": [
+    {
+      "id": "nexus_ring",
+      "name": "Anneau du Nexus",
+      "description": "Anneau impr├®gn├® d'├®nergie stellaire. Prestige et protection symbolique.",
+      "rarity": "epic"
+    },
+    {
+      "id": "obsidian_blade",
+      "name": "Lame d'Obsidienne",
+      "description": "Lame forg├®e dans l'ombre des failles. Tranchante et instable.",
+      "rarity": "legendary"
+    },
+    {
+      "id": "arcane_amulet",
+      "name": "Amulette Arcanique",
+      "description": "Focus arcanique stabilis├® pour les mages du Nexus.",
+      "rarity": "epic"
+    },
+    {
+      "id": "artisan_chest",
+      "name": "Coffre d'Artisan",
+      "description": "Coffre compact├® par les forgerons du Nexus. Contient une surprise artisanale.",
+      "rarity": "rare"
+    }
+  ],
+  "craft_tiers": [
+    {
+      "id": "apprenti",
+      "label": "Apprenti"
+    },
+    {
+      "id": "forgeron",
+      "label": "Forgeron"
+    },
+    {
+      "id": "artisan",
+      "label": "Artisan"
+    },
+    {
+      "id": "maitre",
+      "label": "Ma├«tre Forgeron"
+    },
+    {
+      "id": "grand_maitre",
+      "label": "Grand Ma├«tre du Nexus"
+    }
+  ]
+}

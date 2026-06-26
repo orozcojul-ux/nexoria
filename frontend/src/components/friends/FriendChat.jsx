@@ -3,6 +3,7 @@ import { MessageCircle, Send, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import HeroName from "@/components/HeroName";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
@@ -24,16 +25,17 @@ function FriendPresence({ user }) {
   );
 }
 
-function formatTime(iso) {
+function formatTime(iso, locale) {
   if (!iso) return "";
   try {
-    return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    return new Date(iso).toLocaleString(locale || "fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   } catch {
     return "";
   }
 }
 
 export default function FriendChat({ initialFriendId = null, onUnreadChange, variant = "page" }) {
+  const { t, locale } = useI18n();
   const { user: me } = useAuth();
   const ns = useNexusSocket();
   const [threads, setThreads] = useState([]);
@@ -98,13 +100,13 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
       await loadThreads();
     } catch (err) {
       if (!silent) {
-        toast.error(err.response?.data?.detail || "Conversation inaccessible");
+        toast.error(formatApiError(err) || t("friendChat.inaccessible"));
         setMessages([]);
       }
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [loadThreads, mergeMessages]);
+  }, [loadThreads, mergeMessages, t]);
 
   // ------ Polling fallback ------
   // Fires every POLL_INTERVAL_MS while a conversation is open.
@@ -240,7 +242,7 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.message_id !== optimisticId));
       setText(body);
-      toast.error(formatApiError(err) || "Envoi impossible");
+      toast.error(formatApiError(err) || t("friendChat.sendFailed"));
     } finally {
       setSending(false);
     }
@@ -255,10 +257,10 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
         <div className="friend-chat-head">
           <MessageCircle className="w-3.5 h-3.5 text-cyan-300" />
           <div className="min-w-0">
-            <span className="friend-chat-title">Échos privés</span>
+            <span className="friend-chat-title">{t("friends.privateEchoes")}</span>
             {me?.username && (
               <div className="text-[9px] text-zinc-500 truncate" data-testid="friend-chat-me">
-                Sanctuaire : <span className="text-cyan-300/90">{me.username}</span>
+                {t("friendChat.sanctuary", { username: me.username })}
               </div>
             )}
           </div>
@@ -266,30 +268,30 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
         <div className="friend-chat-threads">
           {threads.length === 0 ? (
             <div className="friend-chat-empty" style={{ minHeight: "12rem" }}>
-              Aucune conversation — liez-vous à un compagnon pour échanger.
+              {t("friendChat.noConversations")}
             </div>
           ) : (
-            threads.map((t) => (
+            threads.map((thread) => (
               <button
-                key={t.friend.user_id}
+                key={thread.friend.user_id}
                 type="button"
-                onClick={() => setActiveId(t.friend.user_id)}
-                className={`friend-chat-thread ${activeId === t.friend.user_id ? "friend-chat-thread--active" : ""}`}
-                data-testid={`chat-thread-${t.friend.user_id}`}
+                onClick={() => setActiveId(thread.friend.user_id)}
+                className={`friend-chat-thread ${activeId === thread.friend.user_id ? "friend-chat-thread--active" : ""}`}
+                data-testid={`chat-thread-${thread.friend.user_id}`}
               >
                 <div className="friend-chat-avatar friend-chat-avatar--pixel">
-                  <HeroPixelAvatar user={t.friend} size={28} />
+                  <HeroPixelAvatar user={thread.friend} size={28} />
                 </div>
                 <div className="friend-chat-thread-meta">
                   <div className="friend-chat-thread-name">
-                    {t.friend.username}
-                    <FriendPresence user={t.friend} />
+                    {thread.friend.username}
+                    <FriendPresence user={thread.friend} />
                   </div>
                   <div className="friend-chat-thread-preview">
-                    {t.last_message?.text || "Commencer la conversation…"}
+                    {thread.last_message?.text || t("friendChat.startConversation")}
                   </div>
                 </div>
-                {t.unread > 0 && <span className="friend-chat-unread">{t.unread > 9 ? "9+" : t.unread}</span>}
+                {thread.unread > 0 && <span className="friend-chat-unread">{thread.unread > 9 ? "9+" : thread.unread}</span>}
               </button>
             ))
           )}
@@ -300,7 +302,7 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
         {!activeId ? (
           <div className="friend-chat-empty">
             <MessageCircle className="w-8 h-8 text-violet-400/50 mb-2" />
-            Sélectionnez un compagnon pour ouvrir un canal privé entre vos sanctuaires.
+            {t("friendChat.selectCompanion")}
           </div>
         ) : (
           <>
@@ -322,23 +324,23 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
                   <span>{activeFriend?.class_name} · niv. {activeFriend?.level}</span>
                   <FriendPresence user={activeFriend} />
                   {!activeFriend?.online && (
-                    <span className="friend-offline-hint">— message en attente à la connexion</span>
+                    <span className="friend-offline-hint">{t("friendChat.offlineHint")}</span>
                   )}
                 </div>
               </div>
             </div>
 
             <div className="friend-chat-messages" data-testid="friend-chat-messages">
-              {loading && <div className="friend-chat-empty">Synchronisation des échos…</div>}
+              {loading && <div className="friend-chat-empty">{t("friendChat.syncing")}</div>}
               {!loading && messages.length === 0 && (
-                <div className="friend-chat-empty">Aucun message — forgez le premier lien verbal.</div>
+                <div className="friend-chat-empty">{t("friendChat.noMessages")}</div>
               )}
               {!loading && messages.map((m) => {
                 const mine = m.from_user === me?.user_id;
                 return (
                   <div key={m.message_id} className={`friend-chat-bubble ${mine ? "friend-chat-bubble--mine" : "friend-chat-bubble--theirs"}`}>
                     {m.text}
-                    <div className="friend-chat-time">{formatTime(m.created_at)}</div>
+                    <div className="friend-chat-time">{formatTime(m.created_at, locale)}</div>
                   </div>
                 );
               })}
@@ -350,7 +352,7 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 maxLength={500}
-                placeholder="Écrire à votre compagnon…"
+                placeholder={t("friendChat.placeholderCompanion")}
                 className="friend-chat-input"
                 data-testid="friend-chat-input"
               />

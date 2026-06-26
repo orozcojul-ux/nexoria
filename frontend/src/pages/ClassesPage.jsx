@@ -1,47 +1,46 @@
 import React, { useMemo, useState } from "react";
 import styles from "./ClassesPage.module.css";
 import { getClassImageSrc } from "@/lib/badge-assets";
+import { useI18n } from "@/i18n/LanguageProvider";
+import { translateClassName } from "@/lib/translate-class";
+import { translateAffinityLabel } from "@/lib/translate-game";
 
-/* ============================================================
-   Données des classes
-   ============================================================ */
 const CLASSES = [
-  { id: "mage", name: "Mage", color: "#00d4ff",
-    affinites: [{ label: "CRÉATIVITÉ", pct: 82 }, { label: "EXPERTISE", pct: 60 }, { label: "DÉCOUVERTE", pct: 55 }] },
-  { id: "guerrier", name: "Guerrier", color: "#f5a623",
-    affinites: [{ label: "CRÉATIVITÉ", pct: 45 }, { label: "EXPERTISE", pct: 70 }, { label: "LEADERSHIP", pct: 80 }] },
-  { id: "assassin", name: "Assassin", color: "#a855f7",
-    affinites: [{ label: "CRÉATIVITÉ", pct: 65 }, { label: "EXPERTISE", pct: 55 }, { label: "AMBITION", pct: 78 }] },
-  { id: "paladin", name: "Paladin", color: "#f5c842",
-    affinites: [{ label: "CRÉATIVITÉ", pct: 50 }, { label: "EXPERTISE", pct: 68 }, { label: "SOCIAULITÉ", pct: 85 }] },
-  { id: "alchimiste", name: "Alchimiste", color: "#00e57a",
-    affinites: [{ label: "CRÉATIVITÉ", pct: 78 }, { label: "EXPERTISE", pct: 72 }, { label: "DÉCOUVERTE", pct: 60 }] },
-  { id: "explorateur", name: "Explorateur", color: "#00e5c8",
-    affinites: [{ label: "CRÉATIVITÉ", pct: 70 }, { label: "EXPERTISE", pct: 58 }] },
-  { id: "necromancien", name: "Nécromancien", color: "#c855f7",
-    affinites: [{ label: "AMBITION", pct: 85 }, { label: "EXPERTISE", pct: 65 }] },
-  { id: "architecte", name: "Architecte", color: "#f5a623",
-    affinites: [{ label: "CRÉATIVITÉ", pct: 90 }, { label: "EXPERTISE", pct: 75 }] },
-  { id: "chronomancien", name: "Chronomancien", color: "#00d4ff",
-    affinites: [{ label: "CRÉATIVITÉ", pct: 72 }, { label: "CURIOSITÉ", pct: 80 }] },
-  { id: "inventeur", name: "Inventeur", color: "#a855f7",
-    affinites: [{ label: "CRÉATIVITÉ", pct: 68 }, { label: "AMBITION", pct: 62 }] },
+  { id: "mage", color: "#00d4ff",
+    affinites: [{ stat: "creativity", pct: 82 }, { stat: "expertise", pct: 60 }, { stat: "discovery", pct: 55 }] },
+  { id: "guerrier", color: "#f5a623",
+    affinites: [{ stat: "creativity", pct: 45 }, { stat: "expertise", pct: 70 }, { stat: "leadership", pct: 80 }] },
+  { id: "assassin", color: "#a855f7",
+    affinites: [{ stat: "creativity", pct: 65 }, { stat: "expertise", pct: 55 }, { stat: "ambition", pct: 78 }] },
+  { id: "paladin", color: "#f5c842",
+    affinites: [{ stat: "creativity", pct: 50 }, { stat: "expertise", pct: 68 }, { stat: "sociability", pct: 85 }] },
+  { id: "alchimiste", color: "#00e57a",
+    affinites: [{ stat: "creativity", pct: 78 }, { stat: "expertise", pct: 72 }, { stat: "discovery", pct: 60 }] },
+  { id: "explorateur", color: "#00e5c8",
+    affinites: [{ stat: "creativity", pct: 70 }, { stat: "expertise", pct: 58 }] },
+  { id: "necromancien", color: "#c855f7",
+    affinites: [{ stat: "ambition", pct: 85 }, { stat: "expertise", pct: 65 }] },
+  { id: "architecte", color: "#f5a623",
+    affinites: [{ stat: "creativity", pct: 90 }, { stat: "expertise", pct: 75 }] },
+  { id: "chronomancien", color: "#00d4ff",
+    affinites: [{ stat: "creativity", pct: 72 }, { stat: "curiosity", pct: 80 }] },
+  { id: "inventeur", color: "#a855f7",
+    affinites: [{ stat: "creativity", pct: 68 }, { stat: "ambition", pct: 62 }] },
 ];
 
 const AFFINITY_COLORS = {
-  "CRÉATIVITÉ": "#00d4ff",
-  "EXPERTISE": "#00d4ff",
-  "DÉCOUVERTE": "#00e57a",
-  "LEADERSHIP": "#f5a623",
-  "AMBITION": "#a855f7",
-  "SOCIAULITÉ": "#f5c842",
-  "CURIOSITÉ": "#00e5c8",
-  "PERSÉVÉRANCE": "#f5a623",
+  creativity: "#00d4ff",
+  expertise: "#00d4ff",
+  discovery: "#00e57a",
+  leadership: "#f5a623",
+  ambition: "#a855f7",
+  sociability: "#f5c842",
+  curiosity: "#00e5c8",
+  persistence: "#f5a623",
 };
 
-const FILTERS = ["TOUTES", "CRÉATIVITÉ", "PERSÉVÉRANCE", "CURIOSITÉ", "LEADERSHIP", "AMBITION", "EXPERTISE", "DÉCOUVERTE"];
+const FILTER_STATS = ["ALL", "creativity", "persistence", "curiosity", "leadership", "ambition", "expertise", "discovery"];
 
-/* Alias classe héros (ids back-end EN → ids FR de cette page) */
 const CLASS_ALIASES = {
   warrior: "guerrier",
   explorer: "explorateur",
@@ -53,6 +52,7 @@ const CLASS_ALIASES = {
 };
 
 const BANNER_SRC = "/assets/banners/classes.webp";
+
 function hexToRgba(hex, a) {
   const m = hex.replace("#", "");
   const r = parseInt(m.slice(0, 2), 16);
@@ -61,7 +61,6 @@ function hexToRgba(hex, a) {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-/* ---- Coins ornementaux ---- */
 function GoldCorner({ size, bar, dia, className }) {
   const off = size >= 50 ? 3 : 2;
   const th = size >= 50 ? 3 : 2.4;
@@ -108,10 +107,8 @@ function CardCorners() {
   );
 }
 
-/* ============================================================
-   Carte de classe
-   ============================================================ */
-function ClassCard({ cls, isCurrent, onGrimoire }) {
+function ClassCard({ cls, isCurrent, onGrimoire, t }) {
+  const displayName = translateClassName(t, cls.id);
   const heroBg = {
     backgroundImage: [
       `url(${getClassImageSrc(cls.id)})`,
@@ -126,7 +123,7 @@ function ClassCard({ cls, isCurrent, onGrimoire }) {
     <div className={`${styles.card} ${isCurrent ? styles.cardCurrent : ""}`} data-testid={`class-card-${cls.id}`}>
       <CardCorners />
       <Diamond size={14} fill={cls.color} stroke="#8a6a1a" className={styles.topDiamond} style={{ filter: `drop-shadow(0 0 4px ${hexToRgba(cls.color, 0.6)})` }} />
-      {isCurrent && <span className={styles.taClasse}>Ta classe</span>}
+      {isCurrent && <span className={styles.taClasse}>{t("page.classes.currentBadge")}</span>}
 
       <div className={styles.heroImg} style={heroBg}>
         <div className={styles.heroImgFade} />
@@ -136,87 +133,87 @@ function ClassCard({ cls, isCurrent, onGrimoire }) {
         className={styles.className}
         style={{ color: cls.color, textShadow: `0 2px 8px rgba(0,0,0,0.8), 0 0 20px ${hexToRgba(cls.color, 0.5)}` }}
       >
-        {cls.name}
+        {displayName}
       </div>
 
       <div className={styles.info}>
         {cls.affinites.map((aff, i) => (
-          <div className={styles.affRow} key={`${aff.label}-${i}`}>
-            <span className={styles.affLabel}>{aff.label}</span>
+          <div className={styles.affRow} key={`${aff.stat}-${i}`}>
+            <span className={styles.affLabel}>{translateAffinityLabel(t, aff.stat).toUpperCase()}</span>
             <span className={styles.affTrack}>
               <span
                 className={styles.affFill}
-                style={{ width: `${aff.pct}%`, background: AFFINITY_COLORS[aff.label] || "#00d4ff" }}
+                style={{ width: `${aff.pct}%`, background: AFFINITY_COLORS[aff.stat] || "#00d4ff" }}
               />
             </span>
           </div>
         ))}
         <button type="button" className={styles.grimoire} onClick={() => onGrimoire?.(cls)}>
-          Voir le grimoire
+          {t("page.classes.viewGrimoire")}
         </button>
       </div>
     </div>
   );
 }
 
-/* ============================================================
-   ClassesPage
-   ============================================================ */
 export default function ClassesPage({ heroClass = "", onGrimoire }) {
-  const [selectedAffinite, setSelectedAffinite] = useState("TOUTES");
+  const { t } = useI18n();
+  const [selectedFilter, setSelectedFilter] = useState("ALL");
 
   const normalizedHero = (heroClass || "").toLowerCase();
   const currentId = CLASS_ALIASES[normalizedHero] || normalizedHero;
-  const currentClass = CLASSES.find((c) => c.id === currentId || c.name.toLowerCase() === normalizedHero);
+  const currentClass = CLASSES.find((c) => c.id === currentId || c.name?.toLowerCase?.() === normalizedHero);
 
   const visible = useMemo(() => {
-    if (selectedAffinite === "TOUTES") return CLASSES;
-    return CLASSES.filter((c) => c.affinites.some((a) => a.label === selectedAffinite));
-  }, [selectedAffinite]);
+    if (selectedFilter === "ALL") return CLASSES;
+    return CLASSES.filter((c) => c.affinites.some((a) => a.stat === selectedFilter));
+  }, [selectedFilter]);
+
+  const filterLabel = (stat) => {
+    if (stat === "ALL") return t("page.classes.filterAll");
+    return translateAffinityLabel(t, stat).toUpperCase();
+  };
 
   return (
     <div className={styles.page} data-testid="classes-page">
       <div className={styles.inner}>
-        {/* ===== BANNIÈRE ===== */}
         <div className={styles.banner} style={{ backgroundImage: `url(${BANNER_SRC})` }}>
           <BannerCorners />
           <div className={styles.bannerOverlay} />
-          <h1 className={styles.bannerTitle}>CLASSES HÉROÏQUES</h1>
+          <h1 className={styles.bannerTitle}>{t("page.classes.bannerTitle")}</h1>
         </div>
-        <div className={styles.bannerSub}>12 archétypes — 6 affinités</div>
+        <div className={styles.bannerSub}>{t("page.classes.bannerSub")}</div>
 
-        {/* ===== BADGE CLASSE ACTUELLE ===== */}
         {currentClass && (
           <div className={styles.currentBadge}>
             <span className={styles.currentStar}>✦</span>
             <span className={styles.currentLabel}>
-              Ta classe actuelle : <span className={styles.currentValue}>{currentClass.name}</span>
+              {t("page.classes.currentLabel")}{" "}
+              <span className={styles.currentValue}>{translateClassName(t, currentClass.id)}</span>
             </span>
           </div>
         )}
 
-        {/* ===== CODEX ===== */}
         <div className={styles.codexHead}>
           <span className={styles.codexStar}>✦</span>
-          <span className={styles.codexTitle}>Codex des Voies</span>
-          <span className={styles.codexSub}>14 archétypes — 8 affinités</span>
+          <span className={styles.codexTitle}>{t("page.classes.codexTitle")}</span>
+          <span className={styles.codexSub}>{t("page.classes.codexSub")}</span>
         </div>
 
         <div className={styles.filters}>
-          {FILTERS.map((f) => (
+          {FILTER_STATS.map((stat) => (
             <button
-              key={f}
+              key={stat}
               type="button"
-              className={`${styles.filter} ${selectedAffinite === f ? styles.filterActive : ""}`}
-              onClick={() => setSelectedAffinite(f)}
-              data-testid={`affinity-filter-${f}`}
+              className={`${styles.filter} ${selectedFilter === stat ? styles.filterActive : ""}`}
+              onClick={() => setSelectedFilter(stat)}
+              data-testid={`affinity-filter-${stat}`}
             >
-              {f}
+              {filterLabel(stat)}
             </button>
           ))}
         </div>
 
-        {/* ===== GRILLE ===== */}
         <div className={styles.grid}>
           {visible.map((cls) => (
             <ClassCard
@@ -224,6 +221,7 @@ export default function ClassesPage({ heroClass = "", onGrimoire }) {
               cls={cls}
               isCurrent={currentClass?.id === cls.id}
               onGrimoire={onGrimoire}
+              t={t}
             />
           ))}
         </div>

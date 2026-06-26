@@ -1,0 +1,1132 @@
+{
+  "shop.item.frame_runic.name": {
+    "fr": "Cadre Runique",
+    "en": "Runic Frame",
+    "es": "Marco Rúnico",
+    "de": "Runischer Rahmen",
+    "it": "Cornice Runica",
+    "pt": "Moldura Rúnica",
+    "nl": "Runiek Kader",
+    "ja": "ルーンの枠"
+  },
+  "shop.item.frame_runic.description": {
+    "fr": "Bordure runique animée pour votre avatar",
+    "en": "Animated runic border for your avatar",
+    "es": "Borde rúnico animado para tu avatar",
+    "de": "Animierte runische Umrandung für deinen Avatar",
+    "it": "Bordo runico animato per il tuo avatar",
+    "pt": "Borda rúnica animada para o seu avatar",
+    "nl": "Geanimeerde runieke rand voor je avatar",
+    "ja": "アバター用のアニメーションルーン枠"
+  },
+  "shop.item.frame_celestial.name": {
+    "fr": "Cadre Céleste",
+    "en": "Celestial Frame",
+    "es": "Marco Celestial",
+    "de": "Himmlischer Rahmen",
+    "it": "Cornice Celeste",
+    "pt": "Moldura Celestial",
+    "nl": "Hemels Kader",
+    "ja": "天界の枠"
+  },
+  "shop.item.frame_celestial.description": {
+    "fr": "Aura céleste autour de votre carte de héros",
+    "en": "Celestial aura around your hero card",
+    "es": "Aura celestial alrededor de tu carta de héroe",
+    "de": "Himmlische Aura um deine Heldenkarte",
+    "it": "Aura celeste intorno alla tua carta eroe",
+    "pt": "Aura celestial em torno da sua carta de herói",
+    "nl": "Hemelse aura rond je heldenkaart",
+    "ja": "ヒーローカードを包む天界のオーラ"
+  },
+  "shop.item.frame_cosmic.name": {
+    "fr": "Cadre Cosmique",
+    "en": "Cosmic Frame",
+    "es": "Marco Cósmico",
+    "de": "Kosmischer Rahmen",
+    "it": "Cornice Cosmica",
+    "pt": "Moldura Cósmica",
+    "nl": "Kosmisch Kader",
+    "ja": "宇宙の枠"
+  },
+  "shop.item.frame_cosmic.description": {
+    "fr": "Bordure cosmique pulsante — exclusivité ultime",
+    "en": "Pulsating cosmic border — ultimate exclusivity",
+    "es": "Borde cósmico pulsante — exclusividad suprema",
+    "de": "Pulsierende kosmische Umrandung — ultimative Exklusivität",
+    "it": "Bordo cosmico pulsante — esclusività suprema",
+    "pt": "Borda cósmica pulsante — exclusividade suprema",
+    "nl": "Pulserende kosmische rand — ultieme exclusiviteit",
+    "ja": "脈動する宇宙の枠 — 究極の限定品"
+  },
+  "shop.item.banner_dragon.name": {
+    "fr": "Bannière du Dragon",
+    "en": "Dragon Banner",
+    "es": "Estandarte del Dragón",
+    "de": "Drachenbanner",
+    "it": "Stendardo del Drago",
+    "pt": "Estandarte do Dragão",
+    "nl": "Drakenbanier",
+    "ja": "ドラゴンの旗"
+  },
+  "shop.item.banner_dragon.description": {
+    "fr": "Étendard ancestral du dragon",
+    "en": "Ancestral dragon standard",
+    "es": "Estandarte ancestral del dragón",
+    "de": "Uraltes Drachenbanner",
+    "it": "Stendardo ancestrale del drago",
+    "pt": "Estandarte ancestral do dragão",
+    "nl": "Oud drakenbanier",
+    "ja": "ドラゴンの古の旗"
+  },
+  "shop.item.banner_phoenix.name": {
+    "fr": "Bannière du Phénix",
+    "en": "Phoenix Banner",
+    "es": "Estandarte del Fénix",
+    "de": "Phönixbanner",
+    "it": "Stendardo della Fenice",
+    "pt": "Estandarte da Fênix",
+    "nl": "Fenixbanier",
+    "ja": "フェニックスの旗"
+  },
+  "shop.item.banner_phoenix.description": {
+    "fr": "Étendard renaissant du phénix",
+    "en": "Reborn phoenix standard",
+    "es": "Estandarte renaciente del fénix",
+    "de": "Wiedergeborenes Phönixbanner",
+    "it": "Stendardo rinato della fenice",
+    "pt": "Estandarte renascido da fênix",
+    "nl": "Herrezen fenixbanier",
+    "ja": "蘇るフェニックスの旗"
+  },
+  "shop.item.banner_nebula.name": {
+    "fr": "Bannière Nébuleuse",
+    "en": "Nebula Banner",
+    "es": "Estandarte Nebulosa",
+    "de": "Nebelbanner",
+    "it": "Stendardo Nebulosa",
+    "pt": "Estandarte Nebulosa",
+    "nl": "Nevelbanier",
+    "ja": "星雲の旗"
+  },
+  "shop.item.banner_nebula.description": {
+    "fr": "Volutes cosmiques violettes",
+    "en": "Violet cosmic swirls",
+    "es": "Volutas cósmicas violetas",
+    "de": "Violette kosmische Wirbel",
+    "it": "Vortici cosmici viola",
+    "pt": "Volutas cósmicas violetas",
+    "nl": "Paarse kosmische wervelingen",
+    "ja": "紫の宇宙の渦"
+  },
+  "shop.item.banner_aurora.name": {
+    "fr": "Bannière Aurore",
+    "en": "Aurora Banner",
+    "es": "Estandarte Aurora",
+    "de": "Aurorabanner",
+    "it": "Stendardo Aurora",
+    "pt": "Estandarte Aurora",
+    "nl": "Aurorabanier",
+    "ja": "オーロラの旗"
+  },
+  "shop.item.banner_aurora.description": {
+    "fr": "Lueurs boréales cyan",
+    "en": "Cyan boreal glows",
+    "es": "Luzes boreales cian",
+    "de": "Cyanfarbene Polarlichter",
+    "it": "Bagliori boreali ciano",
+    "pt": "Brilhos boreais ciano",
+    "nl": "Cyaan noorderlicht",
+    "ja": "シアンのオーロラの輝き"
+  },
+  "shop.item.banner_void.name": {
+    "fr": "Bannière du Vide",
+    "en": "Void Banner",
+    "es": "Estandarte del Vacío",
+    "de": "Leerenbanner",
+    "it": "Stendardo del Vuoto",
+    "pt": "Estandarte do Vazio",
+    "nl": "Leegtebanier",
+    "ja": "虚空の旗"
+  },
+  "shop.item.banner_void.description": {
+    "fr": "Abîme stellaire profond",
+    "en": "Deep stellar abyss",
+    "es": "Abismo estelar profundo",
+    "de": "Tiefer Sternenabgrund",
+    "it": "Abisso stellare profondo",
+    "pt": "Abismo estelar profundo",
+    "nl": "Diepe sterrenafgrond",
+    "ja": "深き星の淵"
+  },
+  "shop.item.banner_gold.name": {
+    "fr": "Bannière Royale",
+    "en": "Royal Banner",
+    "es": "Estandarte Real",
+    "de": "Königsbanner",
+    "it": "Stendardo Reale",
+    "pt": "Estandarte Real",
+    "nl": "Koninklijk Banier",
+    "ja": "王家の旗"
+  },
+  "shop.item.banner_gold.description": {
+    "fr": "Or impérial du royaume",
+    "en": "Imperial gold of the realm",
+    "es": "Oro imperial del reino",
+    "de": "Kaiserliches Gold des Reiches",
+    "it": "Oro imperiale del regno",
+    "pt": "Ouro imperial do reino",
+    "nl": "Keizerlijk goud van het rijk",
+    "ja": "王国の皇帝金"
+  },
+  "shop.item.banner_frost.name": {
+    "fr": "Bannière de Givre",
+    "en": "Frost Banner",
+    "es": "Estandarte de Escarcha",
+    "de": "Frostbanner",
+    "it": "Stendardo del Gelo",
+    "pt": "Estandarte de Gelo",
+    "nl": "Vorstbanier",
+    "ja": "霜の旗"
+  },
+  "shop.item.banner_frost.description": {
+    "fr": "Glace éternelle des sommets",
+    "en": "Eternal ice of the peaks",
+    "es": "Hielo eterno de las cumbres",
+    "de": "Ewiges Eis der Gipfel",
+    "it": "Ghiaccio eterno delle vette",
+    "pt": "Gelo eterno dos cumes",
+    "nl": "Eeuwig ijs der toppen",
+    "ja": "峰の永久氷"
+  },
+  "shop.item.banner_blood.name": {
+    "fr": "Bannière Sanglante",
+    "en": "Blood Banner",
+    "es": "Estandarte Sangriento",
+    "de": "Blutbanner",
+    "it": "Stendardo Sanguigno",
+    "pt": "Estandarte Sangrento",
+    "nl": "Bloedbanier",
+    "ja": "血の旗"
+  },
+  "shop.item.banner_blood.description": {
+    "fr": "Pour les guerriers impitoyables",
+    "en": "For ruthless warriors",
+    "es": "Para guerreros implacables",
+    "de": "Für rücksichtslose Krieger",
+    "it": "Per guerrieri spietati",
+    "pt": "Para guerreiros implacáveis",
+    "nl": "Voor meedogenloze krijgers",
+    "ja": "無慈悲な戦士のための旗"
+  },
+  "shop.item.banner_emerald.name": {
+    "fr": "Bannière Émeraude",
+    "en": "Emerald Banner",
+    "es": "Estandarte Esmeralda",
+    "de": "Smaragdbanner",
+    "it": "Stendardo di Smeraldo",
+    "pt": "Estandarte Esmeralda",
+    "nl": "Smaragdbanier",
+    "ja": "翠玉の旗"
+  },
+  "shop.item.banner_emerald.description": {
+    "fr": "Verdure des forêts anciennes",
+    "en": "Verdure of ancient forests",
+    "es": "Verdor de los bosques antiguos",
+    "de": "Grün der uralten Wälder",
+    "it": "Verde degli antichi boschi",
+    "pt": "Verdor das florestas antigas",
+    "nl": "Groen der oude bossen",
+    "ja": "古の森の緑"
+  },
+  "shop.item.boost_xp_2x_1h.name": {
+    "fr": "Élixir d'XP — 1h",
+    "en": "XP Elixir — 1h",
+    "es": "Elixir de XP — 1h",
+    "de": "XP-Elixier — 1 Std.",
+    "it": "Elisir XP — 1h",
+    "pt": "Elixir de XP — 1h",
+    "nl": "XP-elixir — 1u",
+    "ja": "XPエリクサー — 1時間"
+  },
+  "shop.item.boost_xp_2x_1h.description": {
+    "fr": "Double XP pendant 1 heure",
+    "en": "Double XP for 1 hour",
+    "es": "Doble XP durante 1 hora",
+    "de": "Doppelte XP für 1 Stunde",
+    "it": "Doppia XP per 1 ora",
+    "pt": "XP em dobro por 1 hora",
+    "nl": "Dubbele XP gedurende 1 uur",
+    "ja": "1時間XP2倍"
+  },
+  "shop.item.boost_xp_2x_24h.name": {
+    "fr": "Élixir d'XP — 24h",
+    "en": "XP Elixir — 24h",
+    "es": "Elixir de XP — 24h",
+    "de": "XP-Elixier — 24 Std.",
+    "it": "Elisir XP — 24h",
+    "pt": "Elixir de XP — 24h",
+    "nl": "XP-elixir — 24u",
+    "ja": "XPエリクサー — 24時間"
+  },
+  "shop.item.boost_xp_2x_24h.description": {
+    "fr": "Double XP pendant 24 heures",
+    "en": "Double XP for 24 hours",
+    "es": "Doble XP durante 24 horas",
+    "de": "Doppelte XP für 24 Stunden",
+    "it": "Doppia XP per 24 ore",
+    "pt": "XP em dobro por 24 horas",
+    "nl": "Dubbele XP gedurende 24 uur",
+    "ja": "24時間XP2倍"
+  },
+  "shop.item.boost_aether_2x_1h.name": {
+    "fr": "Élixir d'Écus — 1h",
+    "en": "Écu Elixir — 1h",
+    "es": "Elixir de Écus — 1h",
+    "de": "Écu-Elixier — 1 Std.",
+    "it": "Elisir Écu — 1h",
+    "pt": "Elixir de Écus — 1h",
+    "nl": "Écu-elixir — 1u",
+    "ja": "Écuエリクサー — 1時間"
+  },
+  "shop.item.boost_aether_2x_1h.description": {
+    "fr": "Double les Écus gagnés pendant 1 heure",
+    "en": "Double Écus earned for 1 hour",
+    "es": "Doble de Écus ganados durante 1 hora",
+    "de": "Doppelte Écus für 1 Stunde",
+    "it": "Raddoppia gli Écu guadagnati per 1 ora",
+    "pt": "Dobra os Écus ganhos por 1 hora",
+    "nl": "Verdubbel verdiende Écus gedurende 1 uur",
+    "ja": "1時間Écus獲得量2倍"
+  },
+  "shop.item.boost_luck_1h.name": {
+    "fr": "Œil de Fortune — 1h",
+    "en": "Eye of Fortune — 1h",
+    "es": "Ojo de la Fortuna — 1h",
+    "de": "Auge des Glücks — 1 Std.",
+    "it": "Occhio della Fortuna — 1h",
+    "pt": "Olho da Fortuna — 1h",
+    "nl": "Oog van Fortuin — 1u",
+    "ja": "幸運の目 — 1時間"
+  },
+  "shop.item.boost_luck_1h.description": {
+    "fr": "Augmente les chances de raretés élevées en coffre",
+    "en": "Increases high-rarity chest odds",
+    "es": "Aumenta las probabilidades de rarezas altas en cofres",
+    "de": "Erhöht die Chancen auf hohe Seltenheit in Truhen",
+    "it": "Aumenta le probabilità di rarità elevate nei forzieri",
+    "pt": "Aumenta as chances de raridades altas em baús",
+    "nl": "Verhoogt kansen op hoge zeldzaamheid in kisten",
+    "ja": "宝箱の高レアリティ確率が上昇"
+  },
+  "shop.item.scroll_class_change.name": {
+    "fr": "Parchemin de Mutation",
+    "en": "Mutation Scroll",
+    "es": "Pergamino de Mutación",
+    "de": "Mutationsrolle",
+    "it": "Pergamena della Mutazione",
+    "pt": "Pergaminho de Mutação",
+    "nl": "Mutatierol",
+    "ja": "変異の巻物"
+  },
+  "shop.item.scroll_class_change.description": {
+    "fr": "Permet de changer de classe 3 fois (le premier changement est gratuit pour tous)",
+    "en": "Allows 3 class changes (first change is free for everyone)",
+    "es": "Permite cambiar de clase 3 veces (el primer cambio es gratis para todos)",
+    "de": "Ermöglicht 3 Klassenwechsel (der erste Wechsel ist für alle kostenlos)",
+    "it": "Permette 3 cambi di classe (il primo cambio è gratuito per tutti)",
+    "pt": "Permite mudar de classe 3 vezes (a primeira mudança é grátis para todos)",
+    "nl": "Maakt 3 klassewissels mogelijk (de eerste wissel is gratis voor iedereen)",
+    "ja": "クラス変更3回分（初回は全員無料）"
+  },
+  "shop.item.key_chest_cosmic.name": {
+    "fr": "Clé Cosmique",
+    "en": "Cosmic Key",
+    "es": "Llave Cósmica",
+    "de": "Kosmischer Schlüssel",
+    "it": "Chiave Cosmica",
+    "pt": "Chave Cósmica",
+    "nl": "Kosmische Sleutel",
+    "ja": "宇宙の鍵"
+  },
+  "shop.item.key_chest_cosmic.description": {
+    "fr": "Coffre garantissant un objet Épique ou supérieur",
+    "en": "Chest guaranteeing an Epic or higher item",
+    "es": "Cofre que garantiza un objeto Épico o superior",
+    "de": "Truhe mit garantiert epischem oder höherem Gegenstand",
+    "it": "Forziere che garantisce un oggetto Epico o superiore",
+    "pt": "Baú garantindo um item Épico ou superior",
+    "nl": "Kist met gegarandeerd Episch of hoger item",
+    "ja": "エピック以上のアイテム確定の宝箱"
+  },
+  "shop.item.summon_rift.name": {
+    "fr": "Catalyseur de Faille",
+    "en": "Rift Catalyst",
+    "es": "Catalizador de Grieta",
+    "de": "Riss-Katalysator",
+    "it": "Catalizzatore di Fenditura",
+    "pt": "Catalisador de Fenda",
+    "nl": "Kloofkatalysator",
+    "ja": "亀裂の触媒"
+  },
+  "shop.item.summon_rift.description": {
+    "fr": "Force l'apparition d'une faille dimensionnelle",
+    "en": "Forces a dimensional rift to appear",
+    "es": "Fuerza la aparición de una grieta dimensional",
+    "de": "Erzwingt das Erscheinen eines dimensionalen Risses",
+    "it": "Forza l'apparizione di una fenditura dimensionale",
+    "pt": "Força o aparecimento de uma fenda dimensional",
+    "nl": "Forceert het verschijnen van een dimensionale kloof",
+    "ja": "次元の亀裂の出現を強制"
+  },
+  "shop.item.kingdom_inventory_slot.name": {
+    "fr": "Coffre Étendu",
+    "en": "Extended Chest",
+    "es": "Cofre Ampliado",
+    "de": "Erweiterte Truhe",
+    "it": "Forziere Ampliato",
+    "pt": "Baú Expandido",
+    "nl": "Uitgebreide Kist",
+    "ja": "拡張チェスト"
+  },
+  "shop.item.kingdom_inventory_slot.description": {
+    "fr": "+10 slots d'inventaire permanents",
+    "en": "+10 permanent inventory slots",
+    "es": "+10 espacios de inventario permanentes",
+    "de": "+10 permanente Inventarplätze",
+    "it": "+10 slot inventario permanenti",
+    "pt": "+10 slots de inventário permanentes",
+    "nl": "+10 permanente inventarisvakken",
+    "ja": "インベントリ永久スロット+10"
+  },
+  "shop.item.kingdom_aether_mine.name": {
+    "fr": "Mine d'Écus",
+    "en": "Écu Mine",
+    "es": "Mina de Écus",
+    "de": "Écu-Mine",
+    "it": "Miniera di Écu",
+    "pt": "Mina de Écus",
+    "nl": "Écu-mijn",
+    "ja": "Écu鉱山"
+  },
+  "shop.item.kingdom_aether_mine.description": {
+    "fr": "Génère 50 Écus par jour passivement",
+    "en": "Generates 50 Écus per day passively",
+    "es": "Genera 50 Écus al día de forma pasiva",
+    "de": "Erzeugt passiv 50 Écus pro Tag",
+    "it": "Genera 50 Écu al giorno in modo passivo",
+    "pt": "Gera 50 Écus por dia passivamente",
+    "nl": "Genereert passief 50 Écus per dag",
+    "ja": "毎日50 Écusを自動生成"
+  },
+  "shop.item.kingdom_ban_archive.name": {
+    "fr": "Archives du Conseil",
+    "en": "Council Archives",
+    "es": "Archivos del Consejo",
+    "de": "Archiv des Rates",
+    "it": "Archivi del Consiglio",
+    "pt": "Arquivos do Conselho",
+    "nl": "Archief van de Raad",
+    "ja": "評議会の書庫"
+  },
+  "shop.item.kingdom_ban_archive.description": {
+    "fr": "Accès permanent aux Archives de Bannissements du royaume",
+    "en": "Permanent access to the realm's Banishment Archives",
+    "es": "Acceso permanente a los Archivos de Destierro del reino",
+    "de": "Permanenter Zugang zu den Verbannungsarchiven des Reiches",
+    "it": "Accesso permanente agli Archivi dei Bandimenti del regno",
+    "pt": "Acesso permanente aos Arquivos de Banimento do reino",
+    "nl": "Permanente toegang tot het Verbanningsarchief van het rijk",
+    "ja": "王国の追放記録への永久アクセス"
+  },
+  "shop.item.kingdom_oracle_link.name": {
+    "fr": "Lien à l'Oracle",
+    "en": "Oracle Link",
+    "es": "Enlace al Oráculo",
+    "de": "Orakel-Verbindung",
+    "it": "Legame all'Oracolo",
+    "pt": "Vínculo ao Oráculo",
+    "nl": "Orakelkoppeling",
+    "ja": "オラクルへのリンク"
+  },
+  "shop.item.kingdom_oracle_link.description": {
+    "fr": "Consultation illimitée du Sanctuaire — accès au Présage quotidien",
+    "en": "Unlimited Sanctuary access — daily Omen included",
+    "es": "Consulta ilimitada del Santuario — acceso al Presagio diario",
+    "de": "Unbegrenzter Zugang zum Heiligtum — tägliches Omen inklusive",
+    "it": "Consultazione illimitata del Santuario — Presagio quotidiano incluso",
+    "pt": "Consulta ilimitada ao Santuário — Preságio diário incluído",
+    "nl": "Onbeperkte toegang tot het Heiligdom — dagelijks Omen inbegrepen",
+    "ja": "聖域への無制限アクセス — 日々の予兆付き"
+  },
+  "shop.item.kingdom_chronicle_vault.name": {
+    "fr": "Voûte des Chroniques",
+    "en": "Chronicle Vault",
+    "es": "Bóveda de las Crónicas",
+    "de": "Chronikengewölbe",
+    "it": "Volta delle Cronache",
+    "pt": "Câmara das Crônicas",
+    "nl": "Kroniekenkluis",
+    "ja": "年代記の書庫"
+  },
+  "shop.item.kingdom_chronicle_vault.description": {
+    "fr": "Accès aux Chroniques complètes du royaume (toutes époques)",
+    "en": "Access to the realm's complete Chronicles (all eras)",
+    "es": "Acceso a las Crónicas completas del reino (todas las épocas)",
+    "de": "Zugang zu den vollständigen Chroniken des Reiches (alle Epochen)",
+    "it": "Accesso alle Cronache complete del regno (tutte le epoche)",
+    "pt": "Acesso às Crônicas completas do reino (todas as eras)",
+    "nl": "Toegang tot de volledige Kronieken van het rijk (alle tijdperken)",
+    "ja": "王国の全時代の完全な年代記へのアクセス"
+  },
+  "shop.item.kingdom_throne_room.name": {
+    "fr": "Salle du Trône",
+    "en": "Throne Room",
+    "es": "Sala del Trono",
+    "de": "Thronsaal",
+    "it": "Sala del Trono",
+    "pt": "Sala do Trono",
+    "nl": "Troonzaal",
+    "ja": "玉座の間"
+  },
+  "shop.item.kingdom_throne_room.description": {
+    "fr": "Trône personnel affiché sur votre profil, badge royal exclusif",
+    "en": "Personal throne displayed on your profile, exclusive royal badge",
+    "es": "Trono personal mostrado en tu perfil, insignia real exclusiva",
+    "de": "Persönlicher Thron auf deinem Profil, exklusives königliches Abzeichen",
+    "it": "Trono personale sul profilo, distintivo reale esclusivo",
+    "pt": "Trono pessoal exibido no perfil, emblema real exclusivo",
+    "nl": "Persoonlijke troon op je profiel, exclusieve koninklijke badge",
+    "ja": "プロフィールに表示される専用玉座、限定王家バッジ"
+  },
+  "shop.item.kingdom_treasury.name": {
+    "fr": "Trésorerie Royale",
+    "en": "Royal Treasury",
+    "es": "Tesorería Real",
+    "de": "Königsschatzkammer",
+    "it": "Tesoreria Reale",
+    "pt": "Tesouraria Real",
+    "nl": "Koninklijke Schatkamer",
+    "ja": "王家の財宝庫"
+  },
+  "shop.item.kingdom_treasury.description": {
+    "fr": "Génère 200 Écus par jour passivement (cumulable avec Mine)",
+    "en": "Generates 200 Écus per day passively (stacks with Mine)",
+    "es": "Genera 200 Écus al día de forma pasiva (acumulable con la Mina)",
+    "de": "Erzeugt passiv 200 Écus pro Tag (stapelbar mit Mine)",
+    "it": "Genera 200 Écu al giorno in modo passivo (cumulabile con la Miniera)",
+    "pt": "Gera 200 Écus por dia passivamente (acumula com a Mina)",
+    "nl": "Genereert passief 200 Écus per dag (stapelt met Mijn)",
+    "ja": "毎日200 Écusを自動生成（鉱山と累積）"
+  },
+  "shop.item.kingdom_constellation.name": {
+    "fr": "Constellation Personnelle",
+    "en": "Personal Constellation",
+    "es": "Constelación Personal",
+    "de": "Persönliche Konstellation",
+    "it": "Costellazione Personale",
+    "pt": "Constelação Pessoal",
+    "nl": "Persoonlijk Sterrenbeeld",
+    "ja": "個人星座"
+  },
+  "shop.item.kingdom_constellation.description": {
+    "fr": "Constellation unique tracée dans le ciel de NEXORIA portant votre nom",
+    "en": "Unique constellation traced in NEXORIA's sky bearing your name",
+    "es": "Constelación única trazada en el cielo de NEXORIA con tu nombre",
+    "de": "Einzigartige Konstellation am Himmel von NEXORIA mit deinem Namen",
+    "it": "Costellazione unica tracciata nel cielo di NEXORIA con il tuo nome",
+    "pt": "Constelação única traçada no céu de NEXORIA com o seu nome",
+    "nl": "Uniek sterrenbeeld aan de hemel van NEXORIA met jouw naam",
+    "ja": "NEXORIAの空にあなたの名を刻んだ唯一の星座"
+  },
+  "shop.item.chest_ancient.name": {
+    "fr": "Coffre Ancien",
+    "en": "Ancient Chest",
+    "es": "Cofre Antiguo",
+    "de": "Uralte Truhe",
+    "it": "Forziere Antico",
+    "pt": "Baú Antigo",
+    "nl": "Oude Kist",
+    "ja": "古代の宝箱"
+  },
+  "shop.item.chest_ancient.description": {
+    "fr": "Ouvre immédiatement un coffre de reliques",
+    "en": "Instantly opens a relic chest",
+    "es": "Abre inmediatamente un cofre de reliquias",
+    "de": "Öffnet sofort eine Reliquientruhe",
+    "it": "Apre immediatamente un forziere di reliquie",
+    "pt": "Abre imediatamente um baú de relíquias",
+    "nl": "Opent direct een relikwie-kist",
+    "ja": "遺物の宝箱を即座に開封"
+  },
+  "shop.item.chest_royal.name": {
+    "fr": "Coffre Royal",
+    "en": "Royal Chest",
+    "es": "Cofre Real",
+    "de": "Königliche Truhe",
+    "it": "Forziere Reale",
+    "pt": "Baú Real",
+    "nl": "Koninklijke Kist",
+    "ja": "王家の宝箱"
+  },
+  "shop.item.chest_royal.description": {
+    "fr": "Coffre royal — meilleures chances d'Épique",
+    "en": "Royal chest — better Epic odds",
+    "es": "Cofre real — mejores probabilidades de Épico",
+    "de": "Königliche Truhe — bessere Episch-Chancen",
+    "it": "Forziere reale — migliori probabilità Epiche",
+    "pt": "Baú real — melhores chances de Épico",
+    "nl": "Koninklijke kist — betere Epische kansen",
+    "ja": "王家の宝箱 — エピック確率アップ"
+  },
+  "shop.item.chest_divine.name": {
+    "fr": "Coffre Divin",
+    "en": "Divine Chest",
+    "es": "Cofre Divino",
+    "de": "Göttliche Truhe",
+    "it": "Forziere Divino",
+    "pt": "Baú Divino",
+    "nl": "Goddelijke Kist",
+    "ja": "神聖の宝箱"
+  },
+  "shop.item.chest_divine.description": {
+    "fr": "Coffre divin — reliques rares garanties",
+    "en": "Divine chest — rare relics guaranteed",
+    "es": "Cofre divino — reliquias raras garantizadas",
+    "de": "Göttliche Truhe — seltene Reliquien garantiert",
+    "it": "Forziere divino — reliquie rare garantite",
+    "pt": "Baú divino — relíquias raras garantidas",
+    "nl": "Goddelijke kist — zeldzame relikwieën gegarandeerd",
+    "ja": "神聖の宝箱 — レア遺物確定"
+  },
+  "shop.item.mount_stellar_wolf.name": {
+    "fr": "Loup Stellaire",
+    "en": "Stellar Wolf",
+    "es": "Lobo Estelar",
+    "de": "Sternenwolf",
+    "it": "Lupo Stellare",
+    "pt": "Lobo Estelar",
+    "nl": "Sterrenwolf",
+    "ja": "星の狼"
+  },
+  "shop.item.mount_stellar_wolf.description": {
+    "fr": "Compagnon lupin des brumes stellaires",
+    "en": "Lupine companion of the stellar mists",
+    "es": "Compañero lupino de las brumas estelares",
+    "de": "Wolfsgefährte der Sternennebel",
+    "it": "Compagno lupino delle nebbie stellari",
+    "pt": "Companheiro lupino das brumas estelares",
+    "nl": "Wolvengezel der sterrenmist",
+    "ja": "星霧の狼の相棒"
+  },
+  "shop.item.mount_phoenix_wing.name": {
+    "fr": "Ailes du Phénix",
+    "en": "Phoenix Wings",
+    "es": "Alas del Fénix",
+    "de": "Phönixflügel",
+    "it": "Ali della Fenice",
+    "pt": "Asas da Fênix",
+    "nl": "Fenixvleugels",
+    "ja": "フェニックスの翼"
+  },
+  "shop.item.mount_phoenix_wing.description": {
+    "fr": "Monture ailée renaissante",
+    "en": "Reborn winged mount",
+    "es": "Montura alada renaciente",
+    "de": "Wiedergeborene Flugmontur",
+    "it": "Montatura alata rinata",
+    "pt": "Montaria alada renascida",
+    "nl": "Herrezen gevleugelde rijdier",
+    "ja": "蘇る翼のある乗り物"
+  },
+  "shop.item.title_starforged.name": {
+    "fr": "Titre : Forgé des Étoiles",
+    "en": "Title: Starforged",
+    "es": "Título: Forjado de las Estrellas",
+    "de": "Titel: Sterngeschmiedet",
+    "it": "Titolo: Forgiato dalle Stelle",
+    "pt": "Título: Forjado das Estrelas",
+    "nl": "Titel: Stergesmeed",
+    "ja": "称号：星の鍛造"
+  },
+  "shop.item.title_starforged.description": {
+    "fr": "Titre exclusif boutique",
+    "en": "Exclusive shop title",
+    "es": "Título exclusivo de la tienda",
+    "de": "Exklusiver Ladentitel",
+    "it": "Titolo esclusivo del negozio",
+    "pt": "Título exclusivo da loja",
+    "nl": "Exclusieve winkeltitel",
+    "ja": "ショップ限定称号"
+  },
+  "shop.item.title_void_walker.name": {
+    "fr": "Titre : Marcheur du Vide",
+    "en": "Title: Void Walker",
+    "es": "Título: Caminante del Vacío",
+    "de": "Titel: Leerenwanderer",
+    "it": "Titolo: Camminatore del Vuoto",
+    "pt": "Título: Caminhante do Vazio",
+    "nl": "Titel: Leegtewandelaar",
+    "ja": "称号：虚空の歩行者"
+  },
+  "shop.item.title_void_walker.description": {
+    "fr": "Titre légendaire du néant",
+    "en": "Legendary title of the void",
+    "es": "Título legendario del vacío",
+    "de": "Legendärer Titel der Leere",
+    "it": "Titolo leggendario del vuoto",
+    "pt": "Título lendário do vazio",
+    "nl": "Legendarische titel van de leegte",
+    "ja": "虚空の伝説称号"
+  },
+  "shop.item.aura_crimson.name": {
+    "fr": "Aura Cramoisie",
+    "en": "Crimson Aura",
+    "es": "Aura Carmesí",
+    "de": "Karmesin-Aura",
+    "it": "Aura Cremisi",
+    "pt": "Aura Carmesim",
+    "nl": "Karmozijn Aura",
+    "ja": "深紅のオーラ"
+  },
+  "shop.item.aura_crimson.description": {
+    "fr": "Aura de flammes sombres autour de votre avatar",
+    "en": "Dark flame aura around your avatar",
+    "es": "Aura de llamas oscuras alrededor de tu avatar",
+    "de": "Dunkle Flammenaura um deinen Avatar",
+    "it": "Aura di fiamme oscure intorno al tuo avatar",
+    "pt": "Aura de chamas sombrias em torno do avatar",
+    "nl": "Donkere vlammenaure rond je avatar",
+    "ja": "アバターを包む闇の炎オーラ"
+  },
+  "shop.item.aura_aurora.name": {
+    "fr": "Aura Boréale",
+    "en": "Boreal Aura",
+    "es": "Aura Boreal",
+    "de": "Polarlicht-Aura",
+    "it": "Aura Boreale",
+    "pt": "Aura Boreal",
+    "nl": "Noorderlicht-aura",
+    "ja": "オーロラのオーラ"
+  },
+  "shop.item.aura_aurora.description": {
+    "fr": "Aura cyan pulsante visible dans le Nexus",
+    "en": "Pulsating cyan aura visible in the Nexus",
+    "es": "Aura cian pulsante visible en el Nexus",
+    "de": "Pulsierende Cyan-Aura sichtbar im Nexus",
+    "it": "Aura ciano pulsante visibile nel Nexus",
+    "pt": "Aura ciano pulsante visível no Nexus",
+    "nl": "Pulserende cyaan aura zichtbaar in de Nexus",
+    "ja": "Nexusで見える脈動するシアンオーラ"
+  },
+  "shop.item.pass_season_1.name": {
+    "fr": "Passe Saison I",
+    "en": "Season Pass I",
+    "es": "Pase de Temporada I",
+    "de": "Saisonpass I",
+    "it": "Pass Stagionale I",
+    "pt": "Passe de Temporada I",
+    "nl": "Seizoenspas I",
+    "ja": "シーズンパス I"
+  },
+  "shop.item.pass_season_1.description": {
+    "fr": "Accès premium aux récompenses de la saison en cours",
+    "en": "Premium access to current season rewards",
+    "es": "Acceso premium a las recompensas de la temporada en curso",
+    "de": "Premium-Zugang zu den Belohnungen der laufenden Saison",
+    "it": "Accesso premium alle ricompense della stagione in corso",
+    "pt": "Acesso premium às recompensas da temporada atual",
+    "nl": "Premium toegang tot beloningen van het huidige seizoen",
+    "ja": "現在シーズンの報酬プレミアムアクセス"
+  },
+  "shop.item.vip_frame_ascendant.name": {
+    "fr": "Cadre de l'Ascendant",
+    "en": "Ascendant Frame",
+    "es": "Marco del Ascendente",
+    "de": "Aufsteiger-Rahmen",
+    "it": "Cornice dell'Ascendente",
+    "pt": "Moldura do Ascendente",
+    "nl": "Ascendant-kader",
+    "ja": "アセンダントの枠"
+  },
+  "shop.item.vip_frame_ascendant.description": {
+    "fr": "Cadre divin animé réservé aux Ascendants — exclusivité VIP",
+    "en": "Divine animated frame reserved for Ascendants — VIP exclusivity",
+    "es": "Marco divino animado reservado a los Ascendentes — exclusividad VIP",
+    "de": "Göttlicher animierter Rahmen für Aufsteiger — VIP-Exklusivität",
+    "it": "Cornice divina animata riservata agli Ascendenti — esclusività VIP",
+    "pt": "Moldura divina animada reservada aos Ascendentes — exclusividade VIP",
+    "nl": "Goddelijk geanimeerd kader voor Ascendants — VIP-exclusiviteit",
+    "ja": "アセンダント限定の神聖アニメ枠 — VIP限定"
+  },
+  "shop.item.vip_banner_celestial.name": {
+    "fr": "Bannière Céleste VIP",
+    "en": "VIP Celestial Banner",
+    "es": "Estandarte Celestial VIP",
+    "de": "VIP-Himmlisches Banner",
+    "it": "Stendardo Celeste VIP",
+    "pt": "Estandarte Celestial VIP",
+    "nl": "VIP Hemels Banier",
+    "ja": "VIP天界の旗"
+  },
+  "shop.item.vip_banner_celestial.description": {
+    "fr": "Étendard cosmique scintillant réservé aux VIP",
+    "en": "Sparkling cosmic standard reserved for VIP",
+    "es": "Estandarte cósmico brillante reservado a VIP",
+    "de": "Funkelndes kosmisches Banner für VIP",
+    "it": "Stendardo cosmico scintillante riservato ai VIP",
+    "pt": "Estandarte cósmico brilhante reservado a VIP",
+    "nl": "Fonkelend kosmisch banier voor VIP",
+    "ja": "VIP限定の輝く宇宙の旗"
+  },
+  "shop.item.vip_aura_ascendant.name": {
+    "fr": "Aura de l'Ascendant",
+    "en": "Ascendant Aura",
+    "es": "Aura del Ascendente",
+    "de": "Aufsteiger-Aura",
+    "it": "Aura dell'Ascendente",
+    "pt": "Aura do Ascendente",
+    "nl": "Ascendant-aura",
+    "ja": "アセンダントのオーラ"
+  },
+  "shop.item.vip_aura_ascendant.description": {
+    "fr": "Aura divine pulsante visible dans le Nexus — exclusivité VIP",
+    "en": "Pulsating divine aura visible in the Nexus — VIP exclusivity",
+    "es": "Aura divina pulsante visible en el Nexus — exclusividad VIP",
+    "de": "Pulsierende göttliche Aura im Nexus — VIP-Exklusivität",
+    "it": "Aura divina pulsante visibile nel Nexus — esclusività VIP",
+    "pt": "Aura divina pulsante visível no Nexus — exclusividade VIP",
+    "nl": "Pulserende goddelijke aura in de Nexus — VIP-exclusiviteit",
+    "ja": "Nexusで見える脈動する神聖オーラ — VIP限定"
+  },
+  "shop.item.vip_mount_celestial_drake.name": {
+    "fr": "Drake Céleste",
+    "en": "Celestial Drake",
+    "es": "Draco Celestial",
+    "de": "Himmlischer Drache",
+    "it": "Drago Celeste",
+    "pt": "Draco Celestial",
+    "nl": "Hemelse Draak",
+    "ja": "天界のドレイク"
+  },
+  "shop.item.vip_mount_celestial_drake.description": {
+    "fr": "Monture draconique céleste réservée aux Ascendants",
+    "en": "Celestial draconic mount reserved for Ascendants",
+    "es": "Montura dracónica celestial reservada a los Ascendentes",
+    "de": "Himmlische Drachenmontur für Aufsteiger",
+    "it": "Montatura draconica celeste riservata agli Ascendenti",
+    "pt": "Montaria dracônica celestial reservada aos Ascendentes",
+    "nl": "Hemels drakenrijdier voor Ascendants",
+    "ja": "アセンダント限定の天界ドラゴン乗り物"
+  },
+  "shop.item.vip_title_sovereign.name": {
+    "fr": "Titre : Souverain du Nexus",
+    "en": "Title: Sovereign of the Nexus",
+    "es": "Título: Soberano del Nexus",
+    "de": "Titel: Souverän des Nexus",
+    "it": "Titolo: Sovrano del Nexus",
+    "pt": "Título: Soberano do Nexus",
+    "nl": "Titel: Soeverein van de Nexus",
+    "ja": "称号：Nexusの支配者"
+  },
+  "shop.item.vip_title_sovereign.description": {
+    "fr": "Titre divin exclusif aux détenteurs du Pass Ascendant",
+    "en": "Divine title exclusive to Ascendant Pass holders",
+    "es": "Título divino exclusivo para poseedores del Pase Ascendente",
+    "de": "Göttlicher Titel exklusiv für Inhaber des Aufstiegspasses",
+    "it": "Titolo divino esclusivo per i possessori del Pass Ascendente",
+    "pt": "Título divino exclusivo para detentores do Passe Ascendente",
+    "nl": "Goddelijke titel exclusief voor Ascendant Pass-bezitters",
+    "ja": "アセンダントパス所持者限定の神聖称号"
+  },
+  "shop.item.vip_boost_xp_3x_7d.name": {
+    "fr": "Élixir Ascendant d'XP — 7j",
+    "en": "Ascendant XP Elixir — 7d",
+    "es": "Elixir Ascendente de XP — 7d",
+    "de": "Aufsteiger-XP-Elixier — 7 T.",
+    "it": "Elisir Ascendente XP — 7g",
+    "pt": "Elixir Ascendente de XP — 7d",
+    "nl": "Ascendant XP-elixir — 7d",
+    "ja": "アセンダントXPエリクサー — 7日"
+  },
+  "shop.item.vip_boost_xp_3x_7d.description": {
+    "fr": "Triple l'XP pendant 7 jours — exclusivité VIP",
+    "en": "Triple XP for 7 days — VIP exclusivity",
+    "es": "Triple XP durante 7 días — exclusividad VIP",
+    "de": "Dreifache XP für 7 Tage — VIP-Exklusivität",
+    "it": "Triplica l'XP per 7 giorni — esclusività VIP",
+    "pt": "XP triplo por 7 dias — exclusividade VIP",
+    "nl": "Driedubbele XP gedurende 7 dagen — VIP-exclusiviteit",
+    "ja": "7日間XP3倍 — VIP限定"
+  },
+  "shop.item.vip_boost_aether_3x_7d.name": {
+    "fr": "Élixir Ascendant d'Écus — 7j",
+    "en": "Ascendant Écu Elixir — 7d",
+    "es": "Elixir Ascendente de Écus — 7d",
+    "de": "Aufsteiger-Écu-Elixier — 7 T.",
+    "it": "Elisir Ascendente Écu — 7g",
+    "pt": "Elixir Ascendente de Écus — 7d",
+    "nl": "Ascendant Écu-elixir — 7d",
+    "ja": "アセンダントÉcuエリクサー — 7日"
+  },
+  "shop.item.vip_boost_aether_3x_7d.description": {
+    "fr": "Triple les Écus gagnés pendant 7 jours — exclusivité VIP",
+    "en": "Triple Écus earned for 7 days — VIP exclusivity",
+    "es": "Triple de Écus ganados durante 7 días — exclusividad VIP",
+    "de": "Dreifache Écus für 7 Tage — VIP-Exklusivität",
+    "it": "Triplica gli Écu guadagnati per 7 giorni — esclusività VIP",
+    "pt": "Triplica os Écus ganhos por 7 dias — exclusividade VIP",
+    "nl": "Verdriedubbelde Écus gedurende 7 dagen — VIP-exclusiviteit",
+    "ja": "7日間Écus獲得量3倍 — VIP限定"
+  },
+  "shop.item.vip_boost_luck_7d.name": {
+    "fr": "Fortune de l'Ascendant — 7j",
+    "en": "Ascendant Fortune — 7d",
+    "es": "Fortuna del Ascendente — 7d",
+    "de": "Aufsteiger-Glück — 7 T.",
+    "it": "Fortuna dell'Ascendente — 7g",
+    "pt": "Fortuna do Ascendente — 7d",
+    "nl": "Ascendant Fortuin — 7d",
+    "ja": "アセンダントの幸運 — 7日"
+  },
+  "shop.item.vip_boost_luck_7d.description": {
+    "fr": "Chances de raretés élevées fortement accrues pendant 7 jours — VIP",
+    "en": "Greatly increased high-rarity odds for 7 days — VIP",
+    "es": "Probabilidades de rarezas altas muy aumentadas durante 7 días — VIP",
+    "de": "Stark erhöhte Chancen auf hohe Seltenheit für 7 Tage — VIP",
+    "it": "Probabilità di rarità elevate fortemente aumentate per 7 giorni — VIP",
+    "pt": "Chances de raridades altas muito aumentadas por 7 dias — VIP",
+    "nl": "Sterk verhoogde kansen op hoge zeldzaamheid gedurende 7 dagen — VIP",
+    "ja": "7日間高レアリティ確率大幅UP — VIP"
+  },
+  "shop.item.vip_chest_ascendant.name": {
+    "fr": "Coffre de l'Ascendant",
+    "en": "Ascendant Chest",
+    "es": "Cofre del Ascendente",
+    "de": "Aufsteiger-Truhe",
+    "it": "Forziere dell'Ascendente",
+    "pt": "Baú do Ascendente",
+    "nl": "Ascendant-kist",
+    "ja": "アセンダントの宝箱"
+  },
+  "shop.item.vip_chest_ascendant.description": {
+    "fr": "Coffre divin garantissant une relique Légendaire ou supérieure — VIP",
+    "en": "Divine chest guaranteeing a Legendary or higher relic — VIP",
+    "es": "Cofre divino que garantiza una reliquia Legendaria o superior — VIP",
+    "de": "Göttliche Truhe mit garantiert legendärer oder höherer Reliquie — VIP",
+    "it": "Forziere divino che garantisce una reliquia Leggendaria o superiore — VIP",
+    "pt": "Baú divino garantindo uma relíquia Lendária ou superior — VIP",
+    "nl": "Goddelijke kist met gegarandeerd Legendarisch of hoger relikwie — VIP",
+    "ja": "レジェンダリー以上の遺物確定の神聖宝箱 — VIP"
+  },
+  "shop.item.vip_key_divine.name": {
+    "fr": "Clé Divine",
+    "en": "Divine Key",
+    "es": "Llave Divina",
+    "de": "Göttlicher Schlüssel",
+    "it": "Chiave Divina",
+    "pt": "Chave Divina",
+    "nl": "Goddelijke Sleutel",
+    "ja": "神聖の鍵"
+  },
+  "shop.item.vip_key_divine.description": {
+    "fr": "Ouvre un coffre garantissant une relique Légendaire+ — VIP",
+    "en": "Opens a chest guaranteeing a Legendary+ relic — VIP",
+    "es": "Abre un cofre que garantiza una reliquia Legendaria+ — VIP",
+    "de": "Öffnet eine Truhe mit garantiert legendärer+ Reliquie — VIP",
+    "it": "Apre un forziere che garantisce una reliquia Leggendaria+ — VIP",
+    "pt": "Abre um baú garantindo uma relíquia Lendária+ — VIP",
+    "nl": "Opent een kist met gegarandeerd Legendarisch+ relikwie — VIP",
+    "ja": "レジェンダリー以上確定の宝箱を開封 — VIP"
+  },
+  "shop.item.vip_relic_box.name": {
+    "fr": "Boîte à Reliques VIP",
+    "en": "VIP Relic Box",
+    "es": "Caja de Reliquias VIP",
+    "de": "VIP-Reliquienkiste",
+    "it": "Scatola Reliquie VIP",
+    "pt": "Caixa de Relíquias VIP",
+    "nl": "VIP Relikwie-doos",
+    "ja": "VIP遺物箱"
+  },
+  "shop.item.vip_relic_box.description": {
+    "fr": "Ouvre un coffre garantissant une relique Épique+ — VIP",
+    "en": "Opens a chest guaranteeing an Epic+ relic — VIP",
+    "es": "Abre un cofre que garantiza una reliquia Épica+ — VIP",
+    "de": "Öffnet eine Truhe mit garantiert epischer+ Reliquie — VIP",
+    "it": "Apre un forziere che garantisce una reliquia Epica+ — VIP",
+    "pt": "Abre um baú garantindo uma relíquia Épica+ — VIP",
+    "nl": "Opent een kist met gegarandeerd Episch+ relikwie — VIP",
+    "ja": "エピック以上確定の宝箱を開封 — VIP"
+  },
+  "shop.item.vip_rift_catalyst.name": {
+    "fr": "Catalyseur de Faille Majeur",
+    "en": "Major Rift Catalyst",
+    "es": "Catalizador de Grieta Mayor",
+    "de": "Großer Riss-Katalysator",
+    "it": "Catalizzatore di Fenditura Maggiore",
+    "pt": "Catalisador de Fenda Maior",
+    "nl": "Grote Kloofkatalysator",
+    "ja": "大亀裂の触媒"
+  },
+  "shop.item.vip_rift_catalyst.description": {
+    "fr": "Force l'apparition d'une faille de trésor — VIP",
+    "en": "Forces a treasure rift to appear — VIP",
+    "es": "Fuerza la aparición de una grieta de tesoro — VIP",
+    "de": "Erzwingt das Erscheinen eines Schatzrisses — VIP",
+    "it": "Forza l'apparizione di una fenditura del tesoro — VIP",
+    "pt": "Força o aparecimento de uma fenda de tesouro — VIP",
+    "nl": "Forceert het verschijnen van een schattenkloof — VIP",
+    "ja": "宝の亀裂の出現を強制 — VIP"
+  },
+  "shop.item.vip_scroll_mutation.name": {
+    "fr": "Grand Parchemin de Mutation",
+    "en": "Grand Mutation Scroll",
+    "es": "Gran Pergamino de Mutación",
+    "de": "Große Mutationsrolle",
+    "it": "Grande Pergamena della Mutazione",
+    "pt": "Grande Pergaminho de Mutação",
+    "nl": "Grote Mutatierol",
+    "ja": "大変異の巻物"
+  },
+  "shop.item.vip_scroll_mutation.description": {
+    "fr": "Crédite 5 changements de classe — exclusivité VIP",
+    "en": "Credits 5 class changes — VIP exclusivity",
+    "es": "Acredita 5 cambios de clase — exclusividad VIP",
+    "de": "Gewährt 5 Klassenwechsel — VIP-Exklusivität",
+    "it": "Accredita 5 cambi di classe — esclusività VIP",
+    "pt": "Credita 5 mudanças de classe — exclusividade VIP",
+    "nl": "Crediteert 5 klassewissels — VIP-exclusiviteit",
+    "ja": "クラス変更5回分 — VIP限定"
+  },
+  "shop.item.vip_tome_knowledge.name": {
+    "fr": "Tome de Connaissance",
+    "en": "Tome of Knowledge",
+    "es": "Tomo de Conocimiento",
+    "de": "Foliant des Wissens",
+    "it": "Tomo della Conoscenza",
+    "pt": "Tomo de Conhecimento",
+    "nl": "Tome der Kennis",
+    "ja": "知識の魔導書"
+  },
+  "shop.item.vip_tome_knowledge.description": {
+    "fr": "Octroie instantanément 5000 XP — exclusivité VIP",
+    "en": "Instantly grants 5000 XP — VIP exclusivity",
+    "es": "Otorga instantáneamente 5000 XP — exclusividad VIP",
+    "de": "Gewährt sofort 5000 XP — VIP-Exklusivität",
+    "it": "Conferisce istantaneamente 5000 XP — esclusività VIP",
+    "pt": "Concede instantaneamente 5000 XP — exclusividade VIP",
+    "nl": "Geeft direct 5000 XP — VIP-exclusiviteit",
+    "ja": "即座に5000 XP付与 — VIP限定"
+  },
+  "shop.item.vip_emblem_renown.name": {
+    "fr": "Emblème de Renom",
+    "en": "Emblem of Renown",
+    "es": "Emblema de Renombre",
+    "de": "Emblem des Ruhms",
+    "it": "Emblema del Renomo",
+    "pt": "Emblema de Renome",
+    "nl": "Embleem van Roem",
+    "ja": "名声の紋章"
+  },
+  "shop.item.vip_emblem_renown.description": {
+    "fr": "Octroie instantanément 800 points de réputation — VIP",
+    "en": "Instantly grants 800 reputation points — VIP",
+    "es": "Otorga instantáneamente 800 puntos de reputación — VIP",
+    "de": "Gewährt sofort 800 Reputationspunkte — VIP",
+    "it": "Conferisce istantaneamente 800 punti reputazione — VIP",
+    "pt": "Concede instantaneamente 800 pontos de reputação — VIP",
+    "nl": "Geeft direct 800 reputatiepunten — VIP",
+    "ja": "即座に評判800付与 — VIP"
+  },
+  "shop.item.vip_skill_codex.name": {
+    "fr": "Codex des Talents",
+    "en": "Talent Codex",
+    "es": "Códice de Talentos",
+    "de": "Talent-Kodex",
+    "it": "Codice dei Talenti",
+    "pt": "Códice de Talentos",
+    "nl": "Talenten Codex",
+    "ja": "才能の法典"
+  },
+  "shop.item.vip_skill_codex.description": {
+    "fr": "Octroie 3 points de compétence — exclusivité VIP",
+    "en": "Grants 3 skill points — VIP exclusivity",
+    "es": "Otorga 3 puntos de habilidad — exclusividad VIP",
+    "de": "Gewährt 3 Fertigkeitspunkte — VIP-Exklusivität",
+    "it": "Conferisce 3 punti abilità — esclusività VIP",
+    "pt": "Concede 3 pontos de habilidade — exclusividade VIP",
+    "nl": "Geeft 3 vaardigheidspunten — VIP-exclusiviteit",
+    "ja": "スキルポイント3付与 — VIP限定"
+  },
+  "shop.item.vip_scroll_rename.name": {
+    "fr": "Parchemin de Renommée Doré",
+    "en": "Golden Rename Scroll",
+    "es": "Pergamino de Renombre Dorado",
+    "de": "Goldene Umbenennungsrolle",
+    "it": "Pergamena del Rinnovo Dorata",
+    "pt": "Pergaminho de Renomeação Dourado",
+    "nl": "Gouden Hernoemingsrol",
+    "ja": "黄金の改名の巻物"
+  },
+  "shop.item.vip_scroll_rename.description": {
+    "fr": "Permet de changer votre pseudo (variante VIP)",
+    "en": "Allows you to change your username (VIP variant)",
+    "es": "Permite cambiar tu pseudo (variante VIP)",
+    "de": "Ermöglicht die Änderung deines Benutzernamens (VIP-Variante)",
+    "it": "Permette di cambiare il tuo nome utente (variante VIP)",
+    "pt": "Permite alterar o seu nome de usuário (variante VIP)",
+    "nl": "Maakt het wijzigen van je gebruikersnaam mogelijk (VIP-variant)",
+    "ja": "ユーザー名変更（VIP版）"
+  },
+  "shop.ecu_pack.ecus_1000": {
+    "fr": "Petite bourse",
+    "en": "Small Purse",
+    "es": "Bolsa Pequeña",
+    "de": "Kleiner Beutel",
+    "it": "Piccola Borsa",
+    "pt": "Bolsa Pequena",
+    "nl": "Klein Buurtje",
+    "ja": "小さな財布"
+  },
+  "shop.ecu_pack.ecus_2500": {
+    "fr": "Bourse du marchand",
+    "en": "Merchant's Purse",
+    "es": "Bolsa del Mercader",
+    "de": "Händlerbeutel",
+    "it": "Borsa del Mercante",
+    "pt": "Bolsa do Mercador",
+    "nl": "Koopmansbeurs",
+    "ja": "商人の財布"
+  },
+  "shop.ecu_pack.ecus_6000": {
+    "fr": "Coffre royal",
+    "en": "Royal Chest",
+    "es": "Cofre Real",
+    "de": "Königliche Truhe",
+    "it": "Forziere Reale",
+    "pt": "Baú Real",
+    "nl": "Koninklijke Kist",
+    "ja": "王家の宝箱"
+  },
+  "shop.ecu_pack.ecus_15000": {
+    "fr": "Trésor cosmique",
+    "en": "Cosmic Treasure",
+    "es": "Tesoro Cósmico",
+    "de": "Kosmischer Schatz",
+    "it": "Tesoro Cosmico",
+    "pt": "Tesouro Cósmico",
+    "nl": "Kosmische Schat",
+    "ja": "宇宙の財宝"
+  },
+  "title.sovereign_nexus": {
+    "fr": "Souverain du Nexus",
+    "en": "Sovereign of the Nexus",
+    "es": "Soberano del Nexus",
+    "de": "Souverän des Nexus",
+    "it": "Sovrano del Nexus",
+    "pt": "Soberano do Nexus",
+    "nl": "Soeverein van de Nexus",
+    "ja": "Nexusの支配者"
+  }
+}

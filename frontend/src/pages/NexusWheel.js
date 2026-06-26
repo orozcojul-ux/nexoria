@@ -5,6 +5,8 @@ import {
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
+import { translateWheelReward, translateWheelRewards } from "@/lib/translate-nexus-wheel";
 import { sfx } from "@/lib/sfx";
 import { PageShell, PremiumButton, PremiumCard, PremiumModal } from "@/components/ui-premium";
 import { usePageBanner } from "@/lib/page-banners";
@@ -48,6 +50,7 @@ function adjustHex(hex, factor) {
 }
 
 export default function NexusWheel() {
+  const { t, fmtDate } = useI18n();
   const banner = usePageBanner("nexusWheel");
   const { user, setUser } = useAuth();
   const [status, setStatus] = useState(null);
@@ -59,7 +62,8 @@ export default function NexusWheel() {
   const [showPopup, setShowPopup] = useState(false);
   const wheelRef = useRef(null);
 
-  const rewards = status?.rewards || [];
+  const rawRewards = status?.rewards || [];
+  const rewards = useMemo(() => translateWheelRewards(t, rawRewards), [t, rawRewards]);
   const segmentCount = rewards.length || 11;
   const segmentAngle = 360 / segmentCount;
 
@@ -72,11 +76,11 @@ export default function NexusWheel() {
       setStatus(statusRes.data);
       setHistory(Array.isArray(historyRes.data) ? historyRes.data : []);
     } catch {
-      toast.error("Impossible de charger la Roue du Nexus.");
+      toast.error(t("nexusWheel.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadData();
@@ -113,12 +117,12 @@ export default function NexusWheel() {
     if (!status) return "";
     if (status.canSpin) {
       if (status.isVip && spinsRemaining > 1) {
-        return `Le Nexus t'accorde ${spinsRemaining} chances aujourd'hui (VIP).`;
+        return t("nexusWheel.status.vipMulti", { count: spinsRemaining });
       }
-      return "Le Nexus t'accorde une chance aujourd'hui.";
+      return t("nexusWheel.status.daily");
     }
-    return `La Roue du Nexus se régénère dans ${formatCooldown(status.secondsRemaining)}.`;
-  }, [status, spinsRemaining]);
+    return t("nexusWheel.status.cooldown", { time: formatCooldown(status.secondsRemaining) });
+  }, [status, spinsRemaining, t]);
 
   const spinToSegment = useCallback((segmentIndex) => {
     const offset = segmentIndex * segmentAngle + segmentAngle / 2;
@@ -140,7 +144,7 @@ export default function NexusWheel() {
       spinToSegment(data.segmentIndex ?? data.reward?.segmentIndex ?? 0);
 
       window.setTimeout(() => {
-        setWonReward(data.reward);
+        setWonReward(translateWheelReward(t, data.reward));
         setShowPopup(true);
         setStatus((prev) => ({
           ...prev,
@@ -163,9 +167,9 @@ export default function NexusWheel() {
       const detail = err?.response?.data?.detail;
       if (detail?.code === "cooldown") {
         setStatus((prev) => ({ ...prev, ...detail }));
-        toast.info("La Roue du Nexus se régénère encore.");
+        toast.info(t("nexusWheel.toast.cooldown"));
       } else {
-        toast.error(typeof detail === "string" ? detail : "Le Nexus refuse ce tour pour l'instant.");
+        toast.error(typeof detail === "string" ? detail : t("nexusWheel.toast.refused"));
       }
     }
   };
@@ -198,17 +202,17 @@ export default function NexusWheel() {
               <p className="nw-status-msg">{statusMessage}</p>
               <div className="nw-status-meta">
                 {status?.isVip && (
-                  <span className="nw-vip-badge" data-testid="nexus-wheel-vip-badge">VIP · {dailyLimit} tours/jour</span>
+                  <span className="nw-vip-badge" data-testid="nexus-wheel-vip-badge">{t("nexusWheel.vipBadge", { count: dailyLimit })}</span>
                 )}
                 <div className="nw-ecus-pill" data-testid="nexus-wheel-ecus">
                   <Coins className="w-4 h-4 text-amber-300" />
-                  <span>{Number(ecus).toLocaleString("fr-FR")} Écus</span>
+                  <span>{Number(ecus).toLocaleString()} {t("common.aether")}</span>
                 </div>
               </div>
             </div>
             {canSpin && spinsRemaining > 0 && dailyLimit > 1 && (
               <p className="nw-spins-left" data-testid="nexus-wheel-spins-remaining">
-                {spinsRemaining} tour{spinsRemaining > 1 ? "s" : ""} restant{spinsRemaining > 1 ? "s" : ""}
+                {t("nexusWheel.spinsLeft", { count: spinsRemaining })}
               </p>
             )}
           </PremiumCard>
@@ -297,10 +301,10 @@ export default function NexusWheel() {
               {spinning ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Le Nexus tourne…
+                  {t("nexusWheel.spinning")}
                 </>
               ) : canSpin ? (
-                spinsRemaining > 1 ? `Lancer la roue (${spinsRemaining})` : "Lancer la roue"
+                spinsRemaining > 1 ? t("nexusWheel.spinBtnMulti", { count: spinsRemaining }) : t("nexusWheel.spinBtn")
               ) : (
                 <>
                   <Clock className="w-5 h-5" />
@@ -315,30 +319,23 @@ export default function NexusWheel() {
           <PremiumCard className="nw-history-card" testid="nexus-wheel-history">
             <div className="nw-side-title">
               <History className="w-4 h-4 text-cyan-300" />
-              <h2>Derniers gains</h2>
+              <h2>{t("nexusWheel.history.title")}</h2>
             </div>
             {loading ? (
-              <p className="nw-muted">Chargement…</p>
+              <p className="nw-muted">{t("nexusWheel.history.loading")}</p>
             ) : history.length === 0 ? (
-              <p className="nw-muted">Aucun tour enregistré. Le Nexus t'attend.</p>
+              <p className="nw-muted">{t("nexusWheel.history.empty")}</p>
             ) : (
               <ul className="nw-history-list">
                 {history.map((entry) => {
-                  const r = entry.reward || {};
+                  const r = translateWheelReward(t, entry.reward || {});
                   return (
                     <li key={entry.spin_id} className={`nw-history-item ${rarityClass(r.rarity)}`}>
                       <WheelIcon name={r.icon} className="w-4 h-4 shrink-0 opacity-80" />
                       <div className="min-w-0 flex-1">
                         <p className="nw-history-label">{r.label}</p>
                         <p className="nw-history-date">
-                          {entry.created_at
-                            ? new Date(entry.created_at).toLocaleString("fr-FR", {
-                                day: "2-digit",
-                                month: "short",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : ""}
+                          {entry.created_at ? fmtDate(entry.created_at, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
                         </p>
                       </div>
                     </li>
@@ -351,7 +348,7 @@ export default function NexusWheel() {
           <PremiumCard className="nw-rewards-card">
             <div className="nw-side-title">
               <Gift className="w-4 h-4 text-amber-300" />
-              <h2>Récompenses possibles</h2>
+              <h2>{t("nexusWheel.rewards.title")}</h2>
             </div>
             <ul className="nw-rewards-grid">
               {rewards.map((r) => (
@@ -368,13 +365,13 @@ export default function NexusWheel() {
       <PremiumModal
         open={showPopup && Boolean(wonReward)}
         onClose={() => setShowPopup(false)}
-        title="Récompense du Nexus"
+        title={t("nexusWheel.modal.title")}
         icon={Crown}
         maxWidth="max-w-md"
         testid="nexus-wheel-reward-modal"
         footer={(
           <PremiumButton variant="cyan" onClick={() => setShowPopup(false)} testid="nexus-wheel-reward-close">
-            Merci, Nexus
+            {t("nexusWheel.modal.thanks")}
           </PremiumButton>
         )}
       >
@@ -384,7 +381,7 @@ export default function NexusWheel() {
               <WheelIcon name={wonReward.icon} className="w-10 h-10" />
             </div>
             <p className="nw-reward-popup-title">
-              Le Nexus t'offre : {wonReward.label}.
+              {t("nexusWheel.modal.offer", { label: wonReward.label })}
             </p>
             <p className="nw-reward-popup-desc">
               {wonReward.flavor || wonReward.description}

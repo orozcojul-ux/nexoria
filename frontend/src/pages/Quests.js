@@ -11,6 +11,7 @@ import {
 } from "@/components/ui-premium";
 import { usePageBanner } from "@/lib/page-banners";
 import { useI18n } from "@/contexts/I18nContext";
+import { translateQuest } from "@/lib/translate-game";
 
 const TAB_KEYS = { daily: "quests.tab.daily", weekly: "quests.tab.weekly", monthly: "quests.tab.monthly" };
 
@@ -111,8 +112,9 @@ export default function Quests() {
           </PremiumCard>
         )}
         {filtered.map((q, i) => {
-          const displayProgress = q.completed ? q.target : q.progress;
-          const pct = Math.min(100, (displayProgress / q.target) * 100);
+          const dq = translateQuest(t, q);
+          const displayProgress = dq.completed ? dq.target : dq.progress;
+          const pct = Math.min(100, (displayProgress / dq.target) * 100);
           return (
             <motion.div
               key={q.user_id_quest_id}
@@ -121,30 +123,30 @@ export default function Quests() {
               transition={{ delay: i * 0.04 }}
             >
               <PremiumCard
-                tone={q.completed ? "cyan" : "gold"}
-                testid={`quest-${q.quest_id}`}
+                tone={dq.completed ? "cyan" : "gold"}
+                testid={`quest-${dq.quest_id}`}
                 className="relative overflow-hidden h-full"
               >
                 <div className="flex items-start gap-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${q.completed ? "bg-cyan-500/15" : "bg-amber-500/15"}`}>
-                    {q.completed ? <Check className="w-5 h-5 text-cyan-400" /> : <Feather className="w-5 h-5 text-amber-400" />}
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${dq.completed ? "bg-cyan-500/15" : "bg-amber-500/15"}`}>
+                    {dq.completed ? <Check className="w-5 h-5 text-cyan-400" /> : <Feather className="w-5 h-5 text-amber-400" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-display font-bold text-base text-white">{q.name}</div>
-                    <div className="text-xs text-zinc-500 mt-1 leading-relaxed">{q.description}</div>
+                    <div className="font-display font-bold text-base text-white">{dq.name}</div>
+                    <div className="text-xs text-zinc-500 mt-1 leading-relaxed">{dq.description}</div>
                     <div className="mt-3 flex justify-between text-[10px] font-mono-stat uppercase tracking-wider text-zinc-500">
                       <span>{t("quests.progress")}</span>
                       <span className="text-cyan-300">{displayProgress}/{q.target}</span>
                     </div>
                     <div className="h-1.5 bg-black/40 rounded-full overflow-hidden mt-1">
                       <div
-                        className={`h-full ${q.completed ? "bg-gradient-to-r from-emerald-500 to-cyan-400" : "bg-gradient-to-r from-amber-600 to-amber-400"}`}
+                        className={`h-full ${dq.completed ? "bg-gradient-to-r from-emerald-500 to-cyan-400" : "bg-gradient-to-r from-amber-600 to-amber-400"}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
                     <div className="mt-2 flex gap-3 text-[11px] font-mono-stat">
-                      <span className="text-cyan-300 flex items-center gap-1"><Sparkles className="w-3 h-3" />+{q.xp} XP</span>
-                      <span className="text-yellow-400 flex items-center gap-1"><Coins className="w-3 h-3" />+{q.aether}</span>
+                      <span className="text-cyan-300 flex items-center gap-1"><Sparkles className="w-3 h-3" />+{dq.xp} XP</span>
+                      <span className="text-yellow-400 flex items-center gap-1"><Coins className="w-3 h-3" />+{dq.aether}</span>
                     </div>
                   </div>
                 </div>

@@ -1,10 +1,6 @@
-/** Helper: FR + EN required; other langs fall back to EN unless provided */
+/** Helper: FR + EN required; other langs only when explicitly passed in x */
 export function T(fr, en, x = {}) {
-  return {
-    fr, en,
-    es: x.es || en, de: x.de || en, it: x.it || en,
-    pt: x.pt || en, nl: x.nl || en, ja: x.ja || en,
-  };
+  return { fr, en, ...x };
 }
 
 export const TRANSLATIONS = {

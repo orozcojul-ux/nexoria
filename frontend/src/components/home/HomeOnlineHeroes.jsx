@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Users } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
-import HeroName from "@/components/HeroName";
+import { translateClassName } from "@/lib/translate-class";
 import HeroCardOpener from "@/components/HeroCardOpener";
 import { getStaffVisuals, groupOnlineHeroes, EMPTY_ONLINE_HEROES } from "@/lib/staff-roles";
 import api from "@/lib/api";
@@ -50,7 +50,7 @@ export default function HomeOnlineHeroes() {
   return (
     <div className="feed-col-widget" data-testid="home-online-heroes">
       <HomePanel
-        label="Héros connectés au Royaume"
+        label={t("feed.online_heroes")}
         color="var(--home-cyan)"
         icon={Users}
         count={total}
@@ -58,7 +58,7 @@ export default function HomeOnlineHeroes() {
       >
         {total === 0 ? (
           <div className="feed-empty feed-empty--compact">
-            Aucun héros dans le Nexus Online pour le moment.
+            {t("feed.online_heroes_empty")}
           </div>
         ) : (
           <div className="feed-staff-groups">
@@ -90,8 +90,8 @@ export default function HomeOnlineHeroes() {
                             <HeroName user={p} size="sm" showIcon nameColor={staff?.color || null} />
                           </div>
                           <div className="feed-staff-sub">
-                            {p.class_name || "Héros"}
-                            {p.level ? ` · Niv.${p.level}` : ""}
+                            {translateClassName(t, p.class_name)}
+                            {p.level ? ` · ${t("feed.level_short")}${p.level}` : ""}
                             {p.room ? ` · ${p.room}` : ""}
                           </div>
                         </div>

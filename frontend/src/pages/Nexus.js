@@ -6,6 +6,7 @@ import { PageShell, PremiumCard, PremiumStat, PremiumButton } from "@/components
 import StaffOnlinePanel from "@/components/StaffOnlinePanel";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import { usePageBanner } from "@/lib/page-banners";
+import { useI18n } from "@/contexts/I18nContext";
 import { resolveOnlineClosedText } from "@/lib/online-gate-content";
 import { EMPTY_STAFF_ONLINE } from "@/lib/staff-roles";
 
@@ -13,6 +14,7 @@ import { EMPTY_STAFF_ONLINE } from "@/lib/staff-roles";
  * Route /nexus — ouvre automatiquement l'overlay du monde isométrique.
  */
 export default function Nexus() {
+  const { t } = useI18n();
   const banner = usePageBanner("nexus");
   const ns = useNexusSocket();
   const { openNexus, status, presence = {}, nexusGate = {} } = ns || {};
@@ -38,6 +40,20 @@ export default function Nexus() {
   const staffOnline = presence?.staff_online ?? polledStaff;
   const enterNexus = () => openNexus?.();
 
+  const statusLabel = closed
+    ? t("nexusOnline.closed")
+    : status === "online"
+      ? t("leaderboards.live")
+      : "—";
+
+  const connectionHint = status === "online"
+    ? t("nexusOnline.connected")
+    : status === "connecting"
+      ? t("nexusOnline.connectingShort")
+      : status === "error"
+        ? t("nexusOnline.serverError")
+        : t("nexusOnline.offline");
+
   return (
     <PageShell
       testid="nexus-page"
@@ -50,30 +66,30 @@ export default function Nexus() {
           <h2 className="font-display text-xl text-zinc-100">{closedText?.title_line1}</h2>
           <p className="text-sm text-zinc-400">{closedText?.body}</p>
           {closedText?.body_sub && <p className="text-xs text-zinc-500">{closedText.body_sub}</p>}
-          <p className="text-xs text-cyan-400/80 pt-2">Le reste du site reste accessible — feed, forum, boutique, etc.</p>
+          <p className="text-xs text-cyan-400/80 pt-2">{t("nexusOnline.siteAccessible")}</p>
         </PremiumCard>
       ) : (
         <div className="text-center">
           <motion.div whileHover={{ scale: 1.02 }} className="inline-block mt-2">
             <PremiumButton variant="cyan" size="lg" icon={status === "connecting" ? Loader2 : Globe2} onClick={enterNexus} testid="nexus-enter-button">
-              {status === "connecting" ? "Connexion au Nexus…" : "Entrer dans le Nexus"} <ArrowRight className="w-5 h-5" />
+              {status === "connecting" ? t("nexusOnline.connecting") : t("nexusOnline.enter")} <ArrowRight className="w-5 h-5" />
             </PremiumButton>
           </motion.div>
           <div className="mt-4 inline-flex items-center gap-2 text-xs text-zinc-400 justify-center">
             <Wifi className={`w-3 h-3 ${status === "online" ? "text-green-400" : "text-zinc-500"}`} />
-            {status === "online" ? "Connecté au royaume" : status === "connecting" ? "Connexion..." : status === "error" ? "Serveur inaccessible — vérifiez que le backend tourne sur :8000" : "Hors ligne"}
+            {connectionHint}
           </div>
         </div>
       )}
 
       <div className="grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
         <StaffOnlinePanel staffOnline={staffOnline} closed={closed} compact testid="nexus-staff-online" />
-        <PremiumStat icon={Globe2} label="Salles actives" value={closed ? "—" : (presence.active_rooms || 0)} tone="violet" />
-        <PremiumStat icon={Globe2} label="Statut" value={closed ? "Fermé" : status === "online" ? "Live" : "—"} tone="emerald" />
+        <PremiumStat icon={Globe2} label={t("nexusOnline.activeRooms")} value={closed ? "—" : (presence.active_rooms || 0)} tone="violet" />
+        <PremiumStat icon={Globe2} label={t("nexusOnline.status")} value={statusLabel} tone="emerald" />
       </div>
 
       <PremiumCard tone="violet" className="max-w-xl mx-auto text-center text-sm text-zinc-400">
-        Le monde isométrique s&apos;ouvre en plein écran lors des événements. Le serveur Nexus n&apos;est pas ouvert en permanence.
+        {t("nexusOnline.isometricNote")}
       </PremiumCard>
     </PageShell>
   );

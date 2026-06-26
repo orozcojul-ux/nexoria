@@ -19,6 +19,7 @@ const BANNER_KEYS = {
   kingdom: { kicker: "page.kingdom.kicker", title: "page.kingdom.title", subtitle: "page.kingdom.subtitle", pixelTheme: "emerald" },
   skills: { kicker: "page.skills.kicker", title: "page.skills.title", subtitle: "page.skills.subtitle", pixelTheme: "violet" },
   leaderboards: { kicker: "page.leaderboards.kicker", title: "page.leaderboards.title", subtitle: "page.leaderboards.subtitle", pixelTheme: "gold" },
+  community: { kicker: "community.kicker", title: "community.title", subtitle: "community.subtitle", pixelTheme: "violet" },
   legends: { kicker: "page.legends.kicker", title: "page.legends.title", subtitle: "page.legends.subtitle", pixelTheme: "gold" },
   world: { kicker: "page.world.kicker", title: "page.world.title", subtitle: "page.world.subtitle", pixelTheme: "cyan" },
   settings: { kicker: "page.settings.kicker", title: "settings.title", subtitle: "settings.preferences", pixelTheme: "cyan" },

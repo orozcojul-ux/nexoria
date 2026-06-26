@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import * as Lucide from "lucide-react";
 import { Network, Star } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
+import { translateApiError } from "@/lib/i18n-api";
 import { sfx } from "@/lib/sfx";
 import {
   PageShell,
@@ -12,8 +14,10 @@ import {
   PremiumCard,
 } from "@/components/ui-premium";
 import { usePageBanner } from "@/lib/page-banners";
+import { translateSkill } from "@/lib/translate-game";
 
 export default function SkillTree() {
+  const { t } = useI18n();
   const { user, refresh } = useAuth();
   const banner = usePageBanner("skills");
   const [skills, setSkills] = useState([]);
@@ -22,21 +26,26 @@ export default function SkillTree() {
     api.get("/game/skills").then((r) => setSkills(r.data));
   }, []);
 
+  const localizedSkills = useMemo(
+    () => skills.map((s) => translateSkill(t, s)),
+    [skills, t],
+  );
+
   if (!user) return null;
 
   const allocated = user.skills_allocated || {};
   const allocate = async (skillId) => {
     if ((user.skill_points || 0) <= 0) {
-      toast.error("Aucune étoile à allumer. Montez en niveau...");
+      toast.error(t("skills.noPoints"));
       return;
     }
     try {
       await api.post("/skills/allocate", { skill_id: skillId });
       sfx.success();
-      toast.success("Une étoile s'éveille dans votre constellation");
+      toast.success(t("skills.allocated"));
       await refresh();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Erreur");
+      toast.error(translateApiError(t, e, "errors.generic"));
     }
   };
 
@@ -46,11 +55,10 @@ export default function SkillTree() {
       banner={banner}
     >
       <div className="flex justify-center mb-6">
-        <PremiumStat icon={Star} label="Étoiles à allumer" value={user.skill_points || 0} tone="violet" testid="skill-points" />
+        <PremiumStat icon={Star} label={t("skills.starsToLight")} value={user.skill_points || 0} tone="violet" testid="skill-points" />
       </div>
 
       <div className="relative min-h-[500px]">
-        {/* Constellation lines */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 800 600">
           <defs>
             <linearGradient id="skillLine" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -70,7 +78,6 @@ export default function SkillTree() {
             const cy = 300 + Math.sin(rad) * 220;
             return <line key={i} x1="400" y1="300" x2={cx} y2={cy} stroke="url(#skillLine)" strokeWidth="1.5" strokeDasharray="4 4" className="constellation-line" />;
           })}
-          {/* Outer connecting arcs */}
           {skills.map((_, i) => {
             const a1 = (i * 360) / skills.length - 90;
             const a2 = ((i + 1) * 360) / skills.length - 90;
@@ -85,13 +92,12 @@ export default function SkillTree() {
         </svg>
 
         <div className="relative grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-          {/* Center anchor */}
           <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full bg-gradient-to-br from-violet-500/20 to-cyan-500/20 border-2 border-cyan-500/40 items-center justify-center flex-col z-10 backdrop-blur-md animate-glow">
             <Network className="w-7 h-7 text-cyan-400 drop-shadow-[0_0_10px_rgba(0,229,255,0.9)]" />
-            <div className="text-[9px] uppercase tracking-[0.3em] text-cyan-400 font-bold mt-1">Cœur</div>
+            <div className="text-[9px] uppercase tracking-[0.3em] text-cyan-400 font-bold mt-1">{t("skills.heart")}</div>
           </div>
 
-          {skills.map((s, i) => {
+          {localizedSkills.map((s, i) => {
             const I = Lucide[s.icon] || Lucide.Star;
             const lvl = allocated[s.id] || 0;
             const canAllocate = (user.skill_points || 0) > 0;
@@ -108,7 +114,6 @@ export default function SkillTree() {
                 data-testid={`skill-${s.id}`}
               >
               <PremiumCard tone="violet" hover={canAllocate} className={!canAllocate ? "opacity-90" : ""}>
-                {/* Hexagonal etheric symbol */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="relative w-14 h-14">
                     <svg viewBox="0 0 40 40" className="absolute inset-0">
@@ -120,14 +125,14 @@ export default function SkillTree() {
                   </div>
                   <div className="text-right">
                     <div className="font-mono-stat text-2xl font-bold leading-none" style={{ color: s.color }}>{lvl}</div>
-                    <div className="text-[8px] uppercase tracking-[0.3em] text-zinc-500 font-bold mt-1">Étoiles</div>
+                    <div className="text-[8px] uppercase tracking-[0.3em] text-zinc-500 font-bold mt-1">{t("skills.stars")}</div>
                   </div>
                 </div>
                 <div className="font-display font-bold text-base mb-1 tracking-wide">{s.name}</div>
                 <div className="text-xs text-zinc-400 leading-snug italic">{s.description}</div>
                 {canAllocate && (
                   <div className="mt-3 text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                    + Allumer une étoile
+                    {t("skills.lightStar")}
                   </div>
                 )}
               </PremiumCard>

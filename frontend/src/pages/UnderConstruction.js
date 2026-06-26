@@ -2,8 +2,10 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Hammer, ArrowLeft } from "lucide-react";
 import { PageShell, PremiumCard, PremiumButton } from "@/components/ui-premium";
+import { useI18n } from "@/contexts/I18nContext";
 
 export default function UnderConstruction({ title }) {
+  const { t } = useI18n();
   return (
     <PageShell testid="under-construction-page">
       <PremiumCard tone="violet" className="text-center">
@@ -15,15 +17,14 @@ export default function UnderConstruction({ title }) {
             <Hammer className="w-9 h-9 text-amber-300" />
           </div>
           <h1 className="font-display font-black text-2xl sm:text-3xl text-white">
-            {title || "Page en cours de construction"}
+            {title || t("underConstruction.title")}
           </h1>
           <p className="text-zinc-400 max-w-md leading-relaxed">
-            Cette section n'est pas encore disponible. Nos artisans forgent encore
-            cette partie du royaume — reviens bientôt&nbsp;!
+            {t("underConstruction.body")}
           </p>
           <Link to="/">
             <PremiumButton variant="violet" icon={ArrowLeft} testid="under-construction-back">
-              Retour à l'accueil
+              {t("underConstruction.back")}
             </PremiumButton>
           </Link>
         </div>

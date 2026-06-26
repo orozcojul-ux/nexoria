@@ -204,6 +204,7 @@ export default function Admin() {
   const MAINTENANCE_SYSTEM_KEYS = [
     { key: "database", label: "Base de données", defaultProgress: 50 },
     { key: "site", label: "Site", defaultProgress: 30 },
+    { key: "international", label: "Mode international (traduction)", defaultProgress: 85 },
     { key: "server", label: "Serveur Online", defaultProgress: 10 },
   ];
 

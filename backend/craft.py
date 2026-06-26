@@ -402,7 +402,17 @@ async def execute_craft(db, user_id: str, recipe_id: str) -> dict:
             await give_relic(user_id, result_item)
         add_chronicle = _hooks.get("add_chronicle")
         if add_chronicle:
-            await add_chronicle(user_id, f"A forgé « {result_item.get('name', recipe['name'])} » à la Forge du Nexus", "craft")
+            item_name = result_item.get("name", recipe["name"])
+            await add_chronicle(
+                user_id,
+                f"A forgé « {item_name} » à la Forge du Nexus",
+                "craft",
+                i18n_key="chronicle.craft.success",
+                i18n_params={
+                    "item_id": result_item.get("id") or recipe.get("id"),
+                    "item": item_name,
+                },
+            )
         logger.info("craft success user=%s recipe=%s", user_id, recipe_id)
     else:
         comp_id = FAIL_COMPENSATION["resource_id"]

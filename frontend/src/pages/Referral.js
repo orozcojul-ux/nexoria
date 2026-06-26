@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { PageShell, PremiumCard, PremiumButton } from "@/components/ui-premium";
 import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
+import { useI18n } from "@/contexts/I18nContext";
 
 const MILESTONE_ICONS = {
   1: Coins,
@@ -13,6 +14,7 @@ const MILESTONE_ICONS = {
 };
 
 export default function Referral() {
+  const { t } = useI18n();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -33,10 +35,10 @@ export default function Referral() {
       await navigator.clipboard.writeText(data.link);
       setCopied(true);
       sfx.click?.();
-      toast.success("Lien de parrainage copié !");
+      toast.success(t("referral.linkCopied"));
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Impossible de copier le lien");
+      toast.error(t("referral.copyFailed"));
     }
   };
 
@@ -54,21 +56,21 @@ export default function Referral() {
             <Gift className="w-7 h-7 text-violet-300" />
           </div>
           <div>
-            <h1 className="font-display font-black text-2xl sm:text-3xl text-white">Parrainage</h1>
+            <h1 className="font-display font-black text-2xl sm:text-3xl text-white">{t("referral.title")}</h1>
             <p className="text-sm text-zinc-400">
-              Invite des héros à rejoindre NEXORIA et débloque des récompenses exclusives.
+              {t("referral.subtitle")}
             </p>
           </div>
         </div>
 
         <div className="rounded-xl border border-white/10 bg-black/30 p-4 mb-6">
           <div className="text-[10px] uppercase tracking-[0.3em] text-violet-300 font-bold mb-2">
-            Ton lien de parrainage
+            {t("referral.yourLink")}
           </div>
           <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
             <input
               readOnly
-              value={loading ? "Chargement…" : data?.link || ""}
+              value={loading ? t("common.loading") : data?.link || ""}
               onFocus={(e) => e.target.select()}
               className="flex-1 bg-[#0A0613] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-zinc-200 font-mono-stat focus:outline-none focus:border-violet-500/50"
               data-testid="referral-link"
@@ -79,12 +81,12 @@ export default function Referral() {
               onClick={copyLink}
               testid="referral-copy"
             >
-              {copied ? "Copié" : "Copier"}
+              {copied ? t("referral.copied") : t("referral.copy")}
             </PremiumButton>
           </div>
           {data?.code && (
             <div className="text-xs text-zinc-500 mt-2">
-              Code : <span className="text-zinc-300 font-mono-stat">{data.code}</span>
+              {t("referral.code")} : <span className="text-zinc-300 font-mono-stat">{data.code}</span>
             </div>
           )}
         </div>
@@ -92,7 +94,7 @@ export default function Referral() {
         <div className="flex items-center gap-3 mb-4">
           <Users className="w-5 h-5 text-cyan-300" />
           <div className="text-sm text-zinc-300">
-            Héros parrainés : <span className="font-display font-bold text-cyan-200">{count}</span>
+            {t("referral.heroesReferred")} : <span className="font-display font-bold text-cyan-200">{count}</span>
           </div>
         </div>
 
@@ -124,14 +126,14 @@ export default function Referral() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-display font-bold text-sm text-white">
-                    Invite {m.threshold} {m.threshold > 1 ? "amis" : "ami"}
+                    {t("referral.inviteFriends", { count: m.threshold })}
                   </div>
-                  <div className="text-xs text-zinc-400">{m.label}</div>
+                  <div className="text-xs text-zinc-400">{t(`referral.milestone.${m.threshold}`, m.label)}</div>
                 </div>
                 <div className="text-xs font-bold shrink-0">
                   {m.claimed ? (
                     <span className="text-emerald-300 flex items-center gap-1">
-                      <Check className="w-3.5 h-3.5" /> Obtenu
+                      <Check className="w-3.5 h-3.5" /> {t("referral.obtained")}
                     </span>
                   ) : (
                     <span className="text-zinc-500">{count}/{m.threshold}</span>

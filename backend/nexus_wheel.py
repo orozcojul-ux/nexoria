@@ -192,7 +192,13 @@ async def apply_wheel_reward(db, user_id: str, reward: dict, helpers: dict) -> d
         applied["details"] = {"flavor": reward.get("flavor") or reward.get("description")}
 
     try:
-        await add_chronicle(user_id, f"Roue du Nexus : {reward['label']}", "wheel")
+        await add_chronicle(
+            user_id,
+            f"Roue du Nexus : {reward['label']}",
+            "wheel",
+            i18n_key="chronicle.wheel.reward",
+            i18n_params={"reward": reward["label"]},
+        )
         await push_wallet(user_id)
         if rtype in ("resource", "chest"):
             await push_inventory(user_id, "nexus_wheel", {"reward_id": reward["id"]})
