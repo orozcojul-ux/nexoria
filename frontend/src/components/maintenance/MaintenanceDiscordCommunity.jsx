@@ -1,5 +1,7 @@
 import React from "react";
-import { FlaskConical, Megaphone, KeyRound } from "lucide-react";
+import {
+  FlaskConical, Megaphone, KeyRound, Users, Hash, Sparkles, MessageCircle,
+} from "lucide-react";
 import { useI18n } from "@/i18n/LanguageProvider";
 
 const DISCORD_URL = process.env.REACT_APP_DISCORD_URL || "https://discord.gg/RC5QjcWDCH";
@@ -26,6 +28,17 @@ export default function MaintenanceDiscordCommunity() {
         <p className="maint-discord-lead">{t("maintenance.discord.lead")}</p>
       </div>
 
+      <p className="maint-discord-body">{t("maintenance.discord.body")}</p>
+
+      <div className="maint-discord-steps">
+        <p className="maint-discord-steps-title">{t("maintenance.discord.steps.title")}</p>
+        <ol className="maint-discord-steps-list">
+          <li>{t("maintenance.discord.step1")}</li>
+          <li>{t("maintenance.discord.step2")}</li>
+          <li>{t("maintenance.discord.step3")}</li>
+        </ol>
+      </div>
+
       <p className="maint-discord-beta-note">
         {t("maintenance.discord.beta_note_before")}
         <strong>{t("maintenance.discord.beta_note_strong")}</strong>
@@ -36,7 +49,13 @@ export default function MaintenanceDiscordCommunity() {
         <li><FlaskConical strokeWidth={1.75} /> {t("maintenance.discord.perk.beta")}</li>
         <li><Megaphone strokeWidth={1.75} /> {t("maintenance.discord.perk.announcements")}</li>
         <li><KeyRound strokeWidth={1.75} /> {t("maintenance.discord.perk.key")}</li>
+        <li><Hash strokeWidth={1.75} /> {t("maintenance.discord.perk.channels")}</li>
+        <li><Users strokeWidth={1.75} /> {t("maintenance.discord.perk.community")}</li>
+        <li><MessageCircle strokeWidth={1.75} /> {t("maintenance.discord.perk.support")}</li>
+        <li><Sparkles strokeWidth={1.75} /> {t("maintenance.discord.perk.events")}</li>
       </ul>
+
+      <p className="maint-discord-footer">{t("maintenance.discord.footer")}</p>
 
       <a
         href={DISCORD_URL}

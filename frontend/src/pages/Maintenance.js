@@ -1,15 +1,13 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
-import {
-  Database, Globe, Crosshair, Languages,
-} from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/i18n/LanguageProvider";
 import MaintenanceBootShell from "@/components/maintenance/MaintenanceBootShell";
 import MaintenanceBrand from "@/components/maintenance/MaintenanceBrand";
-import MaintenanceGlobalProgress from "@/components/maintenance/MaintenanceGlobalProgress";
+import MaintenanceSystemsStatusPanel from "@/components/maintenance/MaintenanceSystemsStatusPanel";
+import MaintenanceRecentHeroes from "@/components/maintenance/MaintenanceRecentHeroes";
 import MaintenanceDiscordCommunity from "@/components/maintenance/MaintenanceDiscordCommunity";
 import MaintenanceStaffGate from "@/components/maintenance/MaintenanceStaffGate";
 import MaintenanceAnticipationPanel from "@/components/maintenance/MaintenanceAnticipationPanel";
@@ -17,59 +15,11 @@ import MaintenanceCountdown from "@/components/maintenance/MaintenanceCountdown"
 import MaintenanceLanguageSelector from "@/components/maintenance/MaintenanceLanguageSelector";
 import { normalizeMaintenanceSystems } from "@/lib/maintenance-content";
 import { resolveMaintenanceTextI18n, resolveMaintenanceSystemsI18n } from "@/lib/maintenance-i18n";
-import { stripHtml } from "@/lib/stripHtml";
 import "@/pages/Maintenance.css";
 
 const BG_URL = `${process.env.PUBLIC_URL || ""}/maintenance-bg.jpg`;
 
-const SYSTEM_ORDER = ["database", "site", "international", "server"];
-const SYSTEM_ICONS = { database: Database, site: Globe, international: Languages, server: Crosshair };
-
 const DEFAULT_SYSTEMS = normalizeMaintenanceSystems();
-
-function OrnatePanel({ title, children, className = "" }) {
-  return (
-    <div className={`maint-panel ${className}`}>
-      {title && <h2 className="maint-panel-title">{title}</h2>}
-      {children}
-    </div>
-  );
-}
-
-function SystemsPanel({ systems, title }) {
-  return (
-    <OrnatePanel title={title}>
-      <ul className="maint-systems-list" data-testid="maintenance-systems">
-        {SYSTEM_ORDER.map((key) => {
-          const sys = systems[key];
-          if (!sys) return null;
-          const Icon = SYSTEM_ICONS[key];
-          const progress = Math.max(0, Math.min(100, Number(sys.progress) || 0));
-          const label = stripHtml(sys.label) || sys.label;
-
-          return (
-            <li key={key} className="maint-system-item">
-              <div className="maint-system-head">
-                <Icon className="maint-system-icon" strokeWidth={1.75} />
-                <span className="maint-system-label">{label}</span>
-                <span className="maint-system-pct">{progress}%</span>
-                <span className="maint-system-dot" aria-hidden />
-              </div>
-              <div className="maint-system-bar" aria-hidden>
-                <motion.div
-                  className="maint-system-bar-fill"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                  transition={{ duration: 1.2, ease: "easeOut" }}
-                />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </OrnatePanel>
-  );
-}
 
 export default function Maintenance() {
   const navigate = useNavigate();
@@ -162,17 +112,21 @@ export default function Maintenance() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.15, duration: 0.5 }}
         >
-          <div className="maint-panels-row">
-            <div className="maint-panels-col maint-panels-col--status">
-              <SystemsPanel systems={systems} title={t("maintenance.systems.title")} />
-              <MaintenanceGlobalProgress
+          <div className="maint-panels-grid">
+            <div className="maint-grid-cell maint-grid-cell--systems">
+              <MaintenanceSystemsStatusPanel
                 systems={systems}
                 updatedAt={statusData?.updated_at}
                 subtitle={statusData?.subtitle}
               />
             </div>
-            <div className="maint-panels-col maint-panels-col--signup">
+            <div className="maint-grid-cell maint-grid-cell--signup">
               <MaintenanceAnticipationPanel />
+            </div>
+            <div className="maint-grid-cell maint-grid-cell--heroes">
+              <MaintenanceRecentHeroes />
+            </div>
+            <div className="maint-grid-cell maint-grid-cell--discord">
               <MaintenanceDiscordCommunity />
             </div>
           </div>

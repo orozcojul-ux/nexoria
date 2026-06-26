@@ -128,6 +128,7 @@ MAINTENANCE_PUBLIC_PATHS = frozenset({
     "/api/auth/maintenance-discord-register",
     "/api/auth/maintenance-discord-beta",
     "/api/auth/check-availability",
+    "/api/maintenance/recent-heroes",
     "/api/webhooks/stripe",  # Stripe calls this server-to-server (no session)
     "/api/discord/interactions",  # Discord Interactions (translation flags)
 })
@@ -366,19 +367,17 @@ def enforce_ban_or_raise(user: dict):
     """Raise 403 if user is currently banned. Use this on login/oauth endpoints
     (which don't go through get_user_dep). Auto-clears expired bans is handled
     elsewhere — here we only block fresh bans."""
-    banned_until = user.get("banned_until")
-    if not banned_until:
-        return
-    if isinstance(banned_until, str):
-        try:
-            bu = datetime.fromisoformat(banned_until)
-        except ValueError:
-            return
-    else:
-        bu = banned_until
-    if bu.tzinfo is None:
-        bu = bu.replace(tzinfo=timezone.utc)
-    if bu > datetime.now(timezone.utc):
+    if _user_is_banned(user):
+        banned_until = user.get("banned_until")
+        if isinstance(banned_until, str):
+            try:
+                bu = datetime.fromisoformat(banned_until)
+            except ValueError:
+                bu = now_utc()
+        else:
+            bu = banned_until
+        if bu.tzinfo is None:
+            bu = bu.replace(tzinfo=timezone.utc)
         raise HTTPException(
             status_code=403,
             detail={
@@ -387,6 +386,22 @@ def enforce_ban_or_raise(user: dict):
                 "until": bu.isoformat(),
             },
         )
+
+
+def _user_is_banned(user: dict) -> bool:
+    banned_until = user.get("banned_until")
+    if not banned_until:
+        return False
+    if isinstance(banned_until, str):
+        try:
+            bu = datetime.fromisoformat(banned_until)
+        except ValueError:
+            return False
+    else:
+        bu = banned_until
+    if bu.tzinfo is None:
+        bu = bu.replace(tzinfo=timezone.utc)
+    return bu > now_utc()
 
 
 async def get_admin_dep(request: Request):
@@ -4338,6 +4353,40 @@ async def maintenance_full_status(request: Request):
         "soft_mode": MAINTENANCE_SOFT_MODE,
         "block_public": MAINTENANCE_BLOCK_PUBLIC,
     }
+
+
+@api.get("/maintenance/recent-heroes")
+async def maintenance_recent_heroes(limit: int = 6):
+    """Public — derniers comptes inscrits (page maintenance)."""
+    cap = max(1, min(12, int(limit or 6)))
+    rows = await db.users.find(
+        {},
+        {"_id": 0, "password_hash": 0, "email": 0},
+    ).sort("created_at", -1).limit(cap * 4).to_list(cap * 4)
+
+    heroes = []
+    for raw in rows:
+        if _user_is_banned(raw):
+            continue
+        pub = public_user(raw)
+        cls = CLASSES.get(pub.get("class_id") or "explorer", {})
+        heroes.append({
+            "user_id": pub.get("user_id"),
+            "username": pub.get("username"),
+            "class_id": pub.get("class_id"),
+            "class_name": pub.get("class_name"),
+            "class_color": cls.get("color", "#9CA3AF"),
+            "level": pub.get("level", 1),
+            "xp": pub.get("xp", 0),
+            "rank": pub.get("rank"),
+            "is_vip": bool(pub.get("is_vip")),
+            "role": pub.get("role"),
+            "created_at": pub.get("created_at"),
+            "avatar_url": pub.get("avatar_url"),
+        })
+        if len(heroes) >= cap:
+            break
+    return {"heroes": heroes}
 
 
 @api.post("/maintenance/beta")
