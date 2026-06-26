@@ -82,9 +82,32 @@ https://nexoria-game.fr/uploads/profiles/<user_id>_<uuid>.jpg
 ## Test production
 
 1. Importer une photo de profil sur https://nexoria-game.fr
-2. Vérifier l'URL dans la réponse réseau (`avatar_url` / `avatarUrl`)
+2. Vérifier l'URL dans la réponse réseau (`avatar_url` / `avatarUrl`) — doit être `/uploads/profiles/...`
 3. Ouvrir l'URL `/uploads/profiles/...` directement dans un nouvel onglet
 4. Rafraîchir la page profil — la photo doit rester visible
+
+## Dépannage — upload OK mais image invisible
+
+1. **Nginx** : vérifier que `location /uploads/` existe **avant** `location /` (sinon React renvoie `index.html`).
+2. **Dossier** : le fichier doit exister dans `/var/www/nexoria/uploads/profiles/` sur le VPS.
+3. **Variable** : `NEXORIA_UPLOAD_DIR=/var/www/nexoria/uploads` dans le service systemd du backend.
+4. **Permissions** : l'utilisateur du service backend doit pouvoir écrire dans `/var/www/nexoria/uploads/`.
+5. **URL en base** : ne doit jamais contenir `localhost`, `/var/www/` ou `backend/uploads/`.
+
+## Migration des anciennes URLs en base
+
+Dry-run (affiche les corrections sans écrire) :
+
+```bash
+cd /var/www/nexoria/backend
+python scripts/normalize_avatar_urls.py
+```
+
+Appliquer :
+
+```bash
+python scripts/normalize_avatar_urls.py --apply
+```
 
 ## Test local
 

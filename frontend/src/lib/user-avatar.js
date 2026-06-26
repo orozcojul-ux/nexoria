@@ -9,17 +9,50 @@ function isSameOriginStaticPath(url) {
   return url.startsWith("/uploads/") || url.startsWith("/assets/");
 }
 
+/**
+ * Normalise une URL stockée en base (chemins VPS, localhost, slash manquant).
+ * Exporté pour les tests et usages ponctuels.
+ */
+export function normalizeStoredMediaUrl(url) {
+  if (!url || typeof url !== "string") return url;
+  let s = url.trim().replace(/\\/g, "/");
+  if (!s) return s;
+
+  const lower = s.toLowerCase();
+  const marker = "/uploads/";
+  const idx = lower.indexOf(marker);
+  if (idx >= 0) {
+    s = s.slice(idx);
+  } else if (lower.startsWith("uploads/")) {
+    s = `/${s}`;
+  }
+
+  s = s.split("?", 1)[0];
+
+  if (/^https?:\/\//i.test(s) && /localhost|127\.0\.0\.1/i.test(s)) {
+    try {
+      const path = new URL(s).pathname;
+      if (path.startsWith("/uploads/") || path.startsWith("/assets/")) return path;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return s;
+}
+
 /** Nettoie une URL absolue localhost accidentellement stockée en base. */
 function sanitizeStoredAbsoluteUrl(url) {
-  if (process.env.NODE_ENV !== "production") return url;
-  if (!/localhost|127\.0\.0\.1/i.test(url)) return url;
-  try {
-    const parsed = new URL(url);
-    if (isSameOriginStaticPath(parsed.pathname)) return parsed.pathname;
-  } catch {
-    /* ignore */
+  const normalized = normalizeStoredMediaUrl(url);
+  if (/^https?:\/\//i.test(normalized) && /localhost|127\.0\.0\.1/i.test(normalized)) {
+    try {
+      const parsed = new URL(normalized);
+      if (isSameOriginStaticPath(parsed.pathname)) return parsed.pathname;
+    } catch {
+      /* ignore */
+    }
   }
-  return url;
+  return normalized;
 }
 
 /**
@@ -30,25 +63,27 @@ function sanitizeStoredAbsoluteUrl(url) {
 export function resolveMediaUrl(url) {
   if (!url) return null;
 
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
-    return sanitizeStoredAbsoluteUrl(url);
+  const normalized = normalizeStoredMediaUrl(url);
+
+  if (normalized.startsWith("http://") || normalized.startsWith("https://") || normalized.startsWith("data:")) {
+    return sanitizeStoredAbsoluteUrl(normalized);
   }
 
-  if (isSameOriginStaticPath(url)) {
+  if (isSameOriginStaticPath(normalized)) {
     if (process.env.NODE_ENV === "production") {
-      return url;
+      return normalized;
     }
     if (typeof window !== "undefined" && STATIC_ORIGIN && STATIC_ORIGIN !== window.location.origin) {
-      return `${STATIC_ORIGIN}${url}`;
+      return `${STATIC_ORIGIN}${normalized}`;
     }
-    return url;
+    return normalized;
   }
 
-  if (url.startsWith("/") && STATIC_ORIGIN && typeof window !== "undefined" && STATIC_ORIGIN !== window.location.origin) {
-    return `${STATIC_ORIGIN}${url}`;
+  if (normalized.startsWith("/") && STATIC_ORIGIN && typeof window !== "undefined" && STATIC_ORIGIN !== window.location.origin) {
+    return `${STATIC_ORIGIN}${normalized}`;
   }
 
-  return url;
+  return normalized;
 }
 
 /** Prefer custom avatar, then Discord CDN, then class portrait. */

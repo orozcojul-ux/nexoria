@@ -356,6 +356,11 @@ def public_user(user: dict) -> dict:
     user["is_nexus_supreme"] = (user.get("username") or "").lower() == OWNER_USERNAME.lower()
     user["discord_linked"] = bool(user.get("discord_id"))
 
+    if user.get("avatar_url"):
+        user["avatar_url"] = upload_storage.normalize_public_media_url(user["avatar_url"])
+    if user.get("banner_url"):
+        user["banner_url"] = upload_storage.normalize_public_media_url(user["banner_url"])
+
     return user
 
 
@@ -2465,6 +2470,10 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
     if "staff_nexus_auto_connect" in update:
         if user.get("role") not in ("admin", "moderator"):
             update.pop("staff_nexus_auto_connect", None)
+    if "avatar_url" in update:
+        update["avatar_url"] = upload_storage.normalize_public_media_url(update["avatar_url"])
+    if "banner_url" in update:
+        update["banner_url"] = upload_storage.normalize_public_media_url(update["banner_url"])
     # Language change tracking → polyglot badge after 2 distinct languages
     if "language" in update and update["language"]:
         await db.user_languages.update_one(
@@ -4679,8 +4688,7 @@ async def content_upload_image(request: Request, file: UploadFile = File(...), u
     filename = f"{uuid.uuid4().hex}{MAINTENANCE_IMAGE_TYPES[content_type]}"
     dest = CONTENT_UPLOAD_DIR / filename
     dest.write_bytes(data)
-    base = str(request.base_url).rstrip("/")
-    return {"url": f"{base}/uploads/content/{filename}"}
+    return {"url": upload_storage.public_upload_url(f"content/{filename}")}
 
 
 @api.post("/profile/avatar/upload")
@@ -4741,6 +4749,10 @@ async def staff_update_user_profile(user_id: str, req: StaffProfileUpdateReq, us
         title_ids = {t["id"] for t in TITLES}
         if update["active_title"] not in title_ids:
             raise HTTPException(400, "Titre invalide")
+    if "avatar_url" in update:
+        update["avatar_url"] = upload_storage.normalize_public_media_url(update["avatar_url"])
+    if "banner_url" in update:
+        update["banner_url"] = upload_storage.normalize_public_media_url(update["banner_url"])
 
     ops = {}
     if update:
@@ -4815,8 +4827,7 @@ async def maintenance_upload_image(request: Request, file: UploadFile = File(...
     filename = f"{uuid.uuid4().hex}{MAINTENANCE_IMAGE_TYPES[content_type]}"
     dest = MAINTENANCE_UPLOAD_DIR / filename
     dest.write_bytes(data)
-    base = str(request.base_url).rstrip("/")
-    return {"url": f"{base}/uploads/maintenance/{filename}"}
+    return {"url": upload_storage.public_upload_url(f"maintenance/{filename}")}
 
 
 @api.post("/admin/maintenance")
