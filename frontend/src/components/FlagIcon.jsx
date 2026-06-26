@@ -3,7 +3,11 @@ import React, { useState } from "react";
 /** Small flag image — works on Windows where emoji flags often fail to render. */
 export default function FlagIcon({ code = "fr", size = "sm", className = "" }) {
   const iso = (code || "fr").toLowerCase();
-  const dims = size === "lg" ? { w: 24, h: 18 } : { w: 16, h: 12 };
+  const dims = size === "lg"
+    ? { w: 24, h: 18 }
+    : size === "xs"
+      ? { w: 12, h: 9 }
+      : { w: 16, h: 12 };
   const [failed, setFailed] = useState(false);
 
   if (failed) {

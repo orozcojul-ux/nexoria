@@ -4,6 +4,7 @@ import {
   Ban, BarChart3, Briefcase, History, Package, Search, X,
 } from "lucide-react";
 import { getTitleLabel } from "@/lib/title-labels";
+import HeroName from "@/components/HeroName";
 
 const TABS = [
   { id: "stats", icon: BarChart3, label: "Stats" },
@@ -47,7 +48,9 @@ export default function GmPlayerInspector({ data, onClose, tab, setTab }) {
               <Search className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="nexus-gm-title">Inspection — {u.username || "?"}</h3>
+              <h3 className="nexus-gm-title inline-flex items-center gap-2 flex-wrap">
+                Inspection — <HeroName user={u} size="sm" showIcon={false} />
+              </h3>
               <p className="nexus-gm-sub">{u.class_name} · niv. {u.level} · {u.rank}</p>
             </div>
           </div>

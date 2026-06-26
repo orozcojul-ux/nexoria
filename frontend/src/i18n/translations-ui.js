@@ -132,6 +132,47 @@ export const TRANSLATIONS_UI = {
   // ─── Profil ───
   "profile.last_connection": T("Dernière connexion", "Last seen"),
   "profile.last_connection_unknown": T("Dernière connexion inconnue", "Last seen unknown"),
+
+  "time.now": T("À l'instant", "Just now", {
+    es: "Ahora", de: "Gerade eben", it: "Adesso", pt: "Agora", nl: "Zojuist", ja: "たった今",
+  }),
+  "time.minutesAgo": T("Il y a {{count}} min", "{{count}} min ago", {
+    es: "Hace {{count}} min", de: "Vor {{count}} Min.", it: "{{count}} min fa",
+    pt: "Há {{count}} min", nl: "{{count}} min geleden", ja: "{{count}}分前",
+  }),
+  "time.hoursAgo": T("Il y a {{count}} h", "{{count}} h ago", {
+    es: "Hace {{count}} h", de: "Vor {{count}} Std.", it: "{{count}} h fa",
+    pt: "Há {{count}} h", nl: "{{count}} u geleden", ja: "{{count}}時間前",
+  }),
+  "time.daysAgo": T("Il y a {{count}} j", "{{count}}d ago", {
+    es: "Hace {{count}} d", de: "Vor {{count}} T.", it: "{{count}} g fa",
+    pt: "Há {{count}} d", nl: "{{count}} d geleden", ja: "{{count}}日前",
+  }),
+  "time.weeksAgo": T("Il y a {{count}} sem.", "{{count}}w ago", {
+    es: "Hace {{count}} sem.", de: "Vor {{count}} Wo.", it: "{{count}} sett. fa",
+    pt: "Há {{count}} sem.", nl: "{{count}} w geleden", ja: "{{count}}週間前",
+  }),
+  "time.unknown": T("Date inconnue", "Unknown date", {
+    es: "Fecha desconocida", de: "Unbekanntes Datum", it: "Data sconosciuta",
+    pt: "Data desconhecida", nl: "Onbekende datum", ja: "日付不明",
+  }),
+
+  "contentTranslate.loading": T("Traduction…", "Translating…", {
+    es: "Traduciendo…", de: "Übersetzen…", it: "Traduzione…", pt: "Traduzindo…", nl: "Vertalen…", ja: "翻訳中…",
+  }),
+  "contentTranslate.autoTranslated": T("Traduit automatiquement", "Auto-translated", {
+    es: "Traducido automáticamente", de: "Automatisch übersetzt", it: "Tradotto automaticamente",
+    pt: "Traduzido automaticamente", nl: "Automatisch vertaald", ja: "自動翻訳",
+  }),
+  "contentTranslate.showingOriginal": T("Texte original", "Original text", {
+    es: "Texto original", de: "Originaltext", it: "Testo originale", pt: "Texto original", nl: "Originele tekst", ja: "原文",
+  }),
+  "contentTranslate.showOriginal": T("Voir l'original", "Show original", {
+    es: "Ver original", de: "Original anzeigen", it: "Mostra originale", pt: "Ver original", nl: "Origineel tonen", ja: "原文を表示",
+  }),
+  "contentTranslate.showTranslation": T("Voir la traduction", "Show translation", {
+    es: "Ver traducción", de: "Übersetzung anzeigen", it: "Mostra traduzione", pt: "Ver tradução", nl: "Vertaling tonen", ja: "翻訳を表示",
+  }),
   "profile.vip_pass": T("Pass Ascendant (VIP)", "Ascendant Pass (VIP)"),
   "common.yes": T("Oui", "Yes"),
   "common.no": T("Non", "No"),

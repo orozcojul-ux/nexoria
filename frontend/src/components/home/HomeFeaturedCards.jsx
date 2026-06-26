@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Newspaper } from "lucide-react";
 import HomePanel from "./HomePanel";
 import { CAT_LABELS, CAT_BANNERS } from "./home-constants";
+import TranslatableText from "@/components/content/TranslatableText";
 
 const FEATURED_LIMIT = 4;
 
@@ -31,8 +32,26 @@ function FeaturedCard({ article, t, index }) {
         </div>
         <div className="feed-news-card-body feed-news-card-body--promo">
           <span className="feed-news-badge">{t(CAT_LABELS[cat] || CAT_LABELS.announce)}</span>
-          <h3 className="feed-news-card-title">{article.title}</h3>
-          {description && <p className="feed-news-excerpt">{description}</p>}
+          <h3 className="feed-news-card-title">
+            <TranslatableText
+              as="span"
+              text={article.title}
+              entityType="news"
+              entityId={article.news_id}
+              field="title"
+            />
+          </h3>
+          {description && (
+            <p className="feed-news-excerpt">
+              <TranslatableText
+                as="span"
+                text={description}
+                entityType="news"
+                entityId={article.news_id}
+                field="excerpt"
+              />
+            </p>
+          )}
         </div>
       </Link>
     </motion.div>

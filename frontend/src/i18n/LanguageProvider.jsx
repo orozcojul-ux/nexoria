@@ -8,6 +8,7 @@ import api, { getToken } from "@/lib/api";
 import { LANGS, LOCALE_MAP, LANG_CODES } from "@/lib/languages";
 import { persistLanguage } from "@/i18n/index";
 import i18n, { appLangFromI18n, i18nLangFromApp } from "@/i18n/i18next";
+import { finalizeTranslation, sanitizeI18nVars } from "@/lib/i18n-safe";
 
 const LanguageContext = createContext(null);
 
@@ -41,25 +42,38 @@ function LanguageProviderInner({ children }) {
   /** Backward-compatible t(key, vars?) or t(key, fallbackString) */
   const t = useCallback((key, varsOrFallback) => {
     let vars = {};
+    let fallback = "";
     if (typeof varsOrFallback === "string") {
-      return i18nT(key, { defaultValue: varsOrFallback });
+      fallback = varsOrFallback;
+    } else if (varsOrFallback && typeof varsOrFallback === "object") {
+      vars = sanitizeI18nVars(varsOrFallback);
     }
-    if (varsOrFallback && typeof varsOrFallback === "object") {
-      vars = varsOrFallback;
-    }
-    const result = i18nT(key, { ...vars, defaultValue: "" });
-    if (result && result !== key) return result;
+
+    const run = (lng) => {
+      const raw = i18nT(key, { lng, ...vars, defaultValue: fallback || "" });
+      if (!raw || raw === key) return "";
+      return finalizeTranslation(raw, vars, key);
+    };
+
+    let result = run(undefined);
+    if (result) return result;
+
     if (lang !== "fr") {
-      const frFallback = i18nT(key, { lng: "fr", ...vars, defaultValue: "" });
-      if (frFallback && frFallback !== key) return frFallback;
+      result = run("fr");
+      if (result) return result;
     }
     if (lang !== "en") {
-      const enFallback = i18nT(key, { lng: "en", ...vars, defaultValue: "" });
-      if (enFallback && enFallback !== key) return enFallback;
+      result = run("en");
+      if (result) return result;
     }
-    if (typeof varsOrFallback === "string") return varsOrFallback;
-    return key;
-  }, [i18nT]);
+
+    if (fallback) return fallback;
+    if (process.env.NODE_ENV === "development") {
+      console.warn(`[i18n] Missing key: "${key}"`);
+      return key;
+    }
+    return "—";
+  }, [i18nT, lang]);
 
   const fmtDate = useCallback((iso, opts = {}) => {
     if (!iso) return "—";

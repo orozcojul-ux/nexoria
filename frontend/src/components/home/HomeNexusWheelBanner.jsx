@@ -48,7 +48,7 @@ export default function HomeNexusWheelBanner() {
   }, [status?.canSpin, status?.secondsRemaining]);
 
   const canSpin = Boolean(status?.canSpin);
-  const spinsRemaining = status?.spinsRemaining ?? 0;
+  const spinsRemaining = Math.max(0, Number(status?.spinsRemaining) || 0);
   const isVip = Boolean(status?.isVip);
 
   return (

@@ -74,6 +74,7 @@ import discord_auth_forum
 import discord_beta
 import discord_international
 import beta_access
+import content_translate
 import discord_translate
 import online_gate
 import asyncio
@@ -355,13 +356,53 @@ def public_user(user: dict) -> dict:
     user["vip_total_days_purchased"] = int(user.get("vip_total_days_purchased", 0) or 0)
     user["is_nexus_supreme"] = (user.get("username") or "").lower() == OWNER_USERNAME.lower()
     user["discord_linked"] = bool(user.get("discord_id"))
+    user["beta_class_changes_used"] = beta_access.beta_class_changes_used(user)
+    user["beta_class_change_available"] = beta_access.beta_class_change_available(user)
 
     if user.get("avatar_url"):
         user["avatar_url"] = upload_storage.normalize_public_media_url(user["avatar_url"])
     if user.get("banner_url"):
         user["banner_url"] = upload_storage.normalize_public_media_url(user["banner_url"])
 
+    code = (user.get("country_code") or "").strip().lower()
+    if code and discord_international.valid_country_code(code):
+        spec = discord_international.country_spec(code)
+        user["country_code"] = code
+        user["country_flag"] = spec["flag"] if spec else None
+        user["country_flag_iso"] = discord_international.country_flag_iso(code)
+    else:
+        user.pop("country_code", None)
+        user["country_flag"] = None
+        user["country_flag_iso"] = None
+
     return user
+
+
+SOCIAL_USER_PROJECTION = {
+    "_id": 0, "user_id": 1, "username": 1, "display_name": 1, "level": 1,
+    "class_id": 1, "class_name": 1, "role": 1, "avatar_url": 1, "rank": 1,
+    "last_seen": 1, "country_code": 1, "is_vip": 1, "vip_until": 1,
+    "active_title": 1, "appear_offline": 1,
+}
+
+
+async def _attach_country_codes(db, items: list, user_id_key: str = "user_id") -> list:
+    """Attach country_code from user profiles onto lightweight list items."""
+    if not items:
+        return items
+    ids = list({item[user_id_key] for item in items if item.get(user_id_key)})
+    if not ids:
+        return items
+    rows = await db.users.find(
+        {"user_id": {"$in": ids}},
+        {"_id": 0, "user_id": 1, "country_code": 1},
+    ).to_list(len(ids))
+    cmap = {r["user_id"]: r["country_code"] for r in rows if r.get("country_code")}
+    for item in items:
+        uid = item.get(user_id_key)
+        if uid in cmap:
+            item["country_code"] = cmap[uid]
+    return items
 
 
 async def get_user_dep(request: Request):
@@ -1456,7 +1497,7 @@ async def claim_beta_activation_rewards(user_id: str, username: str):
         await push_notification(
             db, user_id, "beta_access",
             "Accès beta activé",
-            "Bienvenue dans le Nexus — badge Beta Testeur et récompenses débloqués !",
+            "Bienvenue dans le Nexus — badge Beta Testeur, récompenses débloqués, et 1 changement de classe offert !",
             "fanfare", "FlaskConical", link="/hero",
         )
     except Exception:
@@ -1520,6 +1561,7 @@ def _new_user_doc(*, user_id: str, email: str, username: str, password: str, cla
         "beta_activated_at": None,
         "beta_key_used": None,
         "beta_rewards_claimed": False,
+        "beta_class_changes_used": 0,
     }
     for stat, bonus in cls.get("stat_bonus", {}).items():
         if stat in doc["dna"]:
@@ -2340,6 +2382,7 @@ class ProfileUpdateReq(BaseModel):
     active_aura_sku: Optional[str] = None # SKU of equipped shop aura
     active_mount: Optional[str] = None    # SKU of equipped mount
     language: Optional[str] = None        # User-selected language code
+    country_code: Optional[str] = Field(None, max_length=12)
     theme: Optional[str] = None           # UI theme: dark/midnight/amethyst
     staff_nexus_auto_connect: Optional[bool] = None  # Staff: auto-join Nexus socket on login (legacy)
     nexus_auto_connect: Optional[bool] = None  # All users: auto-join Nexus ONLINE on login
@@ -2424,13 +2467,28 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         is_initial = bool(user.get("needs_class_selection"))
         is_real_change = (not is_initial) and update["class_id"] != current_class
         if is_real_change:
+            beta_slot = beta_access.beta_class_change_available(user)
             free_used = int(user.get("class_changes_used", 0) or 0)
             credits = int(user.get("class_change_credits", 0) or 0)
-            if free_used >= 1 and credits <= 0:
-                raise HTTPException(403, "Vous avez déjà utilisé votre changement de classe gratuit. Achetez un « Parchemin de Mutation » à la boutique (3 changements).")
-            class_change_inc["class_changes_used"] = 1
-            if free_used >= 1:
+            if beta_slot:
+                class_change_inc["beta_class_changes_used"] = 1
+            elif free_used < 1:
+                class_change_inc["class_changes_used"] = 1
+            elif credits > 0:
+                class_change_inc["class_changes_used"] = 1
                 class_change_inc["class_change_credits"] = -1
+            elif beta_access.is_beta_key_tester(user):
+                raise HTTPException(
+                    403,
+                    "Vous avez déjà utilisé votre changement de classe beta. "
+                    "Achetez un « Parchemin de Mutation » à la boutique (3 changements).",
+                )
+            else:
+                raise HTTPException(
+                    403,
+                    "Vous avez déjà utilisé votre changement de classe gratuit. "
+                    "Achetez un « Parchemin de Mutation » à la boutique (3 changements).",
+                )
         update["needs_class_selection"] = False
         if is_class_portrait_url(user.get("avatar_url")):
             update["avatar_url"] = class_portrait_path(update["class_id"])
@@ -2467,6 +2525,19 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
     VALID_LANGUAGES = {"fr", "en", "es", "de", "it", "pt", "nl", "ja"}
     if "language" in update and update["language"] not in VALID_LANGUAGES:
         raise HTTPException(400, "Langue invalide")
+    if "country_code" in raw:
+        code = (raw.get("country_code") or "").strip().lower()
+        if not code:
+            for field in ("country_code", "country_source", "country_synced_at"):
+                unset_fields.append(field)
+            update.pop("country_code", None)
+        elif not discord_international.valid_country_code(code):
+            raise HTTPException(400, "Pays invalide")
+        else:
+            update["country_code"] = code
+            update["country_source"] = "manual"
+            update["country_synced_at"] = now_utc().isoformat()
+            discord_international.schedule_sync_country_role(db, user["user_id"], code)
     if "staff_nexus_auto_connect" in update:
         if user.get("role") not in ("admin", "moderator"):
             update.pop("staff_nexus_auto_connect", None)
@@ -3373,7 +3444,7 @@ async def get_feed():
     posts = await db.posts.find({}, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
     # enrich with author info
     user_ids = list({p["user_id"] for p in posts})
-    users = await db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0, "user_id": 1, "username": 1, "avatar_url": 1, "level": 1, "class_name": 1, "active_title": 1, "rank": 1, "role": 1}).to_list(500)
+    users = await db.users.find({"user_id": {"$in": user_ids}}, SOCIAL_USER_PROJECTION).to_list(500)
     umap = {u["user_id"]: u for u in users}
     for p in posts:
         p["author"] = umap.get(p["user_id"], {})
@@ -3816,7 +3887,7 @@ async def leaderboard(category: str):
 @api.get("/hall-of-legends")
 async def hall_of_legends():
     users = await db.users.find({}, {"_id": 0, "password_hash": 0, "email": 0}).sort("level", -1).limit(10).to_list(10)
-    return users
+    return [public_user(u) for u in users]
 
 
 # ---------- Dimensional rifts (random events) ----------
@@ -6467,6 +6538,74 @@ async def admin_update_team_member_profile(user_id: str, req: TeamMemberProfileR
     return team_page_service.normalize_member_profile(doc)
 
 
+class ContentTranslateReq(BaseModel):
+    text: str = Field(..., max_length=12000)
+    target_lang: Optional[str] = None
+    source_lang: Optional[str] = None
+    entity_type: Optional[str] = None
+    entity_id: Optional[str] = None
+    field: Optional[str] = None
+
+
+class ContentTranslateBatchItem(BaseModel):
+    key: str = Field(..., max_length=64)
+    text: str = Field(..., max_length=12000)
+    source_lang: Optional[str] = None
+    entity_type: Optional[str] = None
+    entity_id: Optional[str] = None
+    field: Optional[str] = None
+
+
+class ContentTranslateBatchReq(BaseModel):
+    target_lang: Optional[str] = None
+    items: List[ContentTranslateBatchItem] = Field(..., min_length=1, max_length=12)
+
+
+@api.post("/content/translate")
+async def api_content_translate(req: ContentTranslateReq, request: Request):
+    """Traduit un texte UGC (news, forum, commentaires) vers la langue du lecteur."""
+    user = await get_optional_user_dep(request)
+    client_key = user["user_id"] if user else (request.client.host if request.client else "anon")
+    target = content_translate.normalize_lang(req.target_lang) or content_translate.parse_accept_language(
+        request.headers.get("accept-language"),
+    )
+    try:
+        result = await content_translate.translate_text(
+            req.text,
+            target,
+            source=req.source_lang,
+            entity_type=req.entity_type,
+            entity_id=req.entity_id,
+            field=req.field,
+            client_key=client_key,
+        )
+    except ValueError as exc:
+        if str(exc) == "rate_limited":
+            raise HTTPException(429, "Trop de traductions — réessayez dans un instant")
+        raise
+    return result
+
+
+@api.post("/content/translate/batch")
+async def api_content_translate_batch(req: ContentTranslateBatchReq, request: Request):
+    """Traduit plusieurs champs en une requête (ex. titre + corps d'article)."""
+    user = await get_optional_user_dep(request)
+    client_key = user["user_id"] if user else (request.client.host if request.client else "anon")
+    target = content_translate.normalize_lang(req.target_lang) or content_translate.parse_accept_language(
+        request.headers.get("accept-language"),
+    )
+    try:
+        return await content_translate.translate_batch(
+            [item.model_dump() for item in req.items],
+            target,
+            client_key=client_key,
+        )
+    except ValueError as exc:
+        if str(exc) == "rate_limited":
+            raise HTTPException(429, "Trop de traductions — réessayez dans un instant")
+        raise
+
+
 @api.get("/news")
 async def public_news(limit: int = 12, featured_only: bool = False):
     q = {"published": True}
@@ -6497,7 +6636,7 @@ async def list_news_comments(news_id: str, user: dict = Depends(get_user_dep)):
         {"news_id": news_id, "hidden": {"$ne": True}},
         {"_id": 0},
     ).sort("created_at", 1).limit(200).to_list(200)
-    return comments
+    return await _attach_country_codes(db, comments)
 
 
 @api.post("/news/{news_id}/comments")
@@ -6522,6 +6661,7 @@ async def post_news_comment(news_id: str, req: NewsCommentReq, user: dict = Depe
         "username": user["username"],
         "avatar_url": user.get("avatar_url"),
         "role": user.get("role", "user"),
+        "country_code": user.get("country_code"),
         "content": content,
         "hidden": False,
         "created_at": now_utc().isoformat(),
@@ -6699,7 +6839,7 @@ async def world_heroes():
     users = await db.users.find({}, {
         "_id": 0, "user_id": 1, "username": 1, "class_id": 1, "class_name": 1,
         "level": 1, "rank": 1, "avatar_url": 1, "active_title": 1, "role": 1,
-        "appear_offline": 1,
+        "appear_offline": 1, "country_code": 1,
     }).to_list(500)
     # active = valid session with recent heartbeat
     cutoff = session_idle_cutoff_iso()
@@ -6811,7 +6951,7 @@ async def get_guild_detail(guild_id: str, user: dict = Depends(get_user_dep)):
     members = await db.guild_members.find({"guild_id": guild_id}, {"_id": 0}).to_list(100)
     user_ids = [m["user_id"] for m in members]
     udocs = await db.users.find({"user_id": {"$in": user_ids}},
-        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1, "avatar_url": 1, "role": 1}).to_list(100)
+        SOCIAL_USER_PROJECTION).to_list(100)
     umap = {u["user_id"]: u for u in udocs}
     for m in members:
         m["user"] = umap.get(m["user_id"], {})
@@ -7108,7 +7248,7 @@ class ForumThreadReq(BaseModel):
 
 FORUM_AUTHOR_FIELDS = {
     "_id": 0, "user_id": 1, "username": 1, "role": 1, "level": 1,
-    "class_name": 1, "rank": 1, "is_vip": 1,
+    "class_name": 1, "rank": 1, "is_vip": 1, "country_code": 1,
 }
 
 
@@ -7769,8 +7909,7 @@ async def list_friend_requests(user: dict = Depends(get_user_dep)):
         {"to_user": user["user_id"], "status": "pending"}, {"_id": 0}
     ).sort("created_at", -1).to_list(50)
     from_ids = [r["from_user"] for r in reqs]
-    udocs = await db.users.find({"user_id": {"$in": from_ids}},
-        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1, "role": 1, "avatar_url": 1, "last_seen": 1}).to_list(100)
+    udocs = await db.users.find({"user_id": {"$in": from_ids}}, SOCIAL_USER_PROJECTION).to_list(100)
     umap = {u["user_id"]: u for u in udocs}
     for r in reqs:
         r["from"] = umap.get(r["from_user"], {})
@@ -7809,10 +7948,7 @@ async def list_sent_friend_requests(user: dict = Depends(get_user_dep)):
         {"from_user": user["user_id"], "status": "pending"}, {"_id": 0}
     ).sort("created_at", -1).to_list(50)
     to_ids = [r["to_user"] for r in reqs]
-    udocs = await db.users.find(
-        {"user_id": {"$in": to_ids}},
-        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1, "avatar_url": 1},
-    ).to_list(100)
+    udocs = await db.users.find({"user_id": {"$in": to_ids}}, SOCIAL_USER_PROJECTION).to_list(100)
     umap = {u["user_id"]: u for u in udocs}
     for r in reqs:
         r["to"] = umap.get(r["to_user"], {})
@@ -7949,9 +8085,7 @@ async def list_friends(user: dict = Depends(get_user_dep)):
         {"$or": [{"user_a": user["user_id"]}, {"user_b": user["user_id"]}]}, {"_id": 0}
     ).to_list(500)
     friend_ids = [link["user_b"] if link["user_a"] == user["user_id"] else link["user_a"] for link in links]
-    friends = await db.users.find({"user_id": {"$in": friend_ids}},
-        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_id": 1, "class_name": 1,
-         "role": 1, "avatar_url": 1, "rank": 1, "last_seen": 1}).to_list(500)
+    friends = await db.users.find({"user_id": {"$in": friend_ids}}, SOCIAL_USER_PROJECTION).to_list(500)
     return await _enrich_friends_online_async(friends)
 
 
@@ -7996,11 +8130,7 @@ async def list_friend_chat_threads(user: dict = Depends(get_user_dep)):
     ]
     if not friend_ids:
         return []
-    friends = await db.users.find(
-        {"user_id": {"$in": friend_ids}},
-        {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_id": 1, "class_name": 1,
-         "role": 1, "avatar_url": 1, "rank": 1, "last_seen": 1},
-    ).to_list(500)
+    friends = await db.users.find({"user_id": {"$in": friend_ids}}, SOCIAL_USER_PROJECTION).to_list(500)
     # Use the same session-based online check as /friends so both panels are consistent.
     enriched = await _enrich_friends_online_async(friends)
     fmap = {f["user_id"]: f for f in enriched}
@@ -8680,11 +8810,7 @@ async def hero_card(user_id: str, viewer: dict = Depends(get_user_dep)):
     ]
     friends = []
     if friend_ids:
-        friends = await db.users.find(
-            {"user_id": {"$in": friend_ids}},
-            {"_id": 0, "user_id": 1, "username": 1, "level": 1, "class_name": 1,
-             "rank": 1, "role": 1, "avatar_url": 1, "active_title": 1, "last_seen": 1},
-        ).to_list(24)
+        friends = await db.users.find({"user_id": {"$in": friend_ids}}, SOCIAL_USER_PROJECTION).to_list(24)
         friends = await _enrich_friends_online_async(friends)
     # Equipped cosmetics (frame / banner from shop)
     equipped_cosmetics = {}
@@ -9049,6 +9175,9 @@ async def startup():
     # Auto-sync Discord roles/ranks on a rotating 30s schedule.
     try:
         discord_translate.init(db)
+        discord_international.init(db)
+        content_translate.init(db)
+        await db.content_translations.create_index("key", unique=True)
         import discord_welcome
         discord_welcome.init(db)
         migrated = await discord_translate.migrate_source_lang_to_french()

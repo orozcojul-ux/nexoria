@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { translateWheelReward, translateWheelRewards } from "@/lib/translate-nexus-wheel";
+import { formatRelativeTime } from "@/lib/format-relative-time";
 import { sfx } from "@/lib/sfx";
 import { PageShell, PremiumButton, PremiumCard, PremiumModal } from "@/components/ui-premium";
 import { usePageBanner } from "@/lib/page-banners";
@@ -110,8 +111,8 @@ export default function NexusWheel() {
 
   const ecus = status?.ecus ?? user?.aether ?? 0;
   const canSpin = Boolean(status?.canSpin) && !spinning;
-  const spinsRemaining = status?.spinsRemaining ?? (status?.canSpin ? 1 : 0);
-  const dailyLimit = status?.dailySpinLimit ?? 1;
+  const spinsRemaining = Math.max(0, Number(status?.spinsRemaining ?? (status?.canSpin ? 1 : 0)) || 0);
+  const dailyLimit = Math.max(1, Number(status?.dailySpinLimit) || 1);
 
   const statusMessage = useMemo(() => {
     if (!status) return "";
@@ -335,7 +336,9 @@ export default function NexusWheel() {
                       <div className="min-w-0 flex-1">
                         <p className="nw-history-label">{r.label}</p>
                         <p className="nw-history-date">
-                          {entry.created_at ? fmtDate(entry.created_at, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
+                          {entry.created_at
+                            ? formatRelativeTime(entry.created_at, t, fmtDate)
+                            : t("time.unknown")}
                         </p>
                       </div>
                     </li>

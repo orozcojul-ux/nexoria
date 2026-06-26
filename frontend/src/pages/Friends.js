@@ -157,7 +157,7 @@ export default function Friends() {
                   {r.to?.username?.[0]?.toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-white truncate">{r.to?.username || "?"}</div>
+                  <HeroName user={r.to} size="sm" />
                   <div className="text-[10px] text-zinc-500 uppercase tracking-widest">{r.to?.class_name} · Niv. {r.to?.level}</div>
                 </div>
                 <span className="text-[10px] text-violet-300 italic shrink-0">{t("friends.pending")}</span>

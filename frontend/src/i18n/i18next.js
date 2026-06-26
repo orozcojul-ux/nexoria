@@ -52,8 +52,7 @@ i18n.use(initReactI18next).init({
   supportedLngs: ["fr", "en", "es", "de", "it", "pt-BR", "nl", "ja"],
   keySeparator: false,
   nsSeparator: false,
-  // NEXORIA strings use {var} (legacy createTranslator), not i18next default {{var}}.
-  interpolation: { escapeValue: false, prefix: "{", suffix: "}" },
+  interpolation: { escapeValue: false },
   returnEmptyString: false,
   returnNull: false,
   saveMissing: false,

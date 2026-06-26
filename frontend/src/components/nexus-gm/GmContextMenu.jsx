@@ -4,6 +4,7 @@ import {
   Ban, Eye, Footprints, Map, Search, Shield, Snowflake, VolumeX, X,
 } from "lucide-react";
 import { toast } from "sonner";
+import HeroName from "@/components/HeroName";
 
 export default function GmContextMenu({
   menu, onClose, gmApi, openHeroCard, openGmPanel,
@@ -74,7 +75,7 @@ export default function GmContextMenu({
             {p.username?.[0]?.toUpperCase() || "?"}
           </div>
           <div className="min-w-0">
-            <div className="nexus-gm-context-name">{p.username}</div>
+            <HeroName user={p} size="sm" showIcon={false} className="nexus-gm-context-name" />
             <div className="nexus-gm-context-sub">{p.class_name} · Niv {p.level}</div>
           </div>
         </div>

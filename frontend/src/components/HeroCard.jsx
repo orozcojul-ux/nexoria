@@ -27,6 +27,8 @@ import { translateDnaStat, translateRarity, translateItem, translateTitle, trans
 import { translateClassName } from "@/lib/translate-class";
 import { translateChronicle } from "@/lib/translate-chronicle";
 import { translateApiError } from "@/lib/i18n-api";
+import HeroCountryBadge from "@/components/HeroCountryBadge";
+import UserCountryFlag from "@/components/UserCountryFlag";
 import styles from "./HeroCard.module.css";
 
 /** @deprecated Use PremiumBadge — kept for backward compatibility */
@@ -361,6 +363,7 @@ export default function HeroCard({ userId, open, onClose }) {
                           <span style={{ fontSize: 64, opacity: 0.35 }}>⚔</span>
                         )}
                       </div>
+                      <HeroCountryBadge user={u} />
                       {canEditProfile && (
                         <button
                           type="button"
@@ -375,18 +378,21 @@ export default function HeroCard({ userId, open, onClose }) {
                     </div>
                   </div>
 
-                  <h2
-                    className={styles.heroName}
-                    style={u.is_vip ? {
-                      background: "linear-gradient(92deg,#fde68a,#fbbf24 40%,#a855f7)",
-                      WebkitBackgroundClip: "text",
-                      backgroundClip: "text",
-                      color: "transparent",
-                      textShadow: "0 0 18px rgba(251,191,36,0.35)",
-                    } : undefined}
-                  >
-                    {u.username}
-                  </h2>
+                  <div className={styles.heroNameRow}>
+                    <h2
+                      className={styles.heroName}
+                      style={u.is_vip ? {
+                        background: "linear-gradient(92deg,#fde68a,#fbbf24 40%,#a855f7)",
+                        WebkitBackgroundClip: "text",
+                        backgroundClip: "text",
+                        color: "transparent",
+                        textShadow: "0 0 18px rgba(251,191,36,0.35)",
+                      } : undefined}
+                    >
+                      {u.username}
+                    </h2>
+                    <UserCountryFlag user={u} size="base" />
+                  </div>
                   <p className={styles.heroSubtitle}>{getTitleLabel(u, null, t)}</p>
                   {(u.class_id || u.class_name) && (
                     <div

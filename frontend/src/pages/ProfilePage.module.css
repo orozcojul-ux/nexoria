@@ -269,6 +269,14 @@
   text-shadow: 0 0 20px rgba(245, 200, 66, 0.5), 0 2px 4px rgba(0, 0, 0, 0.8);
 }
 
+.heroNameWithFlag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
 .discordLine { font-size: 13px; color: #7a7aaa; }
 .lastSeenLine { margin-top: 4px; font-size: 11px; letter-spacing: 0.04em; display: flex; flex-direction: column; gap: 2px; }
 .lastSeenDate { color: #9ca3af; }

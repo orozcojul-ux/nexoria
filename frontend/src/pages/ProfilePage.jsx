@@ -8,6 +8,7 @@ import { translateDnaStat } from "@/lib/translate-game";
 import { translateChronicle } from "@/lib/translate-chronicle";
 import ClassImage from "@/components/ClassImage";
 import LastConnection from "@/components/LastConnection";
+import UserCountryFlag from "@/components/UserCountryFlag";
 import VipPassStatus from "@/components/VipPassStatus";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
 import { getDiscordDisplayName } from "@/lib/discord-display";
@@ -296,7 +297,10 @@ export default function ProfilePage({
               <span>👑</span>
               {rankTitle}
             </div>
-            <h1 className={styles.heroName} data-testid="profile-username" style={{ textShadow: `0 0 18px ${accent}88` }}>{name}</h1>
+            <h1 className={`${styles.heroName} ${styles.heroNameWithFlag}`} data-testid="profile-username" style={{ textShadow: `0 0 18px ${accent}88` }}>
+              {name}
+              <UserCountryFlag user={hero} size="lg" />
+            </h1>
             {discordLabel && (
               <div className={styles.discordLine} data-testid="profile-discord-name">{t("profile.discordPrefix")} {discordLabel}</div>
             )}

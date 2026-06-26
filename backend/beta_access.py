@@ -13,6 +13,24 @@ BETA_BADGE_ID = "beta_testeur"
 BETA_TITLE_ID = "beta_tester"
 BETA_XP_REWARD = 500
 BETA_AETHER_REWARD = 200
+BETA_CLASS_CHANGES_ALLOWED = 1
+
+
+def is_beta_key_tester(user: dict | None) -> bool:
+    """Joueur ayant activé une clé beta sur son compte."""
+    if not user:
+        return False
+    return bool(user.get("beta_access") and user.get("beta_key_used"))
+
+
+def beta_class_changes_used(user: dict | None) -> int:
+    return int((user or {}).get("beta_class_changes_used", 0) or 0)
+
+
+def beta_class_change_available(user: dict | None) -> bool:
+    if not is_beta_key_tester(user):
+        return False
+    return beta_class_changes_used(user) < BETA_CLASS_CHANGES_ALLOWED
 
 
 def gen_beta_key() -> str:

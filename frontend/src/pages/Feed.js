@@ -53,6 +53,7 @@ export default function Feed() {
 
       <div className="feed-inner">
         <HomeHero
+          user={user}
           username={username}
           className={user?.class_name}
           level={user?.level}

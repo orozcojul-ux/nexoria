@@ -7,6 +7,7 @@ import { useI18n } from "@/i18n/LanguageProvider";
 import { translateClassName } from "@/lib/translate-class";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
 import HeroCardOpener from "@/components/HeroCardOpener";
+import UserCountryFlag from "@/components/UserCountryFlag";
 
 export default function HomePlayerCard({ user }) {
   const { openNexus } = useNexusSocket();
@@ -34,7 +35,10 @@ export default function HomePlayerCard({ user }) {
           <HeroPixelAvatar user={user} size={72} />
         </div>
         <div className="feed-player-info">
-          <div className="feed-player-name">{username}</div>
+          <div className="feed-player-name inline-flex items-center gap-1.5">
+            {username}
+            <UserCountryFlag user={user} size="sm" />
+          </div>
           <div className="feed-player-class">{translateClassName(t, user?.class_name)}</div>
           <div className="feed-player-meta">
             <span>{t("feed.level_short")} <strong>{user?.level ?? "—"}</strong></span>

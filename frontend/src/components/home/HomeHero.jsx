@@ -1,8 +1,9 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { useI18n } from "@/i18n/LanguageProvider";
+import UserCountryFlag from "@/components/UserCountryFlag";
 
-export default function HomeHero({ username, className, level, rank }) {
+export default function HomeHero({ user, username, className, level, rank }) {
   const { t } = useI18n();
 
   return (
@@ -15,7 +16,12 @@ export default function HomeHero({ username, className, level, rank }) {
     >
       <div className="feed-kicker">✦ {t("feed.dashboard_kicker")}</div>
       <h1 className="feed-title">
-        {t("feed.greeting")}, <span className="feed-title-name">{username}</span> !
+        {t("feed.greeting")},{" "}
+        <span className="feed-title-name inline-flex items-center gap-2">
+          {username}
+          {user && <UserCountryFlag user={user} size="lg" />}
+        </span>
+        !
       </h1>
       {(className || level != null || rank) && (
         <div className="feed-live-row">

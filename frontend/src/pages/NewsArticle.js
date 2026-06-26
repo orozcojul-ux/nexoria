@@ -5,9 +5,10 @@ import { ArrowLeft, Newspaper, Calendar, User } from "lucide-react";
 import api from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import { PremiumButton } from "@/components/ui-premium";
-import ForumRichContent from "@/components/forum/ForumRichContent";
 import { ReportButton } from "@/components/ReportContentModal";
 import NewsComments from "@/components/news/NewsComments";
+import TranslatableText from "@/components/content/TranslatableText";
+import TranslatableContent from "@/components/content/TranslatableContent";
 import { useAuth } from "@/contexts/AuthContext";
 
 const CAT_LABELS = {
@@ -87,7 +88,13 @@ export default function NewsArticle() {
 
         <div className="p-5 sm:p-8">
           <h1 className="font-display font-black text-2xl sm:text-3xl text-white leading-tight mb-4" data-testid="news-article-title">
-            {article.title}
+            <TranslatableText
+              as="span"
+              text={article.title}
+              entityType="news"
+              entityId={article.news_id}
+              field="title"
+            />
           </h1>
 
           <div className="flex flex-wrap items-center gap-4 text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-6 pb-6 border-b border-white/10">
@@ -111,9 +118,12 @@ export default function NewsArticle() {
           </div>
 
           <div data-testid="news-article-content">
-            <ForumRichContent
+            <TranslatableContent
               html={article.content_html}
               plain={article.content}
+              entityType="news"
+              entityId={article.news_id}
+              field="content"
               className="text-sm sm:text-base"
             />
           </div>

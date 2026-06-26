@@ -8,11 +8,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 import discord_sync
 
 logger = logging.getLogger("nexoria.discord_international")
+
+_db = None
 
 # ─── Langues (alignées site + discord_translate) ───
 LANGUAGE_SPECS: list[dict[str, str]] = [
@@ -90,10 +93,51 @@ def all_country_role_ids() -> set[str]:
     return {rid for spec in COUNTRY_SPECS if (rid := _env(spec["role_env"]))}
 
 
+def init(db) -> None:
+    """Store DB handle for gateway-driven member updates."""
+    global _db
+    _db = db
+
+
+def country_spec(code: str) -> dict[str, str] | None:
+    for spec in COUNTRY_SPECS:
+        if spec["code"] == code:
+            return spec
+    return None
+
+
+def valid_country_code(code: str | None) -> bool:
+    return bool(code and country_spec(code))
+
+
+def country_role_id(code: str) -> str:
+    spec = country_spec(code)
+    return _env(spec["role_env"]) if spec else ""
+
+
+def country_flag_iso(code: str) -> str | None:
+    """ISO 3166-1 alpha-2 for flag images (uk → gb, other → None)."""
+    if code == "uk":
+        return "gb"
+    if code == "other":
+        return None
+    return code if country_spec(code) else None
+
+
 def role_id_to_language(role_ids: set[str] | list[str]) -> str | None:
     """Map member role IDs → lang code (first match)."""
     ids = set(role_ids or [])
     for spec in LANGUAGE_SPECS:
+        rid = _env(spec["role_env"])
+        if rid and rid in ids:
+            return spec["code"]
+    return None
+
+
+def role_id_to_country(role_ids: set[str] | list[str]) -> str | None:
+    """Map member role IDs → country code (first match)."""
+    ids = set(role_ids or [])
+    for spec in COUNTRY_SPECS:
         rid = _env(spec["role_env"])
         if rid and rid in ids:
             return spec["code"]
@@ -279,6 +323,110 @@ def schedule_sync_language_role(db, user_id: str, lang_code: str) -> None:
     task = loop.create_task(apply_language_role(db, user_id, lang_code))
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
+
+
+async def sync_language_from_member(db, user_id: str, member: dict, user: dict | None = None) -> dict:
+    """Pull site language from Discord role when the user has not set one yet."""
+    role_lang = role_id_to_language(member.get("roles") or [])
+    if not role_lang:
+        return {"updated": False}
+    if user is None:
+        user = await db.users.find_one({"user_id": user_id}, {"language": 1, "_id": 0})
+    if (user or {}).get("language"):
+        return {"updated": False}
+    await db.users.update_one({"user_id": user_id}, {"$set": {"language": role_lang}})
+    return {"updated": True, "language": role_lang}
+
+
+async def sync_country_from_member(db, user_id: str, member: dict) -> dict:
+    """Pull country from Discord member roles → NEXORIA profile."""
+    role_country = role_id_to_country(member.get("roles") or [])
+    if not role_country:
+        return {"updated": False}
+    user = await db.users.find_one(
+        {"user_id": user_id},
+        {"country_code": 1, "country_source": 1, "_id": 0},
+    )
+    if (
+        user
+        and user.get("country_code") == role_country
+        and user.get("country_source") == "discord"
+    ):
+        return {"updated": False, "country_code": role_country}
+    now = datetime.now(timezone.utc).isoformat()
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "country_code": role_country,
+            "country_source": "discord",
+            "country_synced_at": now,
+        }},
+    )
+    return {"updated": True, "country_code": role_country, "source": "discord"}
+
+
+async def sync_country_role_if_missing(db, user_id: str, member: dict, user: dict | None = None) -> bool:
+    """Push profile country to Discord when the member has no country role yet."""
+    if role_id_to_country(member.get("roles") or []):
+        return False
+    if user is None:
+        user = await db.users.find_one({"user_id": user_id}, {"country_code": 1, "_id": 0})
+    code = (user or {}).get("country_code")
+    if not code or not valid_country_code(code):
+        return False
+    return await apply_country_role(db, user_id, code)
+
+
+async def apply_country_role(db, user_id: str, country_code: str) -> bool:
+    """Assign a single country role on Discord (swap others)."""
+    target = country_role_id(country_code)
+    if not target or not discord_sync.is_configured():
+        return False
+
+    user = await db.users.find_one({"user_id": user_id}, {"discord_id": 1, "_id": 0})
+    discord_id = (user or {}).get("discord_id")
+    if not discord_id:
+        return False
+
+    for spec in COUNTRY_SPECS:
+        rid = _env(spec["role_env"])
+        if not rid or rid == target:
+            continue
+        await discord_sync.remove_extra_role(db, user_id, rid, reason="NEXORIA country role swap")
+
+    ok = await discord_sync.grant_extra_role(
+        db, user_id, target, reason=f"NEXORIA country ({country_code})",
+    )
+    if ok:
+        logger.info("Country role %s applied for user %s", country_code, user_id)
+    return ok
+
+
+def schedule_sync_country_role(db, user_id: str, country_code: str) -> None:
+    if not country_code or not country_role_id(country_code):
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    task = loop.create_task(apply_country_role(db, user_id, country_code))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+async def handle_member_roles_update(member_data: dict) -> None:
+    """Gateway hook — refresh country/language when Discord roles change."""
+    if _db is None:
+        return
+    du = member_data.get("user") or {}
+    discord_id = str(du.get("id") or "")
+    if not discord_id:
+        return
+    user = await _db.users.find_one({"discord_id": discord_id}, {"user_id": 1, "_id": 0})
+    if not user:
+        return
+    await sync_country_from_member(_db, user["user_id"], member_data)
+    await sync_language_from_member(_db, user["user_id"], member_data)
 
 
 async def post_official_to_language_channels(

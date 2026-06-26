@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { sfx } from "@/lib/sfx";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import CountryPicker from "@/components/CountryPicker";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import TwoFASetup from "@/components/admin/TwoFASetup";
 import { PageShell, PremiumSidebar, PremiumCard } from "@/components/ui-premium";
@@ -328,6 +329,10 @@ function PreferencesSection({ user, refresh, t }) {
       <div>
         <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-bold mb-3">{t("settings.language")}</div>
         <LanguageSwitcher variant="pills" />
+      </div>
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.3em] text-amber-400 font-bold mb-3">{t("settings.country")}</div>
+        <CountryPicker user={user} refresh={refresh} variant="pills" />
       </div>
       <div>
         <div className="text-[10px] uppercase tracking-[0.3em] text-violet-400 font-bold mb-2">{t("settings.theme")}</div>

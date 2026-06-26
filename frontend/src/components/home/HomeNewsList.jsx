@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, Scroll } from "lucide-react";
 import HomePanel from "./HomePanel";
 import { CAT_LABELS, CAT_BANNERS } from "./home-constants";
+import TranslatableText from "@/components/content/TranslatableText";
 
 function NewsRow({ article, t }) {
   const cat = article.category || "announce";
@@ -17,7 +18,15 @@ function NewsRow({ article, t }) {
       <div className="feed-news-row-img" style={{ backgroundImage: `url(${image})` }} />
       <div className="feed-news-row-body">
         <span className="feed-news-row-cat">{t(CAT_LABELS[cat] || CAT_LABELS.announce)}</span>
-        <h3 className="feed-news-row-title">{article.title}</h3>
+        <h3 className="feed-news-row-title">
+          <TranslatableText
+            as="span"
+            text={article.title}
+            entityType="news"
+            entityId={article.news_id}
+            field="title"
+          />
+        </h3>
       </div>
       <span className="feed-news-row-btn">
         Lire <ArrowRight className="w-2.5 h-2.5 inline ml-0.5" />

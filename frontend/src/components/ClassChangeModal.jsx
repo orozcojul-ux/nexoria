@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
-import { X, Repeat, Sparkles, AlertTriangle, ShoppingBag } from "lucide-react";
+import { X, Repeat, Sparkles, AlertTriangle, ShoppingBag, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
 import ClassImage from "@/components/ClassImage";
+import { useI18n } from "@/i18n/LanguageProvider";
 
 export default function ClassChangeModal({ open, onClose, user, onChanged }) {
+  const { t } = useI18n();
   const [classes, setClasses] = useState([]);
   const [selected, setSelected] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -21,8 +23,14 @@ export default function ClassChangeModal({ open, onClose, user, onChanged }) {
 
   const freeUsed = Number(user?.class_changes_used || 0);
   const credits = Number(user?.class_change_credits || 0);
+  const hasBetaChange = Boolean(user?.beta_class_change_available);
+  const isBetaTester = Boolean(user?.beta_access && user?.beta_key_used);
   const hasFree = freeUsed < 1;
-  const canChange = hasFree || credits > 0;
+  const canChange = hasBetaChange || hasFree || credits > 0;
+
+  const scrollLabel = credits > 1
+    ? t("classChange.scrollsCount_other", { count: credits })
+    : t("classChange.scrollsCount", { count: credits });
 
   const confirm = async () => {
     if (!selected || selected === user.class_id) return;
@@ -30,11 +38,11 @@ export default function ClassChangeModal({ open, onClose, user, onChanged }) {
     try {
       const { data: profile } = await api.put("/profile", { class_id: selected });
       sfx.success?.();
-      toast.success("Classe changée avec succès !");
+      toast.success(t("classChange.success"));
       await onChanged?.(profile);
       onClose();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Changement impossible");
+      toast.error(err.response?.data?.detail || t("classChange.failed"));
     } finally {
       setSaving(false);
     }
@@ -55,37 +63,42 @@ export default function ClassChangeModal({ open, onClose, user, onChanged }) {
             onClick={(e) => e.stopPropagation()}
             className="relative w-full max-w-2xl rounded-2xl border border-violet-500/40 bg-gradient-to-br from-[#120a18] via-[#0A0613] to-[#0d1018] p-6 shadow-[0_0_60px_rgba(168,85,247,0.25)] max-h-[90vh] overflow-y-auto"
           >
-            <button onClick={onClose} className="absolute top-3 right-3 text-zinc-400 hover:text-white" aria-label="Fermer">
+            <button onClick={onClose} className="absolute top-3 right-3 text-zinc-400 hover:text-white" aria-label={t("common.close")}>
               <X className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-2 mb-1">
               <Repeat className="w-5 h-5 text-violet-300" />
-              <h3 className="font-display font-black text-xl text-violet-100">Changer de classe</h3>
+              <h3 className="font-display font-black text-xl text-violet-100">{t("classChange.title")}</h3>
             </div>
             <p className="text-xs text-zinc-400 mb-4">
-              Classe actuelle : <span className="text-cyan-300 font-bold">{user?.class_name}</span>
+              {t("classChange.current")}{" "}
+              <span className="text-cyan-300 font-bold">{user?.class_name}</span>
             </p>
 
-            {/* Gate status */}
-            {hasFree ? (
+            {hasBetaChange ? (
+              <div className="mb-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2.5 text-xs text-cyan-100 flex items-center gap-2">
+                <FlaskConical className="w-4 h-4 shrink-0" />
+                {t("classChange.betaFree")}
+              </div>
+            ) : hasFree ? (
               <div className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-200 flex items-center gap-2">
                 <Sparkles className="w-4 h-4 shrink-0" />
-                Votre premier changement de classe est <strong>gratuit</strong>.
+                {t("classChange.free")}
               </div>
             ) : credits > 0 ? (
               <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200 flex items-center gap-2">
                 <Repeat className="w-4 h-4 shrink-0" />
-                Parchemins de Mutation restants : <strong>{credits} changement{credits > 1 ? "s" : ""}</strong>.
+                {t("classChange.scrollsLeft")} <strong>{scrollLabel}</strong>.
               </div>
             ) : (
               <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-200">
                 <div className="flex items-center gap-2 mb-1">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
-                  Vous avez déjà utilisé votre changement gratuit.
+                  {isBetaTester ? t("classChange.noBeta") : t("classChange.noFree")}
                 </div>
                 <Link to="/shop" onClick={onClose} className="inline-flex items-center gap-1 mt-1 text-amber-300 font-bold hover:text-amber-200">
-                  <ShoppingBag className="w-3.5 h-3.5" /> Acheter un « Parchemin de Mutation » (3 changements)
+                  <ShoppingBag className="w-3.5 h-3.5" /> {t("classChange.buyScroll")}
                 </Link>
               </div>
             )}
@@ -109,7 +122,11 @@ export default function ClassChangeModal({ open, onClose, user, onChanged }) {
                       <ClassImage classId={c.id} color="#a855f7" size={28} alt={c.name} />
                       <div className="min-w-0">
                         <div className="font-display font-bold text-sm text-white truncate">{c.name}</div>
-                        {isCurrent && <div className="text-[9px] uppercase tracking-wider text-cyan-400">Actuelle</div>}
+                        {isCurrent && (
+                          <div className="text-[9px] uppercase tracking-wider text-cyan-400">
+                            {t("classChange.currentTag")}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -123,7 +140,7 @@ export default function ClassChangeModal({ open, onClose, user, onChanged }) {
               className="mt-5 w-full px-4 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 text-white font-display font-black uppercase tracking-widest text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.01] transition-transform"
               data-testid="class-change-confirm"
             >
-              {saving ? "Mutation en cours…" : "Confirmer le changement"}
+              {saving ? t("classChange.saving") : t("classChange.confirm")}
             </button>
           </motion.div>
         </motion.div>

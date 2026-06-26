@@ -5,6 +5,7 @@ import api from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import { PageShell, PremiumCard, PremiumModal } from "@/components/ui-premium";
 import HeroCardOpener from "@/components/HeroCardOpener";
+import HeroName from "@/components/HeroName";
 import StarField from "@/components/StarField";
 import { usePageBanner } from "@/lib/page-banners";
 
@@ -229,10 +230,8 @@ export default function WorldMap() {
               style={{ left: `${hovered.x}%`, top: `${hovered.y}%`, transform: "translate(-50%, calc(-100% - 16px))" }}
               data-testid="hero-tooltip"
             >
-              <div className="font-display font-bold text-white flex items-center gap-1">
-                {hovered.role === "admin" && <Crown className="w-3 h-3 text-yellow-400" />}
-                {hovered.role === "moderator" && <ShieldCheck className="w-3 h-3 text-orange-400" />}
-                {hovered.username}
+              <div className="font-display font-bold text-white">
+                <HeroName user={hovered} size="sm" showIcon={false} />
               </div>
               <div className="font-mono-stat text-[10px] text-zinc-400">
                 Niv. <span className="text-cyan-300">{hovered.level}</span> · {hovered.class_name}
@@ -293,9 +292,7 @@ function HeroDetail({ hero, onClose }) {
           </div>
           <div className="text-[10px] uppercase tracking-[0.3em] font-bold mb-1" style={{ color }}>{hero.class_name}</div>
           <h3 className="font-display font-black text-2xl mb-1 flex items-center justify-center gap-2">
-            {hero.role === "admin" && <Crown className="w-5 h-5 text-yellow-400" />}
-            {hero.role === "moderator" && <ShieldCheck className="w-5 h-5 text-orange-400" />}
-            {hero.username}
+            <HeroName user={hero} size="lg" showIcon={false} />
           </h3>
           <div className="font-mono-stat text-sm text-zinc-400 mb-4">
             Rang {hero.rank} · Niveau <span className="text-cyan-300 font-bold">{hero.level}</span>

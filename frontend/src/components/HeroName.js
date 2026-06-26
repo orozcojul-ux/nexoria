@@ -3,6 +3,7 @@ import { Crown, ShieldCheck, Gem, Sparkles } from "lucide-react";
 import { getRankStyle, rankFromLevel } from "@/lib/rank-styles";
 import { getStaffVisuals } from "@/lib/staff-roles";
 import RankBadge from "@/components/RankBadge";
+import UserCountryFlag from "@/components/UserCountryFlag";
 
 const VIP_NAME_STYLE = {
   background: "linear-gradient(92deg,#fde68a,#fbbf24 40%,#a855f7)",
@@ -37,7 +38,14 @@ const STAFF_TEXT = {
 /**
  * Username with staff role colors (priority) or RPG rank colors everywhere.
  */
-export default function HeroName({ user, className = "", showIcon = true, size = "sm", nameColor = null }) {
+export default function HeroName({
+  user,
+  className = "",
+  showIcon = true,
+  showCountry = true,
+  size = "sm",
+  nameColor = null,
+}) {
   if (!user) return null;
   const role = user.role || user.author_role;
   const username = user.username || user.author_username || "Anonyme";
@@ -78,6 +86,7 @@ export default function HeroName({ user, className = "", showIcon = true, size =
         >
           {username}
         </span>
+        {showCountry && <UserCountryFlag user={user} size={size} />}
         {isVip && !nameColor && <VipMark />}
       </span>
     );
@@ -97,6 +106,7 @@ export default function HeroName({ user, className = "", showIcon = true, size =
       >
         {username}
       </span>
+      {showCountry && <UserCountryFlag user={user} size={size} />}
       {isVip && !nameColor && <VipMark />}
     </span>
   );

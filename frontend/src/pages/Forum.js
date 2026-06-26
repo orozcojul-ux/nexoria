@@ -14,6 +14,8 @@ import { translateApiError } from "@/lib/i18n-api";
 import { PageShell, PremiumCard, PremiumButton, PremiumModal } from "@/components/ui-premium";
 import HtmlEditor from "@/components/admin/HtmlEditor";
 import ForumRichContent from "@/components/forum/ForumRichContent";
+import TranslatableText from "@/components/content/TranslatableText";
+import TranslatableContent from "@/components/content/TranslatableContent";
 import { ReportButton } from "@/components/ReportContentModal";
 import ForumBannedView from "@/components/forum/ForumBannedView";
 import ForumModPanel from "@/components/forum/ForumModPanel";
@@ -772,7 +774,13 @@ function ThreadView({ threadId, category, forumMute, onBack, onDeleted }) {
           <h1 className="font-display font-black text-2xl flex-1 min-w-0">
             {thread.pinned && <Pin className="w-4 h-4 inline text-yellow-400 mr-1" />}
             {thread.locked && <Lock className="w-4 h-4 inline text-red-400 mr-1" />}
-            {thread.title}
+            <TranslatableText
+              as="span"
+              text={thread.title}
+              entityType="forum_thread"
+              entityId={thread.thread_id}
+              field="title"
+            />
           </h1>
           <div className="flex gap-1 flex-wrap">
             {isStaff && (
@@ -810,7 +818,13 @@ function ThreadView({ threadId, category, forumMute, onBack, onDeleted }) {
           <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {t("forum.viewsWithCount", { count: thread.views })}</span>
           <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {t("forum.repliesWithCount", { count: thread.replies_count })}</span>
         </div>
-        <ForumRichContent html={thread.content_html} plain={thread.content} />
+        <TranslatableContent
+          html={thread.content_html}
+          plain={thread.content}
+          entityType="forum_thread"
+          entityId={thread.thread_id}
+          field="content"
+        />
         {isStaff && thread.user_id !== user?.user_id && (
           <div className="mt-3 pt-2 border-t border-white/8">
             <ForumModPanel targetUser={thread.author} onDone={load} />
@@ -847,7 +861,13 @@ function ThreadView({ threadId, category, forumMute, onBack, onDeleted }) {
                 )}
               </div>
             </div>
-            <ForumRichContent html={r.content_html} plain={r.content} />
+            <TranslatableContent
+              html={r.content_html}
+              plain={r.content}
+              entityType="forum_reply"
+              entityId={r.reply_id}
+              field="content"
+            />
             {isStaff && r.user_id !== user?.user_id && (
               <div className="mt-3 pt-2 border-t border-white/8">
                 <ForumModPanel

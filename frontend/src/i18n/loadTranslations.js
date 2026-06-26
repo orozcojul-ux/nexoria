@@ -25,6 +25,7 @@ import { TRANSLATIONS_ORACLE_REFERRAL } from "./translations-oracle-referral.js"
 import { TRANSLATIONS_PAGES_ZONES } from "./translations-pages-zones.js";
 import { applyLocaleOverrides } from "./locale-overrides.js";
 import { mergeTranslationModules } from "./mergeTranslations.js";
+import { normalizeI18nPlaceholders } from "../lib/i18n-safe.js";
 
 const SECONDARY_LANGS = ["es", "de", "it", "pt", "nl", "ja"];
 
@@ -84,13 +85,15 @@ export function flattenForLang(entries, lang) {
   const flat = {};
   for (const [key, entry] of Object.entries(entries)) {
     if (!entry || typeof entry !== "object") continue;
+    let value;
     if (lang === "fr") {
-      flat[key] = entry.fr ?? entry.en ?? key;
+      value = entry.fr ?? entry.en ?? key;
     } else if (lang === "en") {
-      flat[key] = entry.en ?? entry.fr ?? key;
+      value = entry.en ?? entry.fr ?? key;
     } else {
-      flat[key] = entry[lang] ?? entry.fr ?? entry.en ?? key;
+      value = entry[lang] ?? entry.fr ?? entry.en ?? key;
     }
+    flat[key] = normalizeI18nPlaceholders(value);
   }
   return flat;
 }

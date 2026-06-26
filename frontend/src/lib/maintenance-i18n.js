@@ -92,14 +92,4 @@ export function resolveMaintenanceSystemsI18n(stored, t) {
   return out;
 }
 
-export function formatMaintRelativeTime(iso, t, fmtDate) {
-  if (!iso) return t("maintenance.time.just_now");
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return t("maintenance.time.recently");
-  const diffMin = Math.max(0, Math.floor((Date.now() - then) / 60000));
-  if (diffMin < 1) return t("maintenance.time.just_now");
-  if (diffMin < 60) return t("maintenance.time.min_ago", { n: diffMin });
-  const hours = Math.floor(diffMin / 60);
-  if (hours < 24) return t("maintenance.time.hours_ago", { n: hours });
-  return fmtDate(iso);
-}
+export { formatMaintRelativeTime } from "@/lib/format-relative-time";

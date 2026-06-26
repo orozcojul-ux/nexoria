@@ -374,6 +374,9 @@ async def sync_discord_roles(db, user_id: str) -> dict:
             profile_result = await _apply_discord_profile(db, user_id, user, member)
             result.update(profile_result)
 
+            await discord_international.sync_country_from_member(db, user_id, member)
+            await discord_international.sync_language_from_member(db, user_id, member, user)
+
             existing_roles = set(member.get("roles", []))
             cleaned = existing_roles - ALL_CLASS_ROLE_IDS - ALL_PROGRESSION_ROLE_IDS
             if class_role_id:
@@ -388,6 +391,13 @@ async def sync_discord_roles(db, user_id: str) -> dict:
                 result.update({"ok": True, "applied": False, "reason": "no_change"})
                 await _log_sync(db, user_id, True, msg)
                 await discord_international.sync_language_role_if_missing(db, user_id, member, user)
+                user_fresh = await db.users.find_one(
+                    {"user_id": user_id},
+                    {"country_code": 1, "_id": 0},
+                )
+                await discord_international.sync_country_role_if_missing(
+                    db, user_id, member, user_fresh,
+                )
                 return result
 
             await _modify_member_roles(
@@ -400,6 +410,13 @@ async def sync_discord_roles(db, user_id: str) -> dict:
                 f"class={class_id or '-'}; tier={progression_name}; discord={profile_result.get('discord_display_name', '')}",
             )
             await discord_international.sync_language_role_if_missing(db, user_id, member, user)
+            user_fresh = await db.users.find_one(
+                {"user_id": user_id},
+                {"country_code": 1, "_id": 0},
+            )
+            await discord_international.sync_country_role_if_missing(
+                db, user_id, member, user_fresh,
+            )
             return result
     except Exception as e:
         result.update({"error": str(e)[:300]})

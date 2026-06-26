@@ -7,6 +7,7 @@ import HeroName from "@/components/HeroName";
 import { resolveMediaUrl } from "@/lib/user-avatar";
 import { PremiumButton } from "@/components/ui-premium";
 import { sfx } from "@/lib/sfx";
+import TranslatableText from "@/components/content/TranslatableText";
 
 export default function NewsComments({ newsId }) {
   const { user } = useAuth();
@@ -97,12 +98,20 @@ export default function NewsComments({ newsId }) {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <HeroName user={{ username: c.username, role: c.role }} size="sm" />
+                <HeroName user={{ username: c.username, role: c.role, country_code: c.country_code }} size="sm" />
                 <span className="text-[10px] text-zinc-600 font-mono-stat shrink-0">
                   {new Date(c.created_at).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                 </span>
               </div>
-              <p className="text-sm text-zinc-300 mt-1 leading-relaxed">{c.content}</p>
+              <div className="text-sm text-zinc-300 mt-1 leading-relaxed">
+                <TranslatableText
+                  as="span"
+                  text={c.content}
+                  entityType="news_comment"
+                  entityId={c.comment_id}
+                  field="content"
+                />
+              </div>
             </div>
             {(isStaff || c.user_id === user?.user_id) && (
               <button type="button" onClick={() => remove(c.comment_id)} className="text-zinc-600 hover:text-red-400 p-1 shrink-0" title="Supprimer">

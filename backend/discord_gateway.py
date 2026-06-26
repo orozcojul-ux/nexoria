@@ -72,6 +72,11 @@ async def _handle_dispatch(event: str, data: dict[str, Any]) -> None:
         asyncio.create_task(discord_welcome.handle_member_join(data, guild_id=guild_id))
         return
 
+    if event == "GUILD_MEMBER_UPDATE":
+        import discord_international
+        asyncio.create_task(discord_international.handle_member_roles_update(data))
+        return
+
     if event == "MESSAGE_REACTION_ADD":
         if not _reaction_translate_enabled():
             return
