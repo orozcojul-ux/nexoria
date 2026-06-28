@@ -3,6 +3,7 @@ import {
   canShowInstallUi,
   isAndroidChrome,
   isIosSafari,
+  isMobileDevice,
   isStandaloneMode,
 } from "@/lib/pwa";
 

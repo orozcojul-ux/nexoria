@@ -2,7 +2,7 @@
  * NEXORIA PWA service worker — light static cache only.
  * Never caches API, auth, uploads, or user-specific data.
  */
-const CACHE_NAME = "nexoria-static-v1";
+const CACHE_NAME = "nexoria-static-v2";
 
 /** Paths that may be cached (same-origin static assets only). */
 function isCacheableStatic(url) {
@@ -14,7 +14,7 @@ function isCacheableStatic(url) {
   if (p.includes("/upload")) return false;
   if (p.startsWith("/static/")) return true;
   if (p.startsWith("/icons/")) return true;
-  if (p === "/manifest.json" || p === "/favicon.svg" || p === "/favicon.ico") return true;
+  if (p === "/manifest.json" || p === "/favicon-32.png" || p === "/favicon-16.png" || p === "/logo-nexoria.png") return true;
   if (/\.(js|css|woff2?|png|svg|ico|webp|json|map)$/i.test(p)) return true;
   return false;
 }

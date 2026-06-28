@@ -217,6 +217,9 @@ export const TRANSLATIONS_UI = {
   "footer.useful_links": T("Liens utiles", "Useful links"),
   "footer.help": T("Aide", "Help"),
   "footer.community": T("Communauté", "Community"),
+  "footer.mobile": T("Nexoria sur mobile", "NEXORIA on mobile", {
+    es: "NEXORIA en móvil", de: "NEXORIA mobil", it: "NEXORIA su mobile", pt: "NEXORIA no telemóvel", nl: "NEXORIA op mobiel", ja: "モバイル版 NEXORIA",
+  }),
   "footer.support": T("Support", "Support"),
   "footer.terms": T("Conditions", "Terms"),
   "footer.privacy": T("Confidentialité", "Privacy"),
@@ -290,6 +293,128 @@ export const TRANSLATIONS_UI = {
       pt: "Escolhe « Adicionar ao ecrã inicial » e confirma.",
       nl: "Kies « Zet op beginscherm » en bevestig.",
       ja: "「ホーム画面に追加」を選んで確認。",
+    },
+  ),
+
+  // ─── PWA mobile page & tutorial ───
+  "pwa.page.kicker": T("Application web", "Web app", {
+    es: "App web", de: "Web-App", it: "App web", pt: "App web", nl: "Webapp", ja: "Webアプリ",
+  }),
+  "pwa.page.title": T("Nexoria sur mobile", "NEXORIA on mobile", {
+    es: "NEXORIA en móvil", de: "NEXORIA mobil", it: "NEXORIA su mobile", pt: "NEXORIA no telemóvel", nl: "NEXORIA op mobiel", ja: "モバイル版 NEXORIA",
+  }),
+  "pwa.page.subtitle": T(
+    "Installe NEXORIA sur ton écran d'accueil pour y accéder comme une application, sans passer par le store.",
+    "Install NEXORIA on your home screen to open it like an app — no app store required.",
+    {
+      es: "Instala NEXORIA en tu pantalla de inicio para abrirla como una app, sin tienda.",
+      de: "Installiere NEXORIA auf deinem Startbildschirm — wie eine App, ohne Store.",
+      it: "Installa NEXORIA sulla schermata Home come un'app, senza store.",
+      pt: "Instala NEXORIA no ecrã inicial como uma app, sem loja.",
+      nl: "Installeer NEXORIA op je startscherm als app, zonder store.",
+      ja: "ホーム画面に追加してアプリのように使えます。ストア不要。",
+    },
+  ),
+  "pwa.page.hint": T(
+    "Le tutoriel s'ouvre automatiquement. Tu peux aussi le rouvrir ci-dessous.",
+    "The tutorial opens automatically. You can reopen it below.",
+    {
+      es: "El tutorial se abre solo. También puedes reabrirlo abajo.",
+      de: "Das Tutorial öffnet sich automatisch. Du kannst es unten erneut öffnen.",
+      it: "Il tutorial si apre da solo. Puoi riaprirlo sotto.",
+      pt: "O tutorial abre sozinho. Podes reabri-lo abaixo.",
+      nl: "De tutorial opent automatisch. Je kunt hem hieronder opnieuw openen.",
+      ja: "チュートリアルは自動で開きます。下から再度開けます。",
+    },
+  ),
+  "pwa.page.openTutorial": T("Voir le tutoriel d'installation", "View install tutorial", {
+    es: "Ver tutorial de instalación", de: "Installationsanleitung anzeigen", it: "Vedi guida installazione", pt: "Ver tutorial de instalação", nl: "Installatiehandleiding bekijken", ja: "インストール手順を見る",
+  }),
+  "pwa.page.backDashboard": T("Retour au tableau de bord", "Back to dashboard", {
+    es: "Volver al panel", de: "Zurück zum Dashboard", it: "Torna alla dashboard", pt: "Voltar ao painel", nl: "Terug naar dashboard", ja: "ダッシュボードに戻る",
+  }),
+  "pwa.page.backHome": T("Retour à l'accueil", "Back to home", {
+    es: "Volver al inicio", de: "Zur Startseite", it: "Torna alla home", pt: "Voltar ao início", nl: "Terug naar home", ja: "ホームに戻る",
+  }),
+  "pwa.tutorial.title": T("Installer NEXORIA sur mobile", "Install NEXORIA on mobile", {
+    es: "Instalar NEXORIA en móvil", de: "NEXORIA mobil installieren", it: "Installa NEXORIA su mobile", pt: "Instalar NEXORIA no telemóvel", nl: "NEXORIA op mobiel installeren", ja: "モバイルに NEXORIA をインストール",
+  }),
+  "pwa.tutorial.subtitle": T(
+    "Suis les étapes selon ton appareil (Android ou iPhone).",
+    "Follow the steps for your device (Android or iPhone).",
+    {
+      es: "Sigue los pasos según tu dispositivo (Android o iPhone).",
+      de: "Folge den Schritten für dein Gerät (Android oder iPhone).",
+      it: "Segui i passi in base al dispositivo (Android o iPhone).",
+      pt: "Segue os passos consoante o teu dispositivo (Android ou iPhone).",
+      nl: "Volg de stappen voor je apparaat (Android of iPhone).",
+      ja: "お使いの端末（Android または iPhone）に合わせて手順を進めてください。",
+    },
+  ),
+  "pwa.tutorial.android.title": T("Android (Chrome)", "Android (Chrome)", {
+    es: "Android (Chrome)", de: "Android (Chrome)", it: "Android (Chrome)", pt: "Android (Chrome)", nl: "Android (Chrome)", ja: "Android (Chrome)",
+  }),
+  "pwa.tutorial.android.step1": T(
+    "Ouvre nexoria-game.fr dans Google Chrome (pas un autre navigateur).",
+    "Open nexoria-game.fr in Google Chrome (not another browser).",
+    {
+      es: "Abre nexoria-game.fr en Google Chrome (no otro navegador).",
+      de: "Öffne nexoria-game.fr in Google Chrome (nicht einem anderen Browser).",
+      it: "Apri nexoria-game.fr in Google Chrome (non un altro browser).",
+      pt: "Abre nexoria-game.fr no Google Chrome (não noutro browser).",
+      nl: "Open nexoria-game.fr in Google Chrome (niet een andere browser).",
+      ja: "Google Chrome で nexoria-game.fr を開いてください（他のブラウザ不可）。",
+    },
+  ),
+  "pwa.tutorial.android.step2": T(
+    "Appuie sur le menu ⋮ en haut à droite, ou sur le bandeau « Installer l'application » s'il apparaît.",
+    "Tap the ⋮ menu at the top right, or the « Install app » banner if it appears.",
+    {
+      es: "Pulsa el menú ⋮ arriba a la derecha, o el banner « Instalar aplicación » si aparece.",
+      de: "Tippe oben rechts auf ⋮ oder auf « App installieren », falls angezeigt.",
+      it: "Tocca il menu ⋮ in alto a destra, o il banner « Installa app » se compare.",
+      pt: "Toca no menu ⋮ no canto superior direito, ou no banner « Instalar app » se aparecer.",
+      nl: "Tik rechtsboven op ⋮ of op « App installeren » als die verschijnt.",
+      ja: "右上の ⋮ メニュー、または表示された「アプリをインストール」をタップ。",
+    },
+  ),
+  "pwa.tutorial.android.step3": T(
+    "Choisis « Installer l'application » ou « Ajouter à l'écran d'accueil », puis confirme.",
+    "Choose « Install app » or « Add to Home screen », then confirm.",
+    {
+      es: "Elige « Instalar aplicación » o « Añadir a pantalla de inicio » y confirma.",
+      de: "Wähle « App installieren » oder « Zum Startbildschirm » und bestätige.",
+      it: "Scegli « Installa app » o « Aggiungi a Home » e conferma.",
+      pt: "Escolhe « Instalar app » ou « Adicionar ao ecrã inicial » e confirma.",
+      nl: "Kies « App installeren » of « Toevoegen aan startscherm » en bevestig.",
+      ja: "「アプリをインストール」または「ホーム画面に追加」を選んで確認。",
+    },
+  ),
+  "pwa.tutorial.ios.title": T("iPhone / iPad (Safari)", "iPhone / iPad (Safari)", {
+    es: "iPhone / iPad (Safari)", de: "iPhone / iPad (Safari)", it: "iPhone / iPad (Safari)", pt: "iPhone / iPad (Safari)", nl: "iPhone / iPad (Safari)", ja: "iPhone / iPad (Safari)",
+  }),
+  "pwa.tutorial.alreadyInstalled": T(
+    "NEXORIA semble déjà installée sur cet appareil.",
+    "NEXORIA appears to be already installed on this device.",
+    {
+      es: "NEXORIA parece ya instalada en este dispositivo.",
+      de: "NEXORIA scheint auf diesem Gerät bereits installiert zu sein.",
+      it: "NEXORIA sembra già installata su questo dispositivo.",
+      pt: "NEXORIA parece já instalada neste dispositivo.",
+      nl: "NEXORIA lijkt al geïnstalleerd op dit apparaat.",
+      ja: "この端末には既に NEXORIA がインストールされているようです。",
+    },
+  ),
+  "pwa.tutorial.note": T(
+    "Astuce : sur iPhone, utilise Safari. Sur Android, Chrome offre la meilleure expérience d'installation.",
+    "Tip: on iPhone, use Safari. On Android, Chrome offers the best install experience.",
+    {
+      es: "Consejo: en iPhone usa Safari. En Android, Chrome ofrece la mejor experiencia.",
+      de: "Tipp: auf dem iPhone Safari nutzen. Auf Android bietet Chrome die beste Installation.",
+      it: "Suggerimento: su iPhone usa Safari. Su Android, Chrome offre la migliore esperienza.",
+      pt: "Dica: no iPhone usa Safari. No Android, o Chrome oferece a melhor experiência.",
+      nl: "Tip: gebruik Safari op iPhone. Op Android werkt Chrome het best.",
+      ja: "ヒント: iPhone は Safari、Android は Chrome がおすすめです。",
     },
   ),
 };

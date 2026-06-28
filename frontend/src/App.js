@@ -46,6 +46,7 @@ import Classes from "@/pages/Classes";
 import Events from "@/pages/Events";
 import TermsPage from "@/pages/TermsPage";
 import PrivacyPage from "@/pages/PrivacyPage";
+import MobileAppPage from "@/pages/MobileAppPage";
 import LegalRoute from "@/components/legal/LegalRoute";
 import UnderConstruction from "@/pages/UnderConstruction";
 import Referral from "@/pages/Referral";
@@ -146,6 +147,7 @@ function AppRouter() {
         <Route path="/admin" element={<ProtectedRoute><Layout><Admin /></Layout></ProtectedRoute>} />
         <Route path="/profile/:username" element={<ProtectedRoute><ProfileCardRedirect /></ProtectedRoute>} />
         <Route path="/communaute" element={<ProtectedRoute><Layout><Community /></Layout></ProtectedRoute>} />
+        <Route path="/nexoria-mobile" element={<LegalRoute><MobileAppPage /></LegalRoute>} />
         <Route path="/conditions" element={<LegalRoute><TermsPage /></LegalRoute>} />
         <Route path="/confidentialite" element={<LegalRoute><PrivacyPage /></LegalRoute>} />
         <Route path="*" element={<ProtectedRoute><Layout><UnderConstruction /></Layout></ProtectedRoute>} />

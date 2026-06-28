@@ -46,6 +46,7 @@ export default function SiteFooter() {
   const links = [
     { labelKey: "footer.help", action: "guide" },
     { labelKey: "footer.community", to: "/communaute" },
+    { labelKey: "footer.mobile", to: "/nexoria-mobile" },
     { labelKey: "footer.support", to: "/tickets" },
     { labelKey: "footer.terms", to: "/conditions" },
     { labelKey: "footer.privacy", to: "/confidentialite" },

@@ -10,11 +10,14 @@ Production : [https://nexoria-game.fr](https://nexoria-game.fr)
 |---------|------|
 | `frontend/public/manifest.json` | Métadonnées PWA (nom, couleurs, icônes, `display: standalone`) |
 | `frontend/public/service-worker.js` | Cache léger des assets statiques uniquement |
+| `frontend/public/logo-nexoria.png` | Source PNG (logo officiel) |
+| `frontend/public/favicon-16.png` | Favicon navigateur 16×16 |
+| `frontend/public/favicon-32.png` | Favicon navigateur 32×32 |
 | `frontend/public/icons/icon-192.png` | Icône 192×192 |
 | `frontend/public/icons/icon-512.png` | Icône 512×512 |
 | `frontend/public/icons/maskable-icon-512.png` | Icône maskable Android |
 | `frontend/public/icons/apple-touch-icon.png` | Icône iOS (180×180) |
-| `frontend/scripts/generate-pwa-icons.mjs` | Régénère les PNG depuis `favicon.svg` |
+| `frontend/scripts/generate-pwa-icons.mjs` | Régénère les PNG depuis `logo-nexoria.png` |
 | `frontend/src/registerServiceWorker.js` | Enregistrement SW (production) |
 | `frontend/src/lib/pwa.js` | Détection mobile / standalone / iOS |
 | `frontend/src/hooks/usePwaInstall.js` | Hook `beforeinstallprompt` |
@@ -85,7 +88,8 @@ cd frontend
 npm run pwa:icons
 ```
 
-Source : `public/favicon.svg` (logo N violet / couronne dorée).
+Source : `public/logo-nexoria.png` (logo NEXORIA officiel — N + wordmark sur fond noir).
+Génère favicon 16/32 px, icônes PWA 192/512, apple-touch-icon et maskable.
 
 ## Backend
 

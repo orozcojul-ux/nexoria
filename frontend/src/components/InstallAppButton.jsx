@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Download, Smartphone, Share, PlusSquare, X } from "lucide-react";
+import { Download, Smartphone, Share, X } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 import { usePwaInstall } from "@/hooks/usePwaInstall";
 import { isMobileDevice } from "@/lib/pwa";
+import PwaInstallTutorialModal from "@/components/PwaInstallTutorialModal";
 
 /**
  * Discrete PWA install prompt — mobile-first, NEXORIA styling.
@@ -98,44 +99,7 @@ export default function InstallAppButton({ variant = "settings", className = "" 
         </div>
       </div>
 
-      {iosOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="pwa-ios-title"
-          onClick={() => setIosOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-violet-500/30 bg-[#0c0a18] p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <h3 id="pwa-ios-title" className="font-display font-bold text-violet-100">{t("pwa.install.ios.title")}</h3>
-              <button type="button" onClick={() => setIosOpen(false)} className="text-zinc-500 hover:text-zinc-300">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <ol className="space-y-3 text-sm text-zinc-300">
-              <li className="flex gap-3">
-                <Share className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-                <span>{t("pwa.install.ios.step1")}</span>
-              </li>
-              <li className="flex gap-3">
-                <PlusSquare className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
-                <span>{t("pwa.install.ios.step2")}</span>
-              </li>
-            </ol>
-            <button
-              type="button"
-              onClick={() => setIosOpen(false)}
-              className="mt-4 w-full py-2 rounded-lg border border-white/10 text-xs font-bold text-zinc-300 hover:bg-white/5"
-            >
-              {t("pwa.install.dismiss")}
-            </button>
-          </div>
-        </div>
-      )}
+      <PwaInstallTutorialModal open={iosOpen} onClose={() => setIosOpen(false)} />
     </>
   );
 }
