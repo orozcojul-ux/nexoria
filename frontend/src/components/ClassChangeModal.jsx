@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
 import ClassImage from "@/components/ClassImage";
 import { useI18n } from "@/i18n/LanguageProvider";
+import { normalizeClassId } from "@/lib/translate-game";
 
 export default function ClassChangeModal({ open, onClose, user, onChanged }) {
   const { t } = useI18n();
@@ -32,8 +33,10 @@ export default function ClassChangeModal({ open, onClose, user, onChanged }) {
     ? t("classChange.scrollsCount_other", { count: credits })
     : t("classChange.scrollsCount", { count: credits });
 
+  const currentClassId = normalizeClassId(user?.class_id);
+
   const confirm = async () => {
-    if (!selected || selected === user.class_id) return;
+    if (!selected || selected === currentClassId) return;
     setSaving(true);
     try {
       const { data: profile } = await api.put("/profile", { class_id: selected });
@@ -105,7 +108,7 @@ export default function ClassChangeModal({ open, onClose, user, onChanged }) {
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {classes.map((c) => {
-                const isCurrent = c.id === user?.class_id;
+                const isCurrent = c.id === currentClassId;
                 const isSel = selected === c.id;
                 return (
                   <button
@@ -136,7 +139,7 @@ export default function ClassChangeModal({ open, onClose, user, onChanged }) {
 
             <button
               onClick={confirm}
-              disabled={!selected || selected === user?.class_id || !canChange || saving}
+              disabled={!selected || selected === currentClassId || !canChange || saving}
               className="mt-5 w-full px-4 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 text-white font-display font-black uppercase tracking-widest text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.01] transition-transform"
               data-testid="class-change-confirm"
             >

@@ -18,6 +18,7 @@ import httpx
 
 import discord_translate
 import discord_international
+from game_data import CLASSES, normalize_class_id
 
 logger = logging.getLogger("nexoria.discord_sync")
 
@@ -82,6 +83,22 @@ def _config():
 def is_configured() -> bool:
     cfg = _config()
     return bool(cfg["token"] and cfg["guild_id"])
+
+
+def is_sync_enabled() -> bool:
+    """Avoid syncing prod Discord roles from a local dev MongoDB (shared bot token)."""
+    flag = os.environ.get("DISCORD_SYNC_ENABLED", "").strip().lower()
+    if flag in ("0", "false", "no", "off"):
+        return False
+    if flag in ("1", "true", "yes", "on"):
+        return is_configured()
+    mongo = os.environ.get("MONGO_URL", "").lower()
+    frontend = os.environ.get("FRONTEND_URL", "").lower()
+    local_mongo = "localhost" in mongo or "127.0.0.1" in mongo
+    local_frontend = "localhost" in frontend or "127.0.0.1" in frontend
+    if local_mongo and local_frontend:
+        return False
+    return is_configured()
 
 
 def _headers(token: str) -> dict:
@@ -340,6 +357,8 @@ async def _apply_discord_profile(db, user_id: str, user: dict, member: dict) -> 
 
 async def sync_discord_roles(db, user_id: str) -> dict:
     """Reconcile Discord profile + guild roles for a linked NEXORIA user."""
+    if not is_sync_enabled():
+        return {"ok": False, "skipped": True, "reason": "sync_disabled_local_dev"}
     cfg = _config()
     if not is_configured():
         return {"ok": False, "skipped": True, "reason": "discord_not_configured"}
@@ -351,7 +370,13 @@ async def sync_discord_roles(db, user_id: str) -> dict:
     if not discord_id:
         return {"ok": False, "skipped": True, "reason": "no_discord_link"}
 
-    class_id = user.get("class_id")
+    raw_class_id = user.get("class_id")
+    class_id = normalize_class_id(raw_class_id)
+    if class_id and class_id != raw_class_id:
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"class_id": class_id, "class_name": CLASSES[class_id]["name"]}},
+        )
     class_role_id = CLASS_ROLE_IDS.get(class_id) if class_id else None
     progression_name = progression_tier_from_level(user.get("level", 1))
     progression_role_id = PROGRESSION_ROLE_IDS.get(progression_name)
@@ -528,7 +553,7 @@ _background_tasks: set = set()
 def schedule_sync(db, user_id: str):
     """Fire-and-forget background sync. Use this from hot paths so the user
     request isn't slowed down. Errors are swallowed (logged to DB)."""
-    if not is_configured():
+    if not is_sync_enabled():
         return
     try:
         loop = asyncio.get_event_loop()
@@ -551,7 +576,7 @@ async def _periodic_loop(db, interval: int, batch: int):
     logger.info("Discord periodic sync loop running (every %ss, batch %s)", interval, batch)
     while True:
         try:
-            if is_configured():
+            if is_sync_enabled():
                 from datetime import datetime, timezone
                 # Least-recently-attempted linked members first (missing field sorts
                 # first), so every member is reconciled in turn — including those that
@@ -586,8 +611,10 @@ def start_periodic_sync(db, interval: int = 30, batch: int = 8):
     global _periodic_task
     if _periodic_task and not _periodic_task.done():
         return _periodic_task
-    if not is_configured():
-        logger.info("Discord periodic sync disabled (DISCORD_BOT_TOKEN/GUILD_ID missing)")
+    if not is_sync_enabled():
+        logger.info(
+            "Discord periodic sync disabled (local dev stack or DISCORD_SYNC_ENABLED=0)",
+        )
         return None
     try:
         loop = asyncio.get_event_loop()

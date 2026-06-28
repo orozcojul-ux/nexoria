@@ -681,3 +681,47 @@ async def translate_batch(
             client_key=client_key,
         )
     return {"target_lang": target_lang, "items": out}
+
+
+async def provider_status() -> dict[str, Any]:
+    """Diagnostic — LibreTranslate + MyMemory reachability (for VPS ops)."""
+    import httpx
+
+    lt_url = libretranslate_client.libretranslate_url().rstrip("/")
+    lt_configured = _use_libretranslate()
+    lt_reachable = False
+    lt_error: str | None = None
+    if lt_configured:
+        try:
+            async with httpx.AsyncClient(timeout=libretranslate_client.request_timeout()) as client:
+                resp = await client.get(f"{lt_url}/languages", headers=libretranslate_client._auth_headers())
+                lt_reachable = resp.status_code == 200
+                if not lt_reachable:
+                    lt_error = f"HTTP {resp.status_code}"
+        except Exception as exc:  # noqa: BLE001
+            lt_error = str(exc)[:160]
+
+    mm_enabled = _allow_mymemory()
+    mm_reachable = False
+    mm_error: str | None = None
+    if mm_enabled:
+        sample = await _mymemory_translate("Bonjour", "fr", "en")
+        mm_reachable = sample is not None and sample.strip().lower() != "bonjour"
+        if not mm_reachable:
+            mm_error = "empty response or quota"
+
+    return {
+        "ready": lt_reachable or mm_reachable,
+        "libretranslate": {
+            "configured": lt_configured,
+            "url": lt_url if lt_configured else None,
+            "reachable": lt_reachable,
+            "error": lt_error,
+        },
+        "mymemory": {
+            "enabled": mm_enabled,
+            "reachable": mm_reachable,
+            "email_configured": bool(os.environ.get("MYMEMORY_EMAIL", "").strip()),
+            "error": mm_error,
+        },
+    }

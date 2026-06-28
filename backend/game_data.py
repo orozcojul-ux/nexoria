@@ -125,6 +125,32 @@ CLASS_PORTRAIT_FILES = {
     "inventeur": "inventeur",
 }
 
+# French / legacy aliases → canonical CLASSES keys (used by Discord sync + profile).
+CLASS_ID_ALIASES: dict[str, str] = {
+    "guerrier": "warrior",
+    "alchimiste": "alchemist",
+    "explorateur": "explorer",
+    "necromancien": "necromancer",
+    "architecte": "architect",
+    "chronomancien": "chronomancer",
+    "inventeur": "inventor",
+}
+
+
+def normalize_class_id(class_id: str | None) -> str | None:
+    """Map French/legacy class ids to canonical English keys in CLASSES."""
+    if class_id is None:
+        return None
+    cid = str(class_id).strip().lower()
+    if not cid:
+        return None
+    if cid in CLASSES:
+        return cid
+    alias = CLASS_ID_ALIASES.get(cid)
+    if alias and alias in CLASSES:
+        return alias
+    return None
+
 
 def class_portrait_path(class_id: str | None) -> str:
     """Relative public URL for the class portrait used as default avatar."""

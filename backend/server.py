@@ -42,7 +42,7 @@ from game_data import (
     CLASSES, SKILLS, KINGDOM_BUILDINGS, RARITIES, TITLES, BADGES, SHOP_ONLY_TITLES,
     REFERRAL_TITLES, VIP_TITLES,
     QUEST_TEMPLATES, ITEM_TEMPLATES, xp_for_level, level_from_xp, rank_from_level,
-    COMMUNITY_CHALLENGES, class_portrait_path, is_class_portrait_url,
+    COMMUNITY_CHALLENGES, class_portrait_path, is_class_portrait_url, normalize_class_id,
 )
 try:
     from oracle import consult_oracle, generate_personalized_quest, oracle_llm_configured, oracle_config_info
@@ -1731,7 +1731,8 @@ async def check_availability(email: str = "", username: str = ""):
 async def register(req: RegisterReq, response: Response):
     email = req.email.lower().strip()
     username = req.username.strip()
-    if req.class_id not in CLASSES:
+    class_id = normalize_class_id(req.class_id)
+    if not class_id:
         raise HTTPException(400, "Classe invalide")
     if await _email_taken(email):
         raise HTTPException(400, "Email déjà utilisé")
@@ -1744,7 +1745,7 @@ async def register(req: RegisterReq, response: Response):
         email=email,
         username=username,
         password=req.password,
-        class_id=req.class_id,
+        class_id=class_id,
         beta_access_flag=False,
     )
     await db.users.insert_one(user_doc)
@@ -1760,13 +1761,13 @@ async def register(req: RegisterReq, response: Response):
     set_session_cookie(response, token)
 
     await record_user_connection(db, user_id)
-    cls = CLASSES[req.class_id]
+    cls = CLASSES[class_id]
     await add_chronicle(
         user_id,
         f"Le héros {username} ({cls['name']}) a rejoint NEXORIA",
         "creation",
         i18n_key="chronicle.creation.joined",
-        i18n_params={"username": username, "class_id": req.class_id, "className": cls["name"]},
+        i18n_params={"username": username, "class_id": class_id, "className": cls["name"]},
     )
     discord_auth_forum.schedule_auth_event("register", user_doc, method="email")
 
@@ -2472,13 +2473,15 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
     class_change_inc = {}
     class_change_notify: tuple[str, str | None, str, bool] | None = None
     if "class_id" in update:
-        if update["class_id"] not in CLASSES:
+        normalized_class = normalize_class_id(update["class_id"])
+        if not normalized_class:
             raise HTTPException(400, "Classe invalide")
-        update["class_name"] = CLASSES[update["class_id"]]["name"]
+        update["class_id"] = normalized_class
+        update["class_name"] = CLASSES[normalized_class]["name"]
         # Gate real class changes: 1 free change for everyone, then requires
         # « Parchemin de Mutation » credits (3 per purchase). The initial class
         # selection (needs_class_selection) and no-op re-selection are free.
-        current_class = user.get("class_id")
+        current_class = normalize_class_id(user.get("class_id")) or user.get("class_id")
         is_initial = bool(user.get("needs_class_selection"))
         is_real_change = (not is_initial) and update["class_id"] != current_class
         if is_real_change:
@@ -2515,8 +2518,12 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
                 update["class_name"],
                 is_initial,
             )
-    if "secondary_class_id" in update and update["secondary_class_id"] not in CLASSES:
-        raise HTTPException(400, "Classe secondaire invalide")
+    if "secondary_class_id" in update:
+        sec_raw = update.get("secondary_class_id")
+        sec = normalize_class_id(sec_raw) if sec_raw else None
+        if sec_raw and not sec:
+            raise HTTPException(400, "Classe secondaire invalide")
+        update["secondary_class_id"] = sec
     # Validate cosmetic ownership for active_* fields
     if "active_banner" in update and update["active_banner"]:
         owned = await db.user_cosmetics.find_one({"user_id": user["user_id"], "sku": update["active_banner"]})
@@ -5955,12 +5962,15 @@ async def admin_edit_user(user_id: str, req: UserEditReq, user: dict = Depends(g
     if "display_name" in update:
         update["display_name"] = (update["display_name"] or "").strip()
     if "class_id" in update:
-        if update["class_id"] not in CLASSES:
+        normalized_class = normalize_class_id(update["class_id"])
+        if not normalized_class:
             raise HTTPException(400, "Classe invalide")
-        update["class_name"] = CLASSES[update["class_id"]]["name"]
+        update["class_id"] = normalized_class
+        update["class_name"] = CLASSES[normalized_class]["name"]
     if "secondary_class_id" in update:
-        sec = (update["secondary_class_id"] or "").strip() or None
-        if sec and sec not in CLASSES:
+        sec_raw = (update.get("secondary_class_id") or "").strip() or None
+        sec = normalize_class_id(sec_raw) if sec_raw else None
+        if sec_raw and not sec:
             raise HTTPException(400, "Classe secondaire invalide")
         update["secondary_class_id"] = sec
     if "active_title" in update:
@@ -6647,6 +6657,12 @@ async def api_content_translate(req: ContentTranslateReq, request: Request):
             raise HTTPException(429, "Trop de traductions — réessayez dans un instant")
         raise
     return result
+
+
+@api.get("/content/translate/status")
+async def api_content_translate_status():
+    """Diagnostic traduction UGC — LibreTranslate / MyMemory (ops VPS)."""
+    return await content_translate.provider_status()
 
 
 @api.post("/content/translate/batch")
@@ -8694,7 +8710,10 @@ async def discord_sync_log(user: dict = Depends(get_staff_dep)):
 @api.get("/discord/status")
 async def discord_status():
     """Public-ish: tells the frontend whether Discord sync is wired up."""
-    return {"configured": discord_sync.is_configured()}
+    return {
+        "configured": discord_sync.is_configured(),
+        "sync_enabled": discord_sync.is_sync_enabled(),
+    }
 
 
 # ---------- Nexus Online lobby endpoint ----------

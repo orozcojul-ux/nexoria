@@ -97,6 +97,7 @@ export default function NewsArticle() {
               entityType="news"
               entityId={article.news_id}
               field="title"
+              compact
             />
           </h1>
 
