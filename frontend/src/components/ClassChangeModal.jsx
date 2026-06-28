@@ -42,6 +42,11 @@ export default function ClassChangeModal({ open, onClose, user, onChanged }) {
       const { data: profile } = await api.put("/profile", { class_id: selected });
       sfx.success?.();
       toast.success(t("classChange.success"));
+      try {
+        await api.post("/discord/sync-me");
+      } catch {
+        /* sync best-effort */
+      }
       await onChanged?.(profile);
       onClose();
     } catch (err) {

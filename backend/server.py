@@ -43,6 +43,7 @@ from game_data import (
     REFERRAL_TITLES, VIP_TITLES,
     QUEST_TEMPLATES, ITEM_TEMPLATES, xp_for_level, level_from_xp, rank_from_level,
     COMMUNITY_CHALLENGES, class_portrait_path, is_class_portrait_url, normalize_class_id,
+    resolve_class_id, class_repair_patch,
 )
 try:
     from oracle import consult_oracle, generate_personalized_quest, oracle_llm_configured, oracle_config_info
@@ -357,6 +358,10 @@ def public_user(user: dict) -> dict:
     user["vip_plan"] = user.get("vip_plan")
     user["vip_total_days_purchased"] = int(user.get("vip_total_days_purchased", 0) or 0)
     user["is_nexus_supreme"] = (user.get("username") or "").lower() == OWNER_USERNAME.lower()
+    resolved_class = resolve_class_id(user)
+    if resolved_class:
+        user["class_id"] = resolved_class
+        user["class_name"] = CLASSES[resolved_class]["name"]
     user["discord_linked"] = bool(user.get("discord_id"))
     user["needs_discord_link"] = bool(user.get("needs_discord_link")) and not user.get("discord_id")
     user["beta_class_changes_used"] = beta_access.beta_class_changes_used(user)
@@ -2186,7 +2191,28 @@ async def me(user: dict = Depends(get_user_dep)):
     await maybe_process_daily_login(user["user_id"])
     await reconcile_user_progress(user["user_id"])
     fresh = await db.users.find_one({"user_id": user["user_id"]})
-    return public_user(fresh or user)
+    profile = fresh or user
+    repair = class_repair_patch(profile)
+    if repair:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": repair})
+        profile = await db.users.find_one({"user_id": user["user_id"]}) or {**profile, **repair}
+    if profile.get("discord_id"):
+        should_sync = bool(repair)
+        if not should_sync:
+            last = profile.get("discord_roles_synced_at")
+            if not last:
+                should_sync = True
+            else:
+                try:
+                    dt = datetime.fromisoformat(str(last).replace("Z", "+00:00"))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    should_sync = (now_utc() - dt).total_seconds() > 3600
+                except Exception:
+                    should_sync = True
+        if should_sync:
+            discord_sync.schedule_sync(db, user["user_id"])
+    return public_user(profile)
 
 
 @api.post("/auth/heartbeat")

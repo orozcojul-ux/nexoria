@@ -152,6 +152,38 @@ def normalize_class_id(class_id: str | None) -> str | None:
     return None
 
 
+def resolve_class_id(user: dict | None) -> str | None:
+    """Canonical class id from profile — normalizes id, then falls back to class_name."""
+    if not user:
+        return None
+    cid = normalize_class_id(user.get("class_id"))
+    if cid:
+        return cid
+    name = (user.get("class_name") or "").strip().lower()
+    if not name:
+        return None
+    for kid, meta in CLASSES.items():
+        if meta["name"].lower() == name:
+            return kid
+    return normalize_class_id(name)
+
+
+def class_repair_patch(user: dict | None) -> dict:
+    """MongoDB $set fields when class_id / class_name are stale or inconsistent."""
+    if not user:
+        return {}
+    resolved = resolve_class_id(user)
+    if not resolved:
+        return {}
+    canonical_name = CLASSES[resolved]["name"]
+    patch: dict = {}
+    if user.get("class_id") != resolved:
+        patch["class_id"] = resolved
+    if user.get("class_name") != canonical_name:
+        patch["class_name"] = canonical_name
+    return patch
+
+
 def class_portrait_path(class_id: str | None) -> str:
     """Relative public URL for the class portrait used as default avatar."""
     cid = (class_id or "explorer").lower()

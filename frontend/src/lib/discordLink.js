@@ -2,7 +2,8 @@ import api from "@/lib/api";
 
 export const DISCORD_LINK_INTENT_KEY = "nexoria_discord_link_intent";
 
-export function needsBetaDiscordLink(user) {
+export function needsBetaDiscordLink(user, { maintenanceEnabled = false } = {}) {
+  if (!maintenanceEnabled) return false;
   if (!user) return false;
   if (user.discord_linked || user.discord_id) return false;
   if (user.role === "admin" || user.role === "moderator") return false;

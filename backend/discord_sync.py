@@ -18,7 +18,7 @@ import httpx
 
 import discord_translate
 import discord_international
-from game_data import CLASSES, normalize_class_id
+from game_data import CLASSES, normalize_class_id, resolve_class_id, class_repair_patch
 
 logger = logging.getLogger("nexoria.discord_sync")
 
@@ -371,8 +371,12 @@ async def sync_discord_roles(db, user_id: str) -> dict:
         return {"ok": False, "skipped": True, "reason": "no_discord_link"}
 
     raw_class_id = user.get("class_id")
-    class_id = normalize_class_id(raw_class_id)
-    if class_id and class_id != raw_class_id:
+    class_id = resolve_class_id(user)
+    repair = class_repair_patch(user)
+    if repair:
+        await db.users.update_one({"user_id": user_id}, {"$set": repair})
+        user = {**user, **repair}
+    elif class_id and class_id != raw_class_id:
         await db.users.update_one(
             {"user_id": user_id},
             {"$set": {"class_id": class_id, "class_name": CLASSES[class_id]["name"]}},

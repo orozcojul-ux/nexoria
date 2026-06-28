@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { Loader2, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMaintenance } from "@/contexts/MaintenanceContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { PremiumModal } from "@/components/ui-premium";
 import { needsBetaDiscordLink, startDiscordLinkOAuth } from "@/lib/discordLink";
@@ -16,10 +17,10 @@ function DiscordIcon({ className = "w-5 h-5" }) {
   );
 }
 
-export default function BetaDiscordLinkModal({ user }) {
+export default function BetaDiscordLinkModal({ user, maintenanceEnabled }) {
   const { t } = useI18n();
   const [loading, setLoading] = useState(false);
-  const open = needsBetaDiscordLink(user);
+  const open = needsBetaDiscordLink(user, { maintenanceEnabled });
 
   useEffect(() => {
     if (open) {
@@ -93,13 +94,14 @@ export default function BetaDiscordLinkModal({ user }) {
   );
 }
 
-/** Affiche la popup obligatoire pour les testeurs beta sans Discord lié. */
+/** Popup obligatoire Discord — uniquement pendant la maintenance (phase bêta). */
 export function BetaDiscordLinkHost() {
   const { user, loading } = useAuth();
+  const maint = useMaintenance();
   const location = useLocation();
 
-  if (loading || !user) return null;
+  if (loading || !user || maint.loading || !maint.enabled) return null;
   if (location.pathname.startsWith("/auth/discord/callback")) return null;
 
-  return <BetaDiscordLinkModal user={user} />;
+  return <BetaDiscordLinkModal user={user} maintenanceEnabled={maint.enabled} />;
 }
