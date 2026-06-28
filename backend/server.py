@@ -358,6 +358,7 @@ def public_user(user: dict) -> dict:
     user["vip_total_days_purchased"] = int(user.get("vip_total_days_purchased", 0) or 0)
     user["is_nexus_supreme"] = (user.get("username") or "").lower() == OWNER_USERNAME.lower()
     user["discord_linked"] = bool(user.get("discord_id"))
+    user["needs_discord_link"] = bool(user.get("needs_discord_link")) and not user.get("discord_id")
     user["beta_class_changes_used"] = beta_access.beta_class_changes_used(user)
     user["beta_class_change_available"] = beta_access.beta_class_change_available(user)
 
@@ -1878,6 +1879,13 @@ async def _activate_beta_key_for_user(user: dict, beta_key: str, response: Respo
 
     await claim_beta_activation_rewards(user["user_id"], user.get("username") or "Héros")
     discord_auth_forum.schedule_beta_redeemed(user.get("username"))
+
+    if not fresh_user.get("discord_id"):
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"needs_discord_link": True}},
+        )
+        fresh_user = await db.users.find_one({"user_id": user["user_id"]})
 
     token = create_session_token()
     await db.user_sessions.insert_one({
@@ -6182,6 +6190,54 @@ async def discord_url():
     if not discord_auth.is_configured():
         raise HTTPException(503, detail={"code": "not_configured", "message": "Discord OAuth non configuré côté serveur"})
     return {"url": discord_auth.build_authorize_url()}
+
+
+@api.post("/auth/discord/link")
+async def discord_link_account(req: DiscordExchangeReq, user: dict = Depends(get_user_dep)):
+    """Lie le compte Discord au profil NEXORIA déjà connecté (beta / réglages)."""
+    if user.get("discord_id"):
+        raise HTTPException(
+            400,
+            detail={"code": "already_linked", "message": "Compte Discord déjà lié"},
+        )
+    try:
+        profile = await discord_auth.exchange_code(req.code)
+    except discord_auth.DiscordAuthError as e:
+        raise HTTPException(e.status, detail={"code": e.code, "message": e.message})
+    except Exception as e:
+        logger.exception("Discord link unexpected error")
+        raise HTTPException(500, detail={"code": "internal_error", "message": f"Échec liaison Discord: {str(e)[:120]}"})
+
+    discord_id = profile["discord_id"]
+    other = await db.users.find_one({"discord_id": discord_id, "user_id": {"$ne": user["user_id"]}})
+    if other:
+        raise HTTPException(
+            409,
+            detail={
+                "code": "discord_account_conflict",
+                "message": "Ce compte Discord est déjà lié à un autre profil NEXORIA",
+            },
+        )
+
+    patch = _discord_link_patch(user, profile)
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": patch, "$unset": {"needs_discord_link": ""}},
+    )
+    badge_granted = await grant_badge(user["user_id"], DISCORD_SIGNUP_BADGE_ID)
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    discord_sync.schedule_sync(db, user["user_id"])
+    discord_beta.schedule_maybe_grant_beta_on_link(db, user["user_id"], fresh.get("email") or "")
+    discord_beta.schedule_grant_beta_tester(db, user["user_id"])
+    await add_chronicle(user["user_id"], "Compte Discord lié au profil NEXORIA", "profile")
+
+    result = public_user(fresh or user)
+    result["auth_meta"] = {
+        "discord_linked": True,
+        "badge_granted": badge_granted,
+        "badge_id": DISCORD_SIGNUP_BADGE_ID if badge_granted else None,
+    }
+    return result
 
 
 @api.post("/auth/discord/exchange")

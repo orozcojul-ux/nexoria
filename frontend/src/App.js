@@ -48,6 +48,7 @@ import TermsPage from "@/pages/TermsPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import MobileAppRedirect from "@/components/MobileAppRedirect";
 import PwaTutorialHost from "@/components/PwaTutorialHost";
+import { BetaDiscordLinkHost } from "@/components/BetaDiscordLinkModal";
 import LegalRoute from "@/components/legal/LegalRoute";
 import UnderConstruction from "@/pages/UnderConstruction";
 import Referral from "@/pages/Referral";
@@ -114,6 +115,7 @@ function AppRouter() {
       <NexusFAB />
       <AetherTicker />
       <PwaTutorialHost />
+      <BetaDiscordLinkHost />
       <Routes>
         <Route path="/" element={<RootRoute />} />
         <Route path="/login" element={<Login />} />

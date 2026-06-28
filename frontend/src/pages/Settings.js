@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import api, { formatApiError } from "@/lib/api";
 import { getDiscordDisplayName } from "@/lib/discord-display";
+import { startDiscordLinkOAuth } from "@/lib/discordLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { sfx } from "@/lib/sfx";
@@ -178,8 +179,7 @@ function DiscordLinkSection({ user, refresh }) {
 
   const startDiscordOAuth = async () => {
     try {
-      const { data } = await api.get("/auth/discord/url");
-      if (data?.url) window.location.href = data.url;
+      await startDiscordLinkOAuth();
     } catch {
       toast.error(t("login.discord_error"));
     }

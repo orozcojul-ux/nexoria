@@ -9,6 +9,7 @@ import api, { formatApiError, extractBanDetail } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 import { useI18n } from "@/contexts/I18nContext";
+import { consumeDiscordLinkIntent } from "@/lib/discordLink";
 
 
 
@@ -151,13 +152,17 @@ export default function DiscordCallback() {
 
     (async () => {
 
+      const linkIntent = consumeDiscordLinkIntent();
+
       try {
 
         let referralCode = null;
 
         try { referralCode = localStorage.getItem("nexoria_ref"); } catch {}
 
-        const { data } = await api.post("/auth/discord/exchange", { code, referral_code: referralCode || undefined });
+        const { data } = linkIntent
+          ? await api.post("/auth/discord/link", { code })
+          : await api.post("/auth/discord/exchange", { code, referral_code: referralCode || undefined });
 
         try { localStorage.removeItem("nexoria_ref"); } catch {}
 
@@ -167,7 +172,17 @@ export default function DiscordCallback() {
 
 
 
-        if (meta.is_new_account) {
+        if (linkIntent || meta.discord_linked) {
+
+          toast.success(t("discord.callback.linked"));
+
+          if (meta.badge_granted) {
+
+            toast.success(t("discord.callback.badge_unlocked"), { duration: 6000 });
+
+          }
+
+        } else if (meta.is_new_account) {
 
           toast.success(t("discord.callback.welcome_new", { name: data.username }));
 
@@ -182,10 +197,6 @@ export default function DiscordCallback() {
             toast.success(t("discord.callback.badge_unlocked"), { duration: 6000 });
 
           }
-
-        } else if (meta.discord_linked) {
-
-          toast.success(t("discord.callback.linked"));
 
         } else {
 
@@ -229,7 +240,7 @@ export default function DiscordCallback() {
 
         toast.error(formatApiError(err) || t("discord.callback.failed"));
 
-        navigate("/login");
+        navigate(linkIntent ? "/feed" : "/login");
 
       }
 

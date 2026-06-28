@@ -223,7 +223,7 @@ export function PremiumBadge({ badge, size = "md", testid }) {
 }
 
 /* ============== PREMIUM MODAL ============== */
-export function PremiumModal({ open, onClose, title, icon: Icon, maxWidth = "max-w-3xl", children, testid, footer }) {
+export function PremiumModal({ open, onClose, title, icon: Icon, maxWidth = "max-w-3xl", children, testid, footer, blocking = false }) {
   if (typeof document === "undefined") return null;
   return createPortal(
     <AnimatePresence>
@@ -231,7 +231,7 @@ export function PremiumModal({ open, onClose, title, icon: Icon, maxWidth = "max
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
-          onClick={onClose} data-testid={testid}>
+          onClick={blocking ? undefined : onClose} data-testid={testid}>
           <motion.div
             initial={{ scale: 0.92, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, y: 30 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
@@ -246,10 +246,12 @@ export function PremiumModal({ open, onClose, title, icon: Icon, maxWidth = "max
                 {Icon && <Icon className="w-5 h-5" style={{ color: "var(--nx-secondary)" }} />}
                 <span className="font-display font-black text-lg uppercase tracking-widest" style={{ color: "var(--nx-fg)" }}>{title}</span>
               </div>
-              <button onClick={onClose}
-                className="w-8 h-8 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white flex items-center justify-center transition-all">
-                <X className="w-5 h-5" />
-              </button>
+              {!blocking && (
+                <button onClick={onClose}
+                  className="w-8 h-8 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white flex items-center justify-center transition-all">
+                  <X className="w-5 h-5" />
+                </button>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto">{children}</div>
             {footer && <div className="border-t border-white/10 p-3 bg-black/40">{footer}</div>}

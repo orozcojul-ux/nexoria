@@ -106,6 +106,29 @@ export const TRANSLATIONS_EXTENDED = {
   "discord.settings.unlink_confirm": T("Délier votre compte Discord de NEXORIA ?", "Unlink your Discord account from NEXORIA?"),
   "discord.settings.unlinked": T("Compte Discord délié", "Discord account unlinked"),
   "discord.settings.unlink_error": T("Impossible de délier Discord", "Could not unlink Discord"),
+  "discord.beta_link.title": T("Liez votre Discord", "Link your Discord"),
+  "discord.beta_link.lead": T(
+    "Pour accéder au Nexus en tant que testeur bêta, vous devez lier votre compte Discord à votre profil NEXORIA.",
+    "As a beta tester, you must link your Discord account to your NEXORIA profile to access the Nexus.",
+  ),
+  "discord.beta_link.reason_roles": T(
+    "Synchronisation automatique de vos rôles et accès au serveur",
+    "Automatic role sync and server access",
+  ),
+  "discord.beta_link.reason_community": T(
+    "Communication avec la communauté et l'équipe",
+    "Stay connected with the community and team",
+  ),
+  "discord.beta_link.reason_beta": T(
+    "Attribution du rôle Beta Tester sur Discord",
+    "Beta Tester role on Discord",
+  ),
+  "discord.beta_link.cta": T("Lier mon compte Discord", "Link my Discord account"),
+  "discord.beta_link.linking": T("Redirection vers Discord…", "Redirecting to Discord…"),
+  "discord.beta_link.required": T(
+    "Cette étape est obligatoire pour continuer.",
+    "This step is required to continue.",
+  ),
 
   // ─── Page banners ───
   "page.hero.kicker": T("Carte du héros", "Hero sheet"),
