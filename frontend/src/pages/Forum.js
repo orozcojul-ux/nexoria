@@ -34,6 +34,30 @@ const FORUM_RULE_KEYS = [
   "forum.rule.clearTitle",
 ];
 
+function normalizeSearchText(value) {
+  return (value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+}
+
+function threadMatchesQuery(thread, query) {
+  const q = normalizeSearchText(query.trim());
+  if (!q) return true;
+  const haystack = normalizeSearchText(
+    [
+      thread.title,
+      thread.content,
+      stripHtml(thread.content_html || ""),
+      thread.author?.username,
+      thread.author?.display_name,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+  return haystack.includes(q);
+}
+
 function getCategoryDescription(t, category) {
   const key = `forum.cat.${category}`;
   const result = t(key);
@@ -69,6 +93,8 @@ export default function Forum() {
   const [categories, setCategories] = useState([]);
   const [recent, setRecent] = useState([]);
   const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [forumBan, setForumBan] = useState(null);
   const [forumMute, setForumMute] = useState(null);
   const [accessLoading, setAccessLoading] = useState(true);
@@ -105,10 +131,38 @@ export default function Forum() {
     })();
   }, []);
 
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return undefined;
+    }
+    setSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/forum/search", { params: { q, limit: 30 } });
+        setSearchResults(data || []);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
   const totalThreads = useMemo(
     () => categories.reduce((n, c) => n + (c.thread_count || 0), 0),
     [categories],
   );
+
+  const q = query.trim();
+  const topicsToShow = useMemo(() => {
+    if (q.length >= 2) return searchResults;
+    if (q.length === 1) return recent.filter((tpc) => threadMatchesQuery(tpc, q));
+    return recent;
+  }, [q, recent, searchResults]);
 
   if (accessLoading) {
     return (
@@ -165,10 +219,6 @@ export default function Forum() {
   }
 
   const catMap = Object.fromEntries(categories.map((c) => [c.id, c]));
-  const q = query.trim().toLowerCase();
-  const recentFiltered = q
-    ? recent.filter((tpc) => tpc.title?.toLowerCase().includes(q))
-    : recent;
 
   return (
     <PageShell wide testid="forum-page" banner={banner}>
@@ -226,12 +276,14 @@ export default function Forum() {
           </div>
 
           <div className="forum-activity-list">
-            {recentFiltered.length === 0 ? (
+            {searchLoading && q.length >= 2 ? (
+              <div className="forum-activity-empty">{t("forum.loading")}</div>
+            ) : topicsToShow.length === 0 ? (
               <div className="forum-activity-empty">
                 {q ? t("forum.noSearchResults") : t("forum.noRecentTopics")}
               </div>
             ) : (
-              recentFiltered.map((tpc, i) => {
+              topicsToShow.map((tpc, i) => {
                 const c = catMap[tpc.category];
                 const TIcon = Lucide[c?.icon] || MessageCircle;
                 return (
@@ -280,6 +332,10 @@ function ForumShell({ children, sidebar, banner }) {
 function ForumSidebar({ categories, recent, totalThreads, query, onQueryChange, onOpenRecent, onOpenCat, forumMute }) {
   const { t, fmtDate } = useI18n();
   const hottest = [...categories].sort((a, b) => (b.thread_count || 0) - (a.thread_count || 0)).slice(0, 4);
+  const recentFiltered = useMemo(
+    () => (query.trim() ? recent.filter((tpc) => threadMatchesQuery(tpc, query)) : recent),
+    [recent, query],
+  );
 
   return (
     <div className="forum-sidebar space-y-4" data-testid="forum-sidebar">
@@ -324,7 +380,9 @@ function ForumSidebar({ categories, recent, totalThreads, query, onQueryChange, 
             <Flame className="w-3.5 h-3.5" /> {t("forum.recent")}
           </div>
           <div className="space-y-2">
-            {recent.map((tpc) => (
+            {recentFiltered.length === 0 && query.trim() ? (
+              <div className="text-xs text-zinc-500 italic">{t("forum.noSearchResults")}</div>
+            ) : recentFiltered.map((tpc) => (
               <button
                 key={tpc.thread_id}
                 type="button"
@@ -382,27 +440,54 @@ function ThreadList({ category, forumMute, onBack, onOpen }) {
   const [showNew, setShowNew] = useState(false);
   const [cat, setCat] = useState(null);
   const [search, setSearch] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [mode, setMode] = useState("all"); // all | pinned | recent | unanswered
 
   const load = async () => {
-    const [t, c] = await Promise.all([
-      api.get("/forum/threads", { params: { category } }),
-      api.get("/forum/categories"),
-    ]);
-    setThreads(t.data);
-    setCat(c.data.find((x) => x.id === category));
+    try {
+      const [{ data: threadData }, { data: catData }] = await Promise.all([
+        api.get("/forum/threads", { params: { category } }),
+        api.get("/forum/categories"),
+      ]);
+      setThreads(threadData || []);
+      setCat((catData || []).find((x) => x.id === category));
+    } catch {
+      setThreads([]);
+    }
   };
   useEffect(() => { load(); }, [category]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const q = search.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return undefined;
+    }
+    setSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/forum/search", { params: { q, category, limit: 50 } });
+        setSearchResults(data || []);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, category]);
+
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let list = threads;
-    if (q) list = list.filter((t) => t.title?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q));
-    if (mode === "pinned") list = list.filter((t) => t.pinned);
-    else if (mode === "unanswered") list = list.filter((t) => (t.replies_count || 0) === 0);
+    const q = search.trim();
+    let list = q.length >= 2 ? searchResults : threads;
+    if (q && q.length < 2) list = list.filter((thread) => threadMatchesQuery(thread, q));
+    if (mode === "pinned") list = list.filter((thread) => thread.pinned);
+    else if (mode === "unanswered") list = list.filter((thread) => (thread.replies_count || 0) === 0);
     else if (mode === "recent") list = [...list].sort((a, b) => new Date(b.last_activity_at || b.created_at) - new Date(a.last_activity_at || a.created_at));
     return list;
-  }, [threads, search, mode]);
+  }, [threads, search, searchResults, mode]);
 
   const description = getCategoryDescription(t, category);
   const pinned = useMemo(() => threads.filter((th) => th.pinned), [threads]);
@@ -479,7 +564,9 @@ function ThreadList({ category, forumMute, onBack, onOpen }) {
           </div>
 
           <div className="forum-activity-list">
-            {filtered.length === 0 ? (
+            {searchLoading && search.trim().length >= 2 ? (
+              <div className="forum-activity-empty">{t("forum.loading")}</div>
+            ) : filtered.length === 0 ? (
               <div className="forum-activity-empty">
                 {search || mode !== "all"
                   ? t("forum.noSearchResults")

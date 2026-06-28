@@ -7517,6 +7517,55 @@ async def forum_recent(limit: int = 8, user: dict = Depends(get_user_dep)):
     return threads
 
 
+@api.get("/forum/search")
+async def forum_search(
+    q: str = "",
+    category: str | None = None,
+    limit: int = 30,
+    user: dict = Depends(get_user_dep),
+):
+    """Recherche de sujets par titre ou contenu (insensible à la casse)."""
+    enforce_forum_access(user)
+    query = (q or "").strip()
+    if len(query) < 2:
+        return []
+    if category and not any(c["id"] == category for c in FORUM_CATEGORIES):
+        raise HTTPException(404, "Catégorie introuvable")
+    limit = max(1, min(limit, 50))
+    regex = re.compile(re.escape(query), re.IGNORECASE)
+    filt: dict = {
+        "$or": [
+            {"title": {"$regex": regex}},
+            {"content": {"$regex": regex}},
+        ],
+    }
+    if category:
+        filt["category"] = category
+    projection = {
+        "_id": 0,
+        "thread_id": 1,
+        "category": 1,
+        "title": 1,
+        "content": 1,
+        "replies_count": 1,
+        "views": 1,
+        "pinned": 1,
+        "locked": 1,
+        "created_at": 1,
+        "last_activity_at": 1,
+        "user_id": 1,
+    }
+    threads = await db.forum_threads.find(filt, projection) \
+        .sort("last_activity_at", -1).limit(limit).to_list(limit)
+    user_ids = list({t["user_id"] for t in threads if t.get("user_id")})
+    if user_ids:
+        udocs = await db.users.find({"user_id": {"$in": user_ids}}, FORUM_AUTHOR_FIELDS).to_list(100)
+        umap = {u["user_id"]: _enrich_forum_author(u) for u in udocs}
+        for t in threads:
+            t["author"] = umap.get(t.get("user_id"), {})
+    return threads
+
+
 @api.get("/admin/pulse")
 async def admin_pulse(user: dict = Depends(get_staff_dep)):
     from datetime import timedelta
