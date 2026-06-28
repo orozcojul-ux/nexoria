@@ -46,6 +46,17 @@ def test_cache_get_skips_when_db_is_none():
     assert asyncio.run(ct._cache_get("any-key")) is None
 
 
+def test_use_libretranslate_localhost(monkeypatch):
+    import content_translate as ct
+
+    monkeypatch.setenv("LIBRETRANSLATE_URL", "http://127.0.0.1:5000")
+    monkeypatch.delenv("CONTENT_TRANSLATE_USE_LIBRETRANSLATE", raising=False)
+    assert ct._use_libretranslate() is True
+
+    monkeypatch.setenv("CONTENT_TRANSLATE_USE_LIBRETRANSLATE", "0")
+    assert ct._use_libretranslate() is False
+
+
 def test_mark_and_inject_html_preserves_structure():
     source = "<p>Hello <strong>world</strong></p><p>Second <mark>line</mark></p>"
     marked, segments = mark_html_segments(source)

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 520" fill="none" role="img" aria-hidden="true">
   <rect x="8" y="8" width="264" height="504" rx="28" fill="#0c0a18" stroke="#0891b2" stroke-width="2"/>
   <rect x="88" y="24" width="104" height="6" rx="3" fill="#27272a"/>
@@ -14,8 +15,8 @@
     <path d="M128 478 L136 472 L136 484 Z" fill="#a5f3fc"/>
     <rect x="136" y="472" width="10" height="12" rx="1" fill="none" stroke="#a5f3fc" stroke-width="1.5"/>
   </g>
-  <text x="162" y="482" fill="#67e8f9" font-family="system-ui,sans-serif" font-size="7">Partager</text>
+  <text x="162" y="482" fill="#67e8f9" font-family="system-ui,sans-serif" font-size="7">Share</text>
   <path d="M136 464 L136 448" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="4 3"/>
   <rect x="108" y="432" width="64" height="14" rx="4" fill="#164e63" stroke="#22d3ee"/>
-  <text x="114" y="442" fill="#a5f3fc" font-family="system-ui,sans-serif" font-size="7">Appuie ici</text>
+  <text x="114" y="442" fill="#a5f3fc" font-family="system-ui,sans-serif" font-size="7">Tap here</text>
 </svg>

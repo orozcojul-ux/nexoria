@@ -1,12 +1,8 @@
 /** Translate chronicle entries (structured i18n_key or legacy French text). */
 
-import { tGame, translateBadge, translateQuest, translateItem, translateRarity, translateBuilding, translateShopItem } from "./translate-game";
+import { applyI18nPlaceholders } from "./i18n-safe";
+import { translateBadge, translateQuest, translateItem, translateRarity, translateBuilding, translateShopItem } from "./translate-game";
 import { translateClassName } from "./translate-class";
-
-function interpolate(template, params) {
-  if (!template || !params) return template;
-  return template.replace(/\{(\w+)\}/g, (_, k) => (params[k] != null ? String(params[k]) : `{${k}}`));
-}
 
 function resolveChronicleParams(t, params = {}) {
   const p = { ...params };
@@ -25,8 +21,9 @@ export function translateChronicle(t, entry) {
   if (!entry) return "";
   if (entry.i18n_key) {
     const params = resolveChronicleParams(t, entry.i18n_params || {});
-    const template = tGame(t, entry.i18n_key, entry.text || "");
-    return interpolate(template, params);
+    const translated = t(entry.i18n_key, params);
+    if (translated) return translated;
+    return applyI18nPlaceholders(entry.text || "", params);
   }
   return entry.text || "";
 }

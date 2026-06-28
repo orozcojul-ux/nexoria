@@ -12,6 +12,10 @@ logger = logging.getLogger("nexoria.libretranslate")
 
 DEFAULT_URL = "http://127.0.0.1:5000"
 DEFAULT_TIMEOUT = 15.0
+_LOCAL_URLS = frozenset({
+    "http://127.0.0.1:5000",
+    "http://localhost:5000",
+})
 
 PROTECTED_TERMS = (
     "Nexus Online",
@@ -41,6 +45,29 @@ PH_RE = re.compile(r"\uFFF0(\d+)\uFFF1")
 
 def libretranslate_url() -> str:
     return os.environ.get("LIBRETRANSLATE_URL", DEFAULT_URL).strip().rstrip("/")
+
+
+def libretranslate_api_key() -> str:
+    return os.environ.get("LIBRETRANSLATE_API_KEY", "").strip()
+
+
+def request_timeout() -> float:
+    """Shorter timeout for local LibreTranslate so UGC can fall back to MyMemory quickly."""
+    url = libretranslate_url().rstrip("/").lower()
+    if url in _LOCAL_URLS:
+        try:
+            return float(os.environ.get("LIBRETRANSLATE_LOCAL_TIMEOUT", "3"))
+        except ValueError:
+            return 3.0
+    try:
+        return float(os.environ.get("LIBRETRANSLATE_TIMEOUT", str(DEFAULT_TIMEOUT)))
+    except ValueError:
+        return DEFAULT_TIMEOUT
+
+
+def _auth_headers() -> dict[str, str]:
+    key = libretranslate_api_key()
+    return {"Authorization": f"Bearer {key}"} if key else {}
 
 
 def is_configured() -> bool:
@@ -100,8 +127,8 @@ async def detect_language(text: str) -> str | None:
         return None
     url = f"{libretranslate_url()}/detect"
     try:
-        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
-            r = await client.post(url, json={"q": snippet})
+        async with httpx.AsyncClient(timeout=request_timeout()) as client:
+            r = await client.post(url, json={"q": snippet}, headers=_auth_headers())
             if r.status_code != 200:
                 return None
             data = r.json()
@@ -131,11 +158,14 @@ async def translate_text(text: str, source: str, target: str) -> str | None:
 
     protected, tokens = protect_text(text)
     url = f"{libretranslate_url()}/translate"
-    payload = {"q": protected, "source": source, "target": target, "format": "text"}
+    payload: dict[str, Any] = {"q": protected, "source": source, "target": target, "format": "text"}
+    api_key = libretranslate_api_key()
+    if api_key:
+        payload["api_key"] = api_key
 
     try:
-        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
-            r = await client.post(url, json=payload)
+        async with httpx.AsyncClient(timeout=request_timeout()) as client:
+            r = await client.post(url, json=payload, headers=_auth_headers())
             if r.status_code != 200:
                 logger.warning(
                     "LibreTranslate HTTP %s (source=%s target=%s): %s",

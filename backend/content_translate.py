@@ -27,11 +27,6 @@ MAX_BATCH_ITEMS = 1
 _db = None
 _log_throttle: dict[str, float] = {}
 
-_LOCAL_LT_URLS = frozenset({
-    "http://127.0.0.1:5000",
-    "http://localhost:5000",
-})
-
 HTML_MARKER_ATTR = "data-nx-tx"
 HTML_MARKER_RE = re.compile(
     rf'<span {HTML_MARKER_ATTR}="(\d+)">.*?</span>',
@@ -247,15 +242,13 @@ async def _store_translation(
 
 
 def _use_libretranslate() -> bool:
+    """Use LibreTranslate when configured — including localhost on the production VPS."""
     if not libretranslate_client.is_configured():
         return False
     flag = os.environ.get("CONTENT_TRANSLATE_USE_LIBRETRANSLATE", "").strip().lower()
     if flag in ("0", "false", "no"):
         return False
-    if flag in ("1", "true", "yes"):
-        return True
-    url = libretranslate_client.libretranslate_url().rstrip("/").lower()
-    return url not in _LOCAL_LT_URLS
+    return True
 
 
 def _allow_mymemory() -> bool:
@@ -320,18 +313,26 @@ async def _mymemory_translate(text: str, source: str, target: str) -> str | None
             for chunk in chunks:
                 if not chunk.strip():
                     continue
+                params: dict[str, str] = {"q": chunk, "langpair": langpair}
+                mm_email = os.environ.get("MYMEMORY_EMAIL", "").strip()
+                if mm_email:
+                    params["de"] = mm_email
                 resp = await client.get(
                     "https://api.mymemory.translated.net/get",
-                    params={"q": chunk, "langpair": langpair},
+                    params=params,
+                    headers={"User-Agent": "NEXORIA/1.0 (content-translate)"},
                 )
                 if resp.status_code == 429:
                     return None
                 resp.raise_for_status()
                 data = resp.json()
-                if str(data.get("responseStatus", "")) not in ("200", "200.0"):
+                if data.get("quotaFinished"):
+                    return None
+                status = data.get("responseStatus")
+                if status not in (200, 200.0, "200", "200.0"):
                     return None
                 part = (data.get("responseData") or {}).get("translatedText")
-                if not part:
+                if not part or str(part).upper().startswith("MYMEMORY WARNING"):
                     return None
                 translated_parts.append(part)
     except Exception as exc:  # noqa: BLE001
@@ -344,7 +345,12 @@ async def _mymemory_translate(text: str, source: str, target: str) -> str | None
         )
         return None
 
-    return "".join(translated_parts) if translated_parts else None
+    if not translated_parts:
+        return None
+    joined = "".join(translated_parts)
+    if joined.strip() == raw.strip():
+        return None
+    return joined
 
 
 async def _translate_with_providers(text: str, source: str, target: str) -> tuple[str | None, str]:
