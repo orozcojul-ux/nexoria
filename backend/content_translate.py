@@ -1,6 +1,7 @@
-"""Web UGC translation — cache + LibreTranslate/MyMemory (no Gemini)."""
+"""Web UGC translation — cache + LibreTranslate (MyMemory optional, short text only)."""
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import html
 import logging
@@ -20,9 +21,13 @@ DEFAULT_SOURCE = "fr"
 MAX_TEXT_LEN = 8000
 MIN_TEXT_LEN = 2
 MYMEMORY_MAX_CHUNKS = 12
+MYMEMORY_SHORT_TEXT_DEFAULT = 200
 MAX_HTML_SEGMENTS = 60
 LOG_THROTTLE_SECONDS = 60.0
 MAX_BATCH_ITEMS = 1
+DEFAULT_CHUNK_SIZE = 1000
+DEFAULT_CONTENT_TIMEOUT = 25.0
+CHUNK_RETRY_DELAY_SEC = 0.35
 
 _db = None
 _log_throttle: dict[str, float] = {}
@@ -201,6 +206,13 @@ async def _cache_lookup(
         stale_plain = "<" not in cached_text and bool(re.search(r"<[a-z]", original, re.I))
         if stale_plain:
             continue
+        _log_translate_event(
+            provider=cached.get("provider") or "cache",
+            source=source,
+            target=target,
+            content_length=len(original),
+            cache_hit=True,
+        )
         return {
             "text": cached_text,
             "original": original,
@@ -248,12 +260,167 @@ def _use_libretranslate() -> bool:
     flag = os.environ.get("CONTENT_TRANSLATE_USE_LIBRETRANSLATE", "").strip().lower()
     if flag in ("0", "false", "no"):
         return False
+    provider = os.environ.get("CONTENT_TRANSLATION_PROVIDER", "libretranslate").strip().lower()
+    if provider in ("none", "off", "disabled", "mymemory"):
+        return False
     return True
 
 
-def _allow_mymemory() -> bool:
-    flag = os.environ.get("CONTENT_TRANSLATE_ALLOW_MYMEMORY", "1").strip().lower()
-    return flag not in ("0", "false", "no", "off")
+def _chunk_size() -> int:
+    try:
+        return max(400, min(1500, int(os.environ.get("CONTENT_TRANSLATION_CHUNK_SIZE", str(DEFAULT_CHUNK_SIZE)))))
+    except ValueError:
+        return DEFAULT_CHUNK_SIZE
+
+
+def _content_timeout() -> float:
+    try:
+        return max(15.0, min(30.0, float(os.environ.get("CONTENT_TRANSLATION_TIMEOUT_SECONDS", str(DEFAULT_CONTENT_TIMEOUT)))))
+    except ValueError:
+        return DEFAULT_CONTENT_TIMEOUT
+
+
+def _mymemory_explicitly_enabled() -> bool:
+    disable = os.environ.get("CONTENT_TRANSLATION_DISABLE_MYMEMORY", "").strip().lower()
+    if disable in ("1", "true", "yes", "on"):
+        return False
+    allow = os.environ.get("CONTENT_TRANSLATE_ALLOW_MYMEMORY", "0").strip().lower()
+    return allow in ("1", "true", "yes", "on")
+
+
+def _mymemory_short_limit() -> int:
+    try:
+        return max(50, int(os.environ.get("CONTENT_TRANSLATION_MYMEMORY_MAX_LENGTH", str(MYMEMORY_SHORT_TEXT_DEFAULT))))
+    except ValueError:
+        return MYMEMORY_SHORT_TEXT_DEFAULT
+
+
+def _allow_mymemory_for(text: str) -> bool:
+    """MyMemory only when explicitly enabled and text is very short (avoid 429 spam)."""
+    if not _mymemory_explicitly_enabled():
+        return False
+    return len((text or "").strip()) <= _mymemory_short_limit()
+
+
+def _hard_split(text: str, max_len: int) -> list[str]:
+    out: list[str] = []
+    remaining = text
+    while remaining:
+        if len(remaining) <= max_len:
+            out.append(remaining)
+            break
+        slice_ = remaining[:max_len]
+        split_at = max(slice_.rfind(" "), slice_.rfind("\n"))
+        if split_at < max_len // 3:
+            split_at = max_len
+        out.append(remaining[:split_at])
+        remaining = remaining[split_at:].lstrip()
+    return out
+
+
+def _split_long_block(text: str, max_len: int) -> list[str]:
+    if len(text) <= max_len:
+        return [text]
+    parts: list[str] = []
+    sentences = re.split(r"(?<=[.!?…])\s+", text)
+    buf = ""
+    for sent in sentences:
+        if not sent:
+            continue
+        if len(sent) > max_len:
+            if buf:
+                parts.append(buf)
+                buf = ""
+            parts.extend(_hard_split(sent, max_len))
+            continue
+        candidate = f"{buf} {sent}".strip() if buf else sent
+        if len(candidate) <= max_len:
+            buf = candidate
+        else:
+            if buf:
+                parts.append(buf)
+            buf = sent
+    if buf:
+        parts.append(buf)
+    return parts if parts else _hard_split(text, max_len)
+
+
+def split_text_for_translation(text: str, max_len: int | None = None) -> list[str]:
+    """Split plain text into LibreTranslate-sized chunks (paragraphs, then sentences)."""
+    limit = max_len or _chunk_size()
+    raw = text or ""
+    if len(raw) <= limit:
+        return [raw]
+
+    chunks: list[str] = []
+    current = ""
+    parts = re.split(r"(\n\n+|\n)", raw)
+    for part in parts:
+        if not part:
+            continue
+        if part.startswith("\n"):
+            candidate = f"{current}{part}"
+            if len(candidate) <= limit:
+                current = candidate
+            else:
+                if current.strip():
+                    chunks.append(current)
+                if len(part) <= limit:
+                    current = part
+                else:
+                    chunks.extend(_split_long_block(part, limit))
+                    current = ""
+            continue
+
+        candidate = f"{current}{part}" if current else part
+        if len(candidate) <= limit:
+            current = candidate
+        else:
+            if current.strip():
+                chunks.append(current)
+            if len(part) <= limit:
+                current = part
+            else:
+                chunks.extend(_split_long_block(part, limit))
+                current = ""
+
+    if current:
+        chunks.append(current)
+    return chunks if chunks else [raw]
+
+
+def _log_translate_event(
+    *,
+    provider: str,
+    source: str,
+    target: str,
+    content_length: int,
+    chunk_count: int = 1,
+    chunk_index: int | None = None,
+    duration_ms: int | None = None,
+    cache_hit: bool = False,
+    error: str | None = None,
+    level: str = "info",
+) -> None:
+    msg = (
+        "content_translate provider=%s source=%s target=%s content_length=%s "
+        "chunk_count=%s chunk_index=%s duration_ms=%s cache_hit=%s error=%s"
+    )
+    args = (
+        provider,
+        source,
+        target,
+        content_length,
+        chunk_count,
+        chunk_index if chunk_index is not None else "-",
+        duration_ms if duration_ms is not None else "-",
+        "true" if cache_hit else "false",
+        (error or "-")[:120],
+    )
+    if level == "warning":
+        logger.warning(msg, *args)
+    else:
+        logger.info(msg, *args)
 
 
 def _heuristic_source(text: str) -> str:
@@ -283,7 +450,7 @@ async def detect_source(text: str) -> str:
 
 
 async def _mymemory_translate(text: str, source: str, target: str) -> str | None:
-    if not _allow_mymemory():
+    if not _allow_mymemory_for(text):
         return None
     import httpx
 
@@ -353,28 +520,119 @@ async def _mymemory_translate(text: str, source: str, target: str) -> str | None
     return joined
 
 
-async def _translate_with_providers(text: str, source: str, target: str) -> tuple[str | None, str]:
-    """LibreTranslate then MyMemory — one pass, no Gemini."""
-    if _use_libretranslate():
-        started = time.monotonic()
+async def _translate_libretranslate_chunk(
+    chunk: str,
+    source: str,
+    target: str,
+    *,
+    chunk_index: int,
+    chunk_count: int,
+    content_length: int,
+) -> str | None:
+    timeout = _content_timeout()
+    started = time.monotonic()
+    for attempt in (1, 2):
         try:
-            result = await libretranslate_client.translate_text(text, source, target)
-            if result is not None:
-                return result, "libretranslate"
+            result = await libretranslate_client.translate_text(
+                chunk, source, target, timeout=timeout,
+            )
         except Exception as exc:  # noqa: BLE001
-            _log_provider_error(
-                "libretranslate",
-                source,
-                target,
-                exc,
+            _log_translate_event(
+                provider="libretranslate",
+                source=source,
+                target=target,
+                content_length=content_length,
+                chunk_count=chunk_count,
+                chunk_index=chunk_index,
+                duration_ms=int((time.monotonic() - started) * 1000),
+                error=str(exc)[:120],
+                level="warning",
+            )
+            result = None
+        if result is not None:
+            _log_translate_event(
+                provider="libretranslate",
+                source=source,
+                target=target,
+                content_length=content_length,
+                chunk_count=chunk_count,
+                chunk_index=chunk_index,
                 duration_ms=int((time.monotonic() - started) * 1000),
             )
+            return result
+        if attempt == 1:
+            await asyncio.sleep(CHUNK_RETRY_DELAY_SEC)
+    _log_translate_event(
+        provider="libretranslate",
+        source=source,
+        target=target,
+        content_length=content_length,
+        chunk_count=chunk_count,
+        chunk_index=chunk_index,
+        duration_ms=int((time.monotonic() - started) * 1000),
+        error="chunk_failed",
+        level="warning",
+    )
+    return None
 
-    result = await _mymemory_translate(text, source, target)
-    if result is not None:
-        return result, "mymemory"
 
-    return None, "none"
+async def _translate_libretranslate(text: str, source: str, target: str) -> tuple[str | None, bool]:
+    """Translate via LibreTranslate — chunk long texts, keep originals on chunk failure."""
+    raw = text or ""
+    if not raw.strip():
+        return raw, False
+    if not _use_libretranslate():
+        return None, False
+
+    chunks = split_text_for_translation(raw)
+    content_length = len(raw)
+    chunk_count = len(chunks)
+    translated_parts: list[str] = []
+    partial = False
+
+    for idx, chunk in enumerate(chunks):
+        if not chunk.strip():
+            translated_parts.append(chunk)
+            continue
+        tr = await _translate_libretranslate_chunk(
+            chunk, source, target,
+            chunk_index=idx,
+            chunk_count=chunk_count,
+            content_length=content_length,
+        )
+        if tr is None:
+            translated_parts.append(chunk)
+            partial = True
+        else:
+            translated_parts.append(tr)
+
+    joined = "".join(translated_parts)
+    if joined.strip() == raw.strip():
+        return None, partial
+    return joined, partial
+
+
+async def _translate_with_providers(text: str, source: str, target: str) -> tuple[str | None, str, bool]:
+    """LibreTranslate (chunked) — MyMemory only if explicitly enabled for very short text."""
+    if _use_libretranslate():
+        result, partial = await _translate_libretranslate(text, source, target)
+        if result is not None:
+            return result, "libretranslate", partial
+
+    if _allow_mymemory_for(text):
+        started = time.monotonic()
+        result = await _mymemory_translate(text, source, target)
+        if result is not None:
+            _log_translate_event(
+                provider="mymemory",
+                source=source,
+                target=target,
+                content_length=len(text or ""),
+                duration_ms=int((time.monotonic() - started) * 1000),
+            )
+            return result, "mymemory", False
+
+    return None, "none", False
 
 
 def _unavailable_response(
@@ -408,8 +666,9 @@ def _success_response(
     provider: str,
     cached: bool = False,
     fmt: str = "plain",
+    partial: bool = False,
 ) -> dict[str, Any]:
-    return {
+    out = {
         "text": text,
         "original": original,
         "source_lang": source,
@@ -419,6 +678,9 @@ def _success_response(
         "provider": provider,
         "format": fmt,
     }
+    if partial:
+        out["partial"] = True
+    return out
 
 
 class _HtmlSegmentMarker(HTMLParser):
@@ -547,8 +809,8 @@ async def translate_text(
     if cached:
         return cached
 
-    translated, provider = await _translate_with_providers(raw, src_lang, target_lang)
-    if translated is None or translated.strip() == raw.strip():
+    translated, provider, partial = await _translate_with_providers(raw, src_lang, target_lang)
+    if translated is None:
         return _unavailable_response(raw, source=src_lang, target=target_lang, reason=provider)
 
     await _store_translation(
@@ -562,7 +824,12 @@ async def translate_text(
         field=field,
     )
     return _success_response(
-        translated, original=raw, source=src_lang, target=target_lang, provider=provider,
+        translated,
+        original=raw,
+        source=src_lang,
+        target=target_lang,
+        provider=provider,
+        partial=partial,
     )
 
 
@@ -620,17 +887,28 @@ async def translate_html(
     marked, segments = mark_html_segments(html_in)
 
     if segments and len(segments) <= MAX_HTML_SEGMENTS:
-        packed = pack_segments(segments)
-        translated_packed, provider = await _translate_with_providers(packed, src_lang, target_lang)
-        unpacked = unpack_segments(translated_packed or "", len(segments)) if translated_packed else None
-        if unpacked and _segments_changed(segments, unpacked):
-            out_html = inject_html_segments(marked, unpacked)
+        translated_segments: list[str] = []
+        partial = False
+        for idx, seg in enumerate(segments):
+            if not seg.strip():
+                translated_segments.append(seg)
+                continue
+            tr, seg_partial = await _translate_libretranslate(seg, src_lang, target_lang)
+            if tr is None:
+                translated_segments.append(seg)
+                partial = True
+            else:
+                translated_segments.append(tr)
+                partial = partial or seg_partial
+
+        if _segments_changed(segments, translated_segments):
+            out_html = inject_html_segments(marked, translated_segments)
             await _store_translation(
                 text=out_html,
                 source=src_lang,
                 target=target_lang,
                 src_hash=src_hash,
-                provider=provider,
+                provider="libretranslate",
                 entity_type=entity_type,
                 entity_id=entity_id,
                 field=field,
@@ -640,8 +918,9 @@ async def translate_html(
                 original=html_in,
                 source=src_lang,
                 target=target_lang,
-                provider=provider,
+                provider="libretranslate",
                 fmt="html",
+                partial=partial,
             )
 
     plain = _html_to_plain(html_in)
@@ -684,16 +963,17 @@ async def translate_batch(
 
 
 async def provider_status() -> dict[str, Any]:
-    """Diagnostic — LibreTranslate + MyMemory reachability (for VPS ops)."""
+    """Diagnostic — LibreTranslate reachability + content-translate config."""
     import httpx
 
     lt_url = libretranslate_client.libretranslate_url().rstrip("/")
     lt_configured = _use_libretranslate()
     lt_reachable = False
     lt_error: str | None = None
+    timeout_sec = _content_timeout()
     if lt_configured:
         try:
-            async with httpx.AsyncClient(timeout=libretranslate_client.request_timeout()) as client:
+            async with httpx.AsyncClient(timeout=min(timeout_sec, 10.0)) as client:
                 resp = await client.get(f"{lt_url}/languages", headers=libretranslate_client._auth_headers())
                 lt_reachable = resp.status_code == 200
                 if not lt_reachable:
@@ -701,17 +981,15 @@ async def provider_status() -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001
             lt_error = str(exc)[:160]
 
-    mm_enabled = _allow_mymemory()
-    mm_reachable = False
-    mm_error: str | None = None
-    if mm_enabled:
-        sample = await _mymemory_translate("Bonjour", "fr", "en")
-        mm_reachable = sample is not None and sample.strip().lower() != "bonjour"
-        if not mm_reachable:
-            mm_error = "empty response or quota"
+    mm_enabled = _mymemory_explicitly_enabled()
 
     return {
-        "ready": lt_reachable or mm_reachable,
+        "ready": lt_reachable,
+        "primary_provider": "libretranslate" if lt_configured else "none",
+        "timeout_seconds": timeout_sec,
+        "chunk_size": _chunk_size(),
+        "cache_enabled": _db is not None,
+        "mymemory_fallback_enabled": mm_enabled,
         "libretranslate": {
             "configured": lt_configured,
             "url": lt_url if lt_configured else None,
@@ -720,8 +998,8 @@ async def provider_status() -> dict[str, Any]:
         },
         "mymemory": {
             "enabled": mm_enabled,
-            "reachable": mm_reachable,
-            "email_configured": bool(os.environ.get("MYMEMORY_EMAIL", "").strip()),
-            "error": mm_error,
+            "short_text_max_length": _mymemory_short_limit(),
+            "reachable": None,
+            "error": None if not mm_enabled else "probe_skipped",
         },
     }

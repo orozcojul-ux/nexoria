@@ -1,14 +1,23 @@
 import api from "@/lib/api";
 
-const TRANSLATE_TIMEOUT_MS = 15000;
+/** Long forum posts may require several LibreTranslate chunks server-side. */
+const TRANSLATE_TIMEOUT_MS = 90000;
+
+function translateTimeoutMs(text = "", html = "") {
+  const len = Math.max((text || "").length, (html || "").length);
+  if (len <= 400) return 20000;
+  if (len <= 2000) return 45000;
+  return TRANSLATE_TIMEOUT_MS;
+}
 
 async function postTranslate(payload) {
+  const timeoutMs = translateTimeoutMs(payload.text, payload.html);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TRANSLATE_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const { data } = await api.post("/content/translate", payload, {
       signal: controller.signal,
-      timeout: TRANSLATE_TIMEOUT_MS,
+      timeout: timeoutMs,
     });
     return data;
   } finally {

@@ -1,13 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import api from "@/lib/api";
 
-/** Routes reachable during maintenance (auth + maintenance page only — not landing/feed). */
+/** Routes reachable during maintenance (OAuth callback + maintenance page only). */
 export const MAINTENANCE_BYPASS_ROUTES = new Set([
   "/maintenance",
-  "/login",
-  "/register",
-  "/forgot-password",
-  "/reset-password",
   "/auth/discord/callback",
   "/conditions",
   "/confidentialite",

@@ -147,7 +147,13 @@ async def detect_language(text: str) -> str | None:
     return None
 
 
-async def translate_text(text: str, source: str, target: str) -> str | None:
+async def translate_text(
+    text: str,
+    source: str,
+    target: str,
+    *,
+    timeout: float | None = None,
+) -> str | None:
     """Traduit un segment via POST /translate (format=text)."""
     if not text or not text.strip():
         return text
@@ -156,6 +162,7 @@ async def translate_text(text: str, source: str, target: str) -> str | None:
     if not is_configured():
         return None
 
+    effective_timeout = timeout if timeout is not None else request_timeout()
     protected, tokens = protect_text(text)
     url = f"{libretranslate_url()}/translate"
     payload: dict[str, Any] = {"q": protected, "source": source, "target": target, "format": "text"}
@@ -164,7 +171,7 @@ async def translate_text(text: str, source: str, target: str) -> str | None:
         payload["api_key"] = api_key
 
     try:
-        async with httpx.AsyncClient(timeout=request_timeout()) as client:
+        async with httpx.AsyncClient(timeout=effective_timeout) as client:
             r = await client.post(url, json=payload, headers=_auth_headers())
             if r.status_code != 200:
                 logger.warning(

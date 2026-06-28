@@ -6,6 +6,7 @@ from content_translate import (
     normalize_lang,
     pack_segments,
     parse_accept_language,
+    split_text_for_translation,
     text_hash,
     unpack_segments,
 )
@@ -73,3 +74,53 @@ def test_pack_and_unpack_segments():
     fake = packed.replace("Bonjour", "Hola").replace("le forum", "el foro").replace("les rôles", "los roles")
     out = unpack_segments(fake, len(segments))
     assert out == ["Hola", "el foro", "los roles"]
+
+
+def test_split_text_short_unchanged():
+    text = "Bonjour le forum."
+    assert split_text_for_translation(text, max_len=1000) == [text]
+
+
+def test_split_text_by_paragraphs():
+    text = "Premier paragraphe.\n\nDeuxième paragraphe plus long.\n\nTroisième."
+    chunks = split_text_for_translation(text, max_len=40)
+    assert len(chunks) >= 2
+    assert "".join(chunks) == text
+
+
+def test_split_long_paragraph_by_sentences():
+    sent = "Phrase un. Phrase deux. Phrase trois. " * 20
+    chunks = split_text_for_translation(sent.strip(), max_len=120)
+    assert len(chunks) > 1
+    assert all(len(c) <= 120 for c in chunks)
+
+
+def test_mymemory_disabled_by_default(monkeypatch):
+    import content_translate as ct
+
+    monkeypatch.delenv("CONTENT_TRANSLATION_DISABLE_MYMEMORY", raising=False)
+    monkeypatch.delenv("CONTENT_TRANSLATE_ALLOW_MYMEMORY", raising=False)
+    assert ct._allow_mymemory_for("Bonjour") is False
+    assert ct._allow_mymemory_for("x" * 500) is False
+
+
+def test_mymemory_only_short_when_enabled(monkeypatch):
+    import content_translate as ct
+
+    monkeypatch.setenv("CONTENT_TRANSLATE_ALLOW_MYMEMORY", "1")
+    assert ct._allow_mymemory_for("Bonjour") is True
+    assert ct._allow_mymemory_for("x" * 500) is False
+
+
+def test_content_timeout_default(monkeypatch):
+    import content_translate as ct
+
+    monkeypatch.delenv("CONTENT_TRANSLATION_TIMEOUT_SECONDS", raising=False)
+    assert ct._content_timeout() == 25.0
+
+
+def test_chunk_size_default(monkeypatch):
+    import content_translate as ct
+
+    monkeypatch.delenv("CONTENT_TRANSLATION_CHUNK_SIZE", raising=False)
+    assert ct._chunk_size() == 1000

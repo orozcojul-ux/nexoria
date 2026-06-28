@@ -161,7 +161,7 @@ export const TRANSLATIONS_UI = {
     pt: "Data desconhecida", nl: "Onbekende datum", ja: "日付不明",
   }),
 
-  "contentTranslate.loading": T("Traduction…", "Translating…", {
+  "contentTranslate.loading": T("Traduction en cours…", "Translating…", {
     es: "Traduciendo…", de: "Übersetzen…", it: "Traduzione…", pt: "Traduzindo…", nl: "Vertalen…", ja: "翻訳中…",
   }),
   "contentTranslate.translate": T("Traduire", "Translate", {
