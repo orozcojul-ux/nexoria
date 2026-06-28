@@ -5,14 +5,13 @@ import ContentTranslationBar from "./ContentTranslationBar";
 import { stripHtml } from "@/lib/stripHtml";
 import { plainTextToRichHtml, resolveSourceHtml } from "@/lib/plain-to-html";
 
-/** Rich or plain UGC body with automatic translation into the viewer language. */
+/** Rich or plain UGC body — auto-translated into the viewer's UI language. */
 export default function TranslatableContent({
   html,
   plain,
   entityType,
   entityId,
   field = "content",
-  auto = true,
   enabled = true,
   className = "",
 }) {
@@ -24,8 +23,9 @@ export default function TranslatableContent({
     visibleHtml,
     isTranslated,
     loading,
-    failed,
-    meta,
+    unavailable,
+    canRetry,
+    translate,
     showOriginal,
     toggleOriginal,
   } = useContentTranslation(sourcePlain, {
@@ -33,7 +33,6 @@ export default function TranslatableContent({
     entityType,
     entityId,
     field,
-    auto,
     enabled,
   });
 
@@ -66,9 +65,10 @@ export default function TranslatableContent({
       <ContentTranslationBar
         isTranslated={isTranslated || translatedHtmlReady || translatedPlainReady}
         loading={loading}
-        failed={failed}
-        unavailable={Boolean(meta?.unavailable)}
+        unavailable={unavailable}
+        canRetry={canRetry}
         showOriginal={showOriginal}
+        onTranslate={translate}
         onToggle={toggleOriginal}
         className="mt-2"
       />

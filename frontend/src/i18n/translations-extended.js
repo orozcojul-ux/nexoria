@@ -138,15 +138,36 @@ export const TRANSLATIONS_EXTENDED = {
   "page.nexusWheel.kicker": T("Fortune du Royaume", "Realm Fortune"),
   "page.nexusWheel.title": T("Roue du Nexus", "Nexus Wheel"),
   "page.nexusWheel.subtitle": T("Une chance quotidienne offerte par les runes cosmiques.", "A daily chance granted by the cosmic runes."),
-  "page.guilds.kicker": T("Ordres mystiques", "Mystic orders"),
-  "page.guilds.title": T("Les Guildes", "Guilds"),
-  "page.guilds.subtitle": T("Unissez-vous et fondez un ordre dont le nom résonnera dans l'éternité.", "Unite and found an order whose name will echo through eternity."),
+  "page.guilds.kicker": T("Ordres mystiques", "Mystic orders", {
+    es: "Órdenes místicas", de: "Mystische Orden", it: "Ordini mistici", pt: "Ordens místicas", nl: "Mystieke ordes", ja: "神秘の騎士団",
+  }),
+  "page.guilds.title": T("Les Guildes", "Guilds", {
+    es: "Gremios", de: "Gilden", it: "Gilde", pt: "Guildas", nl: "Gilden", ja: "ギルド",
+  }),
+  "page.guilds.subtitle": T(
+    "Unissez-vous et fondez un ordre dont le nom résonnera dans l'éternité.",
+    "Unite and found an order whose name will echo through eternity.",
+    {
+      es: "Únete y funda una orden cuyo nombre resonará por la eternidad.",
+      de: "Vereint euch und gründet einen Orden, dessen Name durch die Ewigkeit hallt.",
+      it: "Unisciti e fonda un ordine il cui nome risuonerà nell'eternità.",
+      pt: "Una-se e funde uma ordem cujo nome ecoará pela eternidade.",
+      nl: "Verenig je en sticht een orde waarvan de naam door de eeuwigheid galmt.",
+      ja: "結束し、名が永遠に響く騎士団を設立しよう。",
+    },
+  ),
   "page.forum.kicker": T("Tribune", "Forum"),
   "page.forum.title": T("Forum des Héros", "Heroes Forum"),
   "page.forum.subtitle": T("Là où les voix s'élèvent et où les idées forgent l'histoire.", "Where voices rise and ideas forge history."),
-  "page.friends.kicker": T("Liens de fraternité", "Bonds of fellowship"),
-  "page.friends.title": T("Mes Compagnons", "My Companions"),
-  "page.friends.subtitle": T("Gère tes amis, accepte les demandes et échange en privé.", "Manage friends, accept requests and chat privately."),
+  "page.friends.kicker": T("Liens de fraternité", "Bonds of fellowship", {
+    es: "Lazos de fraternidad", de: "Bande der Kameradschaft", it: "Legami di fraternità", pt: "Laços de fraternidade", nl: "Banden van broederschap", ja: "兄弟の絆",
+  }),
+  "page.friends.title": T("Mes Compagnons", "My Companions", {
+    es: "Mis Compañeros", de: "Meine Gefährten", it: "I miei Compagni", pt: "Meus Companheiros", nl: "Mijn Metgezellen", ja: "仲間たち",
+  }),
+  "page.friends.subtitle": T("Gère tes amis, accepte les demandes et échange en privé.", "Manage friends, accept requests and chat privately.", {
+    es: "Gestiona amigos, acepta solicitudes y chatea en privado.", de: "Verwalte Freunde, nimm Anfragen an und chatte privat.", it: "Gestisci amici, accetta richieste e chatta in privato.", pt: "Gerencie amigos, aceite pedidos e converse em privado.", nl: "Beheer vrienden, accepteer verzoeken en chat privé.", ja: "友人を管理し、リクエストを承認してプライベートチャットしよう。",
+  }),
   "page.tickets.kicker": T("Assistance", "Support"),
   "page.tickets.title": T("Service Client", "Customer Service"),
   "page.tickets.subtitle": T("Signale un bug, pose une question ou contacte l'équipe Nexoria.", "Report a bug, ask a question or contact the Nexoria team."),
@@ -165,9 +186,24 @@ export const TRANSLATIONS_EXTENDED = {
   "page.skills.kicker": T("Voûte céleste", "Celestial vault"),
   "page.skills.title": T("Votre Constellation", "Your Constellation"),
   "page.skills.subtitle": T("Chaque étoile que vous allumez sculpte votre destin.", "Every star you light shapes your destiny."),
-  "page.leaderboards.kicker": T("Annales des héros", "Hero annals"),
-  "page.leaderboards.title": T("Hall des Légendes", "Hall of Legends"),
-  "page.leaderboards.subtitle": T("Les noms gravés ici résonnent dans toutes les tavernes du royaume.", "Names carved here echo in every tavern of the realm."),
+  "page.leaderboards.kicker": T("Annales des héros", "Hero annals", {
+    es: "Anales de héroes", de: "Heldenannalen", it: "Annali degli eroi", pt: "Anais dos heróis", nl: "Heldenannalen", ja: "英雄の年代記",
+  }),
+  "page.leaderboards.title": T("Hall des Légendes", "Hall of Legends", {
+    es: "Salón de las Leyendas", de: "Halle der Legenden", it: "Sala delle Leggende", pt: "Salão das Lendas", nl: "Hal der Legendes", ja: "伝説の間",
+  }),
+  "page.leaderboards.subtitle": T(
+    "Les noms gravés ici résonnent dans toutes les tavernes du royaume.",
+    "Names carved here echo in every tavern of the realm.",
+    {
+      es: "Los nombres grabados aquí resuenan en todas las tabernas del reino.",
+      de: "Die hier eingemeißelten Namen hallen in jeder Taverne des Reichs wider.",
+      it: "I nomi incisi qui risuonano in ogni taverna del regno.",
+      pt: "Os nomes gravados aqui ecoam em todas as tavernas do reino.",
+      nl: "Namen die hier zijn gegraveerd galmen in elke taverne van het rijk.",
+      ja: "ここに刻まれた名は王国のあらゆる酒場に響き渡る。",
+    },
+  ),
   "page.legends.kicker": T("Mémoire éternelle", "Eternal memory", {
     es: "Memoria eterna", de: "Ewige Erinnerung", it: "Memoria eterna", pt: "Memória eterna", nl: "Eeuwige herinnering", ja: "永遠の記憶",
   }),
@@ -230,8 +266,16 @@ export const TRANSLATIONS_EXTENDED = {
   "common.success": T("Succès", "Success"),
   "common.user": T("Joueur", "Player"),
   "common.hero": T("Héros", "Hero"),
-  "common.online": T("En ligne", "Online"),
-  "common.offline": T("Hors ligne", "Offline"),
-  "presence.nexus_online": T("Nexus · Connecté", "Nexus · Connected"),
-  "presence.nexus_offline": T("Nexus · Absent", "Nexus · Away"),
+  "common.online": T("En ligne", "Online", {
+    es: "En línea", de: "Online", it: "Online", pt: "Online", nl: "Online", ja: "オンライン",
+  }),
+  "common.offline": T("Hors ligne", "Offline", {
+    es: "Desconectado", de: "Offline", it: "Offline", pt: "Offline", nl: "Offline", ja: "オフライン",
+  }),
+  "presence.nexus_online": T("Nexus · Connecté", "Nexus · Connected", {
+    es: "Nexus · Conectado", de: "Nexus · Verbunden", it: "Nexus · Connesso", pt: "Nexus · Conectado", nl: "Nexus · Verbonden", ja: "Nexus · 接続中",
+  }),
+  "presence.nexus_offline": T("Nexus · Absent", "Nexus · Away", {
+    es: "Nexus · Ausente", de: "Nexus · Abwesend", it: "Nexus · Assente", pt: "Nexus · Ausente", nl: "Nexus · Afwezig", ja: "Nexus · 離席中",
+  }),
 };

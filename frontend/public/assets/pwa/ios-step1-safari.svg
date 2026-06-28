@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 520" fill="none" role="img" aria-hidden="true">
+  <rect x="8" y="8" width="264" height="504" rx="28" fill="#0c0a18" stroke="#0891b2" stroke-width="2"/>
+  <rect x="88" y="24" width="104" height="6" rx="3" fill="#27272a"/>
+  <rect x="20" y="44" width="240" height="32" rx="8" fill="#18181b"/>
+  <text x="100" y="64" fill="#67e8f9" font-family="system-ui,sans-serif" font-size="8" font-weight="600">Safari</text>
+  <rect x="20" y="84" width="240" height="360" rx="12" fill="#120f24"/>
+  <rect x="36" y="108" width="64" height="64" rx="14" fill="#581c87" stroke="#a855f7"/>
+  <text x="112" y="132" fill="#e9d5ff" font-family="system-ui,sans-serif" font-size="11" font-weight="700">NEXORIA</text>
+  <rect x="20" y="456" width="240" height="44" rx="12" fill="#18181b" stroke="#3f3f46"/>
+  <rect x="36" y="468" width="28" height="20" rx="4" fill="#27272a"/>
+  <rect x="76" y="468" width="28" height="20" rx="4" fill="#27272a"/>
+  <g stroke="#22d3ee" stroke-width="2">
+    <rect x="118" y="464" width="36" height="28" rx="8" fill="#164e63"/>
+    <path d="M128 478 L136 472 L136 484 Z" fill="#a5f3fc"/>
+    <rect x="136" y="472" width="10" height="12" rx="1" fill="none" stroke="#a5f3fc" stroke-width="1.5"/>
+  </g>
+  <text x="162" y="482" fill="#67e8f9" font-family="system-ui,sans-serif" font-size="7">Partager</text>
+  <path d="M136 464 L136 448" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <rect x="108" y="432" width="64" height="14" rx="4" fill="#164e63" stroke="#22d3ee"/>
+  <text x="114" y="442" fill="#a5f3fc" font-family="system-ui,sans-serif" font-size="7">Appuie ici</text>
+</svg>

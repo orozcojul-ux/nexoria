@@ -9,11 +9,32 @@ import { PageShell, PremiumCard } from "@/components/ui-premium";
 import HeroName from "@/components/HeroName";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
 import { getStaffVisuals, NEXUS_SUPREME } from "@/lib/staff-roles";
+import { translateClassName } from "@/lib/translate-class";
 import { usePageBanner } from "@/lib/page-banners";
 import { useI18n } from "@/contexts/I18nContext";
 import "./community-team.css";
 
 const DISCORD_URL = process.env.REACT_APP_DISCORD_URL || "https://discord.gg/RC5QjcWDCH";
+
+const TEAM_PAGE_DEFAULTS = {
+  title: "L'Équipe",
+  subtitle: "Les gardiens du Nexus",
+  intro: "Sages, Sentinelles et artisans du royaume — ceux qui façonnent l'expérience NEXORIA.",
+};
+
+function resolveTeamPageField(value, defaultFr, i18nKey, t) {
+  const trimmed = (value || "").trim();
+  if (!trimmed || trimmed === defaultFr) return t(i18nKey);
+  return trimmed;
+}
+
+function getStaffGradeLabel(member, visuals, t) {
+  if (member.is_nexus_supreme) {
+    return t(NEXUS_SUPREME.labelKey);
+  }
+  if (visuals?.labelKey) return t(visuals.labelKey);
+  return visuals?.label || member.role;
+}
 
 function StatPill({ icon: Icon, value, label, color }) {
   return (
@@ -47,7 +68,7 @@ function TeamCard({ member }) {
     ? NEXUS_SUPREME
     : getStaffVisuals(member);
   const accent = visuals?.color || "#FBBF24";
-  const gradeLabel = member.is_nexus_supreme ? NEXUS_SUPREME.label : (visuals?.label || member.role);
+  const gradeLabel = getStaffGradeLabel(member, visuals, t);
   const GradeIcon = member.is_nexus_supreme ? Crown : Shield;
   const roleLabel = member.team_role_label;
   const nationality = member.team_nationality;
@@ -96,7 +117,7 @@ function TeamCard({ member }) {
       )}
 
       <div className="team-card-foot">
-        <span>{member.class_name || t("community.adventurer")}</span>
+        <span>{member.class_name ? translateClassName(t, member.class_name) : t("community.adventurer")}</span>
         <span>{t("friends.levelShort", { level: member.level || 1 })}</span>
       </div>
     </article>
@@ -179,6 +200,9 @@ export default function Community() {
   const teamPage = data?.team_page || {};
   const guilds = data?.guilds || [];
   const news = data?.news || [];
+  const teamTitle = resolveTeamPageField(teamPage.title, TEAM_PAGE_DEFAULTS.title, "community.teamDefault", t);
+  const teamSubtitle = resolveTeamPageField(teamPage.subtitle, TEAM_PAGE_DEFAULTS.subtitle, "community.teamSubtitle", t);
+  const teamIntro = resolveTeamPageField(teamPage.intro, TEAM_PAGE_DEFAULTS.intro, "community.teamIntro", t);
 
   return (
     <PageShell wide testid="community-page" banner={banner}>
@@ -213,9 +237,9 @@ export default function Community() {
 
         <section>
           <div className="team-section-head">
-            <h2 className="team-section-title">{teamPage.title || t("community.teamDefault")}</h2>
-            {teamPage.subtitle && <p className="team-section-subtitle">{teamPage.subtitle}</p>}
-            {teamPage.intro && <p className="team-section-intro">{teamPage.intro}</p>}
+            <h2 className="team-section-title">{teamTitle}</h2>
+            {teamSubtitle && <p className="team-section-subtitle">{teamSubtitle}</p>}
+            {teamIntro && <p className="team-section-intro">{teamIntro}</p>}
           </div>
           {loading ? (
             <div className="text-center py-8 text-zinc-500">{t("common.loading")}</div>

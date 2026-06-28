@@ -3,6 +3,7 @@ import { Headphones, Plus, ChevronLeft, Send, Clock, LifeBuoy, MessageSquare } f
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
 import TranslatableText from "@/components/content/TranslatableText";
 import TranslatableContent from "@/components/content/TranslatableContent";
 import { translateApiError } from "@/lib/i18n-api";

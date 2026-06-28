@@ -1,9 +1,8 @@
-"""Web UGC translation — news, forum, comments (LibreTranslate + Gemini fallback + cache)."""
+"""Web UGC translation — cache + LibreTranslate/MyMemory (no Gemini)."""
 from __future__ import annotations
 
 import hashlib
 import html
-import json
 import logging
 import os
 import re
@@ -18,28 +17,30 @@ logger = logging.getLogger("nexoria.content_translate")
 
 SUPPORTED_LANGS = frozenset({"fr", "en", "es", "de", "it", "pt", "nl", "ja"})
 DEFAULT_SOURCE = "fr"
-MAX_TEXT_LEN = 12000
+MAX_TEXT_LEN = 8000
 MIN_TEXT_LEN = 2
-USER_COOLDOWN_SECONDS = 0.8
-
-TARGET_LANG_NAMES = {
-    "fr": "français",
-    "en": "anglais",
-    "es": "espagnol",
-    "de": "allemand",
-    "it": "italien",
-    "pt": "portugais brésilien",
-    "nl": "néerlandais",
-    "ja": "japonais",
-}
+MYMEMORY_MAX_CHUNKS = 12
+MAX_HTML_SEGMENTS = 60
+LOG_THROTTLE_SECONDS = 60.0
+MAX_BATCH_ITEMS = 1
 
 _db = None
-_rate_limit: dict[str, float] = {}
+_log_throttle: dict[str, float] = {}
 
 _LOCAL_LT_URLS = frozenset({
     "http://127.0.0.1:5000",
     "http://localhost:5000",
 })
+
+HTML_MARKER_ATTR = "data-nx-tx"
+HTML_MARKER_RE = re.compile(
+    rf'<span {HTML_MARKER_ATTR}="(\d+)">.*?</span>',
+    re.DOTALL,
+)
+SEG_PACK_RE = re.compile(
+    r"\[\[\[SEG:(\d+)\]\]\](.*?)\[\[\[/SEG:\1\]\]\]",
+    re.DOTALL,
+)
 
 
 def init(db) -> None:
@@ -73,6 +74,12 @@ def text_hash(text: str) -> str:
     return hashlib.sha256((text or "").strip().encode("utf-8")).hexdigest()
 
 
+def make_content_cache_key(src_hash: str, source: str, target: str) -> str:
+    if not src_hash or not source or not target:
+        return ""
+    return hashlib.sha256(f"content:{src_hash}:{source}:{target}".encode("utf-8")).hexdigest()
+
+
 def make_cache_key(
     entity_type: str | None,
     entity_id: str | None,
@@ -85,26 +92,58 @@ def make_cache_key(
     return hashlib.sha256(f"{scope}:{source}:{target}:{src_hash}".encode("utf-8")).hexdigest()
 
 
-def _rate_limit_key(client_key: str, entity_type: str | None, entity_id: str | None, field: str | None) -> str:
-    """Per-field bucket so title + body on the same page can translate in parallel."""
-    scope = f"{entity_type or 'text'}:{entity_id or 'anon'}:{field or 'body'}"
-    return f"{client_key}:{scope}"
+def pack_segments(segments: list[str]) -> str:
+    return "".join(f"[[[SEG:{idx}]]]{seg}[[[/SEG:{idx}]]]" for idx, seg in enumerate(segments))
 
 
-def _check_rate_limit(client_key: str, entity_type: str | None = None, entity_id: str | None = None, field: str | None = None) -> None:
+def unpack_segments(text: str, count: int) -> list[str] | None:
+    matches = [(int(m.group(1)), m.group(2)) for m in SEG_PACK_RE.finditer(text or "")]
+    if len(matches) != count:
+        return None
+    matches.sort(key=lambda item: item[0])
+    if [idx for idx, _ in matches] != list(range(count)):
+        return None
+    return [part for _, part in matches]
+
+
+def _segments_changed(original: list[str], translated: list[str]) -> bool:
+    if len(original) != len(translated):
+        return False
+    return any(o.strip() != t.strip() for o, t in zip(original, translated))
+
+
+def _log_provider_error(
+    provider: str,
+    source: str,
+    target: str,
+    exc: Exception,
+    *,
+    duration_ms: int | None = None,
+) -> None:
+    msg = str(exc)
+    http_code = getattr(exc, "status_code", None)
+    if http_code is None and "429" in msg:
+        http_code = 429
+    throttle_key = f"{provider}:{http_code or 'err'}:{source}:{target}"
     now = time.monotonic()
-    key = _rate_limit_key(client_key, entity_type, entity_id, field)
-    last = _rate_limit.get(key, 0.0)
-    if now - last < USER_COOLDOWN_SECONDS:
-        raise ValueError("rate_limited")
-    _rate_limit[key] = now
+    if now - _log_throttle.get(throttle_key, 0.0) < LOG_THROTTLE_SECONDS:
+        return
+    _log_throttle[throttle_key] = now
+    logger.warning(
+        "content_translate provider=%s source=%s target=%s http=%s duration_ms=%s error=%s",
+        provider,
+        source,
+        target,
+        http_code or "-",
+        duration_ms if duration_ms is not None else "-",
+        msg[:120],
+    )
 
 
 async def _cache_get(key: str) -> dict[str, Any] | None:
     if _db is None or not key:
         return None
-    doc = await _db.content_translations.find_one({"key": key}, {"_id": 0})
-    return doc
+    return await _db.content_translations.find_one({"key": key}, {"_id": 0})
 
 
 async def _cache_set(
@@ -115,11 +154,11 @@ async def _cache_set(
     target: str,
     src_hash: str,
     provider: str,
-    entity_type: str | None,
-    entity_id: str | None,
-    field: str | None,
+    entity_type: str | None = None,
+    entity_id: str | None = None,
+    field: str | None = None,
 ) -> None:
-    if _db is None or not key:
+    if _db is None or not key or not text:
         return
     now = datetime.now(timezone.utc).isoformat()
     await _db.content_translations.update_one(
@@ -143,8 +182,71 @@ async def _cache_set(
     )
 
 
+async def _cache_lookup(
+    src_hash: str,
+    source: str,
+    target: str,
+    *,
+    entity_type: str | None = None,
+    entity_id: str | None = None,
+    field: str | None = None,
+    original: str,
+) -> dict[str, Any] | None:
+    content_key = make_content_cache_key(src_hash, source, target)
+    entity_key = make_cache_key(entity_type, entity_id, field, source, target, src_hash)
+    for cache_key in (content_key, entity_key):
+        if not cache_key:
+            continue
+        cached = await _cache_get(cache_key)
+        if not cached or not cached.get("text"):
+            continue
+        cached_text = str(cached["text"])
+        if cached_text.strip() == original.strip():
+            continue
+        stale_plain = "<" not in cached_text and bool(re.search(r"<[a-z]", original, re.I))
+        if stale_plain:
+            continue
+        return {
+            "text": cached_text,
+            "original": original,
+            "source_lang": source,
+            "target_lang": target,
+            "same_language": False,
+            "cached": True,
+            "provider": cached.get("provider") or "cache",
+        }
+    return None
+
+
+async def _store_translation(
+    *,
+    text: str,
+    source: str,
+    target: str,
+    src_hash: str,
+    provider: str,
+    entity_type: str | None,
+    entity_id: str | None,
+    field: str | None,
+) -> None:
+    content_key = make_content_cache_key(src_hash, source, target)
+    entity_key = make_cache_key(entity_type, entity_id, field, source, target, src_hash)
+    for cache_key in (content_key, entity_key):
+        if cache_key:
+            await _cache_set(
+                cache_key,
+                text=text,
+                source=source,
+                target=target,
+                src_hash=src_hash,
+                provider=provider,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                field=field,
+            )
+
+
 def _use_libretranslate() -> bool:
-    """Skip default localhost LibreTranslate — it is rarely running and adds ~15s timeouts."""
     if not libretranslate_client.is_configured():
         return False
     flag = os.environ.get("CONTENT_TRANSLATE_USE_LIBRETRANSLATE", "").strip().lower()
@@ -156,6 +258,11 @@ def _use_libretranslate() -> bool:
     return url not in _LOCAL_LT_URLS
 
 
+def _allow_mymemory() -> bool:
+    flag = os.environ.get("CONTENT_TRANSLATE_ALLOW_MYMEMORY", "1").strip().lower()
+    return flag not in ("0", "false", "no", "off")
+
+
 def _heuristic_source(text: str) -> str:
     sample = (text or "").strip()
     if not sample:
@@ -164,12 +271,10 @@ def _heuristic_source(text: str) -> str:
     padded = f" {lower} "
     french_hints = (
         " c'est ", " ceci ", " est un ", " est une ", " dans ", " pour ", " avec ",
-        " cette ", " les ", " des ", " une ", " qu'", " nous ", " vous ", " traduction ",
+        " cette ", " les ", " des ", " une ", " qu'", " nous ", " vous ",
         " annonce ", " actualité ", " bonjour ", " merci ", " joueur ",
     )
     if any(h in padded for h in french_hints):
-        return DEFAULT_SOURCE
-    if len(sample) <= 48 and lower in {"test", "update", "news", "event", "announcement", "hello", "hi"}:
         return DEFAULT_SOURCE
     if sample.isascii():
         return "en"
@@ -184,101 +289,22 @@ async def detect_source(text: str) -> str:
     return _heuristic_source(text)
 
 
-async def _gemini_translate_html(html: str, source: str, target: str) -> str | None:
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return None
-    model = os.environ.get("DISCORD_TRANSLATE_MODEL", "gemini/gemini-2.0-flash")
-    source_name = TARGET_LANG_NAMES.get(source, source)
-    target_name = TARGET_LANG_NAMES.get(target, source)
-    system = (
-        f"Tu es un traducteur professionnel pour NEXORIA (jeu RPG).\n"
-        f"Traduis INTÉGRALEMENT du {source_name} vers le {target_name}.\n"
-        "Conserve TOUTES les balises HTML exactement (<p>, <strong>, <mark>, <ul>, <li>, <br>, etc.).\n"
-        "Traduis 100% du texte visible — aucune phrase ne doit rester dans la langue source.\n"
-        "Ne traduis PAS : NEXORIA, Nexus, Écus, pseudos de joueurs, URLs.\n"
-        "Retourne UNIQUEMENT le HTML traduit, sans commentaire ni markdown."
-    )
-    try:
-        import litellm
-
-        response = await litellm.acompletion(
-            model=model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": html},
-            ],
-            api_key=api_key,
-            max_tokens=min(8000, max(512, len(html) * 2)),
-            temperature=0.15,
-        )
-        out = str(response.choices[0].message.content or "").strip()
-        if out.startswith("```"):
-            out = re.sub(r"^```(?:html)?\s*", "", out)
-            out = re.sub(r"\s*```$", "", out)
-        return out or None
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Content Gemini HTML translate failed (%s→%s): %s", source, target, str(exc)[:160])
-        return None
-
-
-async def _gemini_translate_text(text: str, source: str, target: str) -> str | None:
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return None
-    model = os.environ.get("DISCORD_TRANSLATE_MODEL", "gemini/gemini-2.0-flash")
-    source_name = TARGET_LANG_NAMES.get(source, source)
-    target_name = TARGET_LANG_NAMES.get(target, target)
-    system = (
-        f"Tu es un traducteur professionnel pour NEXORIA (jeu RPG).\n"
-        f"Traduis INTÉGRALEMENT du {source_name} vers le {target_name}.\n"
-    )
-    if "[[[SEG:" in text:
-        system += (
-            "Conserve EXACTEMENT les marqueurs [[[SEG:n]]] et [[[/SEG:n]]] sans les modifier.\n"
-            "Traduis TOUT le texte entre les marqueurs — aucun fragment ne reste dans la langue source.\n"
-        )
-    else:
-        system += (
-            "Conserve le Markdown, les emojis, les retours à la ligne.\n"
-        )
-    system += (
-        "Ne traduis PAS : NEXORIA, Nexus, Écus, noms propres de joueurs, URLs.\n"
-        "Retourne UNIQUEMENT le texte traduit, sans guillemets ni commentaire."
-    )
-    try:
-        import litellm
-
-        response = await litellm.acompletion(
-            model=model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": text},
-            ],
-            api_key=api_key,
-            max_tokens=min(4000, max(256, len(text) * 2)),
-            temperature=0.2,
-        )
-        out = str(response.choices[0].message.content or "").strip()
-        if out.startswith('"') and out.endswith('"'):
-            out = out[1:-1]
-        return out or None
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Content Gemini translate failed (%s→%s): %s", source, target, str(exc)[:160])
-        return None
-
-
 async def _mymemory_translate(text: str, source: str, target: str) -> str | None:
-    """Free public fallback when LibreTranslate / Gemini are unavailable."""
+    if not _allow_mymemory():
+        return None
     import httpx
 
     langpair = f"{source}|{target}"
     if target == "pt":
         langpair = f"{source}|pt-BR"
 
+    raw = (text or "").strip()
+    if not raw:
+        return None
+
     chunks: list[str] = []
-    remaining = text
-    while remaining:
+    remaining = raw
+    while remaining and len(chunks) < MYMEMORY_MAX_CHUNKS:
         chunk = remaining[:480]
         if len(remaining) > 480:
             split_at = max(chunk.rfind("\n"), chunk.rfind(". "), chunk.rfind(" "))
@@ -288,8 +314,9 @@ async def _mymemory_translate(text: str, source: str, target: str) -> str | None
         remaining = remaining[len(chunk):].lstrip()
 
     translated_parts: list[str] = []
+    started = time.monotonic()
     try:
-        async with httpx.AsyncClient(timeout=12.0) as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             for chunk in chunks:
                 if not chunk.strip():
                     continue
@@ -297,6 +324,8 @@ async def _mymemory_translate(text: str, source: str, target: str) -> str | None
                     "https://api.mymemory.translated.net/get",
                     params={"q": chunk, "langpair": langpair},
                 )
+                if resp.status_code == 429:
+                    return None
                 resp.raise_for_status()
                 data = resp.json()
                 if str(data.get("responseStatus", "")) not in ("200", "200.0"):
@@ -306,62 +335,87 @@ async def _mymemory_translate(text: str, source: str, target: str) -> str | None
                     return None
                 translated_parts.append(part)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("MyMemory translate failed (%s→%s): %s", source, target, str(exc)[:160])
+        _log_provider_error(
+            "mymemory",
+            source,
+            target,
+            exc,
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
         return None
 
     return "".join(translated_parts) if translated_parts else None
 
 
 async def _translate_with_providers(text: str, source: str, target: str) -> tuple[str | None, str]:
-    if os.environ.get("GEMINI_API_KEY", "").strip():
-        result = await _gemini_translate_text(text, source, target)
-        if result is not None:
-            return result, "gemini"
+    """LibreTranslate then MyMemory — one pass, no Gemini."""
     if _use_libretranslate():
-        result = await libretranslate_client.translate_text(text, source, target)
-        if result is not None:
-            return result, "libretranslate"
+        started = time.monotonic()
+        try:
+            result = await libretranslate_client.translate_text(text, source, target)
+            if result is not None:
+                return result, "libretranslate"
+        except Exception as exc:  # noqa: BLE001
+            _log_provider_error(
+                "libretranslate",
+                source,
+                target,
+                exc,
+                duration_ms=int((time.monotonic() - started) * 1000),
+            )
+
     result = await _mymemory_translate(text, source, target)
     if result is not None:
         return result, "mymemory"
+
     return None, "none"
 
 
-HTML_MARKER_ATTR = "data-nx-tx"
-HTML_MARKER_RE = re.compile(
-    rf'<span {HTML_MARKER_ATTR}="(\d+)">.*?</span>',
-    re.DOTALL,
-)
-MAX_HTML_SEGMENTS = 80
-SEG_PACK_RE = re.compile(
-    r"\[\[\[SEG:(\d+)\]\]\](.*?)\[\[\[/SEG:\1\]\]\]",
-    re.DOTALL,
-)
+def _unavailable_response(
+    original: str,
+    *,
+    source: str,
+    target: str,
+    fmt: str = "plain",
+    reason: str = "none",
+) -> dict[str, Any]:
+    return {
+        "text": original,
+        "original": original,
+        "source_lang": source,
+        "target_lang": target,
+        "same_language": False,
+        "cached": False,
+        "provider": "none",
+        "unavailable": True,
+        "reason": reason,
+        "format": fmt,
+    }
 
 
-def pack_segments(segments: list[str]) -> str:
-    return "".join(f"[[[SEG:{idx}]]]{seg}[[[/SEG:{idx}]]]" for idx, seg in enumerate(segments))
-
-
-def unpack_segments(text: str, count: int) -> list[str] | None:
-    matches = [(int(m.group(1)), m.group(2)) for m in SEG_PACK_RE.finditer(text or "")]
-    if len(matches) != count:
-        return None
-    matches.sort(key=lambda item: item[0])
-    if [idx for idx, _ in matches] != list(range(count)):
-        return None
-    return [part for _, part in matches]
-
-
-def _segments_changed(original: list[str], translated: list[str]) -> bool:
-    if len(original) != len(translated):
-        return False
-    return any(o.strip() != t.strip() for o, t in zip(original, translated))
+def _success_response(
+    text: str,
+    *,
+    original: str,
+    source: str,
+    target: str,
+    provider: str,
+    cached: bool = False,
+    fmt: str = "plain",
+) -> dict[str, Any]:
+    return {
+        "text": text,
+        "original": original,
+        "source_lang": source,
+        "target_lang": target,
+        "same_language": False,
+        "cached": cached,
+        "provider": provider,
+        "format": fmt,
+    }
 
 
 class _HtmlSegmentMarker(HTMLParser):
-    """Split HTML into a fixed template + translatable text segments."""
-
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.chunks: list[str] = []
@@ -412,241 +466,30 @@ class _HtmlSegmentMarker(HTMLParser):
     def handle_charref(self, name: str) -> None:
         self._append(f"&#{name};")
 
-    def marked_html(self) -> str:
-        return "".join(self.chunks)
-
 
 def mark_html_segments(raw_html: str) -> tuple[str, list[str]]:
     parser = _HtmlSegmentMarker()
     parser.feed(raw_html or "")
     parser.close()
-    return parser.marked_html(), parser.segments
+    return "".join(parser.chunks), parser.segments
 
 
 def inject_html_segments(marked_html: str, translated_segments: list[str]) -> str:
     def repl(match: re.Match[str]) -> str:
         idx = int(match.group(1))
-        text = translated_segments[idx] if 0 <= idx < len(translated_segments) else ""
-        return html.escape(text, quote=False)
+        seg = translated_segments[idx] if 0 <= idx < len(translated_segments) else ""
+        return html.escape(seg, quote=False)
 
     return HTML_MARKER_RE.sub(repl, marked_html or "")
 
 
-async def translate_html(
-    raw_html: str,
-    target: str,
-    *,
-    source: str | None = None,
-    entity_type: str | None = None,
-    entity_id: str | None = None,
-    field: str | None = None,
-    client_key: str = "anon",
-) -> dict[str, Any]:
-    """Translate HTML while preserving tags, bold, highlights and block structure."""
-    html_in = (raw_html or "").strip()
-    if len(html_in) < MIN_TEXT_LEN:
-        return {
-            "text": raw_html or "",
-            "original": raw_html or "",
-            "source_lang": source or DEFAULT_SOURCE,
-            "target_lang": normalize_lang(target),
-            "same_language": True,
-            "cached": False,
-            "provider": "none",
-            "format": "html",
-        }
-
-    _check_rate_limit(client_key, entity_type, entity_id, field)
-
-    marked, segments = mark_html_segments(html_in)
-    if not segments:
-        return await translate_text(
-            html_in,
-            target,
-            source=source,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            field=field,
-            client_key=client_key,
-            skip_rate_limit=True,
-        )
-
-    if len(segments) > MAX_HTML_SEGMENTS:
-        plain = re.sub(r"<[^>]+>", " ", html_in)
-        plain = re.sub(r"\s+", " ", plain).strip()
-        result = await translate_text(
-            plain,
-            target,
-            source=source,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            field=field,
-            client_key=client_key,
-            skip_rate_limit=True,
-        )
-        result["format"] = "plain"
-        return result
-
-    target_lang = normalize_lang(target)
-    sample = " ".join(s.strip() for s in segments[:3] if s.strip())
-    src_lang = normalize_lang(source) if source else await detect_source(sample or html_in)
-    src_hash = text_hash(html_in)
-
-    if src_lang == target_lang:
-        return {
-            "text": html_in,
-            "original": html_in,
-            "source_lang": src_lang,
-            "target_lang": target_lang,
-            "same_language": True,
-            "cached": False,
-            "provider": "none",
-            "format": "html",
-        }
-
-    cache_key = make_cache_key(entity_type, entity_id, field, src_lang, target_lang, src_hash)
-    cached = await _cache_get(cache_key)
-    if cached and cached.get("text"):
-        cached_text = str(cached["text"])
-        stale_plain = "<" not in cached_text and bool(re.search(r"<[a-z]", html_in, re.I))
-        unchanged = cached_text.strip() == html_in.strip()
-        if not stale_plain and not unchanged:
-            return {
-                "text": cached_text,
-                "original": html_in,
-                "source_lang": src_lang,
-                "target_lang": target_lang,
-                "same_language": False,
-                "cached": True,
-                "provider": cached.get("provider") or "cache",
-                "format": "html",
-            }
-
-    gemini_html = await _gemini_translate_html(html_in, src_lang, target_lang)
-    if gemini_html and gemini_html.strip() != html_in.strip():
-        await _cache_set(
-            cache_key,
-            text=gemini_html,
-            source=src_lang,
-            target=target_lang,
-            src_hash=src_hash,
-            provider="gemini-html",
-            entity_type=entity_type,
-            entity_id=entity_id,
-            field=field,
-        )
-        return {
-            "text": gemini_html,
-            "original": html_in,
-            "source_lang": src_lang,
-            "target_lang": target_lang,
-            "same_language": False,
-            "cached": False,
-            "provider": "gemini-html",
-            "format": "html",
-        }
-
-    if segments and os.environ.get("GEMINI_API_KEY", "").strip():
-        packed = pack_segments(segments)
-        packed_out, pack_provider = await _translate_with_providers(packed, src_lang, target_lang)
-        unpacked = unpack_segments(packed_out or "", len(segments)) if packed_out else None
-        if unpacked and _segments_changed(segments, unpacked):
-            out_html = inject_html_segments(marked, unpacked)
-            await _cache_set(
-                cache_key,
-                text=out_html,
-                source=src_lang,
-                target=target_lang,
-                src_hash=src_hash,
-                provider=pack_provider,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                field=field,
-            )
-            return {
-                "text": out_html,
-                "original": html_in,
-                "source_lang": src_lang,
-                "target_lang": target_lang,
-                "same_language": False,
-                "cached": False,
-                "provider": pack_provider,
-                "format": "html",
-            }
-
-    translated_segments: list[str] = []
-    providers: set[str] = set()
-    for idx, segment in enumerate(segments):
-        seg_field = f"{field}_seg{idx}" if field else f"seg{idx}"
-        seg_result = await translate_text(
-            segment,
-            target,
-            source=src_lang,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            field=seg_field,
-            client_key=client_key,
-            skip_rate_limit=True,
-        )
-        if seg_result.get("unavailable"):
-            seg_text = segment
-        else:
-            seg_text = seg_result.get("text") or segment
-        if seg_text.strip() == segment.strip() and src_lang != target_lang:
-            gemini_seg = await _gemini_translate_text(segment, src_lang, target_lang)
-            if gemini_seg and gemini_seg.strip() != segment.strip():
-                seg_text = gemini_seg
-        translated_segments.append(seg_text)
-        provider = seg_result.get("provider")
-        if provider:
-            providers.add(str(provider))
-
-    out_html = inject_html_segments(marked, translated_segments)
-    provider = "mixed" if len(providers) > 1 else (next(iter(providers)) if providers else "none")
-
-    if out_html.strip() == html_in.strip() and src_lang != target_lang:
-        plain = re.sub(r"<[^>]+>", " ", html_in)
-        plain = re.sub(r"\s+", " ", plain).strip()
-        plain_result = await translate_text(
-            plain or " ".join(segments),
-            target,
-            source=src_lang,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            field=field,
-            client_key=client_key,
-            skip_rate_limit=True,
-        )
-        if (
-            plain_result.get("text")
-            and plain_result["text"].strip() != plain.strip()
-            and not plain_result.get("unavailable")
-        ):
-            plain_result["format"] = "plain"
-            plain_result["original"] = html_in
-            return plain_result
-
-    await _cache_set(
-        cache_key,
-        text=out_html,
-        source=src_lang,
-        target=target_lang,
-        src_hash=src_hash,
-        provider=provider,
-        entity_type=entity_type,
-        entity_id=entity_id,
-        field=field,
-    )
-    return {
-        "text": out_html,
-        "original": html_in,
-        "source_lang": src_lang,
-        "target_lang": target_lang,
-        "same_language": False,
-        "cached": False,
-        "provider": provider,
-        "format": "html",
-    }
+def _html_to_plain(raw_html: str) -> str:
+    plain = re.sub(r"<br\s*/?>", "\n", raw_html, flags=re.I)
+    plain = re.sub(r"</p>", "\n\n", plain, flags=re.I)
+    plain = re.sub(r"<[^>]+>", " ", plain)
+    plain = re.sub(r"[ \t]+\n", "\n", plain)
+    plain = re.sub(r"\n{3,}", "\n\n", plain)
+    return re.sub(r" +", " ", plain).strip()
 
 
 async def translate_text(
@@ -660,9 +503,7 @@ async def translate_text(
     client_key: str = "anon",
     skip_rate_limit: bool = False,
 ) -> dict[str, Any]:
-    """Translate a text segment with cache + provider chain."""
-    if not skip_rate_limit:
-        _check_rate_limit(client_key, entity_type, entity_id, field)
+    del client_key, skip_rate_limit  # kept for API compat
 
     raw = (text or "").strip()
     if len(raw) < MIN_TEXT_LEN:
@@ -693,42 +534,18 @@ async def translate_text(
             "provider": "none",
         }
 
-    cache_key = make_cache_key(entity_type, entity_id, field, src_lang, target_lang, src_hash)
-    cached = await _cache_get(cache_key)
-    if cached and cached.get("text"):
-        cached_text = str(cached["text"])
-        if cached_text.strip() != raw.strip():
-            return {
-                "text": cached_text,
-                "original": raw,
-                "source_lang": src_lang,
-                "target_lang": target_lang,
-                "same_language": False,
-                "cached": True,
-                "provider": cached.get("provider") or "cache",
-            }
+    cached = await _cache_lookup(
+        src_hash, src_lang, target_lang,
+        entity_type=entity_type, entity_id=entity_id, field=field, original=raw,
+    )
+    if cached:
+        return cached
 
     translated, provider = await _translate_with_providers(raw, src_lang, target_lang)
-    if translated is None:
-        return {
-            "text": raw,
-            "original": raw,
-            "source_lang": src_lang,
-            "target_lang": target_lang,
-            "same_language": False,
-            "cached": False,
-            "provider": "none",
-            "unavailable": True,
-        }
+    if translated is None or translated.strip() == raw.strip():
+        return _unavailable_response(raw, source=src_lang, target=target_lang, reason=provider)
 
-    if translated.strip() == raw.strip() and src_lang != target_lang:
-        gemini_retry = await _gemini_translate_text(raw, src_lang, target_lang)
-        if gemini_retry and gemini_retry.strip() != raw.strip():
-            translated = gemini_retry
-            provider = "gemini-retry"
-
-    await _cache_set(
-        cache_key,
+    await _store_translation(
         text=translated,
         source=src_lang,
         target=target_lang,
@@ -738,15 +555,104 @@ async def translate_text(
         entity_id=entity_id,
         field=field,
     )
-    return {
-        "text": translated,
-        "original": raw,
-        "source_lang": src_lang,
-        "target_lang": target_lang,
-        "same_language": False,
-        "cached": False,
-        "provider": provider,
-    }
+    return _success_response(
+        translated, original=raw, source=src_lang, target=target_lang, provider=provider,
+    )
+
+
+async def translate_html(
+    raw_html: str,
+    target: str,
+    *,
+    source: str | None = None,
+    entity_type: str | None = None,
+    entity_id: str | None = None,
+    field: str | None = None,
+    client_key: str = "anon",
+) -> dict[str, Any]:
+    """Translate HTML — preserve tags via packed segments + single provider call."""
+    del client_key
+
+    html_in = (raw_html or "").strip()
+    if len(html_in) < MIN_TEXT_LEN:
+        return {
+            "text": raw_html or "",
+            "original": raw_html or "",
+            "source_lang": source or DEFAULT_SOURCE,
+            "target_lang": normalize_lang(target),
+            "same_language": True,
+            "cached": False,
+            "provider": "none",
+            "format": "html",
+        }
+
+    target_lang = normalize_lang(target)
+    sample = _html_to_plain(html_in)[:500]
+    src_lang = normalize_lang(source) if source else await detect_source(sample or html_in)
+    src_hash = text_hash(html_in)
+
+    if src_lang == target_lang:
+        return {
+            "text": html_in,
+            "original": html_in,
+            "source_lang": src_lang,
+            "target_lang": target_lang,
+            "same_language": True,
+            "cached": False,
+            "provider": "none",
+            "format": "html",
+        }
+
+    cached = await _cache_lookup(
+        src_hash, src_lang, target_lang,
+        entity_type=entity_type, entity_id=entity_id, field=field, original=html_in,
+    )
+    if cached:
+        cached["format"] = "html"
+        return cached
+
+    marked, segments = mark_html_segments(html_in)
+
+    if segments and len(segments) <= MAX_HTML_SEGMENTS:
+        packed = pack_segments(segments)
+        translated_packed, provider = await _translate_with_providers(packed, src_lang, target_lang)
+        unpacked = unpack_segments(translated_packed or "", len(segments)) if translated_packed else None
+        if unpacked and _segments_changed(segments, unpacked):
+            out_html = inject_html_segments(marked, unpacked)
+            await _store_translation(
+                text=out_html,
+                source=src_lang,
+                target=target_lang,
+                src_hash=src_hash,
+                provider=provider,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                field=field,
+            )
+            return _success_response(
+                out_html,
+                original=html_in,
+                source=src_lang,
+                target=target_lang,
+                provider=provider,
+                fmt="html",
+            )
+
+    plain = _html_to_plain(html_in)
+    plain_result = await translate_text(
+        plain or html_in,
+        target,
+        source=src_lang,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        field=field,
+    )
+    if plain_result.get("unavailable"):
+        return _unavailable_response(html_in, source=src_lang, target=target_lang, fmt="html")
+
+    plain_result["format"] = "plain"
+    plain_result["original"] = html_in
+    return plain_result
 
 
 async def translate_batch(
@@ -757,16 +663,7 @@ async def translate_batch(
 ) -> dict[str, Any]:
     target_lang = normalize_lang(target)
     out: dict[str, Any] = {}
-    batch_items = items[:12]
-    if batch_items:
-        first = batch_items[0]
-        _check_rate_limit(
-            client_key,
-            first.get("entity_type"),
-            first.get("entity_id"),
-            first.get("field"),
-        )
-    for item in batch_items:
+    for item in items[:MAX_BATCH_ITEMS]:
         key = str(item.get("key") or "text")
         out[key] = await translate_text(
             str(item.get("text") or ""),
@@ -776,6 +673,5 @@ async def translate_batch(
             entity_id=item.get("entity_id"),
             field=item.get("field") or key,
             client_key=client_key,
-            skip_rate_limit=True,
         )
     return {"target_lang": target_lang, "items": out}

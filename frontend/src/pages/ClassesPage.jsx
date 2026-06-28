@@ -148,10 +148,10 @@ function ClassCard({ cls, isCurrent, onGrimoire, t }) {
             </span>
           </div>
         ))}
-        <button type="button" className={styles.grimoire} onClick={() => onGrimoire?.(cls)}>
-          {t("page.classes.viewGrimoire")}
-        </button>
       </div>
+      <button type="button" className={styles.grimoire} onClick={() => onGrimoire?.(cls)}>
+        {t("page.classes.viewGrimoire")}
+      </button>
     </div>
   );
 }

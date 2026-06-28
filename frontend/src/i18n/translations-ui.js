@@ -130,8 +130,12 @@ export const TRANSLATIONS_UI = {
   "status.online": T("En ligne", "Online"),
 
   // ─── Profil ───
-  "profile.last_connection": T("Dernière connexion", "Last seen"),
-  "profile.last_connection_unknown": T("Dernière connexion inconnue", "Last seen unknown"),
+  "profile.last_connection": T("Dernière connexion", "Last seen", {
+    es: "Última conexión", de: "Zuletzt gesehen", it: "Ultimo accesso", pt: "Última conexão", nl: "Laatst gezien", ja: "最終ログイン",
+  }),
+  "profile.last_connection_unknown": T("Dernière connexion inconnue", "Last seen unknown", {
+    es: "Última conexión desconocida", de: "Zuletzt gesehen unbekannt", it: "Ultimo accesso sconosciuto", pt: "Última conexão desconhecida", nl: "Laatst gezien onbekend", ja: "最終ログイン不明",
+  }),
 
   "time.now": T("À l'instant", "Just now", {
     es: "Ahora", de: "Gerade eben", it: "Adesso", pt: "Agora", nl: "Zojuist", ja: "たった今",
@@ -159,6 +163,15 @@ export const TRANSLATIONS_UI = {
 
   "contentTranslate.loading": T("Traduction…", "Translating…", {
     es: "Traduciendo…", de: "Übersetzen…", it: "Traduzione…", pt: "Traduzindo…", nl: "Vertalen…", ja: "翻訳中…",
+  }),
+  "contentTranslate.translate": T("Traduire", "Translate", {
+    es: "Traducir", de: "Übersetzen", it: "Traduci", pt: "Traduzir", nl: "Vertalen", ja: "翻訳",
+  }),
+  "contentTranslate.retry": T("Réessayer", "Retry", {
+    es: "Reintentar", de: "Erneut versuchen", it: "Riprova", pt: "Tentar novamente", nl: "Opnieuw", ja: "再試行",
+  }),
+  "contentTranslate.translated": T("Traduit", "Translated", {
+    es: "Traducido", de: "Übersetzt", it: "Tradotto", pt: "Traduzido", nl: "Vertaald", ja: "翻訳済み",
   }),
   "contentTranslate.autoTranslated": T("Traduit automatiquement", "Auto-translated", {
     es: "Traducido automáticamente", de: "Automatisch übersetzt", it: "Tradotto automaticamente",
@@ -304,27 +317,84 @@ export const TRANSLATIONS_UI = {
     es: "NEXORIA en móvil", de: "NEXORIA mobil", it: "NEXORIA su mobile", pt: "NEXORIA no telemóvel", nl: "NEXORIA op mobiel", ja: "モバイル版 NEXORIA",
   }),
   "pwa.page.subtitle": T(
-    "Installe NEXORIA sur ton écran d'accueil pour y accéder comme une application, sans passer par le store.",
-    "Install NEXORIA on your home screen to open it like an app — no app store required.",
+    "Transforme NEXORIA en application sur ton téléphone : accès en un tap, plein écran et chargement plus rapide — sans Play Store ni App Store.",
+    "Turn NEXORIA into an app on your phone: one-tap access, full screen and faster loading — no Play Store or App Store required.",
     {
-      es: "Instala NEXORIA en tu pantalla de inicio para abrirla como una app, sin tienda.",
-      de: "Installiere NEXORIA auf deinem Startbildschirm — wie eine App, ohne Store.",
-      it: "Installa NEXORIA sulla schermata Home come un'app, senza store.",
-      pt: "Instala NEXORIA no ecrã inicial como uma app, sem loja.",
-      nl: "Installeer NEXORIA op je startscherm als app, zonder store.",
-      ja: "ホーム画面に追加してアプリのように使えます。ストア不要。",
+      es: "Convierte NEXORIA en app en tu móvil: acceso con un toque, pantalla completa y carga más rápida — sin Play Store ni App Store.",
+      de: "Mach NEXORIA zur App auf deinem Handy: Ein-Tipp-Zugriff, Vollbild und schnelleres Laden — ohne Play Store oder App Store.",
+      it: "Trasforma NEXORIA in app sul telefono: accesso con un tap, schermo intero e caricamento più rapido — senza store.",
+      pt: "Transforma NEXORIA numa app no telemóvel: acesso com um toque, ecrã inteiro e carregamento mais rápido — sem lojas.",
+      nl: "Maak van NEXORIA een app op je telefoon: toegang met één tik, volledig scherm en sneller laden — zonder stores.",
+      ja: "NEXORIAをスマホアプリ化：ワンタップ起動、全画面表示、高速読み込み — ストア不要。",
     },
   ),
   "pwa.page.hint": T(
-    "Le tutoriel s'ouvre automatiquement. Tu peux aussi le rouvrir ci-dessous.",
-    "The tutorial opens automatically. You can reopen it below.",
+    "Le tutoriel illustré s'ouvre automatiquement avec les étapes pas à pas.",
+    "The illustrated tutorial opens automatically with step-by-step instructions.",
     {
-      es: "El tutorial se abre solo. También puedes reabrirlo abajo.",
-      de: "Das Tutorial öffnet sich automatisch. Du kannst es unten erneut öffnen.",
-      it: "Il tutorial si apre da solo. Puoi riaprirlo sotto.",
-      pt: "O tutorial abre sozinho. Podes reabri-lo abaixo.",
-      nl: "De tutorial opent automatisch. Je kunt hem hieronder opnieuw openen.",
-      ja: "チュートリアルは自動で開きます。下から再度開けます。",
+      es: "El tutorial ilustrado se abre solo con instrucciones paso a paso.",
+      de: "Das illustrierte Tutorial öffnet sich automatisch mit Schritt-für-Schritt-Anleitung.",
+      it: "Il tutorial illustrato si apre da solo con istruzioni passo passo.",
+      pt: "O tutorial ilustrado abre sozinho com instruções passo a passo.",
+      nl: "De geïllustreerde tutorial opent automatisch met stappen.",
+      ja: "イラスト付きチュートリアルが自動で開き、手順を案内します。",
+    },
+  ),
+  "pwa.page.hintDetail": T(
+    "Chaque étape est accompagnée d'une capture schématique pour t'aider à retrouver les bons boutons sur ton écran.",
+    "Each step includes a schematic screenshot to help you find the right buttons on your screen.",
+    {
+      es: "Cada paso incluye una captura esquemática para encontrar los botones correctos.",
+      de: "Jeder Schritt enthält eine schematische Ansicht, damit du die richtigen Schaltflächen findest.",
+      it: "Ogni passo include uno schema per trovare i pulsanti giusti sullo schermo.",
+      pt: "Cada passo inclui um esquema para encontrares os botões certos no ecrã.",
+      nl: "Elke stap bevat een schematische weergave om de juiste knoppen te vinden.",
+      ja: "各ステップに画面のボタン位置がわかる模式図付き。",
+    },
+  ),
+  "pwa.page.benefit1.title": T("Accès en un tap", "One-tap access", {
+    es: "Acceso con un toque", de: "Ein-Tipp-Zugriff", it: "Accesso con un tap", pt: "Acesso com um toque", nl: "Toegang met één tik", ja: "ワンタップ起動",
+  }),
+  "pwa.page.benefit1.desc": T(
+    "L'icône NEXORIA sur ton écran d'accueil ouvre le royaume directement, comme une vraie application.",
+    "The NEXORIA icon on your home screen opens the realm directly, just like a native app.",
+    {
+      es: "El icono de NEXORIA en tu pantalla de inicio abre el reino directamente, como una app nativa.",
+      de: "Das NEXORIA-Symbol auf dem Startbildschirm öffnet das Reich direkt — wie eine native App.",
+      it: "L'icona NEXORIA sulla Home apre il regno direttamente, come un'app nativa.",
+      pt: "O ícone NEXORIA no ecrã inicial abre o reino diretamente, como uma app nativa.",
+      nl: "Het NEXORIA-pictogram op je startscherm opent het rijk direct, net als een native app.",
+      ja: "ホーム画面のNEXORIAアイコンから、ネイティブアプリのように直接起動。",
+    },
+  ),
+  "pwa.page.benefit2.title": T("Mode plein écran", "Full-screen mode", {
+    es: "Pantalla completa", de: "Vollbildmodus", it: "Schermo intero", pt: "Ecrã inteiro", nl: "Volledig scherm", ja: "全画面モード",
+  }),
+  "pwa.page.benefit2.desc": T(
+    "Plus de barre d'adresse ni d'onglets du navigateur : tu joues dans une interface immersive dédiée.",
+    "No browser address bar or tabs — you play in a dedicated immersive interface.",
+    {
+      es: "Sin barra de direcciones ni pestañas: juegas en una interfaz inmersiva dedicada.",
+      de: "Keine Adressleiste oder Tabs — du spielst in einer dedizierten immersiven Oberfläche.",
+      it: "Niente barra degli indirizzi o schede: giochi in un'interfaccia immersiva dedicata.",
+      pt: "Sem barra de endereços nem separadores: jogas numa interface imersiva dedicada.",
+      nl: "Geen adresbalk of tabbladen — je speelt in een dedicated immersieve interface.",
+      ja: "アドレスバーやタブなし — 没入感のある専用UIでプレイ。",
+    },
+  ),
+  "pwa.page.benefit3.title": T("Sessions conservées", "Saved sessions", {
+    es: "Sesiones guardadas", de: "Gespeicherte Sitzungen", it: "Sessioni salvate", pt: "Sessões guardadas", nl: "Opgeslagen sessies", ja: "セッション保持",
+  }),
+  "pwa.page.benefit3.desc": T(
+    "Retrouve ton héros où tu l'avais laissé : connexion plus fluide et retour rapide au royaume.",
+    "Pick up where you left off: smoother login and a quick return to the realm.",
+    {
+      es: "Retoma donde lo dejaste: inicio de sesión más fluido y vuelta rápida al reino.",
+      de: "Mach dort weiter, wo du aufgehört hast: flüssigerer Login und schnelle Rückkehr ins Reich.",
+      it: "Riprendi da dove avevi lasciato: accesso più fluido e ritorno rapido al regno.",
+      pt: "Continua onde paraste: login mais fluido e regresso rápido ao reino.",
+      nl: "Ga verder waar je gebleven was: vlottere login en snelle terugkeer naar het rijk.",
+      ja: "前回の続きから：スムーズなログインと素早い復帰。",
     },
   ),
   "pwa.page.openTutorial": T("Voir le tutoriel d'installation", "View install tutorial", {
@@ -340,17 +410,59 @@ export const TRANSLATIONS_UI = {
     es: "Instalar NEXORIA en móvil", de: "NEXORIA mobil installieren", it: "Installa NEXORIA su mobile", pt: "Instalar NEXORIA no telemóvel", nl: "NEXORIA op mobiel installeren", ja: "モバイルに NEXORIA をインストール",
   }),
   "pwa.tutorial.subtitle": T(
-    "Suis les étapes selon ton appareil (Android ou iPhone).",
-    "Follow the steps for your device (Android or iPhone).",
+    "Suis le guide illustré ci-dessous selon ton appareil. Chaque étape montre où appuyer sur ton écran.",
+    "Follow the illustrated guide below for your device. Each step shows where to tap on your screen.",
     {
-      es: "Sigue los pasos según tu dispositivo (Android o iPhone).",
-      de: "Folge den Schritten für dein Gerät (Android oder iPhone).",
-      it: "Segui i passi in base al dispositivo (Android o iPhone).",
-      pt: "Segue os passos consoante o teu dispositivo (Android ou iPhone).",
-      nl: "Volg de stappen voor je apparaat (Android of iPhone).",
-      ja: "お使いの端末（Android または iPhone）に合わせて手順を進めてください。",
+      es: "Sigue la guía ilustrada según tu dispositivo. Cada paso muestra dónde pulsar.",
+      de: "Folge der illustrierten Anleitung für dein Gerät. Jeder Schritt zeigt, wo du tippen musst.",
+      it: "Segui la guida illustrata per il tuo dispositivo. Ogni passo mostra dove toccare.",
+      pt: "Segue o guia ilustrado para o teu dispositivo. Cada passo mostra onde tocar.",
+      nl: "Volg de geïllustreerde gids voor je apparaat. Elke stap toont waar je moet tikken.",
+      ja: "端末に合わせてイラスト付きガイドに従ってください。各ステップでタップ位置を表示。",
     },
   ),
+  "pwa.tutorial.benefitsTitle": T("Pourquoi installer ?", "Why install?", {
+    es: "¿Por qué instalar?", de: "Warum installieren?", it: "Perché installare?", pt: "Porquê instalar?", nl: "Waarom installeren?", ja: "インストールのメリット",
+  }),
+  "pwa.tutorial.benefit1": T(
+    "Icône sur l'écran d'accueil — lance NEXORIA comme une app native",
+    "Home screen icon — launch NEXORIA like a native app",
+    {
+      es: "Icono en la pantalla de inicio — abre NEXORIA como app nativa",
+      de: "Symbol auf dem Startbildschirm — starte NEXORIA wie eine native App",
+      it: "Icona sulla Home — avvia NEXORIA come app nativa",
+      pt: "Ícone no ecrã inicial — abre NEXORIA como app nativa",
+      nl: "Pictogram op startscherm — start NEXORIA als native app",
+      ja: "ホーム画面のアイコン — ネイティブアプリのように起動",
+    },
+  ),
+  "pwa.tutorial.benefit2": T(
+    "Interface plein écran sans barre d'adresse du navigateur",
+    "Full-screen interface without the browser address bar",
+    {
+      es: "Interfaz a pantalla completa sin barra de direcciones",
+      de: "Vollbild-Oberfläche ohne Browser-Adressleiste",
+      it: "Interfaccia a schermo intero senza barra degli indirizzi",
+      pt: "Interface em ecrã inteiro sem barra de endereços",
+      nl: "Volledig scherm zonder adresbalk van de browser",
+      ja: "ブラウザのアドレスバーなしの全画面UI",
+    },
+  ),
+  "pwa.tutorial.benefit3": T(
+    "Retour rapide au royaume — ta session est mémorisée",
+    "Quick return to the realm — your session is remembered",
+    {
+      es: "Vuelta rápida al reino — tu sesión se recuerda",
+      de: "Schnelle Rückkehr ins Reich — deine Sitzung wird gespeichert",
+      it: "Ritorno rapido al regno — la sessione è memorizzata",
+      pt: "Regresso rápido ao reino — a sessão fica memorizada",
+      nl: "Snelle terugkeer naar het rijk — je sessie wordt onthouden",
+      ja: "王国へ素早く復帰 — セッションを保持",
+    },
+  ),
+  "pwa.tutorial.yourDevice": T("Ton appareil", "Your device", {
+    es: "Tu dispositivo", de: "Dein Gerät", it: "Il tuo dispositivo", pt: "O teu dispositivo", nl: "Jouw apparaat", ja: "お使いの端末",
+  }),
   "pwa.tutorial.android.title": T("Android (Chrome)", "Android (Chrome)", {
     es: "Android (Chrome)", de: "Android (Chrome)", it: "Android (Chrome)", pt: "Android (Chrome)", nl: "Android (Chrome)", ja: "Android (Chrome)",
   }),
@@ -390,6 +502,96 @@ export const TRANSLATIONS_UI = {
       ja: "「アプリをインストール」または「ホーム画面に追加」を選んで確認。",
     },
   ),
+  "pwa.tutorial.android.s1.title": T("Ouvre le site dans Chrome", "Open the site in Chrome", {
+    es: "Abre el sitio en Chrome", de: "Seite in Chrome öffnen", it: "Apri il sito in Chrome", pt: "Abre o site no Chrome", nl: "Open de site in Chrome", ja: "Chromeでサイトを開く",
+  }),
+  "pwa.tutorial.android.s1.desc": T(
+    "Depuis ton téléphone Android, lance Google Chrome et va sur nexoria-game.fr. Firefox, Samsung Internet ou les navigateurs intégrés ne proposent pas toujours l'installation — Chrome est le plus fiable.",
+    "On your Android phone, open Google Chrome and go to nexoria-game.fr. Firefox, Samsung Internet or built-in browsers don't always offer install — Chrome is the most reliable.",
+    {
+      es: "En tu Android, abre Google Chrome y ve a nexoria-game.fr. Otros navegadores no siempre permiten instalar — Chrome es lo más fiable.",
+      de: "Öffne auf deinem Android Google Chrome und gehe zu nexoria-game.fr. Andere Browser bieten nicht immer Installation — Chrome ist am zuverlässigsten.",
+      it: "Sul tuo Android, apri Google Chrome e vai su nexoria-game.fr. Altri browser non sempre permettono l'installazione — Chrome è il più affidabile.",
+      pt: "No teu Android, abre o Google Chrome e vai a nexoria-game.fr. Outros browsers nem sempre permitem instalar — o Chrome é o mais fiável.",
+      nl: "Open op je Android Google Chrome en ga naar nexoria-game.fr. Andere browsers bieden niet altijd installatie — Chrome is het betrouwbaarst.",
+      ja: "AndroidでGoogle Chromeを開き、nexoria-game.frにアクセス。他ブラウザではインストールできない場合があります — Chromeが最も確実です。",
+    },
+  ),
+  "pwa.tutorial.android.s2.title": T("Ouvre le menu d'installation", "Open the install menu", {
+    es: "Abre el menú de instalación", de: "Installationsmenü öffnen", it: "Apri il menu di installazione", pt: "Abre o menu de instalação", nl: "Open het installatiemenu", ja: "インストールメニューを開く",
+  }),
+  "pwa.tutorial.android.s2.desc": T(
+    "En haut à droite, appuie sur les trois points ⋮. Sur certains appareils, un bandeau « Installer l'application » apparaît aussi en bas de l'écran — tu peux l'utiliser directement.",
+    "At the top right, tap the three dots ⋮. On some devices, an « Install app » banner also appears at the bottom — you can use it directly.",
+    {
+      es: "Arriba a la derecha, pulsa los tres puntos ⋮. En algunos dispositivos, un banner « Instalar aplicación » aparece abajo — puedes usarlo directamente.",
+      de: "Oben rechts auf die drei Punkte ⋮ tippen. Auf manchen Geräten erscheint unten ein Banner « App installieren » — nutze es direkt.",
+      it: "In alto a destra, tocca i tre puntini ⋮. Su alcuni dispositivi compare un banner « Installa app » in basso — puoi usarlo direttamente.",
+      pt: "No canto superior direito, toca nos três pontos ⋮. Nalguns dispositivos, um banner « Instalar app » aparece em baixo — podes usá-lo diretamente.",
+      nl: "Tik rechtsboven op de drie puntjes ⋮. Op sommige toestellen verschijnt onderaan een banner « App installeren » — gebruik die direct.",
+      ja: "右上の ⋮ をタップ。端末によっては下部に「アプリをインストール」バナーが表示されます — そちらでもOK。",
+    },
+  ),
+  "pwa.tutorial.android.s3.title": T("Confirme l'ajout", "Confirm the install", {
+    es: "Confirma la instalación", de: "Installation bestätigen", it: "Conferma l'installazione", pt: "Confirma a instalação", nl: "Bevestig installatie", ja: "追加を確認",
+  }),
+  "pwa.tutorial.android.s3.desc": T(
+    "Sélectionne « Installer l'application » ou « Ajouter à l'écran d'accueil », vérifie que le nom affiché est NEXORIA, puis valide. L'icône apparaîtra sur ton écran d'accueil en quelques secondes.",
+    "Select « Install app » or « Add to Home screen », check that the name shown is NEXORIA, then confirm. The icon will appear on your home screen within seconds.",
+    {
+      es: "Elige « Instalar aplicación » o « Añadir a pantalla de inicio », verifica que el nombre sea NEXORIA y confirma. El icono aparecerá en segundos.",
+      de: "Wähle « App installieren » oder « Zum Startbildschirm », prüfe den Namen NEXORIA und bestätige. Das Symbol erscheint in Sekunden.",
+      it: "Scegli « Installa app » o « Aggiungi a Home », verifica che il nome sia NEXORIA e conferma. L'icona apparirà in pochi secondi.",
+      pt: "Escolhe « Instalar app » ou « Adicionar ao ecrã inicial », confirma o nome NEXORIA e valida. O ícone aparecerá em segundos.",
+      nl: "Kies « App installeren » of « Toevoegen aan startscherm », controleer de naam NEXORIA en bevestig. Het pictogram verschijnt binnen enkele seconden.",
+      ja: "「アプリをインストール」または「ホーム画面に追加」を選び、名前がNEXORIAであることを確認して追加。数秒でアイコンが表示されます。",
+    },
+  ),
+  "pwa.tutorial.ios.s1.title": T("Ouvre Safari", "Open Safari", {
+    es: "Abre Safari", de: "Safari öffnen", it: "Apri Safari", pt: "Abre o Safari", nl: "Open Safari", ja: "Safariを開く",
+  }),
+  "pwa.tutorial.ios.s1.desc": T(
+    "Sur iPhone ou iPad, seul Safari permet d'ajouter NEXORIA à l'écran d'accueil. Ouvre nexoria-game.fr dans Safari — pas Chrome, Firefox ou un autre navigateur sur iOS.",
+    "On iPhone or iPad, only Safari can add NEXORIA to your home screen. Open nexoria-game.fr in Safari — not Chrome, Firefox or another browser on iOS.",
+    {
+      es: "En iPhone o iPad, solo Safari permite añadir NEXORIA a la pantalla de inicio. Abre nexoria-game.fr en Safari.",
+      de: "Auf iPhone oder iPad kann nur Safari NEXORIA zum Home-Bildschirm hinzufügen. Öffne nexoria-game.fr in Safari.",
+      it: "Su iPhone o iPad, solo Safari può aggiungere NEXORIA alla Home. Apri nexoria-game.fr in Safari.",
+      pt: "No iPhone ou iPad, só o Safari permite adicionar NEXORIA ao ecrã inicial. Abre nexoria-game.fr no Safari.",
+      nl: "Op iPhone of iPad kan alleen Safari NEXORIA toevoegen aan het startscherm. Open nexoria-game.fr in Safari.",
+      ja: "iPhone/iPadではSafariのみホーム画面に追加できます。Safariでnexoria-game.frを開いてください。",
+    },
+  ),
+  "pwa.tutorial.ios.s2.title": T("Ajoute à l'écran d'accueil", "Add to Home Screen", {
+    es: "Añadir a pantalla de inicio", de: "Zum Home-Bildschirm", it: "Aggiungi a Home", pt: "Adicionar ao ecrã inicial", nl: "Zet op beginscherm", ja: "ホーム画面に追加",
+  }),
+  "pwa.tutorial.ios.s2.desc": T(
+    "Appuie sur Partager en bas de l'écran (carré avec une flèche vers le haut), fais défiler les options et choisis « Sur l'écran d'accueil ». Tu peux renommer le raccourci, puis appuie sur « Ajouter ».",
+    "Tap Share at the bottom (square with an upward arrow), scroll the options and choose « Add to Home Screen ». You can rename the shortcut, then tap « Add ».",
+    {
+      es: "Pulsa Compartir abajo (cuadrado con flecha hacia arriba), desplázate y elige « Añadir a pantalla de inicio ». Renombra si quieres y pulsa « Añadir ».",
+      de: "Tippe unten auf Teilen (Quadrat mit Pfeil nach oben), scrolle und wähle « Zum Home-Bildschirm ». Benenne um und tippe « Hinzufügen ».",
+      it: "Tocca Condividi in basso (quadrato con freccia su), scorri e scegli « Aggiungi a Home ». Rinomina se vuoi e tocca « Aggiungi ».",
+      pt: "Toca em Partilhar em baixo (quadrado com seta para cima), desliza e escolhe « Adicionar ao ecrã inicial ». Renomeia se quiseres e toca « Adicionar ».",
+      nl: "Tik onderaan op Delen (vierkant met pijl omhoog), scroll en kies « Zet op beginscherm ». Hernoem indien gewenst en tik « Voeg toe ».",
+      ja: "下部の共有（上向き矢印の四角）をタップし、「ホーム画面に追加」を選んで「追加」をタップ。",
+    },
+  ),
+  "pwa.tutorial.ios.s3.title": T("Lance NEXORIA depuis ton écran d'accueil", "Launch NEXORIA from your home screen", {
+    es: "Abre NEXORIA desde tu pantalla de inicio", de: "NEXORIA vom Startbildschirm starten", it: "Avvia NEXORIA dalla Home", pt: "Abre NEXORIA a partir do ecrã inicial", nl: "Start NEXORIA vanaf je startscherm", ja: "ホーム画面からNEXORIAを起動",
+  }),
+  "pwa.tutorial.ios.s3.desc": T(
+    "L'icône NEXORIA apparaît sur ton écran d'accueil. Appuie dessus pour ouvrir le royaume en plein écran, sans repasser par Safari.",
+    "The NEXORIA icon appears on your home screen. Tap it to open the realm full screen, without going through Safari again.",
+    {
+      es: "El icono de NEXORIA aparece en tu pantalla de inicio. Pulsa para abrir el reino a pantalla completa, sin volver a Safari.",
+      de: "Das NEXORIA-Symbol erscheint auf dem Startbildschirm. Tippe darauf, um das Reich im Vollbild zu öffnen — ohne Safari.",
+      it: "L'icona NEXORIA compare sulla Home. Toccala per aprire il regno a schermo intero, senza passare di nuovo da Safari.",
+      pt: "O ícone NEXORIA aparece no ecrã inicial. Toca para abrir o reino em ecrã inteiro, sem voltar ao Safari.",
+      nl: "Het NEXORIA-pictogram verschijnt op je startscherm. Tik om het rijk volledig scherm te openen, zonder Safari.",
+      ja: "ホーム画面にNEXORIAアイコンが表示されます。タップするとSafariを経由せず全画面で起動します。",
+    },
+  ),
   "pwa.tutorial.ios.title": T("iPhone / iPad (Safari)", "iPhone / iPad (Safari)", {
     es: "iPhone / iPad (Safari)", de: "iPhone / iPad (Safari)", it: "iPhone / iPad (Safari)", pt: "iPhone / iPad (Safari)", nl: "iPhone / iPad (Safari)", ja: "iPhone / iPad (Safari)",
   }),
@@ -406,15 +608,15 @@ export const TRANSLATIONS_UI = {
     },
   ),
   "pwa.tutorial.note": T(
-    "Astuce : sur iPhone, utilise Safari. Sur Android, Chrome offre la meilleure expérience d'installation.",
-    "Tip: on iPhone, use Safari. On Android, Chrome offers the best install experience.",
+    "Astuce : sur iPhone, utilise obligatoirement Safari. Sur Android, Chrome est recommandé. Si tu ne vois pas l'option d'installation, vérifie que tu es bien sur nexoria-game.fr et rafraîchis la page.",
+    "Tip: on iPhone, you must use Safari. On Android, Chrome is recommended. If you don't see the install option, make sure you're on nexoria-game.fr and refresh the page.",
     {
-      es: "Consejo: en iPhone usa Safari. En Android, Chrome ofrece la mejor experiencia.",
-      de: "Tipp: auf dem iPhone Safari nutzen. Auf Android bietet Chrome die beste Installation.",
-      it: "Suggerimento: su iPhone usa Safari. Su Android, Chrome offre la migliore esperienza.",
-      pt: "Dica: no iPhone usa Safari. No Android, o Chrome oferece a melhor experiência.",
-      nl: "Tip: gebruik Safari op iPhone. Op Android werkt Chrome het best.",
-      ja: "ヒント: iPhone は Safari、Android は Chrome がおすすめです。",
+      es: "Consejo: en iPhone usa Safari obligatoriamente. En Android, Chrome es recomendado. Si no ves la opción, verifica que estás en nexoria-game.fr y recarga.",
+      de: "Tipp: auf dem iPhone unbedingt Safari nutzen. Auf Android Chrome empfohlen. Wenn die Option fehlt, prüfe nexoria-game.fr und lade neu.",
+      it: "Suggerimento: su iPhone usa obbligatoriamente Safari. Su Android, Chrome è consigliato. Se non vedi l'opzione, verifica nexoria-game.fr e ricarica.",
+      pt: "Dica: no iPhone usa obrigatoriamente Safari. No Android, Chrome é recomendado. Se não vires a opção, verifica nexoria-game.fr e atualiza.",
+      nl: "Tip: op iPhone verplicht Safari. Op Android Chrome aanbevolen. Zie je geen optie? Controleer nexoria-game.fr en ververs.",
+      ja: "ヒント: iPhoneはSafari必須。AndroidはChrome推奨。インストールオプションが見えない場合はnexoria-game.frでページを更新してください。",
     },
   ),
 };

@@ -16,8 +16,18 @@ export const TRANSLATIONS = {
   "sidebar.section.content": T("BOUTIQUE & CONTENU", "SHOP & CONTENT"),
   "sidebar.section.system": T("SYSTÈME", "SYSTEM"),
   "sidebar.section.staff": T("SENTINELLE", "SENTINEL"),
-  "sidebar.staff_role.admin": T("Sage", "Sage"),
-  "sidebar.staff_role.mod": T("Modérateur", "Moderator"),
+  "sidebar.staff_role.admin": T("Sage", "Sage", {
+    es: "Sabio", de: "Weiser", it: "Saggio", pt: "Sábio", nl: "Wijze", ja: "賢者",
+  }),
+  "sidebar.staff_role.mod": T("Modérateur", "Moderator", {
+    es: "Moderador", de: "Moderator", it: "Moderatore", pt: "Moderador", nl: "Moderator", ja: "モデレーター",
+  }),
+  "sidebar.staff_role.supreme": T("Gardien Suprême", "Supreme Guardian", {
+    es: "Guardián Supremo", de: "Oberster Hüter", it: "Custode Supremo", pt: "Guardião Supremo", nl: "Opperste Bewaker", ja: "最高の守護者",
+  }),
+  "staff.group.realm_heroes": T("Héros du Royaume", "Realm Heroes", {
+    es: "Héroes del Reino", de: "Helden des Reichs", it: "Eroi del Regno", pt: "Heróis do Reino", nl: "Helden van het Rijk", ja: "王国の英雄",
+  }),
   "sidebar.online": T("En ligne", "Online"),
   "sidebar.level_short": T("Niv.", "Lv."),
   "sidebar.back_feed": T("Retour au tableau de bord", "Back to dashboard"),

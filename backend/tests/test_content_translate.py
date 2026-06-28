@@ -1,9 +1,20 @@
-from content_translate import normalize_lang, parse_accept_language, text_hash, make_cache_key
+from content_translate import (
+    inject_html_segments,
+    make_cache_key,
+    make_content_cache_key,
+    mark_html_segments,
+    normalize_lang,
+    pack_segments,
+    parse_accept_language,
+    text_hash,
+    unpack_segments,
+)
 
 
 def test_normalize_lang():
     assert normalize_lang("en") == "en"
     assert normalize_lang("pt-BR") == "pt"
+    assert normalize_lang("nl") == "nl"
     assert normalize_lang("xx") == "fr"
 
 
@@ -20,6 +31,14 @@ def test_cache_key_stable():
     assert k1 != make_cache_key("news", "news_2", "title", "fr", "en", h)
 
 
+def test_content_cache_key():
+    h = text_hash("Bonjour")
+    key = make_content_cache_key(h, "fr", "en")
+    assert key
+    assert key == make_content_cache_key(h, "fr", "en")
+    assert not make_content_cache_key("", "fr", "en")
+
+
 def test_cache_get_skips_when_db_is_none():
     import content_translate as ct
     ct.init(None)
@@ -28,8 +47,6 @@ def test_cache_get_skips_when_db_is_none():
 
 
 def test_mark_and_inject_html_preserves_structure():
-    from content_translate import inject_html_segments, mark_html_segments
-
     source = "<p>Hello <strong>world</strong></p><p>Second <mark>line</mark></p>"
     marked, segments = mark_html_segments(source)
     assert segments == ["Hello ", "world", "Second ", "line"]
@@ -40,8 +57,6 @@ def test_mark_and_inject_html_preserves_structure():
 
 
 def test_pack_and_unpack_segments():
-    from content_translate import pack_segments, unpack_segments
-
     segments = ["Bonjour", "le forum", "les rôles"]
     packed = pack_segments(segments)
     fake = packed.replace("Bonjour", "Hola").replace("le forum", "el foro").replace("les rôles", "los roles")

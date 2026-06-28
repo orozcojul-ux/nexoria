@@ -89,23 +89,57 @@ export const TRANSLATIONS_PAGES = {
   "forum.recent": T("Activité récente", "Recent activity"),
 
   // ─── Friends ───
-  "friends.loadFailed": T("Impossible de charger vos compagnons", "Could not load your companions"),
-  "friends.add": T("Ajouter un compagnon", "Add a companion"),
-  "friends.requests": T("Demandes reçues", "Incoming requests"),
-  "friends.sent": T("Demandes envoyées", "Sent requests"),
-  "friends.empty": T("Aucun compagnon pour le moment.", "No companions yet."),
-  "friends.searchPlaceholder": T("Pseudo du héros…", "Hero username…"),
-  "friends.sendRequest": T("Envoyer une demande", "Send request"),
-  "friends.accept": T("Accepter", "Accept"),
-  "friends.decline": T("Refuser", "Decline"),
-  "friends.remove": T("Retirer", "Remove"),
-  "friends.chat": T("Discuter", "Chat"),
-  "friends.online": T("En ligne", "Online"),
-  "friends.offline": T("Hors ligne", "Offline"),
-  "friends.requestSent": T("Demande envoyée", "Request sent"),
-  "friends.requestAccepted": T("Compagnon accepté", "Companion accepted"),
-  "friends.requestDeclined": T("Demande refusée", "Request declined"),
-  "friends.removed": T("Compagnon retiré", "Companion removed"),
+  "friends.loadFailed": T("Impossible de charger vos compagnons", "Could not load your companions", {
+    es: "No se pudieron cargar tus compañeros", de: "Gefährten konnten nicht geladen werden", it: "Impossibile caricare i compagni", pt: "Não foi possível carregar seus companheiros", nl: "Kon metgezellen niet laden", ja: "仲間を読み込めませんでした",
+  }),
+  "friends.add": T("Ajouter un compagnon", "Add a companion", {
+    es: "Añadir un compañero", de: "Gefährten hinzufügen", it: "Aggiungi un compagno", pt: "Adicionar um companheiro", nl: "Metgezel toevoegen", ja: "仲間を追加",
+  }),
+  "friends.requests": T("Demandes reçues", "Incoming requests", {
+    es: "Solicitudes recibidas", de: "Eingehende Anfragen", it: "Richieste ricevute", pt: "Pedidos recebidos", nl: "Ontvangen verzoeken", ja: "受信リクエスト",
+  }),
+  "friends.sent": T("Demandes envoyées", "Sent requests", {
+    es: "Solicitudes enviadas", de: "Gesendete Anfragen", it: "Richieste inviate", pt: "Pedidos enviados", nl: "Verzonden verzoeken", ja: "送信済みリクエスト",
+  }),
+  "friends.empty": T("Aucun compagnon pour le moment.", "No companions yet.", {
+    es: "Sin compañeros por ahora.", de: "Noch keine Gefährten.", it: "Nessun compagno al momento.", pt: "Nenhum companheiro por agora.", nl: "Nog geen metgezellen.", ja: "まだ仲間がいません。",
+  }),
+  "friends.searchPlaceholder": T("Pseudo du héros…", "Hero username…", {
+    es: "Nombre del héroe…", de: "Heldename…", it: "Nome eroe…", pt: "Nome do herói…", nl: "Heldennnaam…", ja: "英雄のユーザー名…",
+  }),
+  "friends.sendRequest": T("Envoyer une demande", "Send request", {
+    es: "Enviar solicitud", de: "Anfrage senden", it: "Invia richiesta", pt: "Enviar pedido", nl: "Verzoek sturen", ja: "リクエストを送信",
+  }),
+  "friends.accept": T("Accepter", "Accept", {
+    es: "Aceptar", de: "Annehmen", it: "Accetta", pt: "Aceitar", nl: "Accepteren", ja: "承認",
+  }),
+  "friends.decline": T("Refuser", "Decline", {
+    es: "Rechazar", de: "Ablehnen", it: "Rifiuta", pt: "Recusar", nl: "Weigeren", ja: "拒否",
+  }),
+  "friends.remove": T("Retirer", "Remove", {
+    es: "Eliminar", de: "Entfernen", it: "Rimuovi", pt: "Remover", nl: "Verwijderen", ja: "削除",
+  }),
+  "friends.chat": T("Discuter", "Chat", {
+    es: "Chatear", de: "Chatten", it: "Chatta", pt: "Conversar", nl: "Chatten", ja: "チャット",
+  }),
+  "friends.online": T("En ligne", "Online", {
+    es: "En línea", de: "Online", it: "Online", pt: "Online", nl: "Online", ja: "オンライン",
+  }),
+  "friends.offline": T("Hors ligne", "Offline", {
+    es: "Desconectado", de: "Offline", it: "Offline", pt: "Offline", nl: "Offline", ja: "オフライン",
+  }),
+  "friends.requestSent": T("Demande envoyée", "Request sent", {
+    es: "Solicitud enviada", de: "Anfrage gesendet", it: "Richiesta inviata", pt: "Pedido enviado", nl: "Verzoek verstuurd", ja: "リクエストを送信しました",
+  }),
+  "friends.requestAccepted": T("Compagnon accepté", "Companion accepted", {
+    es: "Compañero aceptado", de: "Gefährte angenommen", it: "Compagno accettato", pt: "Companheiro aceito", nl: "Metgezel geaccepteerd", ja: "仲間を承認しました",
+  }),
+  "friends.requestDeclined": T("Demande refusée", "Request declined", {
+    es: "Solicitud rechazada", de: "Anfrage abgelehnt", it: "Richiesta rifiutata", pt: "Pedido recusado", nl: "Verzoek geweigerd", ja: "リクエストを拒否しました",
+  }),
+  "friends.removed": T("Compagnon retiré", "Companion removed", {
+    es: "Compañero eliminado", de: "Gefährte entfernt", it: "Compagno rimosso", pt: "Companheiro removido", nl: "Metgezel verwijderd", ja: "仲間を削除しました",
+  }),
 
   // ─── Kingdom ───
   "kingdom.loading": T("Chargement du royaume…", "Loading kingdom…"),
@@ -128,11 +162,21 @@ export const TRANSLATIONS_PAGES = {
   "skills.maxed": T("Compétence au maximum", "Skill maxed"),
 
   // ─── Leaderboards ───
-  "leaderboards.rank": T("Rang", "Rank"),
-  "leaderboards.player": T("Héros", "Hero"),
-  "leaderboards.score": T("Score", "Score"),
-  "leaderboards.season": T("Saison", "Season"),
-  "leaderboards.empty": T("Aucun classement pour le moment.", "No rankings yet."),
+  "leaderboards.rank": T("Rang", "Rank", {
+    es: "Puesto", de: "Rang", it: "Posizione", pt: "Posição", nl: "Rang", ja: "順位",
+  }),
+  "leaderboards.player": T("Héros", "Hero", {
+    es: "Héroe", de: "Held", it: "Eroe", pt: "Herói", nl: "Held", ja: "英雄",
+  }),
+  "leaderboards.score": T("Score", "Score", {
+    es: "Puntuación", de: "Punkte", it: "Punteggio", pt: "Pontuação", nl: "Score", ja: "スコア",
+  }),
+  "leaderboards.season": T("Saison", "Season", {
+    es: "Temporada", de: "Saison", it: "Stagione", pt: "Temporada", nl: "Seizoen", ja: "シーズン",
+  }),
+  "leaderboards.empty": T("Aucun classement pour le moment.", "No rankings yet.", {
+    es: "Sin clasificación por ahora.", de: "Noch keine Rangliste.", it: "Nessuna classifica al momento.", pt: "Sem ranking por agora.", nl: "Nog geen ranglijst.", ja: "ランキングはまだありません。",
+  }),
 
   // ─── Guilds ───
   "guilds.create": T("Fonder une guilde", "Create a guild"),

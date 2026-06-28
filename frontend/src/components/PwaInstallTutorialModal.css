@@ -1,0 +1,252 @@
+.pwa-tutorial-modal {
+  width: 100%;
+  max-width: 32rem;
+  max-height: 92vh;
+  overflow-y: auto;
+  border-radius: 1rem;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  background: linear-gradient(165deg, #120f24 0%, #0c0a18 55%, #070711 100%);
+  padding: 1.25rem;
+  box-shadow: 0 24px 48px rgba(76, 29, 149, 0.35);
+}
+
+.pwa-tutorial-benefits {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  background: rgba(88, 28, 135, 0.12);
+}
+
+.pwa-tutorial-benefits__title {
+  font-family: var(--font-display, system-ui);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(196, 181, 253, 0.9);
+  margin-bottom: 0.25rem;
+}
+
+.pwa-tutorial-benefits__item {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #d4d4d8;
+}
+
+.pwa-tutorial-benefits__dot {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: #a78bfa;
+  margin-top: 0.4rem;
+  flex-shrink: 0;
+}
+
+.pwa-tutorial-section {
+  margin-bottom: 1.25rem;
+  border-radius: 0.875rem;
+  padding: 1rem;
+}
+
+.pwa-tutorial-section--android {
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  background: rgba(20, 83, 45, 0.12);
+}
+
+.pwa-tutorial-section--ios {
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  background: rgba(22, 78, 99, 0.12);
+}
+
+.pwa-tutorial-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.875rem;
+}
+
+.pwa-tutorial-section__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-display, system-ui);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.pwa-tutorial-section--android .pwa-tutorial-section__title {
+  color: #bbf7d0;
+}
+
+.pwa-tutorial-section--ios .pwa-tutorial-section__title {
+  color: #a5f3fc;
+}
+
+.pwa-tutorial-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  background: rgba(234, 179, 8, 0.12);
+  color: #fde68a;
+  white-space: nowrap;
+}
+
+.pwa-tutorial-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pwa-tutorial-step {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+@media (max-width: 380px) {
+  .pwa-tutorial-step {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pwa-tutorial-step__visual {
+  position: relative;
+  border-radius: 0.625rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.35);
+  aspect-ratio: 280 / 520;
+}
+
+.pwa-tutorial-step__visual img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.pwa-tutorial-step__num {
+  position: absolute;
+  top: 0.35rem;
+  left: 0.35rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 800;
+  font-family: var(--font-display, system-ui);
+  color: #fff;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.pwa-tutorial-step__title {
+  font-family: var(--font-display, system-ui);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #f4f4f5;
+  margin-bottom: 0.35rem;
+}
+
+.pwa-tutorial-step__desc {
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: #a1a1aa;
+  margin: 0;
+}
+
+.pwa-tutorial-note {
+  margin-top: 1rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.625rem;
+  border: 1px dashed rgba(113, 113, 122, 0.45);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: #71717a;
+  font-style: italic;
+}
+
+.pwa-page-benefits {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.pwa-page-benefit {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.875rem 1rem;
+  border-radius: 0.875rem;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: rgba(88, 28, 135, 0.08);
+}
+
+.pwa-page-benefit__icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.625rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: rgba(88, 28, 135, 0.2);
+  color: #c4b5fd;
+}
+
+.pwa-page-benefit__title {
+  font-family: var(--font-display, system-ui);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #ede9fe;
+  margin-bottom: 0.2rem;
+}
+
+.pwa-page-benefit__desc {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #a1a1aa;
+  margin: 0;
+}
+
+.pwa-page-preview {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+.pwa-page-preview__item {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  opacity: 0.85;
+}
+
+.pwa-page-preview__item img {
+  display: block;
+  width: 100%;
+  height: auto;
+}

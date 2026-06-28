@@ -217,77 +217,228 @@ export const TRANSLATIONS_PAGES_ZONES = {
   "forum.yourReply": T("Votre réponse", "Your reply", { es: "Tu respuesta", de: "Your reply", it: "Your reply", pt: "Your reply", nl: "Your reply", ja: "Your reply" }),
 
   // ─── guilds ───
-  "guilds.abandon": T("Abandonner", "Abandon", { es: "Abandonar", de: "Aufgeben", it: "Abandon", pt: "Abandon", nl: "Abandon", ja: "Abandon" }),
-  "guilds.allOrders": T("Tous les ordres", "All orders", { es: "Todas las órdenes", de: "Allee Orden", it: "Tutti orders", pt: "Todos orders", nl: "Alle orders", ja: "すべて orders" }),
-  "guilds.bannerCount": T("{count} bannière(s)", "{count} banner(s)", { es: "{count} banner(s)", de: "{count} banner(s)", it: "{count} banner(s)", pt: "{count} banner(s)", nl: "{count} banner(s)", ja: "{count} banner(s)" }),
-  "guilds.bannerCount_one": T("{count} bannière", "{count} banner", { es: "{count} banner", de: "{count} banner", it: "{count} banner", pt: "{count} banner", nl: "{count} banner", ja: "{count} banner" }),
-  "guilds.bannerCount_other": T("{count} bannière(s)", "{count} banners", { es: "{count} banners", de: "{count} banners", it: "{count} banners", pt: "{count} banners", nl: "{count} banners", ja: "{count} banners" }),
-  "guilds.bannerSub": T("Unissez-vous et fondez un ordre dont le nom résonnera dans l'éternité.", "Unite and found an order whose name will echo through eternity.", { es: "Únete y funda una orden cuyo nombre resonará por la eternidad.", de: "Unite and found an order whose name will echo through eternity.", it: "Unite and found an order whose name will echo through eternity.", pt: "Unite and found an order whose name will echo through eternity.", nl: "Unite and found an order whose name will echo through eternity.", ja: "Unite and found an order whose name will echo through eternity." }),
-  "guilds.beFirst": T("Sois le premier à hisser ta bannière.", "Be the first to raise your banner.", { es: "Be the first to raise your banner.", de: "Be the first to raise your banner.", it: "Be the first to raise your banner.", pt: "Be the first to raise your banner.", nl: "Be the first to raise your banner.", ja: "Be the first to raise your banner." }),
-  "guilds.changeRole": T("Changer rôle", "Change role", { es: "Change role", de: "Change role", it: "Change role", pt: "Change role", nl: "Change role", ja: "Change role" }),
-  "guilds.chatEmpty": T("Aucun message — entamez la conversation", "No messages — start the conversation", { es: "No messages — start the conversation", de: "No messages — start the conversation", it: "No messages — start the conversation", pt: "No messages — start the conversation", nl: "No messages — start the conversation", ja: "No messages — start the conversation" }),
-  "guilds.chatPlaceholder": T("Parler à l'ordre...", "Speak to the order...", { es: "Speak to the order...", de: "Speak to the order...", it: "Speak to the order...", pt: "Speak to the order...", nl: "Speak to the order...", ja: "Speak to the order..." }),
-  "guilds.chooseMember": T("Choisir un membre", "Choose a member", { es: "Choose a member", de: "Choose a member", it: "Choose a member", pt: "Choose a member", nl: "Choose a member", ja: "Choose a member" }),
-  "guilds.chooseMemberPlaceholder": T("Choisir un membre...", "Choose a member...", { es: "Choose a member...", de: "Choose a member...", it: "Choose a member...", pt: "Choose a member...", nl: "Choose a member...", ja: "Choose a member..." }),
-  "guilds.commonVault": T("Coffre commun", "Common vault", { es: "Caja fuerte común", de: "Gemeinsame Truhe", it: "Comune vault", pt: "Comum vault", nl: "Gewoon vault", ja: "コモン vault" }),
-  "guilds.create": T("Fonder une guilde", "Create a guild", { es: "Create a guild", de: "Create a guild", it: "Create a guild", pt: "Create a guild", nl: "Create a guild", ja: "Create a guild" }),
-  "guilds.deposit": T("Déposer", "Deposit", { es: "Depositar", de: "Einzahlen", it: "Deposit", pt: "Deposit", nl: "Deposit", ja: "Deposit" }),
-  "guilds.depositSuccess": T("Dépôt effectué", "Deposit completed", { es: "Depósito completado", de: "Einzahlung abgeschlossen", it: "Deposit completed", pt: "Deposit completed", nl: "Deposit completed", ja: "Deposit completed" }),
-  "guilds.depositXp": T("Déposer (gagne de l'XP pour l'ordre)", "Deposit (earns XP for the order)", { es: "Depositar (earns XP for the order)", de: "Einzahlen (earns XP for the order)", it: "Deposit (earns XP for the order)", pt: "Deposit (earns XP for the order)", nl: "Deposit (earns XP for the order)", ja: "Deposit (earns XP for the order)" }),
-  "guilds.disbanded": T("L'ordre a été dissous", "The order has been disbanded", { es: "The order has been disbanded", de: "The order has been disbanded", it: "The order has been disbanded", pt: "The order has been disbanded", nl: "The order has been disbanded", ja: "The order has been disbanded" }),
-  "guilds.empty": T("Aucune guilde trouvée.", "No guilds found.", { es: "No se encontraron guildas.", de: "No guilds found.", it: "No guilds found.", pt: "No guilds found.", nl: "No guilds found.", ja: "No guilds found." }),
-  "guilds.exactUsername": T("Pseudo exact", "Exact username", { es: "Exact username", de: "Exact username", it: "Exact username", pt: "Exact username", nl: "Exact username", ja: "Exact username" }),
-  "guilds.existingOrders": T("Ordres existants", "Existing orders", { es: "Órdenes existentes", de: "Bestehende Orden", it: "Existing orders", pt: "Existing orders", nl: "Existing orders", ja: "Existing orders" }),
-  "guilds.foundOrder": T("+ Fonder un Ordre", "+ Found an Order", { es: "+ Fundar una Orden", de: "+ Orden gründen", it: "+ Found an Order", pt: "+ Found an Order", nl: "+ Found an Order", ja: "+ Found an Order" }),
-  "guilds.founded": T("L'ordre « {name} » est fondé !", "The order « {name} » has been founded!", { es: "The order « {name} » has been founded!", de: "The order « {name} » has been founded!", it: "The order « {name} » has been founded!", pt: "The order « {name} » has been founded!", nl: "The order « {name} » has been founded!", ja: "The order « {name} » has been founded!" }),
-  "guilds.heroCount": T("{count} héros", "{count} heroes", { es: "{count} heroes", de: "{count} heroes", it: "{count} heroes", pt: "{count} heroes", nl: "{count} heroes", ja: "{count} heroes" }),
-  "guilds.heroCount_one": T("{count} héros", "{count} hero", { es: "{count} hero", de: "{count} hero", it: "{count} hero", pt: "{count} hero", nl: "{count} hero", ja: "{count} hero" }),
-  "guilds.heroCount_other": T("{count} héros", "{count} heroes", { es: "{count} heroes", de: "{count} heroes", it: "{count} heroes", pt: "{count} heroes", nl: "{count} heroes", ja: "{count} heroes" }),
-  "guilds.invite": T("Inviter", "Invite", { es: "Invitar", de: "Einladen", it: "Invite", pt: "Invite", nl: "Invite", ja: "Invite" }),
-  "guilds.inviteSent": T("Invitation envoyée à {name}", "Invitation sent to {name}", { es: "Invitation sent to {name}", de: "Invitation sent to {name}", it: "Invitation sent to {name}", pt: "Invitation sent to {name}", nl: "Invitation sent to {name}", ja: "Invitation sent to {name}" }),
-  "guilds.inviteTitle": T("Inviter un héros", "Invite a hero", { es: "Invitar a hero", de: "Einladen a hero", it: "Invite a hero", pt: "Invite a hero", nl: "Invite a hero", ja: "Invite a hero" }),
-  "guilds.join": T("Rejoindre", "Join", { es: "Unirse", de: "Beitreten", it: "Join", pt: "Join", nl: "Join", ja: "Join" }),
-  "guilds.kickSuccess": T("Membre exclu", "Member removed", { es: "Miembro expulsado", de: "Mitglied entfernt", it: "Membro removed", pt: "Membro removed", nl: "Lid removed", ja: "メンバー removed" }),
-  "guilds.kickTitle": T("Exclure", "Remove", { es: "Expulsar", de: "Entfernen", it: "Remove", pt: "Remove", nl: "Remove", ja: "Remove" }),
-  "guilds.leave": T("Quitter", "Leave", { es: "Salir", de: "Verlassen", it: "Leave", pt: "Leave", nl: "Leave", ja: "Leave" }),
-  "guilds.leaveConfirm": T("Quitter cet ordre ?", "Leave this order?", { es: "Salir this order?", de: "Verlassen this order?", it: "Leave this order?", pt: "Leave this order?", nl: "Leave this order?", ja: "Leave this order?" }),
-  "guilds.left": T("Vous avez quitté l'ordre", "You left the order", { es: "You left the order", de: "You left the order", it: "You left the order", pt: "You left the order", nl: "You left the order", ja: "You left the order" }),
-  "guilds.level": T("Niveau {level}", "Level {level}", { es: "Level {level}", de: "Level {level}", it: "Level {level}", pt: "Level {level}", nl: "Level {level}", ja: "Level {level}" }),
-  "guilds.members": T("Membres", "Members", { es: "Miembros", de: "Mitglieds", it: "Membros", pt: "Membros", nl: "Lids", ja: "メンバーs" }),
-  "guilds.modal.close": T("Fermer", "Close", { es: "Cerrar", de: "Schließen", it: "Close", pt: "Close", nl: "Close", ja: "Close" }),
-  "guilds.modal.color": T("Couleur", "Color", { es: "Color", de: "Farbe", it: "Color", pt: "Color", nl: "Color", ja: "Color" }),
-  "guilds.modal.colorAria": T("Couleur {name}", "Color {name}", { es: "Color {name}", de: "Farbe {name}", it: "Color {name}", pt: "Color {name}", nl: "Color {name}", ja: "Color {name}" }),
-  "guilds.modal.cost": T("Coût :", "Cost:", { es: "Costo:", de: "Kosten:", it: "Cost:", pt: "Cost:", nl: "Cost:", ja: "Cost:" }),
-  "guilds.modal.costDetail": T(" · Requiert le niveau 10 minimum.", " · Requires level 10 minimum.", { es: " · Requires level 10 minimum.", de: " · Requires level 10 minimum.", it: " · Requires level 10 minimum.", pt: " · Requires level 10 minimum.", nl: " · Requires level 10 minimum.", ja: " · Requires level 10 minimum." }),
-  "guilds.modal.currentEcus": T(" · Écus :", " · Écus:", { es: " · Écus:", de: " · Écus:", it: " · Écus:", pt: " · Écus:", nl: " · Écus:", ja: " · Écus:" }),
-  "guilds.modal.currentLevel": T("Niveau actuel :", "Current level:", { es: "Current level:", de: "Current level:", it: "Current level:", pt: "Current level:", nl: "Current level:", ja: "Current level:" }),
-  "guilds.modal.errEcus": T("Tu n'as pas assez d'Écus (1000 requis).", "You don't have enough Écus (1000 required).", { es: "You don't have enough Écus (1000 required).", de: "You don't have enough Écus (1000 required).", it: "You don't have enough Écus (1000 required).", pt: "You don't have enough Écus (1000 required).", nl: "You don't have enough Écus (1000 required).", ja: "You don't have enough Écus (1000 required)." }),
-  "guilds.modal.errGeneric": T("Une erreur est survenue.", "An error occurred.", { es: "An error occurred.", de: "An error occurred.", it: "An error occurred.", pt: "An error occurred.", nl: "An error occurred.", ja: "An error occurred." }),
-  "guilds.modal.errLevel": T("Tu dois atteindre le niveau 10 pour fonder un ordre.", "You must reach level 10 to found an order.", { es: "You must reach level 10 to found an order.", de: "You must reach level 10 to found an order.", it: "You must reach level 10 to found an order.", pt: "You must reach level 10 to found an order.", nl: "You must reach level 10 to found an order.", ja: "You must reach level 10 to found an order." }),
-  "guilds.modal.mottoPlaceholder": T("Devise de l'ordre...", "Order motto...", { es: "Order motto...", de: "Order motto...", it: "Order motto...", pt: "Order motto...", nl: "Order motto...", ja: "Order motto..." }),
-  "guilds.modal.namePlaceholder": T("Nom de l'Ordre", "Order name", { es: "Order name", de: "Order name", it: "Order name", pt: "Order name", nl: "Order name", ja: "Order name" }),
-  "guilds.modal.submit": T("Fonder l'Ordre", "Found the Order", { es: "Found the Order", de: "Found the Order", it: "Found the Order", pt: "Found the Order", nl: "Found the Order", ja: "Found the Order" }),
-  "guilds.modal.submitCost": T("(-1000 Écus)", "(-1000 Écus)", { es: "(-1000 Écus)", de: "(-1000 Écus)", it: "(-1000 Écus)", pt: "(-1000 Écus)", nl: "(-1000 Écus)", ja: "(-1000 Écus)" }),
-  "guilds.modal.submitting": T("Fondation en cours…", "Founding in progress…", { es: "Fundación en curso…", de: "Founding in progress…", it: "Founding in progress…", pt: "Founding in progress…", nl: "Founding in progress…", ja: "Founding in progress…" }),
-  "guilds.modal.tagPlaceholder": T("TAG (2-5 lettres, ex : ZEN)", "TAG (2-5 letters, e.g. ZEN)", { es: "TAG (2-5 letters, e.g. ZEN)", de: "TAG (2-5 letters, e.g. ZEN)", it: "TAG (2-5 letters, e.g. ZEN)", pt: "TAG (2-5 letters, e.g. ZEN)", nl: "TAG (2-5 letters, e.g. ZEN)", ja: "TAG (2-5 letters, e.g. ZEN)" }),
-  "guilds.modal.title": T("Fonder un Ordre", "Found an Order", { es: "Fundar una Orden", de: "Orden gründen", it: "Found an Order", pt: "Found an Order", nl: "Found an Order", ja: "Found an Order" }),
-  "guilds.myOrder": T("Mon ordre", "My order", { es: "Mi orden", de: "Mein Orden", it: "My order", pt: "My order", nl: "My order", ja: "My order" }),
-  "guilds.noOrdersYet": T("Aucun ordre n'a encore été fondé…", "No order has been founded yet…", { es: "No order has been founded yet…", de: "No order has been founded yet…", it: "No order has been founded yet…", pt: "No order has been founded yet…", nl: "No order has been founded yet…", ja: "No order has been founded yet…" }),
-  "guilds.promoted": T("Promu {role}", "Promoted to {role}", { es: "Promoted to {role}", de: "Promoted to {role}", it: "Promoted to {role}", pt: "Promoted to {role}", nl: "Promoted to {role}", ja: "Promoted to {role}" }),
-  "guilds.pulseSub": T("Vue globale", "Global view", { es: "Global view", de: "Global view", it: "Global view", pt: "Global view", nl: "Global view", ja: "Global view" }),
-  "guilds.pulseTitle": T("Pulse des Ordres", "Orders Pulse", { es: "Orders Pulse", de: "Orders Pulse", it: "Orders Pulse", pt: "Orders Pulse", nl: "Orders Pulse", ja: "Orders Pulse" }),
-  "guilds.reward": T("Récompenser", "Reward", { es: "Recompensar", de: "Belohnen", it: "Reward", pt: "Reward", nl: "Reward", ja: "Reward" }),
-  "guilds.rewardMember": T("Récompenser un membre", "Reward a member", { es: "Recompensar a member", de: "Belohnen a member", it: "Reward a member", pt: "Reward a member", nl: "Reward a member", ja: "Reward a member" }),
-  "guilds.rewardSuccess": T("Récompense versée", "Reward sent", { es: "Recompensa enviada", de: "Belohnung gesendet", it: "Reward sent", pt: "Reward sent", nl: "Reward sent", ja: "Reward sent" }),
-  "guilds.role.chef": T("Chef", "Leader", { es: "Líder", de: "Anführer", it: "Capo", pt: "Líder", nl: "Leider", ja: "リーダー" }),
-  "guilds.role.membre": T("Membre", "Member", { es: "Miembro", de: "Mitglied", it: "Membro", pt: "Membro", nl: "Lid", ja: "メンバー" }),
-  "guilds.role.officier": T("Officier", "Officer", { es: "Oficial", de: "Offizier", it: "Ufficiale", pt: "Oficial", nl: "Officier", ja: "役員" }),
-  "guilds.stat.dominant": T("Ordre dominant", "Dominant order", { es: "Dominant order", de: "Dominant order", it: "Dominant order", pt: "Dominant order", nl: "Dominant order", ja: "Dominant order" }),
-  "guilds.stat.enrolled": T("Héros enrôlés", "Heroes enrolled", { es: "Heroes enrolled", de: "Heroes enrolled", it: "Heroes enrolled", pt: "Heroes enrolled", nl: "Heroes enrolled", ja: "Heroes enrolled" }),
-  "guilds.stat.founded": T("Ordres fondés", "Orders founded", { es: "Orders founded", de: "Orders founded", it: "Orders founded", pt: "Orders founded", nl: "Orders founded", ja: "Orders founded" }),
-  "guilds.stat.invitations": T("Invitations", "Invitations", { es: "Invitations", de: "Invitations", it: "Invitations", pt: "Invitations", nl: "Invitations", ja: "Invitations" }),
-  "guilds.treasury": T("Coffre", "Treasury", { es: "Tesorería", de: "Schatzkammer", it: "Treasury", pt: "Treasury", nl: "Treasury", ja: "Treasury" }),
-  "guilds.vault": T("Coffre : {amount} ✦", "Vault: {amount} ✦", { es: "Vault: {amount} ✦", de: "Vault: {amount} ✦", it: "Vault: {amount} ✦", pt: "Vault: {amount} ✦", nl: "Vault: {amount} ✦", ja: "Vault: {amount} ✦" }),
+  "guilds.abandon": T("Abandonner", "Abandon", {
+    es: "Abandonar", de: "Aufgeben", it: "Abbandonare", pt: "Abandonar", nl: "Opgeven", ja: "放棄する",
+  }),
+  "guilds.allOrders": T("Tous les ordres", "All orders", {
+    es: "Todas las órdenes", de: "Alle Orden", it: "Tutti gli ordini", pt: "Todas as ordens", nl: "Alle ordes", ja: "すべての騎士団",
+  }),
+  "guilds.bannerCount": T("{count} bannière(s)", "{count} banner(s)", {
+    es: "{count} estandarte(s)", de: "{count} Banner", it: "{count} stendardo/i", pt: "{count} estandarte(s)", nl: "{count} banier(en)", ja: "{count} 枚の旗",
+  }),
+  "guilds.bannerCount_one": T("{count} bannière", "{count} banner", {
+    es: "{count} estandarte", de: "{count} Banner", it: "{count} stendardo", pt: "{count} estandarte", nl: "{count} banier", ja: "{count} 枚の旗",
+  }),
+  "guilds.bannerCount_other": T("{count} bannière(s)", "{count} banners", {
+    es: "{count} estandartes", de: "{count} Banner", it: "{count} stendardi", pt: "{count} estandartes", nl: "{count} banieren", ja: "{count} 枚の旗",
+  }),
+  "guilds.bannerSub": T(
+    "Unissez-vous et fondez un ordre dont le nom résonnera dans l'éternité.",
+    "Unite and found an order whose name will echo through eternity.",
+    {
+      es: "Únete y funda una orden cuyo nombre resonará por la eternidad.",
+      de: "Vereint euch und gründet einen Orden, dessen Name durch die Ewigkeit hallt.",
+      it: "Unisciti e fonda un ordine il cui nome risuonerà nell'eternità.",
+      pt: "Una-se e funde uma ordem cujo nome ecoará pela eternidade.",
+      nl: "Verenig je en sticht een orde waarvan de naam door de eeuwigheid galmt.",
+      ja: "結束し、名が永遠に響く騎士団を設立しよう。",
+    },
+  ),
+  "guilds.beFirst": T("Sois le premier à hisser ta bannière.", "Be the first to raise your banner.", {
+    es: "Sé el primero en alzar tu estandarte.", de: "Sei der Erste, der sein Banner hisst.", it: "Sii il primo ad alzare il tuo stendardo.", pt: "Seja o primeiro a erguer seu estandarte.", nl: "Wees de eerste die je banier hijst.", ja: "最初に旗を掲げよう。",
+  }),
+  "guilds.changeRole": T("Changer rôle", "Change role", {
+    es: "Cambiar rol", de: "Rolle ändern", it: "Cambia ruolo", pt: "Alterar função", nl: "Rol wijzigen", ja: "役割を変更",
+  }),
+  "guilds.chatEmpty": T("Aucun message — entamez la conversation", "No messages — start the conversation", {
+    es: "Sin mensajes — inicia la conversación", de: "Keine Nachrichten — starte die Unterhaltung", it: "Nessun messaggio — avvia la conversazione", pt: "Sem mensagens — inicie a conversa", nl: "Geen berichten — begin het gesprek", ja: "メッセージはありません — 会話を始めましょう",
+  }),
+  "guilds.chatPlaceholder": T("Parler à l'ordre...", "Speak to the order...", {
+    es: "Hablar con la orden...", de: "Mit dem Orden sprechen...", it: "Parla con l'ordine...", pt: "Falar com a ordem...", nl: "Spreek met de orde...", ja: "騎士団に話しかける…",
+  }),
+  "guilds.chooseMember": T("Choisir un membre", "Choose a member", {
+    es: "Elegir un miembro", de: "Mitglied wählen", it: "Scegli un membro", pt: "Escolher um membro", nl: "Kies een lid", ja: "メンバーを選ぶ",
+  }),
+  "guilds.chooseMemberPlaceholder": T("Choisir un membre...", "Choose a member...", {
+    es: "Elegir un miembro...", de: "Mitglied wählen...", it: "Scegli un membro...", pt: "Escolher um membro...", nl: "Kies een lid...", ja: "メンバーを選ぶ…",
+  }),
+  "guilds.commonVault": T("Coffre commun", "Common vault", {
+    es: "Caja fuerte común", de: "Gemeinsame Truhe", it: "Cassa comune", pt: "Cofre comum", nl: "Gemeenschappelijke kluis", ja: "共有金庫",
+  }),
+  "guilds.create": T("Fonder une guilde", "Create a guild", {
+    es: "Fundar un gremio", de: "Gilde gründen", it: "Fondare una gilda", pt: "Fundar uma guilda", nl: "Gilde stichten", ja: "ギルドを設立",
+  }),
+  "guilds.deposit": T("Déposer", "Deposit", {
+    es: "Depositar", de: "Einzahlen", it: "Deposita", pt: "Depositar", nl: "Storten", ja: "預ける",
+  }),
+  "guilds.depositSuccess": T("Dépôt effectué", "Deposit completed", {
+    es: "Depósito realizado", de: "Einzahlung abgeschlossen", it: "Deposito effettuato", pt: "Depósito concluído", nl: "Storting voltooid", ja: "預け入れ完了",
+  }),
+  "guilds.depositXp": T("Déposer (gagne de l'XP pour l'ordre)", "Deposit (earns XP for the order)", {
+    es: "Depositar (gana XP para la orden)", de: "Einzahlen (verdient XP für den Orden)", it: "Deposita (guadagna XP per l'ordine)", pt: "Depositar (ganha XP para a ordem)", nl: "Storten (verdient XP voor de orde)", ja: "預ける（騎士団のXPが増える）",
+  }),
+  "guilds.disbanded": T("L'ordre a été dissous", "The order has been disbanded", {
+    es: "La orden ha sido disuelta", de: "Der Orden wurde aufgelöst", it: "L'ordine è stato sciolto", pt: "A ordem foi dissolvida", nl: "De orde is ontbonden", ja: "騎士団は解散しました",
+  }),
+  "guilds.empty": T("Aucune guilde trouvée.", "No guilds found.", {
+    es: "No se encontraron gremios.", de: "Keine Gilden gefunden.", it: "Nessuna gilda trovata.", pt: "Nenhuma guilda encontrada.", nl: "Geen gilden gevonden.", ja: "ギルドが見つかりません。",
+  }),
+  "guilds.exactUsername": T("Pseudo exact", "Exact username", {
+    es: "Nombre de usuario exacto", de: "Exakter Benutzername", it: "Nome utente esatto", pt: "Nome de usuário exato", nl: "Exacte gebruikersnaam", ja: "正確なユーザー名",
+  }),
+  "guilds.existingOrders": T("Ordres existants", "Existing orders", {
+    es: "Órdenes existentes", de: "Bestehende Orden", it: "Ordini esistenti", pt: "Ordens existentes", nl: "Bestaande ordes", ja: "既存の騎士団",
+  }),
+  "guilds.foundOrder": T("+ Fonder un Ordre", "+ Found an Order", {
+    es: "+ Fundar una Orden", de: "+ Orden gründen", it: "+ Fonda un Ordine", pt: "+ Fundar uma Ordem", nl: "+ Orde stichten", ja: "+ 騎士団を設立",
+  }),
+  "guilds.founded": T("L'ordre « {name} » est fondé !", "The order « {name} » has been founded!", {
+    es: "¡La orden « {name} » ha sido fundada!", de: "Der Orden « {name} » wurde gegründet!", it: "L'ordine « {name} » è stato fondato!", pt: "A ordem « {name} » foi fundada!", nl: "De orde « {name} » is opgericht!", ja: "騎士団「{name}」が設立されました！",
+  }),
+  "guilds.heroCount": T("{count} héros", "{count} heroes", {
+    es: "{count} héroes", de: "{count} Helden", it: "{count} eroi", pt: "{count} heróis", nl: "{count} helden", ja: "{count} 人の英雄",
+  }),
+  "guilds.heroCount_one": T("{count} héros", "{count} hero", {
+    es: "{count} héroe", de: "{count} Held", it: "{count} eroe", pt: "{count} herói", nl: "{count} held", ja: "{count} 人の英雄",
+  }),
+  "guilds.heroCount_other": T("{count} héros", "{count} heroes", {
+    es: "{count} héroes", de: "{count} Helden", it: "{count} eroi", pt: "{count} heróis", nl: "{count} helden", ja: "{count} 人の英雄",
+  }),
+  "guilds.invite": T("Inviter", "Invite", {
+    es: "Invitar", de: "Einladen", it: "Invita", pt: "Convidar", nl: "Uitnodigen", ja: "招待",
+  }),
+  "guilds.inviteSent": T("Invitation envoyée à {name}", "Invitation sent to {name}", {
+    es: "Invitación enviada a {name}", de: "Einladung an {name} gesendet", it: "Invito inviato a {name}", pt: "Convite enviado para {name}", nl: "Uitnodiging verstuurd naar {name}", ja: "{name} に招待を送信しました",
+  }),
+  "guilds.inviteTitle": T("Inviter un héros", "Invite a hero", {
+    es: "Invitar a un héroe", de: "Helden einladen", it: "Invita un eroe", pt: "Convidar um herói", nl: "Held uitnodigen", ja: "英雄を招待",
+  }),
+  "guilds.join": T("Rejoindre", "Join", {
+    es: "Unirse", de: "Beitreten", it: "Unisciti", pt: "Entrar", nl: "Deelnemen", ja: "参加",
+  }),
+  "guilds.kickSuccess": T("Membre exclu", "Member removed", {
+    es: "Miembro expulsado", de: "Mitglied entfernt", it: "Membro espulso", pt: "Membro removido", nl: "Lid verwijderd", ja: "メンバーを除名しました",
+  }),
+  "guilds.kickTitle": T("Exclure", "Remove", {
+    es: "Expulsar", de: "Entfernen", it: "Espelli", pt: "Remover", nl: "Verwijderen", ja: "除名",
+  }),
+  "guilds.leave": T("Quitter", "Leave", {
+    es: "Salir", de: "Verlassen", it: "Lascia", pt: "Sair", nl: "Verlaten", ja: "脱退",
+  }),
+  "guilds.leaveConfirm": T("Quitter cet ordre ?", "Leave this order?", {
+    es: "¿Salir de esta orden?", de: "Diesen Orden verlassen?", it: "Lasciare questo ordine?", pt: "Sair desta ordem?", nl: "Deze orde verlaten?", ja: "この騎士団を脱退しますか？",
+  }),
+  "guilds.left": T("Vous avez quitté l'ordre", "You left the order", {
+    es: "Has abandonado la orden", de: "Du hast den Orden verlassen", it: "Hai lasciato l'ordine", pt: "Você saiu da ordem", nl: "Je hebt de orde verlaten", ja: "騎士団を脱退しました",
+  }),
+  "guilds.level": T("Niveau {level}", "Level {level}", {
+    es: "Nivel {level}", de: "Stufe {level}", it: "Livello {level}", pt: "Nível {level}", nl: "Niveau {level}", ja: "Lv.{level}",
+  }),
+  "guilds.members": T("Membres", "Members", {
+    es: "Miembros", de: "Mitglieder", it: "Membri", pt: "Membros", nl: "Leden", ja: "メンバー",
+  }),
+  "guilds.modal.close": T("Fermer", "Close", {
+    es: "Cerrar", de: "Schließen", it: "Chiudi", pt: "Fechar", nl: "Sluiten", ja: "閉じる",
+  }),
+  "guilds.modal.color": T("Couleur", "Color", {
+    es: "Color", de: "Farbe", it: "Colore", pt: "Cor", nl: "Kleur", ja: "色",
+  }),
+  "guilds.modal.colorAria": T("Couleur {name}", "Color {name}", {
+    es: "Color {name}", de: "Farbe {name}", it: "Colore {name}", pt: "Cor {name}", nl: "Kleur {name}", ja: "色 {name}",
+  }),
+  "guilds.modal.cost": T("Coût :", "Cost:", {
+    es: "Costo:", de: "Kosten:", it: "Costo:", pt: "Custo:", nl: "Kosten:", ja: "コスト：",
+  }),
+  "guilds.modal.costDetail": T(" · Requiert le niveau 10 minimum.", " · Requires level 10 minimum.", {
+    es: " · Requiere nivel 10 mínimo.", de: " · Mindestens Stufe 10 erforderlich.", it: " · Richiede livello 10 minimo.", pt: " · Requer nível 10 mínimo.", nl: " · Minimaal niveau 10 vereist.", ja: " · 最低レベル10が必要。",
+  }),
+  "guilds.modal.currentEcus": T(" · Écus :", " · Écus:", {
+    es: " · Écus:", de: " · Écus:", it: " · Écus:", pt: " · Écus:", nl: " · Écus:", ja: " · Écus：",
+  }),
+  "guilds.modal.currentLevel": T("Niveau actuel :", "Current level:", {
+    es: "Nivel actual:", de: "Aktuelle Stufe:", it: "Livello attuale:", pt: "Nível atual:", nl: "Huidig niveau:", ja: "現在のレベル：",
+  }),
+  "guilds.modal.errEcus": T("Tu n'as pas assez d'Écus (1000 requis).", "You don't have enough Écus (1000 required).", {
+    es: "No tienes suficientes Écus (1000 requeridos).", de: "Du hast nicht genug Écus (1000 erforderlich).", it: "Non hai abbastanza Écus (1000 richiesti).", pt: "Você não tem Écus suficientes (1000 necessários).", nl: "Je hebt niet genoeg Écus (1000 vereist).", ja: "Écusが足りません（1000必要）。",
+  }),
+  "guilds.modal.errGeneric": T("Une erreur est survenue.", "An error occurred.", {
+    es: "Ha ocurrido un error.", de: "Ein Fehler ist aufgetreten.", it: "Si è verificato un errore.", pt: "Ocorreu um erro.", nl: "Er is een fout opgetreden.", ja: "エラーが発生しました。",
+  }),
+  "guilds.modal.errLevel": T("Tu dois atteindre le niveau 10 pour fonder un ordre.", "You must reach level 10 to found an order.", {
+    es: "Debes alcanzar el nivel 10 para fundar una orden.", de: "Du musst Stufe 10 erreichen, um einen Orden zu gründen.", it: "Devi raggiungere il livello 10 per fondare un ordine.", pt: "Você deve atingir o nível 10 para fundar uma ordem.", nl: "Je moet niveau 10 bereiken om een orde te stichten.", ja: "騎士団を設立するにはレベル10が必要です。",
+  }),
+  "guilds.modal.mottoPlaceholder": T("Devise de l'ordre...", "Order motto...", {
+    es: "Lema de la orden...", de: "Ordensmotto...", it: "Motto dell'ordine...", pt: "Lema da ordem...", nl: "Wapenspreuk van de orde...", ja: "騎士団のモットー…",
+  }),
+  "guilds.modal.namePlaceholder": T("Nom de l'Ordre", "Order name", {
+    es: "Nombre de la orden", de: "Name des Ordens", it: "Nome dell'ordine", pt: "Nome da ordem", nl: "Naam van de orde", ja: "騎士団名",
+  }),
+  "guilds.modal.submit": T("Fonder l'Ordre", "Found the Order", {
+    es: "Fundar la Orden", de: "Orden gründen", it: "Fonda l'Ordine", pt: "Fundar a Ordem", nl: "Orde stichten", ja: "騎士団を設立",
+  }),
+  "guilds.modal.submitCost": T("(-1000 Écus)", "(-1000 Écus)", {
+    es: "(-1000 Écus)", de: "(-1000 Écus)", it: "(-1000 Écus)", pt: "(-1000 Écus)", nl: "(-1000 Écus)", ja: "(-1000 Écus)",
+  }),
+  "guilds.modal.submitting": T("Fondation en cours…", "Founding in progress…", {
+    es: "Fundación en curso…", de: "Gründung läuft…", it: "Fondazione in corso…", pt: "Fundação em andamento…", nl: "Stichting bezig…", ja: "設立中…",
+  }),
+  "guilds.modal.tagPlaceholder": T("TAG (2-5 lettres, ex : ZEN)", "TAG (2-5 letters, e.g. ZEN)", {
+    es: "TAG (2-5 letras, ej.: ZEN)", de: "TAG (2-5 Buchstaben, z. B. ZEN)", it: "TAG (2-5 lettere, es.: ZEN)", pt: "TAG (2-5 letras, ex.: ZEN)", nl: "TAG (2-5 letters, bijv. ZEN)", ja: "TAG（2〜5文字、例：ZEN）",
+  }),
+  "guilds.modal.title": T("Fonder un Ordre", "Found an Order", {
+    es: "Fundar una Orden", de: "Orden gründen", it: "Fonda un Ordine", pt: "Fundar uma Ordem", nl: "Orde stichten", ja: "騎士団を設立",
+  }),
+  "guilds.myOrder": T("Mon ordre", "My order", {
+    es: "Mi orden", de: "Mein Orden", it: "Il mio ordine", pt: "Minha ordem", nl: "Mijn orde", ja: "自分の騎士団",
+  }),
+  "guilds.noOrdersYet": T("Aucun ordre n'a encore été fondé…", "No order has been founded yet…", {
+    es: "Aún no se ha fundado ninguna orden…", de: "Es wurde noch kein Orden gegründet…", it: "Nessun ordine è stato ancora fondato…", pt: "Nenhuma ordem foi fundada ainda…", nl: "Er is nog geen orde opgericht…", ja: "まだ騎士団は設立されていません…",
+  }),
+  "guilds.promoted": T("Promu {role}", "Promoted to {role}", {
+    es: "Promovido a {role}", de: "Befördert zu {role}", it: "Promosso a {role}", pt: "Promovido a {role}", nl: "Gepromoveerd tot {role}", ja: "{role} に昇格",
+  }),
+  "guilds.pulseSub": T("Vue globale", "Global view", {
+    es: "Vista global", de: "Gesamtübersicht", it: "Panoramica globale", pt: "Visão global", nl: "Globaal overzicht", ja: "全体概要",
+  }),
+  "guilds.pulseTitle": T("Pulse des Ordres", "Orders Pulse", {
+    es: "Pulso de las Órdenes", de: "Puls der Orden", it: "Polso degli Ordini", pt: "Pulso das Ordens", nl: "Puls der Orden", ja: "騎士団の鼓動",
+  }),
+  "guilds.reward": T("Récompenser", "Reward", {
+    es: "Recompensar", de: "Belohnen", it: "Premia", pt: "Recompensar", nl: "Belonen", ja: "報酬を渡す",
+  }),
+  "guilds.rewardMember": T("Récompenser un membre", "Reward a member", {
+    es: "Recompensar a un miembro", de: "Mitglied belohnen", it: "Premia un membro", pt: "Recompensar um membro", nl: "Lid belonen", ja: "メンバーに報酬",
+  }),
+  "guilds.rewardSuccess": T("Récompense versée", "Reward sent", {
+    es: "Recompensa enviada", de: "Belohnung ausgezahlt", it: "Ricompensa inviata", pt: "Recompensa enviada", nl: "Beloning uitgekeerd", ja: "報酬を支払いました",
+  }),
+  "guilds.role.chef": T("Chef", "Leader", {
+    es: "Líder", de: "Anführer", it: "Capo", pt: "Líder", nl: "Leider", ja: "リーダー",
+  }),
+  "guilds.role.membre": T("Membre", "Member", {
+    es: "Miembro", de: "Mitglied", it: "Membro", pt: "Membro", nl: "Lid", ja: "メンバー",
+  }),
+  "guilds.role.officier": T("Officier", "Officer", {
+    es: "Oficial", de: "Offizier", it: "Ufficiale", pt: "Oficial", nl: "Officier", ja: "役員",
+  }),
+  "guilds.stat.dominant": T("Ordre dominant", "Dominant order", {
+    es: "Orden dominante", de: "Dominanter Orden", it: "Ordine dominante", pt: "Ordem dominante", nl: "Dominante orde", ja: "最強の騎士団",
+  }),
+  "guilds.stat.enrolled": T("Héros enrôlés", "Heroes enrolled", {
+    es: "Héroes enrolados", de: "Eingeschriebene Helden", it: "Eroi arruolati", pt: "Heróis inscritos", nl: "Ingeschreven helden", ja: "登録英雄数",
+  }),
+  "guilds.stat.founded": T("Ordres fondés", "Orders founded", {
+    es: "Órdenes fundadas", de: "Gegründete Orden", it: "Ordini fondati", pt: "Ordens fundadas", nl: "Opgerichte ordes", ja: "設立された騎士団",
+  }),
+  "guilds.stat.invitations": T("Invitations", "Invitations", {
+    es: "Invitaciones", de: "Einladungen", it: "Inviti", pt: "Convites", nl: "Uitnodigingen", ja: "招待",
+  }),
+  "guilds.treasury": T("Coffre", "Treasury", {
+    es: "Tesorería", de: "Schatzkammer", it: "Cassa", pt: "Tesouraria", nl: "Schatkist", ja: "金庫",
+  }),
+  "guilds.vault": T("Coffre : {amount} ✦", "Vault: {amount} ✦", {
+    es: "Caja fuerte: {amount} ✦", de: "Truhe: {amount} ✦", it: "Cassa: {amount} ✦", pt: "Cofre: {amount} ✦", nl: "Kluis: {amount} ✦", ja: "金庫: {amount} ✦",
+  }),
 
   // ─── inventory ───
   "inventory.action.back": T("Retour", "Back", { es: "Volver", de: "Zurück", it: "Indietro", pt: "Voltar", nl: "Terug", ja: "戻る" }),
@@ -532,9 +683,24 @@ export const TRANSLATIONS_PAGES_ZONES = {
   "page.forum.title": T("Forum des Héros", "Heroes Forum", { es: "Foro de Héroes", de: "Heldenforum", it: "Forum degli Eroi", pt: "Fórum dos Heróis", nl: "Heldenforum", ja: "ヒーローフォーラム" }),
 
   // ─── page.guilds ───
-  "page.guilds.kicker": T("Ordres mystiques", "Mystic orders", { es: "Órdenes místicas", de: "Mystische Orden", it: "Mystic orders", pt: "Mystic orders", nl: "Mystic orders", ja: "Mystic orders" }),
-  "page.guilds.subtitle": T("Unissez-vous et fondez un ordre dont le nom résonnera dans l'éternité.", "Unite and found an order whose name will echo through eternity.", { es: "Únete y funda una orden cuyo nombre resonará por la eternidad.", de: "Unite and found an order whose name will echo through eternity.", it: "Unite and found an order whose name will echo through eternity.", pt: "Unite and found an order whose name will echo through eternity.", nl: "Unite and found an order whose name will echo through eternity.", ja: "Unite and found an order whose name will echo through eternity." }),
-  "page.guilds.title": T("Les Guildes", "Guilds", { es: "Guildas", de: "Gilden", it: "Gilde", pt: "Guildas", nl: "Gildes", ja: "ギルド" }),
+  "page.guilds.kicker": T("Ordres mystiques", "Mystic orders", {
+    es: "Órdenes místicas", de: "Mystische Orden", it: "Ordini mistici", pt: "Ordens místicas", nl: "Mystieke ordes", ja: "神秘の騎士団",
+  }),
+  "page.guilds.subtitle": T(
+    "Unissez-vous et fondez un ordre dont le nom résonnera dans l'éternité.",
+    "Unite and found an order whose name will echo through eternity.",
+    {
+      es: "Únete y funda una orden cuyo nombre resonará por la eternidad.",
+      de: "Vereint euch und gründet einen Orden, dessen Name durch die Ewigkeit hallt.",
+      it: "Unisciti e fonda un ordine il cui nome risuonerà nell'eternità.",
+      pt: "Una-se e funde uma ordem cujo nome ecoará pela eternidade.",
+      nl: "Verenig je en sticht een orde waarvan de naam door de eeuwigheid galmt.",
+      ja: "結束し、名が永遠に響く騎士団を設立しよう。",
+    },
+  ),
+  "page.guilds.title": T("Les Guildes", "Guilds", {
+    es: "Gremios", de: "Gilden", it: "Gilde", pt: "Guildas", nl: "Gilden", ja: "ギルド",
+  }),
 
   // ─── page.inventory ───
   "page.inventory.kicker": T("Cabinet de curiosités", "Curiosity cabinet", { es: "Gabinete de curiosidades", de: "Kuriositätenschrank", it: "Gabinetto delle curiosità", pt: "Gabinete de curiosidades", nl: "Curiositeitenkabinet", ja: "好奇心のキャビネット" }),

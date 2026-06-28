@@ -6593,7 +6593,7 @@ class ContentTranslateBatchItem(BaseModel):
 
 class ContentTranslateBatchReq(BaseModel):
     target_lang: Optional[str] = None
-    items: List[ContentTranslateBatchItem] = Field(..., min_length=1, max_length=12)
+    items: List[ContentTranslateBatchItem] = Field(..., min_length=1, max_length=1)
 
 
 @api.post("/content/translate")

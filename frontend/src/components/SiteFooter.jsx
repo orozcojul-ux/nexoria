@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Youtube, Instagram, Twitter } from "lucide-react";
 import { DiscordIcon } from "@/components/auth/AuthMedievalCard";
 import { useI18n } from "@/contexts/I18nContext";
+import { openPwaTutorial } from "@/components/PwaTutorialHost";
 import styles from "./SiteFooter.module.css";
 
 const YEAR = new Date().getFullYear();
@@ -46,7 +47,7 @@ export default function SiteFooter() {
   const links = [
     { labelKey: "footer.help", action: "guide" },
     { labelKey: "footer.community", to: "/communaute" },
-    { labelKey: "footer.mobile", to: "/nexoria-mobile" },
+    { labelKey: "footer.mobile", action: "pwa" },
     { labelKey: "footer.support", to: "/tickets" },
     { labelKey: "footer.terms", to: "/conditions" },
     { labelKey: "footer.privacy", to: "/confidentialite" },
@@ -92,6 +93,10 @@ export default function SiteFooter() {
               {links.map((l) =>
                 l.action === "guide" ? (
                   <button key={l.labelKey} type="button" className={styles.link} onClick={openGuide}>
+                    {t(l.labelKey)}
+                  </button>
+                ) : l.action === "pwa" ? (
+                  <button key={l.labelKey} type="button" className={styles.link} onClick={openPwaTutorial}>
                     {t(l.labelKey)}
                   </button>
                 ) : (

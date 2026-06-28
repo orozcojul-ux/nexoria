@@ -115,6 +115,7 @@ export default function NewsComments({ newsId }) {
                   entityType="news_comment"
                   entityId={c.comment_id}
                   field="content"
+                  compact
                 />
               </div>
             </div>

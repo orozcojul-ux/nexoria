@@ -54,9 +54,9 @@ export const TRANSLATIONS_NEWS_UI = {
 
   // ─── Content translate feedback ───
   "contentTranslate.unavailable": T(
-    "Traduction automatique indisponible",
-    "Auto-translation unavailable",
-    { es: "Traducción automática no disponible", de: "Automatische Übersetzung nicht verfügbar", it: "Traduzione automatica non disponibile", pt: "Tradução automática indisponível", nl: "Automatische vertaling niet beschikbaar", ja: "自動翻訳は利用できません" },
+    "Traduction indisponible pour le moment.",
+    "Translation is temporarily unavailable.",
+    { es: "Traducción no disponible por el momento.", de: "Übersetzung derzeit nicht verfügbar.", it: "Traduzione non disponibile al momento.", pt: "Tradução indisponível no momento.", nl: "Vertaling momenteel niet beschikbaar.", ja: "現在、翻訳を利用できません。" },
   ),
   "contentTranslate.failed": T(
     "Échec de la traduction",

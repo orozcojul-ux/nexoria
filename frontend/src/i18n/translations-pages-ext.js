@@ -20,26 +20,66 @@ export const TRANSLATIONS_PAGES_EXT = {
   "skills.allocated": T("Une étoile s'éveille dans votre constellation", "A star awakens in your constellation"),
 
   // ─── Leaderboards ───
-  "leaderboards.activeRanking": T("Classement actif", "Active ranking"),
-  "leaderboards.heroesCount": T("{count} héros", "{count} heroes"),
-  "leaderboards.heroesCount_one": T("{count} héros", "{count} hero"),
-  "leaderboards.heroesCount_other": T("{count} héros", "{count} heroes"),
-  "leaderboards.topHero": T("N°1", "#1"),
-  "leaderboards.ranked": T("{count} classés", "{count} ranked"),
-  "leaderboards.ranked_one": T("{count} classé", "{count} ranked"),
-  "leaderboards.ranked_other": T("{count} classés", "{count} ranked"),
-  "leaderboards.live": T("Live", "Live"),
-  "leaderboards.podium": T("Podium", "Podium"),
-  "leaderboards.detailed": T("Classement détaillé", "Detailed ranking"),
-  "leaderboards.compiling": T("Compilation des annales...", "Compiling the annals..."),
-  "leaderboards.onlyTopThree": T("Seuls les trois premiers trônent pour l'instant.", "Only the top three reign for now."),
-  "leaderboards.emptyRanking": T("Le classement est vide.", "The ranking is empty."),
-  "leaderboards.noRanked": T("Aucun héros classé pour l'instant.", "No heroes ranked yet."),
-  "leaderboards.cat.xp": T("Expérience", "Experience"),
-  "leaderboards.cat.level": T("Rang", "Rank"),
-  "leaderboards.cat.reputation": T("Réputation", "Reputation"),
-  "leaderboards.cat.aether": T("Écus", "Écus"),
-  "leaderboards.suffix.level": T("Niv.", "Lv."),
+  "leaderboards.activeRanking": T("Classement actif", "Active ranking", {
+    es: "Clasificación activa", de: "Aktive Rangliste", it: "Classifica attiva", pt: "Ranking ativo", nl: "Actieve ranglijst", ja: "現在のランキング",
+  }),
+  "leaderboards.heroesCount": T("{count} héros", "{count} heroes", {
+    es: "{count} héroes", de: "{count} Helden", it: "{count} eroi", pt: "{count} heróis", nl: "{count} helden", ja: "{count} 人の英雄",
+  }),
+  "leaderboards.heroesCount_one": T("{count} héros", "{count} hero", {
+    es: "{count} héroe", de: "{count} Held", it: "{count} eroe", pt: "{count} herói", nl: "{count} held", ja: "{count} 人の英雄",
+  }),
+  "leaderboards.heroesCount_other": T("{count} héros", "{count} heroes", {
+    es: "{count} héroes", de: "{count} Helden", it: "{count} eroi", pt: "{count} heróis", nl: "{count} helden", ja: "{count} 人の英雄",
+  }),
+  "leaderboards.topHero": T("N°1", "#1", {
+    es: "N.º 1", de: "Nr. 1", it: "N. 1", pt: "N.º 1", nl: "Nr. 1", ja: "第1位",
+  }),
+  "leaderboards.ranked": T("{count} classés", "{count} ranked", {
+    es: "{count} clasificados", de: "{count} platziert", it: "{count} classificati", pt: "{count} classificados", nl: "{count} gerangschikt", ja: "{count} 人ランクイン",
+  }),
+  "leaderboards.ranked_one": T("{count} classé", "{count} ranked", {
+    es: "{count} clasificado", de: "{count} platziert", it: "{count} classificato", pt: "{count} classificado", nl: "{count} gerangschikt", ja: "{count} 人ランクイン",
+  }),
+  "leaderboards.ranked_other": T("{count} classés", "{count} ranked", {
+    es: "{count} clasificados", de: "{count} platziert", it: "{count} classificati", pt: "{count} classificados", nl: "{count} gerangschikt", ja: "{count} 人ランクイン",
+  }),
+  "leaderboards.live": T("En direct", "Live", {
+    es: "En vivo", de: "Live", it: "Live", pt: "Ao vivo", nl: "Live", ja: "ライブ",
+  }),
+  "leaderboards.podium": T("Podium", "Podium", {
+    es: "Podio", de: "Podium", it: "Podio", pt: "Pódio", nl: "Podium", ja: "表彰台",
+  }),
+  "leaderboards.detailed": T("Classement détaillé", "Detailed ranking", {
+    es: "Clasificación detallada", de: "Detaillierte Rangliste", it: "Classifica dettagliata", pt: "Ranking detalhado", nl: "Gedetailleerde ranglijst", ja: "詳細ランキング",
+  }),
+  "leaderboards.compiling": T("Compilation des annales...", "Compiling the annals...", {
+    es: "Compilando anales...", de: "Annalen werden zusammengestellt...", it: "Compilazione degli annali...", pt: "Compilando anais...", nl: "Annalen worden samengesteld...", ja: "年代記を編纂中…",
+  }),
+  "leaderboards.onlyTopThree": T("Seuls les trois premiers trônent pour l'instant.", "Only the top three reign for now.", {
+    es: "Por ahora solo reinan los tres primeros.", de: "Derzeit regieren nur die Top Drei.", it: "Per ora trionfano solo i primi tre.", pt: "Por agora apenas os três primeiros reinam.", nl: "Voorlopig regeren alleen de top drie.", ja: "現在は上位3名のみが君臨しています。",
+  }),
+  "leaderboards.emptyRanking": T("Le classement est vide.", "The ranking is empty.", {
+    es: "La clasificación está vacía.", de: "Die Rangliste ist leer.", it: "La classifica è vuota.", pt: "O ranking está vazio.", nl: "De ranglijst is leeg.", ja: "ランキングは空です。",
+  }),
+  "leaderboards.noRanked": T("Aucun héros classé pour l'instant.", "No heroes ranked yet.", {
+    es: "Ningún héroe clasificado por ahora.", de: "Noch keine Helden platziert.", it: "Nessun eroe classificato per ora.", pt: "Nenhum herói classificado ainda.", nl: "Nog geen helden gerangschikt.", ja: "まだランクインした英雄はいません。",
+  }),
+  "leaderboards.cat.xp": T("Expérience", "Experience", {
+    es: "Experiencia", de: "Erfahrung", it: "Esperienza", pt: "Experiência", nl: "Ervaring", ja: "経験値",
+  }),
+  "leaderboards.cat.level": T("Rang", "Rank", {
+    es: "Rango", de: "Rang", it: "Grado", pt: "Nível", nl: "Rang", ja: "ランク",
+  }),
+  "leaderboards.cat.reputation": T("Réputation", "Reputation", {
+    es: "Reputación", de: "Ruf", it: "Reputazione", pt: "Reputação", nl: "Reputatie", ja: "評判",
+  }),
+  "leaderboards.cat.aether": T("Écus", "Écus", {
+    es: "Écus", de: "Écus", it: "Écus", pt: "Écus", nl: "Écus", ja: "Écus",
+  }),
+  "leaderboards.suffix.level": T("Niv.", "Lv.", {
+    es: "Nv.", de: "St.", it: "Lv.", pt: "Nv.", nl: "Niv.", ja: "Lv.",
+  }),
 
   // ─── Nexus ───
   "nexusOnline.siteAccessible": T("Le reste du site reste accessible — feed, forum, boutique, etc.", "The rest of the site remains accessible — feed, forum, shop, etc."),
@@ -201,55 +241,146 @@ export const TRANSLATIONS_PAGES_EXT = {
   "tickets.markResolved": T("Marquer comme résolu", "Mark as resolved"),
 
   // ─── Friends ───
-  "friends.companionCount": T("{count} compagnon", "{count} companion"),
-  "friends.companionCount_one": T("{count} compagnon", "{count} companion"),
-  "friends.companionCount_other": T("{count} compagnons", "{count} companions"),
-  "friends.onlineCount": T("{count} en ligne", "{count} online"),
-  "friends.onlineCount_one": T("{count} en ligne", "{count} online"),
-  "friends.onlineCount_other": T("{count} en ligne", "{count} online"),
-  "friends.receivedCount": T("{count} reçue", "{count} received"),
-  "friends.receivedCount_one": T("{count} reçue", "{count} received"),
-  "friends.receivedCount_other": T("{count} reçues", "{count} received"),
-  "friends.sentCount": T("{count} envoyée", "{count} sent"),
-  "friends.sentCount_one": T("{count} envoyée", "{count} sent"),
-  "friends.sentCount_other": T("{count} envoyées", "{count} sent"),
-  "friends.unreadCount": T("{count} non lu", "{count} unread"),
-  "friends.unreadCount_one": T("{count} non lu", "{count} unread"),
-  "friends.unreadCount_other": T("{count} non lus", "{count} unread"),
-  "friends.addBtn": T("Ajouter", "Add"),
-  "friends.sentRequests": T("Demandes envoyées ({count})", "Sent requests ({count})"),
-  "friends.receivedRequests": T("Demandes reçues ({count})", "Incoming requests ({count})"),
-  "friends.pending": T("En attente", "Pending"),
-  "friends.cancelRequest": T("Annuler la demande", "Cancel request"),
-  "friends.requestCancelled": T("Demande annulée", "Request cancelled"),
-  "friends.pactForged": T("Pacte d'amitié forgé", "Friendship pact forged"),
-  "friends.acceptFailed": T("Acceptation impossible", "Could not accept"),
-  "friends.breakLinkConfirm": T("Rompre ce lien d'amitié ?", "Break this friendship?"),
-  "friends.linkBroken": T("Lien rompu", "Link broken"),
-  "friends.privateEchoes": T("Échos privés", "Private echoes"),
-  "friends.list": T("Liste ({count})", "List ({count})"),
-  "friends.emptyHint": T("Aucun compagnon — ajoute des héros pour commencer.", "No companions — add heroes to get started."),
-  "friends.sendMessage": T("Envoyer un message", "Send a message"),
-  "friends.privateEchoes": T("Échos privés", "Private echoes"),
-  "friends.breakLink": T("Rompre le lien", "Break link"),
-  "friends.requestSentTo": T("Demande envoyée à {name}", "Request sent to {name}"),
-  "friends.levelShort": T("Niv. {level}", "Lv. {level}"),
+  "friends.companionCount": T("{count} compagnon", "{count} companion", {
+    es: "{count} compañero", de: "{count} Gefährte", it: "{count} compagno", pt: "{count} companheiro", nl: "{count} metgezel", ja: "{count} 人の仲間",
+  }),
+  "friends.companionCount_one": T("{count} compagnon", "{count} companion", {
+    es: "{count} compañero", de: "{count} Gefährte", it: "{count} compagno", pt: "{count} companheiro", nl: "{count} metgezel", ja: "{count} 人の仲間",
+  }),
+  "friends.companionCount_other": T("{count} compagnons", "{count} companions", {
+    es: "{count} compañeros", de: "{count} Gefährten", it: "{count} compagni", pt: "{count} companheiros", nl: "{count} metgezellen", ja: "{count} 人の仲間",
+  }),
+  "friends.onlineCount": T("{count} en ligne", "{count} online", {
+    es: "{count} en línea", de: "{count} online", it: "{count} online", pt: "{count} online", nl: "{count} online", ja: "{count} 人オンライン",
+  }),
+  "friends.onlineCount_one": T("{count} en ligne", "{count} online", {
+    es: "{count} en línea", de: "{count} online", it: "{count} online", pt: "{count} online", nl: "{count} online", ja: "{count} 人オンライン",
+  }),
+  "friends.onlineCount_other": T("{count} en ligne", "{count} online", {
+    es: "{count} en línea", de: "{count} online", it: "{count} online", pt: "{count} online", nl: "{count} online", ja: "{count} 人オンライン",
+  }),
+  "friends.receivedCount": T("{count} reçue", "{count} received", {
+    es: "{count} recibida", de: "{count} erhalten", it: "{count} ricevuta", pt: "{count} recebida", nl: "{count} ontvangen", ja: "{count} 件受信",
+  }),
+  "friends.receivedCount_one": T("{count} reçue", "{count} received", {
+    es: "{count} recibida", de: "{count} erhalten", it: "{count} ricevuta", pt: "{count} recebida", nl: "{count} ontvangen", ja: "{count} 件受信",
+  }),
+  "friends.receivedCount_other": T("{count} reçues", "{count} received", {
+    es: "{count} recibidas", de: "{count} erhalten", it: "{count} ricevute", pt: "{count} recebidas", nl: "{count} ontvangen", ja: "{count} 件受信",
+  }),
+  "friends.sentCount": T("{count} envoyée", "{count} sent", {
+    es: "{count} enviada", de: "{count} gesendet", it: "{count} inviata", pt: "{count} enviada", nl: "{count} verzonden", ja: "{count} 件送信",
+  }),
+  "friends.sentCount_one": T("{count} envoyée", "{count} sent", {
+    es: "{count} enviada", de: "{count} gesendet", it: "{count} inviata", pt: "{count} enviada", nl: "{count} verzonden", ja: "{count} 件送信",
+  }),
+  "friends.sentCount_other": T("{count} envoyées", "{count} sent", {
+    es: "{count} enviadas", de: "{count} gesendet", it: "{count} inviate", pt: "{count} enviadas", nl: "{count} verzonden", ja: "{count} 件送信",
+  }),
+  "friends.unreadCount": T("{count} non lu", "{count} unread", {
+    es: "{count} no leído", de: "{count} ungelesen", it: "{count} non letto", pt: "{count} não lido", nl: "{count} ongelezen", ja: "{count} 件未読",
+  }),
+  "friends.unreadCount_one": T("{count} non lu", "{count} unread", {
+    es: "{count} no leído", de: "{count} ungelesen", it: "{count} non letto", pt: "{count} não lido", nl: "{count} ongelezen", ja: "{count} 件未読",
+  }),
+  "friends.unreadCount_other": T("{count} non lus", "{count} unread", {
+    es: "{count} no leídos", de: "{count} ungelesen", it: "{count} non letti", pt: "{count} não lidos", nl: "{count} ongelezen", ja: "{count} 件未読",
+  }),
+  "friends.addBtn": T("Ajouter", "Add", {
+    es: "Añadir", de: "Hinzufügen", it: "Aggiungi", pt: "Adicionar", nl: "Toevoegen", ja: "追加",
+  }),
+  "friends.sentRequests": T("Demandes envoyées ({count})", "Sent requests ({count})", {
+    es: "Solicitudes enviadas ({count})", de: "Gesendete Anfragen ({count})", it: "Richieste inviate ({count})", pt: "Pedidos enviados ({count})", nl: "Verzonden verzoeken ({count})", ja: "送信済みリクエスト ({count})",
+  }),
+  "friends.receivedRequests": T("Demandes reçues ({count})", "Incoming requests ({count})", {
+    es: "Solicitudes recibidas ({count})", de: "Eingehende Anfragen ({count})", it: "Richieste ricevute ({count})", pt: "Pedidos recebidos ({count})", nl: "Ontvangen verzoeken ({count})", ja: "受信リクエスト ({count})",
+  }),
+  "friends.pending": T("En attente", "Pending", {
+    es: "Pendiente", de: "Ausstehend", it: "In attesa", pt: "Pendente", nl: "In afwachting", ja: "保留中",
+  }),
+  "friends.cancelRequest": T("Annuler la demande", "Cancel request", {
+    es: "Cancelar solicitud", de: "Anfrage abbrechen", it: "Annulla richiesta", pt: "Cancelar pedido", nl: "Verzoek annuleren", ja: "リクエストをキャンセル",
+  }),
+  "friends.requestCancelled": T("Demande annulée", "Request cancelled", {
+    es: "Solicitud cancelada", de: "Anfrage abgebrochen", it: "Richiesta annullata", pt: "Pedido cancelado", nl: "Verzoek geannuleerd", ja: "リクエストをキャンセルしました",
+  }),
+  "friends.pactForged": T("Pacte d'amitié forgé", "Friendship pact forged", {
+    es: "Pacto de amistad forjado", de: "Freundschaftspakt geschmiedet", it: "Patto d'amicizia forgiato", pt: "Pacto de amizade forjado", nl: "Vriendschapspact gesmeed", ja: "友情の契約が結ばれました",
+  }),
+  "friends.acceptFailed": T("Acceptation impossible", "Could not accept", {
+    es: "No se pudo aceptar", de: "Annahme nicht möglich", it: "Impossibile accettare", pt: "Não foi possível aceitar", nl: "Kon niet accepteren", ja: "承認できませんでした",
+  }),
+  "friends.breakLinkConfirm": T("Rompre ce lien d'amitié ?", "Break this friendship?", {
+    es: "¿Romper este vínculo de amistad?", de: "Diese Freundschaft beenden?", it: "Rompere questo legame d'amicizia?", pt: "Romper este vínculo de amizade?", nl: "Deze vriendschap verbreken?", ja: "この友情を解消しますか？",
+  }),
+  "friends.linkBroken": T("Lien rompu", "Link broken", {
+    es: "Vínculo roto", de: "Verbindung getrennt", it: "Legame rotto", pt: "Vínculo rompido", nl: "Band verbroken", ja: "友情を解消しました",
+  }),
+  "friends.privateEchoes": T("Échos privés", "Private echoes", {
+    es: "Ecos privados", de: "Private Echos", it: "Echi privati", pt: "Ecos privados", nl: "Privé echo's", ja: "プライベートエコー",
+  }),
+  "friends.list": T("Liste ({count})", "List ({count})", {
+    es: "Lista ({count})", de: "Liste ({count})", it: "Lista ({count})", pt: "Lista ({count})", nl: "Lijst ({count})", ja: "リスト ({count})",
+  }),
+  "friends.emptyHint": T("Aucun compagnon — ajoute des héros pour commencer.", "No companions — add heroes to get started.", {
+    es: "Sin compañeros — añade héroes para empezar.", de: "Keine Gefährten — füge Helden hinzu.", it: "Nessun compagno — aggiungi eroi per iniziare.", pt: "Sem companheiros — adicione heróis para começar.", nl: "Geen metgezellen — voeg helden toe om te beginnen.", ja: "仲間がいません — 英雄を追加して始めましょう。",
+  }),
+  "friends.sendMessage": T("Envoyer un message", "Send a message", {
+    es: "Enviar un mensaje", de: "Nachricht senden", it: "Invia un messaggio", pt: "Enviar mensagem", nl: "Bericht sturen", ja: "メッセージを送る",
+  }),
+  "friends.breakLink": T("Rompre le lien", "Break link", {
+    es: "Romper vínculo", de: "Verbindung trennen", it: "Rompi legame", pt: "Romper vínculo", nl: "Band verbreken", ja: "友情を解消",
+  }),
+  "friends.requestSentTo": T("Demande envoyée à {name}", "Request sent to {name}", {
+    es: "Solicitud enviada a {name}", de: "Anfrage an {name} gesendet", it: "Richiesta inviata a {name}", pt: "Pedido enviado para {name}", nl: "Verzoek verstuurd naar {name}", ja: "{name} にリクエストを送信しました",
+  }),
+  "friends.levelShort": T("Niv. {level}", "Lv. {level}", {
+    es: "Nv. {level}", de: "St. {level}", it: "Lv. {level}", pt: "Nv. {level}", nl: "Niv. {level}", ja: "Lv.{level}",
+  }),
 
-  // ─── Friend chat ───
-  "friendChat.selectCompanion": T("Sélectionne un compagnon", "Select a companion"),
-  "friendChat.noThreads": T("Aucune conversation — discute avec un compagnon.", "No conversations — chat with a companion."),
-  "friendChat.placeholder": T("Écrire un message…", "Write a message…"),
-  "friendChat.sendFailed": T("Envoi impossible", "Could not send"),
-  "friendChat.back": T("Retour", "Back"),
-  "friendChat.sanctuary": T("Sanctuaire : {username}", "Sanctuary: {username}"),
-  "friendChat.noConversations": T("Aucune conversation — liez-vous à un compagnon pour échanger.", "No conversations — connect with a companion to chat."),
-  "friendChat.startConversation": T("Commencer la conversation…", "Start the conversation…"),
-  "friendChat.selectChannel": T("Sélectionnez un compagnon pour ouvrir un canal privé entre vos sanctuaires.", "Select a companion to open a private channel between your sanctuaries."),
-  "friendChat.syncing": T("Synchronisation des échos…", "Syncing echoes…"),
-  "friendChat.noMessages": T("Aucun message — forgez le premier lien verbal.", "No messages — forge the first verbal link."),
-  "friendChat.placeholderCompanion": T("Écrire à votre compagnon…", "Write to your companion…"),
-  "friendChat.offlineHint": T("— message en attente à la connexion", "— message pending until online"),
-  "friendChat.inaccessible": T("Conversation inaccessible", "Conversation unavailable"),
+  // ─── Friend chat (UI labels only — not message content) ───
+  "friendChat.selectCompanion": T("Sélectionne un compagnon", "Select a companion", {
+    es: "Selecciona un compañero", de: "Gefährten auswählen", it: "Seleziona un compagno", pt: "Selecione um companheiro", nl: "Selecteer een metgezel", ja: "仲間を選択",
+  }),
+  "friendChat.noThreads": T("Aucune conversation — discute avec un compagnon.", "No conversations — chat with a companion.", {
+    es: "Sin conversaciones — chatea con un compañero.", de: "Keine Unterhaltungen — chatte mit einem Gefährten.", it: "Nessuna conversazione — chatta con un compagno.", pt: "Sem conversas — converse com um companheiro.", nl: "Geen gesprekken — chat met een metgezel.", ja: "会話がありません — 仲間とチャットしましょう。",
+  }),
+  "friendChat.placeholder": T("Écrire un message…", "Write a message…", {
+    es: "Escribir un mensaje…", de: "Nachricht schreiben…", it: "Scrivi un messaggio…", pt: "Escrever uma mensagem…", nl: "Schrijf een bericht…", ja: "メッセージを入力…",
+  }),
+  "friendChat.sendFailed": T("Envoi impossible", "Could not send", {
+    es: "No se pudo enviar", de: "Senden nicht möglich", it: "Invio impossibile", pt: "Não foi possível enviar", nl: "Kon niet verzenden", ja: "送信できませんでした",
+  }),
+  "friendChat.back": T("Retour", "Back", {
+    es: "Volver", de: "Zurück", it: "Indietro", pt: "Voltar", nl: "Terug", ja: "戻る",
+  }),
+  "friendChat.sanctuary": T("Sanctuaire : {username}", "Sanctuary: {username}", {
+    es: "Santuario: {username}", de: "Heiligtum: {username}", it: "Santuario: {username}", pt: "Santuário: {username}", nl: "Heiligdom: {username}", ja: "聖域: {username}",
+  }),
+  "friendChat.noConversations": T("Aucune conversation — liez-vous à un compagnon pour échanger.", "No conversations — connect with a companion to chat.", {
+    es: "Sin conversaciones — conéctate con un compañero para chatear.", de: "Keine Unterhaltungen — verbinde dich mit einem Gefährten.", it: "Nessuna conversazione — collegati a un compagno per chattare.", pt: "Sem conversas — conecte-se a um companheiro para conversar.", nl: "Geen gesprekken — maak contact met een metgezel.", ja: "会話がありません — 仲間とつながってチャットしましょう。",
+  }),
+  "friendChat.startConversation": T("Commencer la conversation…", "Start the conversation…", {
+    es: "Iniciar la conversación…", de: "Unterhaltung beginnen…", it: "Inizia la conversazione…", pt: "Iniciar a conversa…", nl: "Gesprek beginnen…", ja: "会話を始める…",
+  }),
+  "friendChat.selectChannel": T("Sélectionnez un compagnon pour ouvrir un canal privé entre vos sanctuaires.", "Select a companion to open a private channel between your sanctuaries.", {
+    es: "Selecciona un compañero para abrir un canal privado entre vuestros santuarios.", de: "Wähle einen Gefährten, um einen privaten Kanal zwischen euren Heiligtümern zu öffnen.", it: "Seleziona un compagno per aprire un canale privato tra i vostri santuari.", pt: "Selecione um companheiro para abrir um canal privado entre vossos santuários.", nl: "Selecteer een metgezel om een privékanaal tussen jullie heiligdommen te openen.", ja: "仲間を選んで、聖域間のプライベートチャンネルを開きましょう。",
+  }),
+  "friendChat.syncing": T("Synchronisation des échos…", "Syncing echoes…", {
+    es: "Sincronizando ecos…", de: "Echos werden synchronisiert…", it: "Sincronizzazione echi…", pt: "Sincronizando ecos…", nl: "Echo's synchroniseren…", ja: "エコーを同期中…",
+  }),
+  "friendChat.noMessages": T("Aucun message — forgez le premier lien verbal.", "No messages — forge the first verbal link.", {
+    es: "Sin mensajes — forja el primer vínculo verbal.", de: "Keine Nachrichten — schmiede die erste verbale Verbindung.", it: "Nessun messaggio — forgia il primo legame verbale.", pt: "Sem mensagens — forje o primeiro vínculo verbal.", nl: "Geen berichten — smeed de eerste verbale band.", ja: "メッセージはありません — 最初の言葉の絆を築きましょう。",
+  }),
+  "friendChat.placeholderCompanion": T("Écrire à votre compagnon…", "Write to your companion…", {
+    es: "Escribir a tu compañero…", de: "An deinen Gefährten schreiben…", it: "Scrivi al tuo compagno…", pt: "Escrever ao seu companheiro…", nl: "Schrijf aan je metgezel…", ja: "仲間にメッセージを入力…",
+  }),
+  "friendChat.offlineHint": T("— message en attente à la connexion", "— message pending until online", {
+    es: "— mensaje en espera hasta la conexión", de: "— Nachricht wartet auf Verbindung", it: "— messaggio in attesa della connessione", pt: "— mensagem aguardando conexão", nl: "— bericht wacht tot online", ja: "— オンラインになるまでメッセージ保留",
+  }),
+  "friendChat.inaccessible": T("Conversation inaccessible", "Conversation unavailable", {
+    es: "Conversación no disponible", de: "Unterhaltung nicht verfügbar", it: "Conversazione non disponibile", pt: "Conversa indisponível", nl: "Gesprek niet beschikbaar", ja: "会話にアクセスできません",
+  }),
 
   // ─── Forum ───
   "forum.kicker": T("Tribune de NEXORIA", "NEXORIA Forum"),
@@ -355,36 +486,114 @@ export const TRANSLATIONS_PAGES_EXT = {
   "ban.backHome": T("Retour à l'accueil", "Back to home"),
 
   // ─── Community ───
-  "community.kicker": T("Le cœur du royaume", "The heart of the realm"),
-  "community.title": T("Communauté", "Community"),
-  "community.subtitle": T("L'équipe, le flux du royaume et les ordres en recrutement", "The team, realm pulse and recruiting orders"),
-  "community.joinDiscord": T("Rejoindre Discord", "Join Discord"),
-  "community.team": T("L'équipe NEXORIA", "The NEXORIA team"),
-  "community.recruiting": T("Ordres en recrutement", "Recruiting orders"),
-  "community.noRecruiting": T("Aucun ordre ne recrute pour le moment.", "No orders recruiting right now."),
-  "community.realmPulse": T("Pulse du royaume", "Realm pulse"),
-  "community.viewAll": T("Voir tout", "View all"),
-  "community.stat.heroes": T("Héros", "Heroes"),
-  "community.stat.online": T("En ligne", "Online"),
-  "community.stat.orders": T("Ordres", "Orders"),
-  "community.stat.team": T("Équipe", "Team"),
-  "community.discordKicker": T("Le Nexus social", "The social Nexus"),
-  "community.discordTitle": T("Rejoins la communauté sur Discord", "Join the community on Discord"),
-  "community.discordBody": T("Événements live, entraide, annonces et rencontres entre héros.", "Live events, help, announcements and hero meetups."),
-  "community.discordBtn": T("Rejoindre le Discord", "Join Discord"),
-  "community.teamDefault": T("L'Équipe", "The Team"),
-  "community.teamSoon": T("L'équipe sera bientôt présentée ici.", "The team will be presented here soon."),
-  "community.recruitment": T("Recrutement", "Recruitment"),
-  "community.allOrders": T("Tous les ordres", "All orders"),
-  "community.noGuilds": T("Aucun ordre n'est encore fondé — créez le vôtre !", "No order founded yet — create yours!"),
-  "community.joinOrder": T("Rejoindre cet ordre", "Join this order"),
-  "community.memberCount": T("Niveau {level} · {count} membre", "Level {level} · {count} member"),
-  "community.memberCount_other": T("Niveau {level} · {count} membres", "Level {level} · {count} members"),
-  "community.feed": T("Le Flux", "The Feed"),
-  "community.viewFeed": T("Voir le fil", "View feed"),
-  "community.noNews": T("Pas encore d'actualité — rendez-vous sur le fil du royaume.", "No news yet — check the realm feed."),
-  "community.newsDefault": T("Actualité", "News"),
-  "community.adventurer": T("Aventurier", "Adventurer"),
+  "community.kicker": T("Le cœur du royaume", "The heart of the realm", {
+    es: "El corazón del reino", de: "Das Herz des Reichs", it: "Il cuore del regno", pt: "O coração do reino", nl: "Het hart van het rijk", ja: "王国の心臓",
+  }),
+  "community.title": T("Communauté", "Community", {
+    es: "Comunidad", de: "Community", it: "Community", pt: "Comunidade", nl: "Community", ja: "コミュニティ",
+  }),
+  "community.subtitle": T("L'équipe, le flux du royaume et les ordres en recrutement", "The team, realm pulse and recruiting orders", {
+    es: "El equipo, el pulso del reino y las órdenes en reclutamiento", de: "Das Team, der Puls des Reichs und rekrutierende Orden", it: "Il team, il polso del regno e gli ordini in reclutamento", pt: "A equipa, o pulso do reino e ordens a recrutar", nl: "Het team, de puls van het rijk en wervende ordes", ja: "チーム、王国の鼓動、募集中の騎士団",
+  }),
+  "community.joinDiscord": T("Rejoindre Discord", "Join Discord", {
+    es: "Unirse a Discord", de: "Discord beitreten", it: "Unisciti a Discord", pt: "Entrar no Discord", nl: "Discord joinen", ja: "Discordに参加",
+  }),
+  "community.team": T("L'équipe NEXORIA", "The NEXORIA team", {
+    es: "El equipo NEXORIA", de: "Das NEXORIA-Team", it: "Il team NEXORIA", pt: "A equipa NEXORIA", nl: "Het NEXORIA-team", ja: "NEXORIAチーム",
+  }),
+  "community.recruiting": T("Ordres en recrutement", "Recruiting orders", {
+    es: "Órdenes en reclutamiento", de: "Rekrutierende Orden", it: "Ordini in reclutamento", pt: "Ordens a recrutar", nl: "Wervende ordes", ja: "募集中の騎士団",
+  }),
+  "community.noRecruiting": T("Aucun ordre ne recrute pour le moment.", "No orders recruiting right now.", {
+    es: "Ninguna orden recluta por ahora.", de: "Derzeit rekrutiert kein Orden.", it: "Nessun ordine recluta al momento.", pt: "Nenhuma ordem recruta por agora.", nl: "Geen orde wervt momenteel.", ja: "現在募集中の騎士団はありません。",
+  }),
+  "community.realmPulse": T("Pulse du royaume", "Realm pulse", {
+    es: "Pulso del reino", de: "Puls des Reichs", it: "Polso del regno", pt: "Pulso do reino", nl: "Puls van het rijk", ja: "王国の鼓動",
+  }),
+  "community.viewAll": T("Voir tout", "View all", {
+    es: "Ver todo", de: "Alle ansehen", it: "Vedi tutto", pt: "Ver tudo", nl: "Alles bekijken", ja: "すべて見る",
+  }),
+  "community.stat.heroes": T("Héros", "Heroes", {
+    es: "Héroes", de: "Helden", it: "Eroi", pt: "Heróis", nl: "Helden", ja: "英雄",
+  }),
+  "community.stat.online": T("En ligne", "Online", {
+    es: "En línea", de: "Online", it: "Online", pt: "Online", nl: "Online", ja: "オンライン",
+  }),
+  "community.stat.orders": T("Ordres", "Orders", {
+    es: "Órdenes", de: "Orden", it: "Ordini", pt: "Ordens", nl: "Orden", ja: "騎士団",
+  }),
+  "community.stat.team": T("Équipe", "Team", {
+    es: "Equipo", de: "Team", it: "Team", pt: "Equipa", nl: "Team", ja: "チーム",
+  }),
+  "community.discordKicker": T("Le Nexus social", "The social Nexus", {
+    es: "El Nexus social", de: "Der soziale Nexus", it: "Il Nexus social", pt: "O Nexus social", nl: "De sociale Nexus", ja: "ソーシャルNexus",
+  }),
+  "community.discordTitle": T("Rejoins la communauté sur Discord", "Join the community on Discord", {
+    es: "Únete a la comunidad en Discord", de: "Tritt der Community auf Discord bei", it: "Unisciti alla community su Discord", pt: "Junta-te à comunidade no Discord", nl: "Word lid van de community op Discord", ja: "Discordでコミュニティに参加",
+  }),
+  "community.discordBody": T("Événements live, entraide, annonces et rencontres entre héros.", "Live events, help, announcements and hero meetups.", {
+    es: "Eventos en vivo, ayuda, anuncios y encuentros entre héroes.", de: "Live-Events, Hilfe, Ankündigungen und Treffen zwischen Helden.", it: "Eventi live, aiuto, annunci e incontri tra eroi.", pt: "Eventos ao vivo, ajuda, anúncios e encontros entre heróis.", nl: "Live-evenementen, hulp, aankondigingen en ontmoetingen tussen helden.", ja: "ライブイベント、相互支援、お知らせ、英雄同士の交流。",
+  }),
+  "community.discordBtn": T("Rejoindre le Discord", "Join Discord", {
+    es: "Unirse a Discord", de: "Discord beitreten", it: "Unisciti a Discord", pt: "Entrar no Discord", nl: "Discord joinen", ja: "Discordに参加",
+  }),
+  "community.teamDefault": T("L'Équipe", "The Team", {
+    es: "El Equipo", de: "Das Team", it: "Il Team", pt: "A Equipa", nl: "Het Team", ja: "チーム",
+  }),
+  "community.teamSubtitle": T("Les gardiens du Nexus", "Guardians of the Nexus", {
+    es: "Los guardianes del Nexus", de: "Die Hüter des Nexus", it: "I guardiani del Nexus", pt: "Os guardiões do Nexus", nl: "De bewakers van de Nexus", ja: "ネクサスの守護者",
+  }),
+  "community.teamIntro": T(
+    "Sages, Sentinelles et artisans du royaume — ceux qui façonnent l'expérience NEXORIA.",
+    "Sages, Sentinels and realm artisans — those who shape the NEXORIA experience.",
+    {
+      es: "Sabios, centinelas y artesanos del reino — quienes dan forma a la experiencia NEXORIA.",
+      de: "Weise, Sentinels und Handwerker des Reichs — die das NEXORIA-Erlebnis gestalten.",
+      it: "Saggi, sentinelle e artigiani del regno — coloro che plasmano l'esperienza NEXORIA.",
+      pt: "Sábios, sentinelas e artesãos do reino — quem molda a experiência NEXORIA.",
+      nl: "Wijzen, sentinels en ambachtslieden van het rijk — zij die de NEXORIA-ervaring vormgeven.",
+      ja: "賢者、センチネル、王国の職人 — NEXORIAの体験を形作る者たち。",
+    },
+  ),
+  "community.teamSoon": T("L'équipe sera bientôt présentée ici.", "The team will be presented here soon.", {
+    es: "El equipo se presentará aquí pronto.", de: "Das Team wird hier bald vorgestellt.", it: "Il team sarà presto presentato qui.", pt: "A equipa será apresentada aqui em breve.", nl: "Het team wordt hier binnenkort gepresenteerd.", ja: "チームは近日ここに掲載されます。",
+  }),
+  "community.recruitment": T("Recrutement", "Recruitment", {
+    es: "Reclutamiento", de: "Rekrutierung", it: "Reclutamento", pt: "Recrutamento", nl: "Werving", ja: "募集",
+  }),
+  "community.allOrders": T("Tous les ordres", "All orders", {
+    es: "Todas las órdenes", de: "Alle Orden", it: "Tutti gli ordini", pt: "Todas as ordens", nl: "Alle ordes", ja: "すべての騎士団",
+  }),
+  "community.noGuilds": T("Aucun ordre n'est encore fondé — créez le vôtre !", "No order founded yet — create yours!", {
+    es: "Aún no hay órdenes fundadas — ¡crea la tuya!", de: "Noch kein Orden gegründet — gründe deinen!", it: "Nessun ordine fondato — crea il tuo!", pt: "Nenhuma ordem fundada — crie a sua!", nl: "Nog geen orde opgericht — sticht de jouwe!", ja: "まだ騎士団がありません — 設立しよう！",
+  }),
+  "community.joinOrder": T("Rejoindre cet ordre", "Join this order", {
+    es: "Unirse a esta orden", de: "Diesem Orden beitreten", it: "Unisciti a questo ordine", pt: "Entrar nesta ordem", nl: "Deze orde joinen", ja: "この騎士団に参加",
+  }),
+  "community.memberCount": T("Niveau {level} · {count} membre", "Level {level} · {count} member", {
+    es: "Nivel {level} · {count} miembro", de: "Stufe {level} · {count} Mitglied", it: "Livello {level} · {count} membro", pt: "Nível {level} · {count} membro", nl: "Niveau {level} · {count} lid", ja: "Lv.{level} · {count} 人",
+  }),
+  "community.memberCount_one": T("Niveau {level} · {count} membre", "Level {level} · {count} member", {
+    es: "Nivel {level} · {count} miembro", de: "Stufe {level} · {count} Mitglied", it: "Livello {level} · {count} membro", pt: "Nível {level} · {count} membro", nl: "Niveau {level} · {count} lid", ja: "Lv.{level} · {count} 人",
+  }),
+  "community.memberCount_other": T("Niveau {level} · {count} membres", "Level {level} · {count} members", {
+    es: "Nivel {level} · {count} miembros", de: "Stufe {level} · {count} Mitglieder", it: "Livello {level} · {count} membri", pt: "Nível {level} · {count} membros", nl: "Niveau {level} · {count} leden", ja: "Lv.{level} · {count} 人",
+  }),
+  "community.feed": T("Le Flux", "The Feed", {
+    es: "El Flujo", de: "Der Feed", it: "Il Feed", pt: "O Feed", nl: "De Feed", ja: "フィード",
+  }),
+  "community.viewFeed": T("Voir le fil", "View feed", {
+    es: "Ver el feed", de: "Feed ansehen", it: "Vedi feed", pt: "Ver feed", nl: "Feed bekijken", ja: "フィードを見る",
+  }),
+  "community.noNews": T("Pas encore d'actualité — rendez-vous sur le fil du royaume.", "No news yet — check the realm feed.", {
+    es: "Sin noticias aún — consulta el feed del reino.", de: "Noch keine Neuigkeiten — schau im Reichs-Feed vorbei.", it: "Nessuna notizia — visita il feed del regno.", pt: "Sem notícias — consulte o feed do reino.", nl: "Nog geen nieuws — bekijk de feed van het rijk.", ja: "まだニュースはありません — 王国フィードをご覧ください。",
+  }),
+  "community.newsDefault": T("Actualité", "News", {
+    es: "Noticia", de: "Neuigkeit", it: "Notizia", pt: "Notícia", nl: "Nieuws", ja: "ニュース",
+  }),
+  "community.adventurer": T("Aventurier", "Adventurer", {
+    es: "Aventurero", de: "Abenteurer", it: "Avventuriero", pt: "Aventureiro", nl: "Avonturier", ja: "冒険者",
+  }),
 
   // ─── Hall of Legends ───
   "legends.globalTop": T("Top 10 mondial", "Global top 10"),

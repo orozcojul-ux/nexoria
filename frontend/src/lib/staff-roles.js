@@ -20,6 +20,7 @@ export function isNexusStaff(userOrRole) {
 
 export const NEXUS_SUPREME = {
   id: "supreme",
+  labelKey: "sidebar.staff_role.supreme",
   label: "Gardien Suprême",
   color: "#FBBF24",
   glow: "rgba(251,191,36,0.5)",
@@ -110,7 +111,7 @@ export function groupOnlineHeroes(members = [], t = null) {
   if (supreme.length) {
     groups.push({
       id: "supreme",
-      label: NEXUS_SUPREME.label,
+      label: t && NEXUS_SUPREME.labelKey ? t(NEXUS_SUPREME.labelKey) : NEXUS_SUPREME.label,
       color: NEXUS_SUPREME.color,
       glow: NEXUS_SUPREME.glow,
       members: supreme,
@@ -130,7 +131,7 @@ export function groupOnlineHeroes(members = [], t = null) {
   if (byRole.heroes.length) {
     groups.push({
       id: "heroes",
-      label: "Héros du Royaume",
+      label: t ? t("staff.group.realm_heroes") : "Héros du Royaume",
       color: "#38E8FF",
       glow: "rgba(56,232,255,0.35)",
       members: byRole.heroes,
