@@ -509,7 +509,8 @@ async def translate_html(
     if cached and cached.get("text"):
         cached_text = str(cached["text"])
         stale_plain = "<" not in cached_text and bool(re.search(r"<[a-z]", html_in, re.I))
-        if not stale_plain:
+        unchanged = cached_text.strip() == html_in.strip()
+        if not stale_plain and not unchanged:
             return {
                 "text": cached_text,
                 "original": html_in,
@@ -545,7 +546,7 @@ async def translate_html(
             "format": "html",
         }
 
-    if segments:
+    if segments and os.environ.get("GEMINI_API_KEY", "").strip():
         packed = pack_segments(segments)
         packed_out, pack_provider = await _translate_with_providers(packed, src_lang, target_lang)
         unpacked = unpack_segments(packed_out or "", len(segments)) if packed_out else None
@@ -602,6 +603,28 @@ async def translate_html(
 
     out_html = inject_html_segments(marked, translated_segments)
     provider = "mixed" if len(providers) > 1 else (next(iter(providers)) if providers else "none")
+
+    if out_html.strip() == html_in.strip() and src_lang != target_lang:
+        plain = re.sub(r"<[^>]+>", " ", html_in)
+        plain = re.sub(r"\s+", " ", plain).strip()
+        plain_result = await translate_text(
+            plain or " ".join(segments),
+            target,
+            source=src_lang,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            field=field,
+            client_key=client_key,
+            skip_rate_limit=True,
+        )
+        if (
+            plain_result.get("text")
+            and plain_result["text"].strip() != plain.strip()
+            and not plain_result.get("unavailable")
+        ):
+            plain_result["format"] = "plain"
+            plain_result["original"] = html_in
+            return plain_result
 
     await _cache_set(
         cache_key,
@@ -673,15 +696,17 @@ async def translate_text(
     cache_key = make_cache_key(entity_type, entity_id, field, src_lang, target_lang, src_hash)
     cached = await _cache_get(cache_key)
     if cached and cached.get("text"):
-        return {
-            "text": cached["text"],
-            "original": raw,
-            "source_lang": src_lang,
-            "target_lang": target_lang,
-            "same_language": False,
-            "cached": True,
-            "provider": cached.get("provider") or "cache",
-        }
+        cached_text = str(cached["text"])
+        if cached_text.strip() != raw.strip():
+            return {
+                "text": cached_text,
+                "original": raw,
+                "source_lang": src_lang,
+                "target_lang": target_lang,
+                "same_language": False,
+                "cached": True,
+                "provider": cached.get("provider") or "cache",
+            }
 
     translated, provider = await _translate_with_providers(raw, src_lang, target_lang)
     if translated is None:
@@ -701,18 +726,6 @@ async def translate_text(
         if gemini_retry and gemini_retry.strip() != raw.strip():
             translated = gemini_retry
             provider = "gemini-retry"
-
-    if translated.strip() == raw.strip() and src_lang != target_lang:
-        return {
-            "text": raw,
-            "original": raw,
-            "source_lang": src_lang,
-            "target_lang": target_lang,
-            "same_language": False,
-            "cached": False,
-            "provider": provider,
-            "unavailable": True,
-        }
 
     await _cache_set(
         cache_key,

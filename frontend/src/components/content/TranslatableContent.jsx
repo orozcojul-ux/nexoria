@@ -37,14 +37,24 @@ export default function TranslatableContent({
     enabled,
   });
 
-  const showTranslated = !showOriginal
+  const translatedHtmlReady = Boolean(
+    !showOriginal
     && !loading
-    && isTranslated;
+    && visibleHtml?.trim()
+    && visibleHtml.trim() !== sourceHtml.trim(),
+  );
+  const translatedPlainReady = Boolean(
+    !showOriginal
+    && !loading
+    && !translatedHtmlReady
+    && visible?.trim()
+    && visible.trim() !== sourcePlain.trim(),
+  );
 
   let body;
-  if (showTranslated && visibleHtml) {
+  if (translatedHtmlReady) {
     body = <ForumRichContent html={visibleHtml} className={className} />;
-  } else if (showTranslated) {
+  } else if (translatedPlainReady) {
     body = <ForumRichContent html={plainTextToRichHtml(visible)} className={className} />;
   } else {
     body = <ForumRichContent html={sourceHtml || html} plain={plain} className={className} />;
@@ -54,7 +64,7 @@ export default function TranslatableContent({
     <div>
       {body}
       <ContentTranslationBar
-        isTranslated={isTranslated || showTranslated}
+        isTranslated={isTranslated || translatedHtmlReady || translatedPlainReady}
         loading={loading}
         failed={failed}
         unavailable={Boolean(meta?.unavailable)}

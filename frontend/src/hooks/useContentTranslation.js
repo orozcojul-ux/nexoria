@@ -3,11 +3,55 @@ import { translateContent, translateRichHtml } from "@/lib/content-translate";
 import { looksLikeHtml } from "@/lib/html-translate-client";
 import { useI18n } from "@/i18n/LanguageProvider";
 
-function pickTranslatedHtml(data, originalHtml) {
+function pickTranslatedHtml(data) {
   if (!data?.text) return null;
   if (data.format === "html" || looksLikeHtml(data.text)) return data.text;
-  if (originalHtml && looksLikeHtml(originalHtml) && data.text.includes("<")) return data.text;
   return null;
+}
+
+function applyTranslationResult({
+  data,
+  original,
+  originalHtml,
+  setDisplay,
+  setDisplayHtml,
+  setMeta,
+  setFailed,
+}) {
+  setMeta(data);
+
+  if (data?.same_language) {
+    setDisplay(original);
+    setDisplayHtml(originalHtml || null);
+    setFailed(false);
+    return;
+  }
+
+  if (data?.unavailable) {
+    setDisplay(original);
+    setDisplayHtml(originalHtml || null);
+    setFailed(true);
+    return;
+  }
+
+  const translatedHtml = pickTranslatedHtml(data);
+  if (translatedHtml) {
+    setDisplayHtml(translatedHtml);
+    setDisplay(original);
+    setFailed(translatedHtml.trim() === (originalHtml || "").trim());
+    return;
+  }
+
+  if (data?.text && data.text.trim() !== original.trim()) {
+    setDisplayHtml(null);
+    setDisplay(data.text);
+    setFailed(false);
+    return;
+  }
+
+  setDisplay(original);
+  setDisplayHtml(originalHtml || null);
+  setFailed(Boolean(data && !data.same_language));
 }
 
 /**
@@ -36,13 +80,22 @@ export function useContentTranslation(
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const requestRef = useRef(0);
+  const mountedRef = useRef(true);
 
-  const resolvedSourceLang = sourceLang ?? "fr";
+  const resolvedSourceLang = sourceLang ?? (lang === "fr" ? undefined : "fr");
   const hasSource = originalHtml.length >= 2 || original.trim().length >= 2;
+  const skipTranslation = lang === "fr" && !sourceLang;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     setShowOriginal(false);
-    if (!enabled || !auto || !hasSource) {
+    if (!enabled || !auto || !hasSource || skipTranslation) {
       setDisplay(original);
       setDisplayHtml(originalHtml || null);
       setMeta(null);
@@ -76,31 +129,25 @@ export function useContentTranslation(
 
     run
       .then((data) => {
-        if (requestId !== requestRef.current) return;
-        setMeta(data);
-        if (data?.same_language || data?.unavailable) {
-          setDisplay(original);
-          setDisplayHtml(originalHtml || null);
-        } else {
-          const translatedHtml = pickTranslatedHtml(data, originalHtml);
-          if (translatedHtml) {
-            setDisplayHtml(translatedHtml);
-            setDisplay(original);
-          } else {
-            setDisplayHtml(null);
-            setDisplay(data?.text || original);
-          }
-        }
-        setFailed(false);
+        if (!mountedRef.current || requestId !== requestRef.current) return;
+        applyTranslationResult({
+          data,
+          original,
+          originalHtml,
+          setDisplay,
+          setDisplayHtml,
+          setMeta,
+          setFailed,
+        });
       })
       .catch(() => {
-        if (requestId !== requestRef.current) return;
+        if (!mountedRef.current || requestId !== requestRef.current) return;
         setDisplay(original);
         setDisplayHtml(originalHtml || null);
         setFailed(true);
       })
       .finally(() => {
-        if (requestId === requestRef.current) {
+        if (mountedRef.current && requestId === requestRef.current) {
           setLoading(false);
         }
       });
@@ -108,7 +155,7 @@ export function useContentTranslation(
     return () => {
       requestRef.current += 1;
     };
-  }, [original, originalHtml, lang, entityType, entityId, field, auto, enabled, resolvedSourceLang, hasSource]);
+  }, [original, originalHtml, lang, entityType, entityId, field, auto, enabled, resolvedSourceLang, hasSource, skipTranslation]);
 
   const toggleOriginal = useCallback(() => {
     setShowOriginal((v) => !v);
@@ -128,11 +175,10 @@ export function useContentTranslation(
   );
 
   const isTranslated = Boolean(
-    meta
-    && !meta.same_language
-    && !meta.unavailable
-    && !showOriginal
-    && (htmlChanged || plainChanged),
+    !showOriginal
+    && !loading
+    && !failed
+    && (htmlChanged || plainChanged)
   );
 
   return useMemo(

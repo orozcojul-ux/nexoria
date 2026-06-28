@@ -6606,15 +6606,32 @@ async def api_content_translate(req: ContentTranslateReq, request: Request):
     )
     try:
         if req.html and req.html.strip():
-            result = await content_translate.translate_html(
-                req.html,
-                target,
-                source=req.source_lang,
-                entity_type=req.entity_type,
-                entity_id=req.entity_id,
-                field=req.field,
-                client_key=client_key,
-            )
+            try:
+                result = await content_translate.translate_html(
+                    req.html,
+                    target,
+                    source=req.source_lang,
+                    entity_type=req.entity_type,
+                    entity_id=req.entity_id,
+                    field=req.field,
+                    client_key=client_key,
+                )
+            except Exception as exc:
+                logging.getLogger("nexoria.content_translate").warning(
+                    "translate_html failed, falling back to plain: %s", str(exc)[:200],
+                )
+                plain = re.sub(r"<[^>]+>", " ", req.html)
+                plain = re.sub(r"\s+", " ", plain).strip() or req.text
+                result = await content_translate.translate_text(
+                    plain or req.text,
+                    target,
+                    source=req.source_lang,
+                    entity_type=req.entity_type,
+                    entity_id=req.entity_id,
+                    field=req.field,
+                    client_key=client_key,
+                )
+                result["format"] = "plain"
         else:
             result = await content_translate.translate_text(
                 req.text,
