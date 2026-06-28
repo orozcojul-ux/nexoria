@@ -17,6 +17,7 @@ import {
 } from "@/components/ui-premium";
 import GuildesPage from "@/pages/GuildesPage";
 import FonderOrdreModal from "@/components/FonderOrdreModal";
+import TranslatableText from "@/components/content/TranslatableText";
 
 const ROLE_COLOR = { chef: "#FFD700", officier: "#F97316", membre: "#9CA3AF" };
 
@@ -240,7 +241,15 @@ function GuildChat({ guildId }) {
         {msgs.map((m) => (
           <div key={m.message_id} className="text-sm" data-testid={`gmsg-${m.message_id}`}>
             <HeroName user={m.author} size="sm" />
-            <span className="text-zinc-300 ml-2">{m.content}</span>
+            <span className="text-zinc-300 ml-2">
+              <TranslatableText
+                text={m.content}
+                entityType="guild_message"
+                entityId={m.message_id}
+                field="content"
+                compact
+              />
+            </span>
             <span className="text-[10px] text-zinc-600 ml-2">{fmtDate(m.created_at, { day: undefined, month: undefined, year: undefined })}</span>
           </div>
         ))}

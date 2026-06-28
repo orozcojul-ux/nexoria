@@ -40,7 +40,7 @@ export default function NewsArticle() {
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center text-zinc-500 italic" data-testid="news-article-loading">
-        Chargement…
+        {t("news.article.loading")}
       </div>
     );
   }
@@ -48,9 +48,9 @@ export default function NewsArticle() {
   if (error || !article) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center space-y-4" data-testid="news-article-not-found">
-        <p className="text-zinc-400">Cet article n&apos;existe pas ou n&apos;est plus publié.</p>
+        <p className="text-zinc-400">{t("news.article.notFound")}</p>
         <Link to="/feed">
-          <PremiumButton variant="cyan" size="sm" icon={ArrowLeft}>Retour au tableau de bord</PremiumButton>
+          <PremiumButton variant="cyan" size="sm" icon={ArrowLeft}>{t("news.article.backDashboard")}</PremiumButton>
         </Link>
       </div>
     );
@@ -87,7 +87,10 @@ export default function NewsArticle() {
         </div>
 
         <div className="p-5 sm:p-8">
-          <h1 className="font-display font-black text-2xl sm:text-3xl text-white leading-tight mb-4" data-testid="news-article-title">
+          <h1
+            className="font-display font-black text-2xl sm:text-3xl text-white leading-tight mb-4"
+            data-testid="news-article-title"
+          >
             <TranslatableText
               as="span"
               text={article.title}

@@ -8,6 +8,7 @@ import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import HeroName from "@/components/HeroName";
 import HeroPixelAvatar from "@/components/HeroPixelAvatar";
 import LastConnection from "@/components/LastConnection";
+import TranslatableText from "@/components/content/TranslatableText";
 import "./FriendChat.css";
 
 const POLL_INTERVAL_MS = 2500; // fallback polling when socket is unavailable
@@ -288,7 +289,17 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
                     <FriendPresence user={thread.friend} />
                   </div>
                   <div className="friend-chat-thread-preview">
-                    {thread.last_message?.text || t("friendChat.startConversation")}
+                    {thread.last_message?.text ? (
+                      <TranslatableText
+                        text={thread.last_message.text}
+                        entityType="friend_message"
+                        entityId={thread.last_message.message_id}
+                        field="text"
+                        compact
+                      />
+                    ) : (
+                      t("friendChat.startConversation")
+                    )}
                   </div>
                 </div>
                 {thread.unread > 0 && <span className="friend-chat-unread">{thread.unread > 9 ? "9+" : thread.unread}</span>}
@@ -339,7 +350,13 @@ export default function FriendChat({ initialFriendId = null, onUnreadChange, var
                 const mine = m.from_user === me?.user_id;
                 return (
                   <div key={m.message_id} className={`friend-chat-bubble ${mine ? "friend-chat-bubble--mine" : "friend-chat-bubble--theirs"}`}>
-                    {m.text}
+                    <TranslatableText
+                      text={m.text}
+                      entityType="friend_message"
+                      entityId={m.message_id}
+                      field="text"
+                      compact
+                    />
                     <div className="friend-chat-time">{formatTime(m.created_at, locale)}</div>
                   </div>
                 );

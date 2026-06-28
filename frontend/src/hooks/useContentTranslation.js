@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { translateContent } from "@/lib/content-translate";
 import { useI18n } from "@/i18n/LanguageProvider";
 
@@ -23,6 +23,9 @@ export function useContentTranslation(
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  const requestRef = useRef(0);
+
+  const resolvedSourceLang = sourceLang ?? (lang === "fr" ? undefined : "fr");
 
   useEffect(() => {
     setShowOriginal(false);
@@ -30,44 +33,47 @@ export function useContentTranslation(
       setDisplay(original);
       setMeta(null);
       setFailed(false);
+      setLoading(false);
       return undefined;
     }
 
-    let cancelled = false;
+    const requestId = ++requestRef.current;
     setLoading(true);
     setFailed(false);
 
     translateContent({
       text: original,
       targetLang: lang,
-      sourceLang,
+      sourceLang: resolvedSourceLang,
       entityType,
       entityId,
       field,
     })
       .then((data) => {
-        if (cancelled) return;
+        if (requestId !== requestRef.current) return;
         setMeta(data);
         if (data?.same_language || data?.unavailable) {
           setDisplay(original);
         } else {
           setDisplay(data?.text || original);
         }
+        setFailed(false);
       })
       .catch(() => {
-        if (!cancelled) {
-          setDisplay(original);
-          setFailed(true);
-        }
+        if (requestId !== requestRef.current) return;
+        setDisplay(original);
+        setFailed(true);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (requestId === requestRef.current) {
+          setLoading(false);
+        }
       });
 
     return () => {
-      cancelled = true;
+      requestRef.current += 1;
     };
-  }, [original, lang, entityType, entityId, field, auto, enabled, sourceLang]);
+  }, [original, lang, entityType, entityId, field, auto, enabled, resolvedSourceLang]);
 
   const toggleOriginal = useCallback(() => {
     setShowOriginal((v) => !v);

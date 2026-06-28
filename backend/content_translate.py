@@ -34,6 +34,11 @@ TARGET_LANG_NAMES = {
 _db = None
 _rate_limit: dict[str, float] = {}
 
+_LOCAL_LT_URLS = frozenset({
+    "http://127.0.0.1:5000",
+    "http://localhost:5000",
+})
+
 
 def init(db) -> None:
     global _db
@@ -78,16 +83,23 @@ def make_cache_key(
     return hashlib.sha256(f"{scope}:{source}:{target}:{src_hash}".encode("utf-8")).hexdigest()
 
 
-def _check_rate_limit(client_key: str) -> None:
+def _rate_limit_key(client_key: str, entity_type: str | None, entity_id: str | None, field: str | None) -> str:
+    """Per-field bucket so title + body on the same page can translate in parallel."""
+    scope = f"{entity_type or 'text'}:{entity_id or 'anon'}:{field or 'body'}"
+    return f"{client_key}:{scope}"
+
+
+def _check_rate_limit(client_key: str, entity_type: str | None = None, entity_id: str | None = None, field: str | None = None) -> None:
     now = time.monotonic()
-    last = _rate_limit.get(client_key, 0.0)
+    key = _rate_limit_key(client_key, entity_type, entity_id, field)
+    last = _rate_limit.get(key, 0.0)
     if now - last < USER_COOLDOWN_SECONDS:
         raise ValueError("rate_limited")
-    _rate_limit[client_key] = now
+    _rate_limit[key] = now
 
 
 async def _cache_get(key: str) -> dict[str, Any] | None:
-    if not _db or not key:
+    if _db is None or not key:
         return None
     doc = await _db.content_translations.find_one({"key": key}, {"_id": 0})
     return doc
@@ -105,7 +117,7 @@ async def _cache_set(
     entity_id: str | None,
     field: str | None,
 ) -> None:
-    if not _db or not key:
+    if _db is None or not key:
         return
     now = datetime.now(timezone.utc).isoformat()
     await _db.content_translations.update_one(
@@ -129,9 +141,45 @@ async def _cache_set(
     )
 
 
+def _use_libretranslate() -> bool:
+    """Skip default localhost LibreTranslate — it is rarely running and adds ~15s timeouts."""
+    if not libretranslate_client.is_configured():
+        return False
+    flag = os.environ.get("CONTENT_TRANSLATE_USE_LIBRETRANSLATE", "").strip().lower()
+    if flag in ("0", "false", "no"):
+        return False
+    if flag in ("1", "true", "yes"):
+        return True
+    url = libretranslate_client.libretranslate_url().rstrip("/").lower()
+    return url not in _LOCAL_LT_URLS
+
+
+def _heuristic_source(text: str) -> str:
+    sample = (text or "").strip()
+    if not sample:
+        return DEFAULT_SOURCE
+    lower = sample.lower()
+    padded = f" {lower} "
+    french_hints = (
+        " c'est ", " ceci ", " est un ", " est une ", " dans ", " pour ", " avec ",
+        " cette ", " les ", " des ", " une ", " qu'", " nous ", " vous ", " traduction ",
+        " annonce ", " actualité ", " bonjour ", " merci ", " joueur ",
+    )
+    if any(h in padded for h in french_hints):
+        return DEFAULT_SOURCE
+    if len(sample) <= 48 and lower in {"test", "update", "news", "event", "announcement", "hello", "hi"}:
+        return DEFAULT_SOURCE
+    if sample.isascii():
+        return "en"
+    return DEFAULT_SOURCE
+
+
 async def detect_source(text: str) -> str:
-    detected = await libretranslate_client.detect_language(text)
-    return detected or DEFAULT_SOURCE
+    if _use_libretranslate():
+        detected = await libretranslate_client.detect_language(text)
+        if detected:
+            return detected
+    return _heuristic_source(text)
 
 
 async def _gemini_translate_text(text: str, source: str, target: str) -> str | None:
@@ -170,11 +218,58 @@ async def _gemini_translate_text(text: str, source: str, target: str) -> str | N
         return None
 
 
+async def _mymemory_translate(text: str, source: str, target: str) -> str | None:
+    """Free public fallback when LibreTranslate / Gemini are unavailable."""
+    import httpx
+
+    langpair = f"{source}|{target}"
+    if target == "pt":
+        langpair = f"{source}|pt-BR"
+
+    chunks: list[str] = []
+    remaining = text
+    while remaining:
+        chunk = remaining[:480]
+        if len(remaining) > 480:
+            split_at = max(chunk.rfind("\n"), chunk.rfind(". "), chunk.rfind(" "))
+            if split_at > 80:
+                chunk = remaining[:split_at]
+        chunks.append(chunk)
+        remaining = remaining[len(chunk):].lstrip()
+
+    translated_parts: list[str] = []
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            for chunk in chunks:
+                if not chunk.strip():
+                    continue
+                resp = await client.get(
+                    "https://api.mymemory.translated.net/get",
+                    params={"q": chunk, "langpair": langpair},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                if str(data.get("responseStatus", "")) not in ("200", "200.0"):
+                    return None
+                part = (data.get("responseData") or {}).get("translatedText")
+                if not part:
+                    return None
+                translated_parts.append(part)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("MyMemory translate failed (%s→%s): %s", source, target, str(exc)[:160])
+        return None
+
+    return "".join(translated_parts) if translated_parts else None
+
+
 async def _translate_with_providers(text: str, source: str, target: str) -> tuple[str | None, str]:
-    if libretranslate_client.is_configured():
+    if _use_libretranslate():
         result = await libretranslate_client.translate_text(text, source, target)
         if result is not None:
             return result, "libretranslate"
+    result = await _mymemory_translate(text, source, target)
+    if result is not None:
+        return result, "mymemory"
     if os.environ.get("GEMINI_API_KEY", "").strip():
         result = await _gemini_translate_text(text, source, target)
         if result is not None:
@@ -193,7 +288,7 @@ async def translate_text(
     client_key: str = "anon",
 ) -> dict[str, Any]:
     """Translate a text segment with cache + provider chain."""
-    _check_rate_limit(client_key)
+    _check_rate_limit(client_key, entity_type, entity_id, field)
 
     raw = (text or "").strip()
     if len(raw) < MIN_TEXT_LEN:

@@ -8,6 +8,7 @@ import api from "@/lib/api";
 import { sfx } from "@/lib/sfx";
 import { useI18n } from "@/contexts/I18nContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
+import { translateNotification } from "@/lib/translate-notification";
 
 // Kinds qui méritent un toast bien visible même quand la cloche est fermée.
 const TOAST_KINDS = new Set([
@@ -60,14 +61,15 @@ export default function NotificationsBell() {
     try { sfx.click(); } catch {}
     // Toast visible (en plus du badge) pour les notifications importantes.
     if (doc && TOAST_KINDS.has(doc.kind)) {
+      const { title, message } = translateNotification(doc, t);
       const opts = { duration: 7000 };
       if (doc.link) {
-        opts.action = { label: "Voir", onClick: () => navigate(doc.link) };
+        opts.action = { label: t("notif.view"), onClick: () => navigate(doc.link) };
       }
-      toast(doc.title || "Nouvelle notification", { description: doc.message, ...opts });
+      toast(title || t("notif.new_toast"), { description: message, ...opts });
     }
     ns.consumePushNotif();
-  }, [ns?.pushNotif, ns, navigate]);
+  }, [ns?.pushNotif, ns, navigate, t]);
 
   useEffect(() => {
     const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -81,7 +83,7 @@ export default function NotificationsBell() {
   };
 
   const clearAll = async () => {
-    if (!window.confirm("Effacer toutes les notifications définitivement ?")) return;
+    if (!window.confirm(t("notif.clear_confirm"))) return;
     await api.delete("/notifications/clear");
     await load();
   };
@@ -126,7 +128,7 @@ export default function NotificationsBell() {
                 )}
                 {notifs.length > 0 && (
                   <button onClick={clearAll} className="text-xs text-red-400 hover:text-red-300" data-testid="notif-clear-all">
-                    <Trash2 className="w-3 h-3 inline mr-1" /> Effacer tout
+                    <Trash2 className="w-3 h-3 inline mr-1" /> {t("notif.clear_all")}
                   </button>
                 )}
               </div>
@@ -137,6 +139,7 @@ export default function NotificationsBell() {
               )}
               {notifs.map((n) => {
                 const Icon = Lucide[n.icon] || Lucide.Bell;
+                const { title, message } = translateNotification(n, t);
                 const clickable = !!n.link;
                 const go = () => {
                   if (!n.link) return;
@@ -156,8 +159,8 @@ export default function NotificationsBell() {
                     <div className="flex gap-3">
                       <Icon className="w-4 h-4 text-cyan-400 mt-0.5 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="font-display font-bold text-sm">{n.title}</div>
-                        <div className="text-xs text-zinc-400 mt-0.5">{n.message}</div>
+                        <div className="font-display font-bold text-sm">{title}</div>
+                        <div className="text-xs text-zinc-400 mt-0.5">{message}</div>
                         <div className="text-[10px] font-mono-stat text-zinc-600 mt-1">{new Date(n.created_at).toLocaleString()}</div>
                       </div>
                     </div>

@@ -5,6 +5,8 @@ import { useI18n } from "@/i18n/LanguageProvider";
 export default function ContentTranslationBar({
   isTranslated,
   loading,
+  failed,
+  unavailable,
   showOriginal,
   onToggle,
   className = "",
@@ -17,6 +19,9 @@ export default function ContentTranslationBar({
         {t("contentTranslate.loading")}
       </div>
     );
+  }
+  if (failed || unavailable) {
+    return null;
   }
   if (!isTranslated && !showOriginal) return null;
 

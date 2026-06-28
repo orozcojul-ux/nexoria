@@ -193,16 +193,16 @@ export const TRANSLATIONS_EXTENDED = {
   "page.profile.kicker": T("Profil public", "Public profile"),
 
   // ─── Shop categories ───
-  "shop.cat.all": T("Tout", "All"),
-  "shop.cat.chest": T("Coffres", "Chests"),
-  "shop.cat.cosmetic": T("Cosmétiques", "Cosmetics"),
-  "shop.cat.mount": T("Montures", "Mounts"),
-  "shop.cat.title": T("Titres", "Titles"),
-  "shop.cat.aura": T("Auras", "Auras"),
-  "shop.cat.consumable": T("Consommables", "Consumables"),
-  "shop.cat.boost": T("Boosts", "Boosts"),
-  "shop.cat.pass": T("Passe", "Pass"),
-  "shop.cat.kingdom": T("Royaume", "Kingdom"),
+  "shop.cat.all": T("Tout", "All", { es: "Todo", de: "Alle", it: "Tutto", pt: "Tudo", nl: "Alles", ja: "すべて" }),
+  "shop.cat.chest": T("Coffres", "Chests", { es: "Cofres", de: "Truhen", it: "Forzieri", pt: "Baús", nl: "Kisten", ja: "宝箱" }),
+  "shop.cat.cosmetic": T("Cosmétiques", "Cosmetics", { es: "Cosméticos", de: "Kosmetik", it: "Cosmetici", pt: "Cosméticos", nl: "Cosmetica", ja: "コスメ" }),
+  "shop.cat.mount": T("Montures", "Mounts", { es: "Monturas", de: "Reittiere", it: "Cavalcature", pt: "Montarias", nl: "Rijdieren", ja: "マウント" }),
+  "shop.cat.title": T("Titres", "Titles", { es: "Títulos", de: "Titel", it: "Titoli", pt: "Títulos", nl: "Titels", ja: "称号" }),
+  "shop.cat.aura": T("Auras", "Auras", { es: "Auras", de: "Auras", it: "Aura", pt: "Auras", nl: "Aura's", ja: "オーラ" }),
+  "shop.cat.consumable": T("Consommables", "Consumables", { es: "Consumibles", de: "Verbrauchsgüter", it: "Consumabili", pt: "Consumíveis", nl: "Verbruiksitems", ja: "消耗品" }),
+  "shop.cat.boost": T("Boosts", "Boosts", { es: "Potenciadores", de: "Boosts", it: "Potenziamenti", pt: "Boosts", nl: "Boosts", ja: "ブースト" }),
+  "shop.cat.pass": T("Passe", "Pass", { es: "Pase", de: "Pass", it: "Pass", pt: "Passe", nl: "Pass", ja: "パス" }),
+  "shop.cat.kingdom": T("Royaume", "Kingdom", { es: "Reino", de: "Königreich", it: "Regno", pt: "Reino", nl: "Koninkrijk", ja: "王国" }),
 
   // ─── Admin common ───
   "admin.mode.admin": T("Archonte", "Archon"),

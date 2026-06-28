@@ -25,12 +25,12 @@ export function buildPlayerNav() {
         { to: "/tickets", labelKey: "nav.tickets", icon: Headphones, testid: "nav-tickets" },
         { to: "/friends", labelKey: "nav.friends", icon: UserPlus, testid: "nav-friends", dynamicBadge: "friends" },
         { to: "/parrainage", labelKey: "nav.referral", icon: Gift, testid: "nav-referral" },
-        { openLegend: true, labelKey: "sidebar.guide", icon: BookOpen, testid: "sidebar-guide-btn" },
       ],
     },
     {
       titleKey: "sidebar.section.customize",
       items: [
+        { openLegend: true, labelKey: "sidebar.guide", icon: BookOpen, testid: "sidebar-guide-btn", highlight: true },
         { openHeroCardSelf: true, labelKey: "nav.profile", icon: UserCheck, testid: "nav-hero" },
         { to: "/inventory", labelKey: "nav.inventory", icon: Gem, testid: "nav-inventory" },
         { to: "/craft", labelKey: "nav.craft", icon: Hammer, testid: "nav-craft" },

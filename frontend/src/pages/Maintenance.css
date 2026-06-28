@@ -532,6 +532,11 @@
   margin-bottom: 0.15rem;
 }
 
+.maint-recent-hero-head .font-display {
+  min-width: 0;
+  flex: 1;
+}
+
 .maint-recent-hero-level {
   flex-shrink: 0;
   font-size: 0.62rem;

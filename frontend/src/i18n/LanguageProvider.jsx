@@ -6,15 +6,29 @@ import React, { createContext, useContext, useEffect, useCallback, useMemo } fro
 import { I18nextProvider, useTranslation as useI18nNext } from "react-i18next";
 import api, { getToken } from "@/lib/api";
 import { LANGS, LOCALE_MAP, LANG_CODES } from "@/lib/languages";
-import { persistLanguage } from "@/i18n/index";
+import { persistLanguage, readStoredLanguage } from "@/i18n/index";
 import i18n, { appLangFromI18n, i18nLangFromApp } from "@/i18n/i18next";
 import { finalizeTranslation, sanitizeI18nVars } from "@/lib/i18n-safe";
 
 const LanguageContext = createContext(null);
 
+function applyAppLanguage(i18nInst, appCode) {
+  if (!appCode || !LANGS[appCode]) return;
+  const i18nCode = i18nLangFromApp(appCode);
+  if (i18nInst.language !== i18nCode) {
+    i18nInst.changeLanguage(i18nCode);
+  }
+}
+
 function LanguageProviderInner({ children }) {
   const { t: i18nT, i18n: i18nInst } = useI18nNext();
   const lang = appLangFromI18n(i18nInst.language || "fr");
+
+  // On mount: re-apply persisted language (i18next module init can race with storage).
+  useEffect(() => {
+    const stored = readStoredLanguage(LANG_CODES);
+    applyAppLanguage(i18nInst, stored);
+  }, [i18nInst]);
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -23,7 +37,7 @@ function LanguageProviderInner({ children }) {
   const setLang = useCallback((l) => {
     if (!LANGS[l]) return;
     persistLanguage(l);
-    i18nInst.changeLanguage(i18nLangFromApp(l));
+    applyAppLanguage(i18nInst, l);
     window.dispatchEvent(new CustomEvent("nexoria:language-changed", { detail: { language: l } }));
     if (getToken()) {
       api.put("/profile", { language: l }).catch(() => {});
@@ -31,12 +45,22 @@ function LanguageProviderInner({ children }) {
   }, [i18nInst]);
 
   const syncFromUser = useCallback((user) => {
-    if (!user?.language || !LANGS[user.language]) return;
-    const stored = localStorage.getItem("nexoria_language");
-    // Ne pas écraser un choix explicite dans localStorage (ex. PT choisi à la main)
-    if (stored && LANGS[stored] && stored !== user.language) return;
-    persistLanguage(user.language);
-    i18nInst.changeLanguage(i18nLangFromApp(user.language));
+    const stored = readStoredLanguage(LANG_CODES);
+
+    // Explicit local choice always wins over profile default (often "fr").
+    if (stored && LANGS[stored]) {
+      applyAppLanguage(i18nInst, stored);
+      const profileLang = user?.language && LANGS[user.language] ? user.language : null;
+      if (profileLang && profileLang !== stored && getToken()) {
+        api.put("/profile", { language: stored }).catch(() => {});
+      }
+      return;
+    }
+
+    if (user?.language && LANGS[user.language]) {
+      persistLanguage(user.language);
+      applyAppLanguage(i18nInst, user.language);
+    }
   }, [i18nInst]);
 
   /** Backward-compatible t(key, vars?) or t(key, fallbackString) */

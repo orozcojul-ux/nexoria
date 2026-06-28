@@ -20,23 +20,32 @@ export default function TranslatableContent({
     visible,
     isTranslated,
     loading,
+    failed,
+    meta,
     showOriginal,
     toggleOriginal,
   } = useContentTranslation(sourceText, { entityType, entityId, field, auto, enabled });
 
+  const showTranslated = !showOriginal
+    && !loading
+    && Boolean(visible?.trim())
+    && visible.trim() !== sourceText.trim();
+
   let body;
-  if (showOriginal || !isTranslated) {
-    body = <ForumRichContent html={html} plain={plain} className={className} />;
+  if (showTranslated) {
+    body = <ForumRichContent plain={visible} className={className} />;
   } else {
-    body = <ForumRichContent plain={visible || plain} className={className} />;
+    body = <ForumRichContent html={html} plain={plain} className={className} />;
   }
 
   return (
     <div>
       {body}
       <ContentTranslationBar
-        isTranslated={isTranslated}
+        isTranslated={isTranslated || showTranslated}
         loading={loading}
+        failed={failed}
+        unavailable={Boolean(meta?.unavailable)}
         showOriginal={showOriginal}
         onToggle={toggleOriginal}
         className="mt-2"

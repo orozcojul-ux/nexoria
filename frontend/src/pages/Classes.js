@@ -31,7 +31,7 @@ export default function Classes() {
   const openGrimoire = (cls) => {
     const apiId = FR_TO_EN[cls.id] || cls.id;
     const found = classes.find(
-      (c) => c.id === apiId || c.name?.toLowerCase() === cls.name.toLowerCase()
+      (c) => c.id === apiId || (cls.name && c.name?.toLowerCase() === cls.name.toLowerCase())
     );
     setActiveClass(found || { id: cls.id, name: cls.name, color: cls.color, stat_bonus: {} });
   };

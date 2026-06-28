@@ -178,7 +178,7 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
         <button
           key={item.testid}
           type="button"
-          className={styles.item}
+          className={`${styles.item} ${item.highlight ? styles.itemGuide : ""}`}
           data-testid={item.testid}
           onClick={() => {
             window.dispatchEvent(new CustomEvent("nexoria:open-legend"));

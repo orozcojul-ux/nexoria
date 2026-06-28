@@ -227,4 +227,69 @@ export const TRANSLATIONS_UI = {
   // ─── Feed online heroes ───
   "feed.online_heroes": T("Héros connectés au Royaume", "Heroes connected to the Realm"),
   "feed.online_heroes_empty": T("Aucun héros dans le Nexus Online pour le moment.", "No heroes in Nexus Online right now."),
+
+  // ─── PWA install ───
+  "pwa.install.title": T("Installer NEXORIA", "Install NEXORIA", {
+    es: "Instalar NEXORIA", de: "NEXORIA installieren", it: "Installa NEXORIA", pt: "Instalar NEXORIA", nl: "NEXORIA installeren", ja: "NEXORIAをインストール",
+  }),
+  "pwa.install.subtitle": T(
+    "Ajoute le royaume à ton écran d'accueil.",
+    "Add the realm to your home screen.",
+    {
+      es: "Añade el reino a tu pantalla de inicio.",
+      de: "Füge das Reich zu deinem Startbildschirm hinzu.",
+      it: "Aggiungi il regno alla schermata Home.",
+      pt: "Adiciona o reino ao teu ecrã inicial.",
+      nl: "Voeg het rijk toe aan je startscherm.",
+      ja: "王国をホーム画面に追加。",
+    },
+  ),
+  "pwa.install.button": T("Installer", "Install", {
+    es: "Instalar", de: "Installieren", it: "Installa", pt: "Instalar", nl: "Installeren", ja: "インストール",
+  }),
+  "pwa.install.dismiss": T("Fermer", "Close", {
+    es: "Cerrar", de: "Schließen", it: "Chiudi", pt: "Fechar", nl: "Sluiten", ja: "閉じる",
+  }),
+  "pwa.install.waiting": T(
+    "Ouvre NEXORIA dans Chrome pour voir l'option d'installation.",
+    "Open NEXORIA in Chrome to see the install option.",
+    {
+      es: "Abre NEXORIA en Chrome para ver la opción de instalación.",
+      de: "Öffne NEXORIA in Chrome, um die Installationsoption zu sehen.",
+      it: "Apri NEXORIA in Chrome per l'opzione di installazione.",
+      pt: "Abre NEXORIA no Chrome para ver a opção de instalação.",
+      nl: "Open NEXORIA in Chrome voor de installatieoptie.",
+      ja: "ChromeでNEXORIAを開いてインストールオプションを表示。",
+    },
+  ),
+  "pwa.install.ios.button": T("Comment faire sur iPhone", "How to on iPhone", {
+    es: "Cómo en iPhone", de: "So geht's auf dem iPhone", it: "Come su iPhone", pt: "Como no iPhone", nl: "Hoe op iPhone", ja: "iPhoneでの方法",
+  }),
+  "pwa.install.ios.title": T("Ajouter à l'écran d'accueil (iOS)", "Add to Home Screen (iOS)", {
+    es: "Añadir a pantalla de inicio (iOS)", de: "Zum Home-Bildschirm (iOS)", it: "Aggiungi a Home (iOS)", pt: "Adicionar ao ecrã inicial (iOS)", nl: "Toevoegen aan startscherm (iOS)", ja: "ホーム画面に追加 (iOS)",
+  }),
+  "pwa.install.ios.step1": T(
+    "Appuie sur Partager en bas de Safari.",
+    "Tap Share at the bottom of Safari.",
+    {
+      es: "Pulsa Compartir en la parte inferior de Safari.",
+      de: "Tippe unten in Safari auf Teilen.",
+      it: "Tocca Condividi in basso in Safari.",
+      pt: "Toca em Partilhar na parte inferior do Safari.",
+      nl: "Tik op Delen onderaan in Safari.",
+      ja: "Safari下部の共有をタップ。",
+    },
+  ),
+  "pwa.install.ios.step2": T(
+    "Choisis « Sur l'écran d'accueil », puis confirme.",
+    "Choose « Add to Home Screen », then confirm.",
+    {
+      es: "Elige « Añadir a pantalla de inicio » y confirma.",
+      de: "Wähle « Zum Home-Bildschirm » und bestätige.",
+      it: "Scegli « Aggiungi a Home » e conferma.",
+      pt: "Escolhe « Adicionar ao ecrã inicial » e confirma.",
+      nl: "Kies « Zet op beginscherm » en bevestig.",
+      ja: "「ホーム画面に追加」を選んで確認。",
+    },
+  ),
 };

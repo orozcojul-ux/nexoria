@@ -9,6 +9,7 @@ export default function TranslatableText({
   field = "text",
   auto = true,
   enabled = true,
+  compact = false,
   className = "",
   as: Tag = "span",
 }) {
@@ -16,6 +17,8 @@ export default function TranslatableText({
     visible,
     isTranslated,
     loading,
+    failed,
+    meta,
     showOriginal,
     toggleOriginal,
   } = useContentTranslation(text, { entityType, entityId, field, auto, enabled });
@@ -23,13 +26,17 @@ export default function TranslatableText({
   return (
     <>
       <Tag className={className}>{visible}</Tag>
-      <ContentTranslationBar
-        isTranslated={isTranslated}
-        loading={loading}
-        showOriginal={showOriginal}
-        onToggle={toggleOriginal}
-        className="mt-1"
-      />
+      {!compact && (
+        <ContentTranslationBar
+          isTranslated={isTranslated}
+          loading={loading}
+          failed={failed}
+          unavailable={Boolean(meta?.unavailable)}
+          showOriginal={showOriginal}
+          onToggle={toggleOriginal}
+          className="mt-1"
+        />
+      )}
     </>
   );
 }

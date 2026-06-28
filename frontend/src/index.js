@@ -5,6 +5,11 @@ import "@/index.css";
 import "@/pages/pages-hub.css";
 import "@/i18n/i18next";
 import App from "@/App";
+import { registerServiceWorker } from "@/registerServiceWorker";
+
+if (process.env.NODE_ENV === "production") {
+  registerServiceWorker();
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {

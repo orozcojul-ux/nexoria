@@ -23,13 +23,15 @@ import { TRANSLATIONS_PAGES_MISC } from "./translations-pages-misc.js";
 import { TRANSLATIONS_INVENTORY_UI } from "./translations-inventory-ui.js";
 import { TRANSLATIONS_ORACLE_REFERRAL } from "./translations-oracle-referral.js";
 import { TRANSLATIONS_PAGES_ZONES } from "./translations-pages-zones.js";
+import { TRANSLATIONS_NOTIFICATIONS } from "./translations-notifications.js";
+import { TRANSLATIONS_NEWS_UI } from "./translations-news-ui.js";
 import { applyLocaleOverrides } from "./locale-overrides.js";
 import { mergeTranslationModules } from "./mergeTranslations.js";
 import { normalizeI18nPlaceholders } from "../lib/i18n-safe.js";
 
 const SECONDARY_LANGS = ["es", "de", "it", "pt", "nl", "ja"];
 
-/** Fill missing secondary langs from French (never English) per project fallback policy. */
+/** Fill missing secondary langs from English, then French — better for international players. */
 function hydrateSecondaryLangs(entries) {
   const out = {};
   for (const [key, entry] of Object.entries(entries)) {
@@ -40,7 +42,7 @@ function hydrateSecondaryLangs(entries) {
     const patched = { ...entry };
     for (const lang of SECONDARY_LANGS) {
       if (!patched[lang]) {
-        patched[lang] = patched.fr ?? patched.en;
+        patched[lang] = patched.en ?? patched.fr;
       }
     }
     out[key] = patched;
@@ -69,11 +71,13 @@ export function getTranslationEntries() {
         TRANSLATIONS_SHOP_EXT,
         TRANSLATIONS_PROFILE_UI,
         TRANSLATIONS_CHRONICLE_DATA,
-        TRANSLATIONS_PAGES_MISC,
         TRANSLATIONS_INVENTORY_UI,
         MAINTENANCE_TRANSLATIONS,
         TRANSLATIONS_ORACLE_REFERRAL,
         TRANSLATIONS_PAGES_ZONES,
+        TRANSLATIONS_PAGES_MISC,
+        TRANSLATIONS_NOTIFICATIONS,
+        TRANSLATIONS_NEWS_UI,
       ),
     ));
   }
@@ -91,7 +95,7 @@ export function flattenForLang(entries, lang) {
     } else if (lang === "en") {
       value = entry.en ?? entry.fr ?? key;
     } else {
-      value = entry[lang] ?? entry.fr ?? entry.en ?? key;
+      value = entry[lang] ?? entry.en ?? entry.fr ?? key;
     }
     flat[key] = normalizeI18nPlaceholders(value);
   }

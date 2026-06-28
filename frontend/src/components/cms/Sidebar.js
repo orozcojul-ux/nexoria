@@ -153,18 +153,25 @@ function NavIconBox({ Icon, active }) {
   );
 }
 
-function SidebarLegendButton({ labelKey, icon: Icon, testid }) {
+function SidebarLegendButton({ labelKey, icon: Icon, testid, highlight = false }) {
   const { t } = useI18n();
   return (
     <button
       type="button"
       onClick={() => window.dispatchEvent(new CustomEvent("nexoria:open-legend"))}
       data-testid={testid}
-      className="nexoria-nav-link group flex items-center gap-2.5 mx-2 px-2.5 py-2 rounded-[10px] text-[13px] font-medium transition-all text-zinc-400 hover:text-amber-200 hover:bg-amber-500/[0.06] w-[calc(100%-16px)]"
+      className={`nexoria-nav-link group flex items-center gap-2.5 mx-2 px-2.5 py-2 rounded-[10px] text-[13px] transition-all w-[calc(100%-16px)] ${
+        highlight
+          ? "font-semibold text-amber-100 border border-amber-500/35 bg-gradient-to-r from-amber-500/18 via-amber-400/10 to-transparent shadow-[0_0_18px_rgba(245,158,11,0.14)] hover:from-amber-500/24 hover:text-amber-50"
+          : "font-medium text-zinc-400 hover:text-amber-200 hover:bg-amber-500/[0.06]"
+      }`}
     >
       <span
         className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
-        style={{ background: "rgba(245,158,11,0.12)", boxShadow: "0 0 10px rgba(245,158,11,0.15)" }}
+        style={{
+          background: highlight ? "rgba(245,158,11,0.22)" : "rgba(245,158,11,0.12)",
+          boxShadow: highlight ? "0 0 14px rgba(245,158,11,0.35)" : "0 0 10px rgba(245,158,11,0.15)",
+        }}
       >
         <Icon className="w-3.5 h-3.5 text-amber-400" strokeWidth={2} />
       </span>
@@ -371,6 +378,7 @@ export default function Sidebar() {
                   <SidebarLegendButton
                     key={`${section.titleKey}-${item.labelKey}`}
                     {...item}
+                    highlight={item.highlight}
                   />
                 ) : item.openHeroCardSelf ? (
                   <SidebarHeroCardButton

@@ -3,6 +3,8 @@ import { MessageCircle, Send, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
+import { LOCALE_MAP } from "@/lib/languages";
 import HeroName from "@/components/HeroName";
 import { resolveMediaUrl } from "@/lib/user-avatar";
 import { PremiumButton } from "@/components/ui-premium";
@@ -11,11 +13,13 @@ import TranslatableText from "@/components/content/TranslatableText";
 
 export default function NewsComments({ newsId }) {
   const { user } = useAuth();
+  const { t, lang } = useI18n();
   const [comments, setComments] = useState([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const isStaff = user?.role === "admin" || user?.role === "moderator";
+  const locale = LOCALE_MAP[lang] || "fr-FR";
 
   const load = async () => {
     try {
@@ -40,22 +44,22 @@ export default function NewsComments({ newsId }) {
       setComments((c) => [...c, data]);
       setText("");
       sfx.success();
-      toast.success("+15 XP — commentaire publié");
+      toast.success(t("news.comments.published"));
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("errors.generic"));
     } finally {
       setSending(false);
     }
   };
 
   const remove = async (commentId) => {
-    if (!window.confirm("Masquer ce commentaire ?")) return;
+    if (!window.confirm(t("news.comments.hideConfirm"))) return;
     try {
       await api.delete(`/news/comments/${commentId}`);
       setComments((c) => c.filter((x) => x.comment_id !== commentId));
-      toast.success("Commentaire modéré");
+      toast.success(t("news.comments.moderated"));
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("errors.generic"));
     }
   };
 
@@ -64,7 +68,8 @@ export default function NewsComments({ newsId }) {
       <div className="flex items-center gap-2 mb-4">
         <MessageCircle className="w-4 h-4 text-cyan-400" />
         <h2 className="font-display font-bold text-lg text-white">
-          Commentaires <span className="text-zinc-500 font-mono-stat text-sm">({comments.length})</span>
+          {t("news.comments.title")}{" "}
+          <span className="text-zinc-500 font-mono-stat text-sm">({comments.length})</span>
         </h2>
       </div>
 
@@ -74,20 +79,20 @@ export default function NewsComments({ newsId }) {
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Réagir à cette actualité… (+15 XP)"
+            placeholder={t("news.comments.placeholder")}
             maxLength={800}
             className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm"
             data-testid="news-comment-input"
           />
           <PremiumButton type="submit" variant="cyan" size="sm" icon={sending ? Loader2 : Send} disabled={sending || text.trim().length < 2} testid="news-comment-submit">
-            Publier
+            {t("news.comments.publish")}
           </PremiumButton>
         </form>
       )}
 
-      {loading && <p className="text-zinc-500 text-sm italic">Chargement…</p>}
+      {loading && <p className="text-zinc-500 text-sm italic">{t("news.comments.loading")}</p>}
       {!loading && comments.length === 0 && (
-        <p className="text-zinc-500 text-sm italic">Soyez le premier à commenter cette actualité.</p>
+        <p className="text-zinc-500 text-sm italic">{t("news.comments.empty")}</p>
       )}
 
       <div className="space-y-3">
@@ -100,7 +105,7 @@ export default function NewsComments({ newsId }) {
               <div className="flex items-center justify-between gap-2">
                 <HeroName user={{ username: c.username, role: c.role, country_code: c.country_code }} size="sm" />
                 <span className="text-[10px] text-zinc-600 font-mono-stat shrink-0">
-                  {new Date(c.created_at).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  {new Date(c.created_at).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                 </span>
               </div>
               <div className="text-sm text-zinc-300 mt-1 leading-relaxed">
@@ -114,7 +119,7 @@ export default function NewsComments({ newsId }) {
               </div>
             </div>
             {(isStaff || c.user_id === user?.user_id) && (
-              <button type="button" onClick={() => remove(c.comment_id)} className="text-zinc-600 hover:text-red-400 p-1 shrink-0" title="Supprimer">
+              <button type="button" onClick={() => remove(c.comment_id)} className="text-zinc-600 hover:text-red-400 p-1 shrink-0" title={t("news.comments.delete")}>
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}

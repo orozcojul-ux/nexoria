@@ -8,9 +8,13 @@ from datetime import datetime, timezone
 
 
 async def push_notification(db, user_id: str, kind: str, title: str, message: str,
-                            sound: str = "ding", icon: str = "Bell", link: str | None = None):
+                            sound: str = "ding", icon: str = "Bell", link: str | None = None,
+                            params: dict | None = None):
     """Create a notification visible in the user's bell dropdown.
     Also pushes a `notification:new` event over Socket.IO if connected.
+
+    ``params`` holds structured i18n placeholders; the client resolves title/message
+    from ``kind`` + ``params``. Legacy ``title``/``message`` remain as fallback.
     """
     doc = {
         "notif_id": f"notif_{uuid.uuid4().hex[:12]}",
@@ -18,6 +22,7 @@ async def push_notification(db, user_id: str, kind: str, title: str, message: st
         "kind": kind,
         "title": title,
         "message": message,
+        "params": params or {},
         "sound": sound,
         "icon": icon,
         "link": link,

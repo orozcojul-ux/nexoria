@@ -18,3 +18,10 @@ def test_cache_key_stable():
     k2 = make_cache_key("news", "news_1", "title", "fr", "en", h)
     assert k1 == k2
     assert k1 != make_cache_key("news", "news_2", "title", "fr", "en", h)
+
+
+def test_cache_get_skips_when_db_is_none():
+    import content_translate as ct
+    ct.init(None)
+    import asyncio
+    assert asyncio.run(ct._cache_get("any-key")) is None

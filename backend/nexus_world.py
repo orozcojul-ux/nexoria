@@ -1480,7 +1480,8 @@ def build_socketio_app(db, hooks=None):
             await push_notification(db, target_user_id, "aether",
                                     "Le Conseil intervient",
                                     f"Un Gardien a ajusté vos Écus de {amount:+d}.",
-                                    sound="chime", icon="Coins")
+                                    sound="chime", icon="Coins",
+                                    params={"amount": f"{amount:+d}"})
             if amount != 0:
                 discord_rewards.schedule_reward_notify(
                     db, target_user_id, "Game Master",
@@ -1523,7 +1524,8 @@ def build_socketio_app(db, hooks=None):
             await push_notification(db, target_user_id, "item",
                                     "Don du Conseil",
                                     f"Vous recevez : {icon} {name} ({rarity}).",
-                                    sound="chime", icon="Gift")
+                                    sound="chime", icon="Gift",
+                                    params={"icon": icon, "name": name, "rarity": rarity})
         except Exception:
             pass
         await push_inventory_updated(target_user_id, "gm_give", {

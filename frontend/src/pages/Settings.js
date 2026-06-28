@@ -11,6 +11,7 @@ import { sfx } from "@/lib/sfx";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import CountryPicker from "@/components/CountryPicker";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import InstallAppButton from "@/components/InstallAppButton";
 import TwoFASetup from "@/components/admin/TwoFASetup";
 import { PageShell, PremiumSidebar, PremiumCard } from "@/components/ui-premium";
 import ProfileCustomizeForm from "@/components/profile/ProfileCustomizeForm";
@@ -338,6 +339,8 @@ function PreferencesSection({ user, refresh, t }) {
         <div className="text-[10px] uppercase tracking-[0.3em] text-violet-400 font-bold mb-2">{t("settings.theme")}</div>
         <ThemeSwitcher />
       </div>
+
+      <InstallAppButton variant="settings" />
 
       <div>
         <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-400 font-bold mb-3">{t("settings.presence.title")}</div>

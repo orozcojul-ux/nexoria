@@ -146,6 +146,7 @@ MAINTENANCE_NEVER_BLOCK_PREFIXES = (
     "/api/webhooks/stripe",
     "/api/discord",
     "/api/staff",
+    "/api/content",
 )
 
 # Game-essential API prefixes allowed when MAINTENANCE_SOFT_MODE + MAINTENANCE_BLOCK_PUBLIC=true.
@@ -169,6 +170,7 @@ MAINTENANCE_SOFT_ALLOWED_PREFIXES = (
     "/api/forum",
     "/api/friends",
     "/api/news",
+    "/api/content",
     "/api/events",
     "/api/widgets",
     "/api/broadcasts",
@@ -566,6 +568,7 @@ async def grant_badge(user_id: str, badge_id: str):
         badge_def.get("description", ""),
         "ding",
         badge_def.get("icon", "Award"),
+        params={"name": badge_def["name"], "description": badge_def.get("description", "")},
     )
     discord_rewards.schedule_reward_notify(db, user_id, "Badge débloqué", badge_name=badge_def["name"])
     return True
@@ -894,6 +897,7 @@ async def maybe_process_daily_login(user_id: str):
             db, user_id, "vip",
             "Coffre quotidien VIP", f"+{VIP_DAILY_BONUS_AETHER} écus du Nexus offerts par ton Pass Ascendant.",
             "coin", "Gem", link="/shop",
+            params={"variant": "daily", "amount": VIP_DAILY_BONUS_AETHER},
         )
 
 
@@ -1350,6 +1354,7 @@ async def process_referral_rewards(referrer_id: str):
             await push_notification(
                 db, referrer_id, "referral",
                 "Récompense de parrainage", ms["label"], "coin", "Coins", link="/parrainage",
+                params={"variant": "reward", "label": ms["label"]},
             )
         elif ms["type"] == "badge":
             await grant_badge(referrer_id, ms["badge_id"])
@@ -1363,6 +1368,7 @@ async def process_referral_rewards(referrer_id: str):
             await push_notification(
                 db, referrer_id, "referral",
                 "Titre débloqué", ms["label"], "fanfare", "Crown", link="/parrainage",
+                params={"variant": "title_unlock", "label": ms["label"]},
             )
         elif ms["type"] == "discord_role":
             if DISCORD_AMBASSADOR_ROLE_ID:
@@ -1372,6 +1378,7 @@ async def process_referral_rewards(referrer_id: str):
                 db, referrer_id, "referral",
                 "Rôle Discord Ambassadeur", "Ton statut d'Ambassadeur t'a octroyé un rôle Discord exclusif.",
                 "fanfare", "MessageSquare", link="/settings?section=parrainage",
+                params={"variant": "discord"},
             )
         elif ms["type"] == "multi":
             # Grant both écus and badge in one milestone.
@@ -1383,6 +1390,7 @@ async def process_referral_rewards(referrer_id: str):
                 db, referrer_id, "referral",
                 "Parrain Légendaire !", ms["label"],
                 "fanfare", "Crown", link="/settings?section=parrainage",
+                params={"variant": "legendary", "label": ms["label"]},
             )
         claimed.add(th)
     await db.users.update_one(
@@ -1429,6 +1437,11 @@ async def apply_referral(referral_code: str, referred_user_id: str):
             f"💎 Bonus VIP de parrainage : +{REFERRAL_VIP_BONUS_AETHER} Écus, +{REFERRAL_VIP_BONUS_XP} XP",
             "Votre statut Ascendant récompense chaque filleul.",
             "coin", "Gem", link="/settings?section=parrainage",
+            params={
+                "variant": "vip_bonus",
+                "amount": REFERRAL_VIP_BONUS_AETHER,
+                "xp": REFERRAL_VIP_BONUS_XP,
+            },
         )
 
 
@@ -1468,6 +1481,7 @@ async def claim_founder_reward(user_id: str):
                 "Pionnier du Nexus",
                 f"Tu fais partie des {FOUNDER_MAX} premiers héros (n°{seq}) : badge exclusif + {FOUNDER_XP_REWARD} XP offerts !",
                 "fanfare", "Flag", link="/hero",
+                params={"seq": seq, "max": FOUNDER_MAX, "xp": FOUNDER_XP_REWARD},
             )
         except Exception:
             pass
@@ -1499,6 +1513,7 @@ async def claim_beta_activation_rewards(user_id: str, username: str):
             "Accès beta activé",
             "Bienvenue dans le Nexus — badge Beta Testeur, récompenses débloqués, et 1 changement de classe offert !",
             "fanfare", "FlaskConical", link="/hero",
+            params={},
         )
     except Exception:
         pass
@@ -2944,6 +2959,7 @@ async def _push_craft_notification(user_id: str, label: str) -> None:
     await push_notification(
         db, user_id, "craft_milestone",
         "Palier Forge débloqué", label, "craft", "Hammer", link="/craft",
+        params={"label": label},
     )
 
 
@@ -3044,6 +3060,7 @@ async def economy_send_ecus(req: SendEcusReq, user: dict = Depends(get_user_dep)
         f"💰 {user['username']} vous a envoyé {amount} Écus",
         f"Un présent monétaire vient d'arriver dans votre bourse{note}",
         "coin", "Coins", link="/inventory",
+        params={"username": user["username"], "amount": amount, "note": note},
     )
     await add_chronicle(user["user_id"], f"A envoyé {amount} Écus à {target['username']}", "economy")
     await add_chronicle(target["user_id"], f"A reçu {amount} Écus de {user['username']}", "economy")
@@ -3089,6 +3106,11 @@ async def economy_gift_item(req: GiftItemReq, user: dict = Depends(get_user_dep)
         f"🎁 {user['username']} vous a offert {snapshot['name']}",
         f"x{snapshot['quantity']} {snapshot['name']} — déposé dans votre inventaire",
         "chime", "Gift", link="/inventory",
+        params={
+            "username": user["username"],
+            "name": snapshot["name"],
+            "quantity": snapshot.get("quantity", 1),
+        },
     )
     await add_chronicle(user["user_id"], f"A offert {snapshot['name']} à {target['username']}", "economy")
     await add_chronicle(target["user_id"], f"A reçu {snapshot['name']} de {user['username']}", "economy")
@@ -3182,6 +3204,7 @@ async def create_trade(req: CreateTradeReq, user: dict = Depends(get_user_dep)):
         f"🤝 {user['username']} vous propose un échange",
         f"Vous avez {TRADE_TTL_HOURS}h pour répondre — voir dans Inventaire › Échanges.",
         "chime", "ArrowLeftRight", link="/inventory?trades=1",
+        params={"username": user["username"], "hours": TRADE_TTL_HOURS},
     )
     try:
         await nexus_world.push_inventory_updated(user["user_id"], "trade_created", {})
@@ -3236,6 +3259,7 @@ async def _expire_stale_trades():
                 f"⌛ Votre échange avec {t.get('to_username', '?')} a expiré",
                 "Le délai de réponse est écoulé — vos objets et écus vous ont été restitués.",
                 "ding", "Clock", link="/inventory",
+                params={"username": t.get("to_username", "?")},
             )
             await nexus_world.push_inventory_updated(t["from_user"], "trade_refund", {})
         except Exception as exc:
@@ -3321,6 +3345,7 @@ async def accept_trade(trade_id: str, req: AcceptTradeReq, user: dict = Depends(
         db, t["from_user"], "trade_accepted",
         f"✅ {user['username']} a accepté votre échange",
         "Les objets et écus ont été échangés.", "chime", "Check", link="/inventory",
+        params={"username": user["username"]},
     )
 
     # Discord — annonce dans le salon des récompenses (le même que l'XP)
@@ -3362,6 +3387,7 @@ async def decline_trade(trade_id: str, user: dict = Depends(get_user_dep)):
         db, t["from_user"], "trade_declined",
         f"❌ {user['username']} a refusé votre échange",
         "Vos objets et écus vous ont été restitués.", "ding", "X", link="/inventory",
+        params={"username": user["username"]},
     )
     try:
         await nexus_world.push_inventory_updated(t["from_user"], "trade_refund", {})
@@ -4036,6 +4062,7 @@ async def _complete_community_challenge(challenge_id: str, challenge: dict):
                 db, uid, "community_challenge",
                 f"🏆 Défi accompli : {challenge.get('name')}",
                 reward_label, "fanfare", "Trophy",
+                params={"name": challenge.get("name", ""), "reward": reward_label},
             )
         except Exception as exc:
             logger.warning("[community_challenge] reward failed for %s: %s", uid, exc)
@@ -4463,6 +4490,9 @@ async def maintenance_recent_heroes(limit: int = 6):
             "role": pub.get("role"),
             "created_at": pub.get("created_at"),
             "avatar_url": pub.get("avatar_url"),
+            "country_code": pub.get("country_code"),
+            "country_flag": pub.get("country_flag"),
+            "country_flag_iso": pub.get("country_flag_iso"),
         })
         if len(heroes) >= cap:
             break
@@ -5227,6 +5257,7 @@ async def vip_purchase(req: VipPurchaseReq, user: dict = Depends(get_user_dep)):
         "Pass Ascendant activé",
         f"Ton statut VIP est actif jusqu'au {new_until.strftime('%d/%m/%Y')}.",
         "fanfare", "Gem", link="/shop",
+        params={"variant": "activated", "until": new_until.strftime("%d/%m/%Y")},
     )
     await push_wallet_updated(uid)
     try:
@@ -5291,7 +5322,8 @@ async def _credit_ecu_order(session_id: str, *, user_id: str = None, ecus: int =
     try:
         await push_notification(db, res["user_id"], "ecus_purchase",
             "Recharge d'Écus", f"+{int(res['ecus'])} Écus crédités sur votre compte",
-            "chime", "Coins")
+            "chime", "Coins",
+            params={"ecus": int(res["ecus"])})
     except Exception:
         pass
     # Announce the real-money purchase in the Discord rewards channel.
@@ -5665,7 +5697,8 @@ async def purchase_item(sku: str, user: dict = Depends(get_user_dep)):
         i18n_key="chronicle.shop.purchased",
         i18n_params={"sku": sku, "item": item["name"]},
     )
-    await push_notification(db, user["user_id"], "shop", "Achat confirmé", f"« {item['name']} » est à vous", "ding", "ShoppingBag")
+    await push_notification(db, user["user_id"], "shop", "Achat confirmé", f"« {item['name']} » est à vous", "ding", "ShoppingBag",
+                              params={"itemName": item["name"]})
 
     # Quest progression — shop_purchase for any buy; vip_purchase specifically for VIP plans.
     await progress_quests(user["user_id"], "shop_purchase", 1)
@@ -6392,7 +6425,8 @@ async def broadcast_alert(req: BroadcastReq, user: dict = Depends(get_admin_dep)
     # Also push to each user's notification feed
     cursor = db.users.find({}, {"user_id": 1, "_id": 0})
     async for u in cursor:
-        await push_notification(db, u["user_id"], "broadcast", req.title, req.message, sound, "Megaphone")
+        await push_notification(db, u["user_id"], "broadcast", req.title, req.message, sound, "Megaphone",
+                                params={"title": req.title, "message": req.message})
     return doc
 
 
@@ -6989,7 +7023,8 @@ async def invite_to_guild(guild_id: str, req: GuildInviteReq, user: dict = Depen
     })
     await push_notification(db, target["user_id"], "guild_invite",
         f"L'ordre « {guild['name']} » vous invite", f"Tag [{guild['tag']}] — clique pour répondre",
-        "ding", "Castle", link="/guilds?invites=1")
+        "ding", "Castle", link="/guilds?invites=1",
+        params={"name": guild["name"], "tag": guild["tag"]})
     return {"ok": True, "invite_id": invite_id}
 
 
@@ -7163,7 +7198,8 @@ async def withdraw_vault(guild_id: str, target_user_id: str, req: GuildVaultReq,
     await db.guilds.update_one({"guild_id": guild_id}, {"$inc": {"vault_aether": -req.amount}})
     await grant_aether(target_user_id, req.amount, f"Récompense de guilde — {g['name']}")
     await push_notification(db, target_user_id, "guild_reward",
-        f"Récompense de l'ordre « {g['name']} »", f"+{req.amount} Écus", "coin", "Coins")
+        f"Récompense de l'ordre « {g['name']} »", f"+{req.amount} Écus", "coin", "Coins",
+        params={"name": g["name"], "amount": req.amount})
     return {"ok": True}
 
 
@@ -7385,7 +7421,8 @@ async def reply_thread(thread_id: str, req: ForumReplyReq, user: dict = Depends(
     if thread["user_id"] != user["user_id"]:
         await push_notification(db, thread["user_id"], "forum_reply",
             f"{user['username']} a répondu à votre sujet",
-            thread["title"][:100], "ding", "MessageCircle")
+            thread["title"][:100], "ding", "MessageCircle",
+            params={"username": user["username"], "threadTitle": thread["title"][:100]})
     reply.pop("_id", None)
     return reply
 
@@ -7744,7 +7781,8 @@ async def create_season(req: SeasonCreateReq, user: dict = Depends(get_admin_dep
     all_users = await db.users.find({}, {"_id": 0, "user_id": 1}).to_list(5000)
     for u in all_users:
         await push_notification(db, u["user_id"], "season_start",
-            f"Saison « {req.name} » ouverte", req.description[:200], "war", "Sparkles")
+            f"Saison « {req.name} » ouverte", req.description[:200], "war", "Sparkles",
+            params={"name": req.name, "description": req.description[:200]})
     return season
 
 
@@ -7777,12 +7815,14 @@ async def end_season(season_id: str, user: dict = Depends(get_admin_dep)):
             label = " (Passe Saison ×2)" if has_pass else ""
             await grant_aether(row["user_id"], reward_aether, f"Récompense de saison (rang #{rank}){label}")
             await push_notification(db, row["user_id"], "season_reward",
-                f"Récompense saison #{rank}", f"+{reward_aether} Écus{label}", "coin", "Coins")
+                f"Récompense saison #{rank}", f"+{reward_aether} Écus{label}", "coin", "Coins",
+                params={"variant": "rank", "rank": rank, "reward": reward_aether, "passBonus": bool(has_pass)})
         elif has_pass:
             # Hors Top 50 mais détenteur du pass : récompense de participation.
             await grant_aether(row["user_id"], 500, "Passe Saison — récompense de participation")
             await push_notification(db, row["user_id"], "season_reward",
-                "Passe Saison", "+500 Écus pour votre participation à la saison", "coin", "Ticket")
+                "Passe Saison", "+500 Écus pour votre participation à la saison", "coin", "Ticket",
+                params={"variant": "participation"})
     await db.seasons.update_one({"season_id": season_id}, {"$set": {"active": False, "ended_at": now_utc().isoformat()}})
     return {"ok": True, "ranked": len(rows)}
 
@@ -7898,7 +7938,8 @@ async def send_friend_request(req: FriendReq, user: dict = Depends(get_user_dep)
         "status": "pending", "created_at": now_utc().isoformat(),
     })
     await push_notification(db, target["user_id"], "friend_request",
-        f"{user['username']} souhaite vous lier", "Acceptez ou refusez le pacte d'amitié", "ding", "UserPlus", link="/friends")
+        f"{user['username']} souhaite vous lier", "Acceptez ou refusez le pacte d'amitié", "ding", "UserPlus", link="/friends",
+        params={"username": user["username"]})
     return {"ok": True, "request_id": request_id}
 
 
@@ -7928,7 +7969,8 @@ async def accept_friend_request(request_id: str, user: dict = Depends(get_user_d
         "user_a": a, "user_b": b, "since": now_utc().isoformat(),
     })
     await push_notification(db, req_doc["from_user"], "friend_accepted",
-        f"{user['username']} a accepté votre demande", "Un nouveau lien d'amitié est forgé", "ding", "Users", link="/friends")
+        f"{user['username']} a accepté votre demande", "Un nouveau lien d'amitié est forgé", "ding", "Users", link="/friends",
+        params={"username": user["username"]})
     return {"ok": True}
 
 
@@ -8222,6 +8264,10 @@ async def send_friend_message(friend_id: str, req: FriendMessageReq, user: dict 
             text[:120] + ("…" if len(text) > 120 else ""),
             "ding", "MessageCircle",
             link=f"/friends?chat={user['user_id']}",
+            params={
+                "username": push_doc["from_username"],
+                "preview": text[:120] + ("…" if len(text) > 120 else ""),
+            },
         )
     except Exception:
         pass
@@ -8323,7 +8369,8 @@ async def reply_ticket(ticket_id: str, req: TicketReplyReq, user: dict = Depends
         await push_notification(db, t["user_id"], "ticket_reply",
             f"Le Conseil a répondu à « {t['subject'][:60]} »",
             preview, "ding", "MessageCircle",
-            link=f"/tickets")
+            link=f"/tickets",
+            params={"subject": t["subject"][:60], "preview": preview})
     elif not is_staff:
         await push_staff_alert(
             db, "staff_ticket_reply",
@@ -8359,7 +8406,8 @@ async def set_ticket_status(ticket_id: str, req: TicketStatusReq, user: dict = D
     if is_staff and t["user_id"] != user["user_id"]:
         await push_notification(db, t["user_id"], "ticket_status",
             f"Doléance « {t['subject'][:60]} » → {req.status}",
-            "Le Conseil a mis à jour votre dossier", "ding", "Mail")
+            "Le Conseil a mis à jour votre dossier", "ding", "Mail",
+            params={"subject": t["subject"][:60], "status": req.status})
     return {"ok": True}
 
 
@@ -8503,6 +8551,7 @@ async def admin_resolve_report(report_id: str, req: ReportStatusReq, user: dict 
                 "Signalement traité",
                 "Les modérateurs ont validé votre signalement — merci pour votre vigilance.",
                 "ding", "Shield",
+                params={},
             )
     return {"ok": True}
 
@@ -8559,7 +8608,8 @@ async def admin_grant_aether(req: AetherGrantReq, user: dict = Depends(get_admin
         "admin")
     await push_notification(db, req.target_user_id, "aether_grant",
         f"{sign}{req.amount} Écus du Conseil",
-        req.reason or "Don administratif", "coin", "Coins")
+        req.reason or "Don administratif", "coin", "Coins",
+        params={"sign": sign, "amount": req.amount, "reason": req.reason or ""})
     await push_wallet_updated(req.target_user_id)
     return {"ok": True, "new_aether": new_aether}
 
@@ -8982,6 +9032,7 @@ async def revoke_vip_perks(uid: str, active_title: str | None = None):
             "Pass Ascendant expiré",
             "Ton statut VIP a pris fin. Renouvelle-le dans la boutique pour conserver tes avantages.",
             "ding", "Gem", link="/shop",
+            params={"variant": "expired"},
         )
     except Exception:
         pass

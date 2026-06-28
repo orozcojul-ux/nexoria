@@ -362,6 +362,37 @@
   filter: drop-shadow(0 0 7px rgba(0, 212, 255, 0.75));
 }
 
+.itemGuide {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.16) 0%, rgba(251, 191, 36, 0.05) 55%, transparent 100%);
+  border-left-color: #f59e0b;
+  color: #fef3c7;
+}
+
+.itemGuide:hover {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.24) 0%, rgba(251, 191, 36, 0.1) 55%, transparent 100%);
+  border-left-color: #fbbf24;
+  color: #fffbeb;
+}
+
+.itemGuide .itemIconWrap {
+  border-color: rgba(245, 158, 11, 0.55);
+  background: rgba(245, 158, 11, 0.14);
+  box-shadow:
+    inset 0 0 10px rgba(245, 158, 11, 0.1),
+    0 0 14px rgba(245, 158, 11, 0.25);
+}
+
+.itemGuide .itemIcon {
+  color: #fbbf24;
+  filter: drop-shadow(0 0 7px rgba(251, 191, 36, 0.65));
+}
+
+.itemGuide .itemLabel {
+  color: #fef3c7;
+  font-weight: 700;
+  text-shadow: 0 0 12px rgba(245, 158, 11, 0.25);
+}
+
 .itemIconWrap {
   width: 28px;
   height: 28px;

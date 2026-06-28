@@ -10,11 +10,13 @@ export { getTranslationEntries, flattenForLang, buildAllLangDictionaries };
 
 const warnedKeys = new Set();
 
-/** Resolve string for lang with mandatory fr fallback, then en, then key. */
+/** Resolve string for lang — secondary langs prefer English over French. */
 export function resolveTranslation(entry, lang) {
   if (!entry) return null;
   if (typeof entry === "string") return entry;
-  return entry[lang] ?? entry.fr ?? entry.en ?? null;
+  if (lang === "fr") return entry.fr ?? entry.en ?? null;
+  if (lang === "en") return entry.en ?? entry.fr ?? null;
+  return entry[lang] ?? entry.en ?? entry.fr ?? null;
 }
 
 /** Replace {{var}} and {var} placeholders. */

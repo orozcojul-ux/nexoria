@@ -3,7 +3,8 @@ import { Headphones, Plus, ChevronLeft, Send, Clock, LifeBuoy, MessageSquare } f
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { useI18n } from "@/contexts/I18nContext";
+import TranslatableText from "@/components/content/TranslatableText";
+import TranslatableContent from "@/components/content/TranslatableContent";
 import { translateApiError } from "@/lib/i18n-api";
 import HeroName from "@/components/HeroName";
 import { sfx } from "@/lib/sfx";
@@ -73,7 +74,15 @@ export default function Tickets() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="font-display font-semibold text-sm text-white truncate">{tk.subject}</div>
+                    <div className="font-display font-semibold text-sm text-white truncate">
+                      <TranslatableText
+                        text={tk.subject}
+                        entityType="ticket"
+                        entityId={tk.ticket_id}
+                        field="subject"
+                        compact
+                      />
+                    </div>
                     <div className="text-[11px] text-zinc-500 flex items-center gap-2 mt-1">
                       <Clock className="w-3 h-3" /> {fmtDate(tk.updated_at)}
                     </div>
@@ -191,7 +200,14 @@ function TicketView({ ticketId, onBack }) {
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <div className="text-[9px] uppercase tracking-wider text-zinc-500">{categoryLabel(t, ticket.category)}</div>
-            <h1 className="font-display font-black text-xl text-white mt-0.5">{ticket.subject}</h1>
+            <h1 className="font-display font-black text-xl text-white mt-0.5">
+              <TranslatableText
+                text={ticket.subject}
+                entityType="ticket"
+                entityId={ticket.ticket_id}
+                field="subject"
+              />
+            </h1>
             <div className="text-xs text-zinc-500 mt-1"><HeroName user={ticket.author} size="sm" /> · {fmtDate(ticket.created_at)}</div>
           </div>
           <span className="px-2.5 py-1 rounded text-[10px] uppercase tracking-widest font-bold"
@@ -202,7 +218,13 @@ function TicketView({ ticketId, onBack }) {
       </div>
 
       <PremiumCard tone="cyan" className="p-4 mb-4">
-        <div className="text-zinc-200 whitespace-pre-wrap text-sm leading-relaxed">{ticket.body}</div>
+        <TranslatableContent
+          plain={ticket.body}
+          entityType="ticket"
+          entityId={ticket.ticket_id}
+          field="body"
+          className="text-zinc-200 whitespace-pre-wrap text-sm leading-relaxed"
+        />
         {isStaff && (
           <div className="flex gap-1 mt-4 flex-wrap border-t border-white/5 pt-3" data-testid="ticket-status-actions">
             {STATUS_IDS.map((s) => (
@@ -221,7 +243,13 @@ function TicketView({ ticketId, onBack }) {
               <HeroName user={r.author} size="sm" /> · {fmtDate(r.created_at)}
               {r.is_staff && <span className="text-[9px] uppercase font-bold text-violet-300 px-1.5 py-0.5 rounded bg-violet-500/15">{t("tickets.support")}</span>}
             </div>
-            <div className="text-zinc-200 whitespace-pre-wrap text-sm">{r.content}</div>
+            <TranslatableContent
+              plain={r.content}
+              entityType="ticket_reply"
+              entityId={r.reply_id}
+              field="content"
+              className="text-zinc-200 whitespace-pre-wrap text-sm"
+            />
           </PremiumCard>
         ))}
       </div>

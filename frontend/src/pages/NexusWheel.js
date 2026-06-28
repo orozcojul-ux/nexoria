@@ -213,7 +213,7 @@ export default function NexusWheel() {
             </div>
             {canSpin && spinsRemaining > 0 && dailyLimit > 1 && (
               <p className="nw-spins-left" data-testid="nexus-wheel-spins-remaining">
-                {t("nexusWheel.spinsLeft", { count: spinsRemaining })}
+                {t(spinsRemaining === 1 ? "nexusWheel.spinsLeft_one" : "nexusWheel.spinsLeft_other", { count: spinsRemaining })}
               </p>
             )}
           </PremiumCard>

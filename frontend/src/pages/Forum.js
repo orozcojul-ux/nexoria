@@ -485,7 +485,16 @@ function ThreadList({ category, forumMute, onBack, onOpen }) {
                       </span>
                       <span className="forum-topic-line-body">
                         <span className="forum-topic-line-titlerow">
-                          <span className="forum-topic-line-title">{th.title}</span>
+                          <span className="forum-topic-line-title">
+                            <TranslatableText
+                              as="span"
+                              text={th.title}
+                              entityType="forum_thread"
+                              entityId={th.thread_id}
+                              field="title"
+                              compact
+                            />
+                          </span>
                           {th.pinned && <span className="forum-badge forum-badge--pin"><Pin className="w-2.5 h-2.5" /> {t("forum.pinned")}</span>}
                           {th.locked && <span className="forum-badge forum-badge--lock"><Lock className="w-2.5 h-2.5" /> {t("forum.badge.closed")}</span>}
                           {isNew && !th.pinned && <span className="forum-badge forum-badge--new">{t("forum.badge.new")}</span>}
@@ -766,7 +775,16 @@ function ThreadView({ threadId, category, forumMute, onBack, onDeleted }) {
           {catName}
         </button>
         <span className="mx-2">/</span>
-        <span className="text-zinc-300 truncate inline-block max-w-[12rem] align-bottom">{thread.title}</span>
+        <span className="text-zinc-300 truncate inline-block max-w-[12rem] align-bottom">
+          <TranslatableText
+            as="span"
+            text={thread.title}
+            entityType="forum_thread"
+            entityId={thread.thread_id}
+            field="title"
+            compact
+          />
+        </span>
       </nav>
 
       <PremiumCard tone="gold" className="p-5 mb-4">

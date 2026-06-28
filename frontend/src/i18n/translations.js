@@ -119,12 +119,12 @@ export const TRANSLATIONS = {
   "pub.card.shop.desc": T("Cosmétiques, montures et trésors rares", "Cosmetics, mounts and rare treasures"),
   "pub.card.shop.btn": T("EXPLORER LA BOUTIQUE", "EXPLORE THE SHOP"),
 
-  "pub.news.title": T("ACTUALITÉS RÉCENTES", "RECENT NEWS"),
-  "pub.news.all": T("VOIR TOUTES LES ACTUALITÉS", "VIEW ALL NEWS"),
-  "pub.news.cat.event": T("ÉVÉNEMENT", "EVENT"),
-  "pub.news.cat.update": T("MISE À JOUR", "UPDATE"),
-  "pub.news.cat.community": T("COMMUNAUTÉ", "COMMUNITY"),
-  "pub.news.cat.announce": T("ANNONCE", "ANNOUNCEMENT"),
+  "pub.news.title": T("ACTUALITÉS RÉCENTES", "RECENT NEWS", { es: "NOTICIAS RECIENTES", de: "AKTUELLE NEWS", it: "NOTIZIE RECENTI", pt: "NOTÍCIAS RECENTES", nl: "RECENT NIEUWS", ja: "最新ニュース" }),
+  "pub.news.all": T("VOIR TOUTES LES ACTUALITÉS", "VIEW ALL NEWS", { es: "VER TODAS LAS NOTICIAS", de: "ALLE NEWS ANSEHEN", it: "VEDI TUTTE LE NOTIZIE", pt: "VER TODAS AS NOTÍCIAS", nl: "BEKIJK AL HET NIEUWS", ja: "すべてのニュースを見る" }),
+  "pub.news.cat.event": T("ÉVÉNEMENT", "EVENT", { es: "EVENTO", de: "EVENT", it: "EVENTO", pt: "EVENTO", nl: "EVENEMENT", ja: "イベント" }),
+  "pub.news.cat.update": T("MISE À JOUR", "UPDATE", { es: "ACTUALIZACIÓN", de: "UPDATE", it: "AGGIORNAMENTO", pt: "ATUALIZAÇÃO", nl: "UPDATE", ja: "アップデート" }),
+  "pub.news.cat.community": T("COMMUNAUTÉ", "COMMUNITY", { es: "COMUNIDAD", de: "COMMUNITY", it: "COMUNITÀ", pt: "COMUNIDADE", nl: "GEMEENSCHAP", ja: "コミュニティ" }),
+  "pub.news.cat.announce": T("ANNONCE", "ANNOUNCEMENT", { es: "ANUNCIO", de: "ANKÜNDIGUNG", it: "ANNUNCIO", pt: "ANÚNCIO", nl: "AANKONDIGING", ja: "お知らせ" }),
 
   "pub.news.1.title": T("Invasion des Failles Dimensionnelles", "Dimensional Rift Invasion"),
   "pub.news.1.desc": T("Un portail instable menace le Nexus. Les héros sont appelés à défendre les sanctuaires.", "An unstable portal threatens the Nexus. Heroes are called to defend the sanctuaries."),
