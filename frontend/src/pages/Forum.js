@@ -46,6 +46,20 @@ function getCategoryName(t, category, fallback = "") {
   return result !== key ? result : fallback;
 }
 
+function ForumTopicTitle({ threadId, title, className = "" }) {
+  return (
+    <TranslatableText
+      as="span"
+      text={title}
+      entityType="forum_thread"
+      entityId={threadId}
+      field="title"
+      compact
+      className={className}
+    />
+  );
+}
+
 export default function Forum() {
   const { t, fmtDate } = useI18n();
   const banner = usePageBanner("forum");
@@ -230,7 +244,9 @@ export default function Forum() {
                   >
                     <span className="forum-topic-ico"><TIcon /></span>
                     <span className="forum-topic-body">
-                      <span className="forum-topic-title">{tpc.title}</span>
+                      <span className="forum-topic-title">
+                        <ForumTopicTitle threadId={tpc.thread_id} title={tpc.title} />
+                      </span>
                       <span className="forum-topic-sub">{getCategoryName(t, tpc.category, c?.name) || t("forum.defaultCategory")}</span>
                     </span>
                     <span className="forum-topic-meta">
@@ -316,7 +332,9 @@ function ForumSidebar({ categories, recent, totalThreads, query, onQueryChange, 
                 className="w-full text-left rounded-lg border border-white/5 bg-black/20 px-2.5 py-2 hover:border-violet-500/30 transition-colors"
                 data-testid={`forum-recent-${tpc.thread_id}`}
               >
-                <div className="text-xs font-display font-semibold text-white truncate">{tpc.title}</div>
+                <div className="text-xs font-display font-semibold text-white truncate">
+                  <ForumTopicTitle threadId={tpc.thread_id} title={tpc.title} />
+                </div>
                 <div className="text-[10px] text-zinc-500 mt-0.5">{fmtDate(tpc.last_activity_at)}</div>
               </button>
             ))}
@@ -571,7 +589,9 @@ function ThreadList({ category, forumMute, onBack, onOpen }) {
                 {pinned.slice(0, 5).map((th) => (
                   <button key={th.thread_id} type="button" className="forum-pin-mini" onClick={() => onOpen(th.thread_id)}>
                     <Pin className="w-3 h-3 shrink-0" style={{ color: "#f0ca6a" }} />
-                    <span className="forum-pin-mini-title">{th.title}</span>
+                    <span className="forum-pin-mini-title">
+                      <ForumTopicTitle threadId={th.thread_id} title={th.title} />
+                    </span>
                   </button>
                 ))}
               </div>

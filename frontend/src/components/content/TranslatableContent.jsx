@@ -2,6 +2,8 @@ import React from "react";
 import ForumRichContent from "@/components/forum/ForumRichContent";
 import { useContentTranslation } from "@/hooks/useContentTranslation";
 import ContentTranslationBar from "./ContentTranslationBar";
+import { stripHtml } from "@/lib/stripHtml";
+import { plainTextToRichHtml } from "@/lib/plain-to-html";
 
 /** Rich or plain UGC body with automatic translation into the viewer language. */
 export default function TranslatableContent({
@@ -14,26 +16,36 @@ export default function TranslatableContent({
   enabled = true,
   className = "",
 }) {
-  const sourceText = (plain || "").trim()
-    || (html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const sourceHtml = (html || "").trim();
+  const sourcePlain = (plain || "").trim()
+    || stripHtml(sourceHtml, { preserveBreaks: true });
   const {
     visible,
+    visibleHtml,
     isTranslated,
     loading,
     failed,
     meta,
     showOriginal,
     toggleOriginal,
-  } = useContentTranslation(sourceText, { entityType, entityId, field, auto, enabled });
+  } = useContentTranslation(sourcePlain, {
+    html: sourceHtml,
+    entityType,
+    entityId,
+    field: sourceHtml ? `${field}_html` : field,
+    auto,
+    enabled,
+  });
 
   const showTranslated = !showOriginal
     && !loading
-    && Boolean(visible?.trim())
-    && visible.trim() !== sourceText.trim();
+    && isTranslated;
 
   let body;
-  if (showTranslated) {
-    body = <ForumRichContent plain={visible} className={className} />;
+  if (showTranslated && visibleHtml) {
+    body = <ForumRichContent html={visibleHtml} className={className} />;
+  } else if (showTranslated) {
+    body = <ForumRichContent html={plainTextToRichHtml(visible)} className={className} />;
   } else {
     body = <ForumRichContent html={html} plain={plain} className={className} />;
   }

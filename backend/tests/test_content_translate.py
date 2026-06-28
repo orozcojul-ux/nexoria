@@ -25,3 +25,15 @@ def test_cache_get_skips_when_db_is_none():
     ct.init(None)
     import asyncio
     assert asyncio.run(ct._cache_get("any-key")) is None
+
+
+def test_mark_and_inject_html_preserves_structure():
+    from content_translate import inject_html_segments, mark_html_segments
+
+    source = "<p>Hello <strong>world</strong></p><p>Second <mark>line</mark></p>"
+    marked, segments = mark_html_segments(source)
+    assert segments == ["Hello ", "world", "Second ", "line"]
+    assert "<strong>" in marked and 'data-nx-tx="1"' in marked
+    translated = ["Hola ", "mundo", "Segunda ", "línea"]
+    out = inject_html_segments(marked, translated)
+    assert out == "<p>Hola <strong>mundo</strong></p><p>Segunda <mark>línea</mark></p>"

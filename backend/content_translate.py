@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import logging
 import os
 import re
 import time
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from typing import Any
 
 import libretranslate_client
@@ -277,6 +279,230 @@ async def _translate_with_providers(text: str, source: str, target: str) -> tupl
     return None, "none"
 
 
+HTML_MARKER_ATTR = "data-nx-tx"
+HTML_MARKER_RE = re.compile(
+    rf'<span {HTML_MARKER_ATTR}="(\d+)">.*?</span>',
+    re.DOTALL,
+)
+MAX_HTML_SEGMENTS = 80
+
+
+class _HtmlSegmentMarker(HTMLParser):
+    """Split HTML into a fixed template + translatable text segments."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.chunks: list[str] = []
+        self.segments: list[str] = []
+
+    def _append(self, value: str) -> None:
+        if value:
+            self.chunks.append(value)
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        parts = [f"<{tag}"]
+        for key, val in attrs:
+            if val is None:
+                parts.append(f" {key}")
+            else:
+                parts.append(f' {key}="{html.escape(val, quote=True)}"')
+        parts.append(">")
+        self._append("".join(parts))
+
+    def handle_endtag(self, tag: str) -> None:
+        self._append(f"</{tag}>")
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        parts = [f"<{tag}"]
+        for key, val in attrs:
+            if val is None:
+                parts.append(f" {key}")
+            else:
+                parts.append(f' {key}="{html.escape(val, quote=True)}"')
+        parts.append(" />")
+        self._append("".join(parts))
+
+    def handle_data(self, data: str) -> None:
+        if not data:
+            return
+        if not data.strip():
+            self._append(data)
+            return
+        idx = len(self.segments)
+        self.segments.append(data)
+        self._append(
+            f'<span {HTML_MARKER_ATTR}="{idx}">{html.escape(data, quote=False)}</span>',
+        )
+
+    def handle_entityref(self, name: str) -> None:
+        self._append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        self._append(f"&#{name};")
+
+    def marked_html(self) -> str:
+        return "".join(self.chunks)
+
+
+def mark_html_segments(raw_html: str) -> tuple[str, list[str]]:
+    parser = _HtmlSegmentMarker()
+    parser.feed(raw_html or "")
+    parser.close()
+    return parser.marked_html(), parser.segments
+
+
+def inject_html_segments(marked_html: str, translated_segments: list[str]) -> str:
+    def repl(match: re.Match[str]) -> str:
+        idx = int(match.group(1))
+        text = translated_segments[idx] if 0 <= idx < len(translated_segments) else ""
+        return html.escape(text, quote=False)
+
+    return HTML_MARKER_RE.sub(repl, marked_html or "")
+
+
+async def translate_html(
+    raw_html: str,
+    target: str,
+    *,
+    source: str | None = None,
+    entity_type: str | None = None,
+    entity_id: str | None = None,
+    field: str | None = None,
+    client_key: str = "anon",
+) -> dict[str, Any]:
+    """Translate HTML while preserving tags, bold, highlights and block structure."""
+    html_in = (raw_html or "").strip()
+    if len(html_in) < MIN_TEXT_LEN:
+        return {
+            "text": raw_html or "",
+            "original": raw_html or "",
+            "source_lang": source or DEFAULT_SOURCE,
+            "target_lang": normalize_lang(target),
+            "same_language": True,
+            "cached": False,
+            "provider": "none",
+            "format": "html",
+        }
+
+    _check_rate_limit(client_key, entity_type, entity_id, field)
+
+    marked, segments = mark_html_segments(html_in)
+    if not segments:
+        return await translate_text(
+            html_in,
+            target,
+            source=source,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            field=field,
+            client_key=client_key,
+            skip_rate_limit=True,
+        )
+
+    if len(segments) > MAX_HTML_SEGMENTS:
+        plain = re.sub(r"<[^>]+>", " ", html_in)
+        plain = re.sub(r"\s+", " ", plain).strip()
+        result = await translate_text(
+            plain,
+            target,
+            source=source,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            field=field,
+            client_key=client_key,
+            skip_rate_limit=True,
+        )
+        result["format"] = "plain"
+        return result
+
+    target_lang = normalize_lang(target)
+    sample = " ".join(s.strip() for s in segments[:3] if s.strip())
+    src_lang = normalize_lang(source) if source else await detect_source(sample or html_in)
+    src_hash = text_hash(html_in)
+
+    if src_lang == target_lang:
+        return {
+            "text": html_in,
+            "original": html_in,
+            "source_lang": src_lang,
+            "target_lang": target_lang,
+            "same_language": True,
+            "cached": False,
+            "provider": "none",
+            "format": "html",
+        }
+
+    cache_key = make_cache_key(entity_type, entity_id, field, src_lang, target_lang, src_hash)
+    cached = await _cache_get(cache_key)
+    if cached and cached.get("text"):
+        return {
+            "text": cached["text"],
+            "original": html_in,
+            "source_lang": src_lang,
+            "target_lang": target_lang,
+            "same_language": False,
+            "cached": True,
+            "provider": cached.get("provider") or "cache",
+            "format": "html",
+        }
+
+    translated_segments: list[str] = []
+    providers: set[str] = set()
+    for idx, segment in enumerate(segments):
+        seg_field = f"{field}_seg{idx}" if field else f"seg{idx}"
+        seg_result = await translate_text(
+            segment,
+            target,
+            source=src_lang,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            field=seg_field,
+            client_key=client_key,
+            skip_rate_limit=True,
+        )
+        if seg_result.get("unavailable"):
+            return {
+                "text": html_in,
+                "original": html_in,
+                "source_lang": src_lang,
+                "target_lang": target_lang,
+                "same_language": False,
+                "cached": False,
+                "provider": "none",
+                "unavailable": True,
+                "format": "html",
+            }
+        translated_segments.append(seg_result.get("text") or segment)
+        provider = seg_result.get("provider")
+        if provider:
+            providers.add(str(provider))
+
+    out_html = inject_html_segments(marked, translated_segments)
+    provider = "mixed" if len(providers) > 1 else (next(iter(providers)) if providers else "none")
+
+    await _cache_set(
+        cache_key,
+        text=out_html,
+        source=src_lang,
+        target=target_lang,
+        src_hash=src_hash,
+        provider=provider,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        field=field,
+    )
+    return {
+        "text": out_html,
+        "original": html_in,
+        "source_lang": src_lang,
+        "target_lang": target_lang,
+        "same_language": False,
+        "cached": False,
+        "provider": provider,
+        "format": "html",
+    }
+
+
 async def translate_text(
     text: str,
     target: str,
@@ -286,9 +512,11 @@ async def translate_text(
     entity_id: str | None = None,
     field: str | None = None,
     client_key: str = "anon",
+    skip_rate_limit: bool = False,
 ) -> dict[str, Any]:
     """Translate a text segment with cache + provider chain."""
-    _check_rate_limit(client_key, entity_type, entity_id, field)
+    if not skip_rate_limit:
+        _check_rate_limit(client_key, entity_type, entity_id, field)
 
     raw = (text or "").strip()
     if len(raw) < MIN_TEXT_LEN:

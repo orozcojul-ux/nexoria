@@ -6573,7 +6573,8 @@ async def admin_update_team_member_profile(user_id: str, req: TeamMemberProfileR
 
 
 class ContentTranslateReq(BaseModel):
-    text: str = Field(..., max_length=12000)
+    text: str = Field("", max_length=12000)
+    html: Optional[str] = Field(None, max_length=12000)
     target_lang: Optional[str] = None
     source_lang: Optional[str] = None
     entity_type: Optional[str] = None
@@ -6604,15 +6605,26 @@ async def api_content_translate(req: ContentTranslateReq, request: Request):
         request.headers.get("accept-language"),
     )
     try:
-        result = await content_translate.translate_text(
-            req.text,
-            target,
-            source=req.source_lang,
-            entity_type=req.entity_type,
-            entity_id=req.entity_id,
-            field=req.field,
-            client_key=client_key,
-        )
+        if req.html and req.html.strip():
+            result = await content_translate.translate_html(
+                req.html,
+                target,
+                source=req.source_lang,
+                entity_type=req.entity_type,
+                entity_id=req.entity_id,
+                field=req.field,
+                client_key=client_key,
+            )
+        else:
+            result = await content_translate.translate_text(
+                req.text,
+                target,
+                source=req.source_lang,
+                entity_type=req.entity_type,
+                entity_id=req.entity_id,
+                field=req.field,
+                client_key=client_key,
+            )
     except ValueError as exc:
         if str(exc) == "rate_limited":
             raise HTTPException(429, "Trop de traductions — réessayez dans un instant")

@@ -175,8 +175,12 @@ export const TRANSLATIONS_PAGES_ZONES = {
   "forum.portalBack": T("← Portail communautaire", "← Community portal", { es: "← Community portal", de: "← Community portal", it: "← Community portal", pt: "← Community portal", nl: "← Community portal", ja: "← Community portal" }),
   "forum.publish": T("Publier", "Publish", { es: "Publicar", de: "Veröffentlichen", it: "Pubblica", pt: "Publicar", nl: "Publiceren", ja: "公開" }),
   "forum.publishWithXp": T("Publier (+30 XP)", "Publish (+30 XP)", { es: "Publicar (+30 XP)", de: "Veröffentlichen (+30 XP)", it: "Pubblica (+30 XP)", pt: "Publicar (+30 XP)", nl: "Publiceren (+30 XP)", ja: "公開 (+30 XP)" }),
-  "forum.recent": T("Activité récente", "Recent activity", { es: "Recientes activity", de: "Aktuell activity", it: "Recent activity", pt: "Recent activity", nl: "Recent activity", ja: "Recent activity" }),
-  "forum.recentTopics": T("Sujets récents", "Recent topics", { es: "Temas recientes", de: "Aktuelle Themen", it: "Recent topics", pt: "Recent topics", nl: "Recent topics", ja: "Recent topics" }),
+  "forum.recent": T("Activité récente", "Recent activity", {
+    es: "Actividad reciente", de: "Aktuelle Aktivität", it: "Attività recente", pt: "Atividade recente", nl: "Recente activiteit", ja: "最近のアクティビティ",
+  }),
+  "forum.recentTopics": T("Sujets récents", "Recent topics", {
+    es: "Temas recientes", de: "Aktuelle Themen", it: "Argomenti recenti", pt: "Tópicos recentes", nl: "Recente onderwerpen", ja: "最近のトピック",
+  }),
   "forum.replies": T("Réponses", "Replies", { es: "Respuestas", de: "Antworten", it: "Replies", pt: "Replies", nl: "Replies", ja: "Replies" }),
   "forum.repliesWithCount": T("{count} réponses", "{count} replies", { es: "{count} replies", de: "{count} replies", it: "{count} replies", pt: "{count} replies", nl: "{count} replies", ja: "{count} replies" }),
   "forum.reply": T("Répondre", "Reply", { es: "Responder", de: "Antworten", it: "Rispondi", pt: "Responder", nl: "Antwoorden", ja: "返信" }),

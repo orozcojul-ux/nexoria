@@ -27,6 +27,7 @@ async function postTranslate(payload, attempt = 0) {
 
 export async function translateContent({
   text,
+  html,
   targetLang,
   sourceLang,
   entityType,
@@ -34,7 +35,8 @@ export async function translateContent({
   field,
 }) {
   return postTranslate({
-    text,
+    text: text || "",
+    html: html || undefined,
     target_lang: targetLang,
     source_lang: sourceLang,
     entity_type: entityType,
