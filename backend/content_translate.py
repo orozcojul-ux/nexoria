@@ -184,6 +184,44 @@ async def detect_source(text: str) -> str:
     return _heuristic_source(text)
 
 
+async def _gemini_translate_html(html: str, source: str, target: str) -> str | None:
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return None
+    model = os.environ.get("DISCORD_TRANSLATE_MODEL", "gemini/gemini-2.0-flash")
+    source_name = TARGET_LANG_NAMES.get(source, source)
+    target_name = TARGET_LANG_NAMES.get(target, source)
+    system = (
+        f"Tu es un traducteur professionnel pour NEXORIA (jeu RPG).\n"
+        f"Traduis INTÉGRALEMENT du {source_name} vers le {target_name}.\n"
+        "Conserve TOUTES les balises HTML exactement (<p>, <strong>, <mark>, <ul>, <li>, <br>, etc.).\n"
+        "Traduis 100% du texte visible — aucune phrase ne doit rester dans la langue source.\n"
+        "Ne traduis PAS : NEXORIA, Nexus, Écus, pseudos de joueurs, URLs.\n"
+        "Retourne UNIQUEMENT le HTML traduit, sans commentaire ni markdown."
+    )
+    try:
+        import litellm
+
+        response = await litellm.acompletion(
+            model=model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": html},
+            ],
+            api_key=api_key,
+            max_tokens=min(8000, max(512, len(html) * 2)),
+            temperature=0.15,
+        )
+        out = str(response.choices[0].message.content or "").strip()
+        if out.startswith("```"):
+            out = re.sub(r"^```(?:html)?\s*", "", out)
+            out = re.sub(r"\s*```$", "", out)
+        return out or None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Content Gemini HTML translate failed (%s→%s): %s", source, target, str(exc)[:160])
+        return None
+
+
 async def _gemini_translate_text(text: str, source: str, target: str) -> str | None:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
@@ -193,8 +231,18 @@ async def _gemini_translate_text(text: str, source: str, target: str) -> str | N
     target_name = TARGET_LANG_NAMES.get(target, target)
     system = (
         f"Tu es un traducteur professionnel pour NEXORIA (jeu RPG).\n"
-        f"Traduis fidèlement du {source_name} vers le {target_name}.\n"
-        "Conserve le Markdown, les emojis, les retours à la ligne.\n"
+        f"Traduis INTÉGRALEMENT du {source_name} vers le {target_name}.\n"
+    )
+    if "[[[SEG:" in text:
+        system += (
+            "Conserve EXACTEMENT les marqueurs [[[SEG:n]]] et [[[/SEG:n]]] sans les modifier.\n"
+            "Traduis TOUT le texte entre les marqueurs — aucun fragment ne reste dans la langue source.\n"
+        )
+    else:
+        system += (
+            "Conserve le Markdown, les emojis, les retours à la ligne.\n"
+        )
+    system += (
         "Ne traduis PAS : NEXORIA, Nexus, Écus, noms propres de joueurs, URLs.\n"
         "Retourne UNIQUEMENT le texte traduit, sans guillemets ni commentaire."
     )
@@ -265,6 +313,10 @@ async def _mymemory_translate(text: str, source: str, target: str) -> str | None
 
 
 async def _translate_with_providers(text: str, source: str, target: str) -> tuple[str | None, str]:
+    if os.environ.get("GEMINI_API_KEY", "").strip():
+        result = await _gemini_translate_text(text, source, target)
+        if result is not None:
+            return result, "gemini"
     if _use_libretranslate():
         result = await libretranslate_client.translate_text(text, source, target)
         if result is not None:
@@ -272,10 +324,6 @@ async def _translate_with_providers(text: str, source: str, target: str) -> tupl
     result = await _mymemory_translate(text, source, target)
     if result is not None:
         return result, "mymemory"
-    if os.environ.get("GEMINI_API_KEY", "").strip():
-        result = await _gemini_translate_text(text, source, target)
-        if result is not None:
-            return result, "gemini"
     return None, "none"
 
 
@@ -285,6 +333,30 @@ HTML_MARKER_RE = re.compile(
     re.DOTALL,
 )
 MAX_HTML_SEGMENTS = 80
+SEG_PACK_RE = re.compile(
+    r"\[\[\[SEG:(\d+)\]\]\](.*?)\[\[\[/SEG:\1\]\]\]",
+    re.DOTALL,
+)
+
+
+def pack_segments(segments: list[str]) -> str:
+    return "".join(f"[[[SEG:{idx}]]]{seg}[[[/SEG:{idx}]]]" for idx, seg in enumerate(segments))
+
+
+def unpack_segments(text: str, count: int) -> list[str] | None:
+    matches = [(int(m.group(1)), m.group(2)) for m in SEG_PACK_RE.finditer(text or "")]
+    if len(matches) != count:
+        return None
+    matches.sort(key=lambda item: item[0])
+    if [idx for idx, _ in matches] != list(range(count)):
+        return None
+    return [part for _, part in matches]
+
+
+def _segments_changed(original: list[str], translated: list[str]) -> bool:
+    if len(original) != len(translated):
+        return False
+    return any(o.strip() != t.strip() for o, t in zip(original, translated))
 
 
 class _HtmlSegmentMarker(HTMLParser):
@@ -449,6 +521,58 @@ async def translate_html(
                 "format": "html",
             }
 
+    gemini_html = await _gemini_translate_html(html_in, src_lang, target_lang)
+    if gemini_html and gemini_html.strip() != html_in.strip():
+        await _cache_set(
+            cache_key,
+            text=gemini_html,
+            source=src_lang,
+            target=target_lang,
+            src_hash=src_hash,
+            provider="gemini-html",
+            entity_type=entity_type,
+            entity_id=entity_id,
+            field=field,
+        )
+        return {
+            "text": gemini_html,
+            "original": html_in,
+            "source_lang": src_lang,
+            "target_lang": target_lang,
+            "same_language": False,
+            "cached": False,
+            "provider": "gemini-html",
+            "format": "html",
+        }
+
+    if segments:
+        packed = pack_segments(segments)
+        packed_out, pack_provider = await _translate_with_providers(packed, src_lang, target_lang)
+        unpacked = unpack_segments(packed_out or "", len(segments)) if packed_out else None
+        if unpacked and _segments_changed(segments, unpacked):
+            out_html = inject_html_segments(marked, unpacked)
+            await _cache_set(
+                cache_key,
+                text=out_html,
+                source=src_lang,
+                target=target_lang,
+                src_hash=src_hash,
+                provider=pack_provider,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                field=field,
+            )
+            return {
+                "text": out_html,
+                "original": html_in,
+                "source_lang": src_lang,
+                "target_lang": target_lang,
+                "same_language": False,
+                "cached": False,
+                "provider": pack_provider,
+                "format": "html",
+            }
+
     translated_segments: list[str] = []
     providers: set[str] = set()
     for idx, segment in enumerate(segments):
@@ -464,18 +588,14 @@ async def translate_html(
             skip_rate_limit=True,
         )
         if seg_result.get("unavailable"):
-            return {
-                "text": html_in,
-                "original": html_in,
-                "source_lang": src_lang,
-                "target_lang": target_lang,
-                "same_language": False,
-                "cached": False,
-                "provider": "none",
-                "unavailable": True,
-                "format": "html",
-            }
-        translated_segments.append(seg_result.get("text") or segment)
+            seg_text = segment
+        else:
+            seg_text = seg_result.get("text") or segment
+        if seg_text.strip() == segment.strip() and src_lang != target_lang:
+            gemini_seg = await _gemini_translate_text(segment, src_lang, target_lang)
+            if gemini_seg and gemini_seg.strip() != segment.strip():
+                seg_text = gemini_seg
+        translated_segments.append(seg_text)
         provider = seg_result.get("provider")
         if provider:
             providers.add(str(provider))
@@ -573,6 +693,24 @@ async def translate_text(
             "same_language": False,
             "cached": False,
             "provider": "none",
+            "unavailable": True,
+        }
+
+    if translated.strip() == raw.strip() and src_lang != target_lang:
+        gemini_retry = await _gemini_translate_text(raw, src_lang, target_lang)
+        if gemini_retry and gemini_retry.strip() != raw.strip():
+            translated = gemini_retry
+            provider = "gemini-retry"
+
+    if translated.strip() == raw.strip() and src_lang != target_lang:
+        return {
+            "text": raw,
+            "original": raw,
+            "source_lang": src_lang,
+            "target_lang": target_lang,
+            "same_language": False,
+            "cached": False,
+            "provider": provider,
             "unavailable": True,
         }
 

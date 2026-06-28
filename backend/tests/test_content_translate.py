@@ -37,3 +37,13 @@ def test_mark_and_inject_html_preserves_structure():
     translated = ["Hola ", "mundo", "Segunda ", "línea"]
     out = inject_html_segments(marked, translated)
     assert out == "<p>Hola <strong>mundo</strong></p><p>Segunda <mark>línea</mark></p>"
+
+
+def test_pack_and_unpack_segments():
+    from content_translate import pack_segments, unpack_segments
+
+    segments = ["Bonjour", "le forum", "les rôles"]
+    packed = pack_segments(segments)
+    fake = packed.replace("Bonjour", "Hola").replace("le forum", "el foro").replace("les rôles", "los roles")
+    out = unpack_segments(fake, len(segments))
+    assert out == ["Hola", "el foro", "los roles"]

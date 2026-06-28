@@ -37,7 +37,7 @@ export function useContentTranslation(
   const [failed, setFailed] = useState(false);
   const requestRef = useRef(0);
 
-  const resolvedSourceLang = sourceLang ?? (lang === "fr" ? undefined : "fr");
+  const resolvedSourceLang = sourceLang ?? "fr";
   const hasSource = originalHtml.length >= 2 || original.trim().length >= 2;
 
   useEffect(() => {
