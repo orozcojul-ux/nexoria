@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { translateContent } from "@/lib/content-translate";
+import { translateContent, translateRichHtml } from "@/lib/content-translate";
+import { looksLikeHtml } from "@/lib/html-translate-client";
 import { useI18n } from "@/i18n/LanguageProvider";
+
+function pickTranslatedHtml(data, originalHtml) {
+  if (!data?.text) return null;
+  if (data.format === "html" || looksLikeHtml(data.text)) return data.text;
+  if (originalHtml && looksLikeHtml(originalHtml) && data.text.includes("<")) return data.text;
+  return null;
+}
 
 /**
  * Auto-translate user-generated content into the viewer's UI language.
@@ -47,27 +55,41 @@ export function useContentTranslation(
     setLoading(true);
     setFailed(false);
 
-    translateContent({
-      text: original,
-      html: originalHtml || undefined,
-      targetLang: lang,
-      sourceLang: resolvedSourceLang,
-      entityType,
-      entityId,
-      field,
-    })
+    const run = originalHtml
+      ? translateRichHtml({
+        html: originalHtml,
+        text: original,
+        targetLang: lang,
+        sourceLang: resolvedSourceLang,
+        entityType,
+        entityId,
+        field,
+      })
+      : translateContent({
+        text: original,
+        targetLang: lang,
+        sourceLang: resolvedSourceLang,
+        entityType,
+        entityId,
+        field,
+      });
+
+    run
       .then((data) => {
         if (requestId !== requestRef.current) return;
         setMeta(data);
         if (data?.same_language || data?.unavailable) {
           setDisplay(original);
           setDisplayHtml(originalHtml || null);
-        } else if (data?.format === "html" && data?.text) {
-          setDisplayHtml(data.text);
-          setDisplay(original);
         } else {
-          setDisplayHtml(null);
-          setDisplay(data?.text || original);
+          const translatedHtml = pickTranslatedHtml(data, originalHtml);
+          if (translatedHtml) {
+            setDisplayHtml(translatedHtml);
+            setDisplay(original);
+          } else {
+            setDisplayHtml(null);
+            setDisplay(data?.text || original);
+          }
         }
         setFailed(false);
       })

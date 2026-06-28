@@ -7232,8 +7232,11 @@ def strip_forum_plain(raw: str) -> str:
     if not raw:
         return ""
     text = re.sub(r"<br\s*/?>", "\n", str(raw), flags=re.I)
+    text = re.sub(r"</(?:p|div|li|h[1-6])>", "\n", text, flags=re.I)
     text = re.sub(r"<[^>]+>", "", text)
-    return re.sub(r"\s+", " ", text).strip()
+    text = text.replace("\r\n", "\n")
+    lines = [re.sub(r"[ \t]+", " ", ln).strip() for ln in text.split("\n")]
+    return "\n".join([ln for ln in lines if ln])
 
 
 def _forum_until_active(until_val) -> tuple[bool, str | None]:

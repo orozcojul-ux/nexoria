@@ -435,16 +435,19 @@ async def translate_html(
     cache_key = make_cache_key(entity_type, entity_id, field, src_lang, target_lang, src_hash)
     cached = await _cache_get(cache_key)
     if cached and cached.get("text"):
-        return {
-            "text": cached["text"],
-            "original": html_in,
-            "source_lang": src_lang,
-            "target_lang": target_lang,
-            "same_language": False,
-            "cached": True,
-            "provider": cached.get("provider") or "cache",
-            "format": "html",
-        }
+        cached_text = str(cached["text"])
+        stale_plain = "<" not in cached_text and bool(re.search(r"<[a-z]", html_in, re.I))
+        if not stale_plain:
+            return {
+                "text": cached_text,
+                "original": html_in,
+                "source_lang": src_lang,
+                "target_lang": target_lang,
+                "same_language": False,
+                "cached": True,
+                "provider": cached.get("provider") or "cache",
+                "format": "html",
+            }
 
     translated_segments: list[str] = []
     providers: set[str] = set()
@@ -603,7 +606,16 @@ async def translate_batch(
 ) -> dict[str, Any]:
     target_lang = normalize_lang(target)
     out: dict[str, Any] = {}
-    for item in items[:12]:
+    batch_items = items[:12]
+    if batch_items:
+        first = batch_items[0]
+        _check_rate_limit(
+            client_key,
+            first.get("entity_type"),
+            first.get("entity_id"),
+            first.get("field"),
+        )
+    for item in batch_items:
         key = str(item.get("key") or "text")
         out[key] = await translate_text(
             str(item.get("text") or ""),
@@ -613,5 +625,6 @@ async def translate_batch(
             entity_id=item.get("entity_id"),
             field=item.get("field") or key,
             client_key=client_key,
+            skip_rate_limit=True,
         )
     return {"target_lang": target_lang, "items": out}

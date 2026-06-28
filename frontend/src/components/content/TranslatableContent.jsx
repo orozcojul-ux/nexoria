@@ -3,7 +3,7 @@ import ForumRichContent from "@/components/forum/ForumRichContent";
 import { useContentTranslation } from "@/hooks/useContentTranslation";
 import ContentTranslationBar from "./ContentTranslationBar";
 import { stripHtml } from "@/lib/stripHtml";
-import { plainTextToRichHtml } from "@/lib/plain-to-html";
+import { plainTextToRichHtml, resolveSourceHtml } from "@/lib/plain-to-html";
 
 /** Rich or plain UGC body with automatic translation into the viewer language. */
 export default function TranslatableContent({
@@ -16,7 +16,7 @@ export default function TranslatableContent({
   enabled = true,
   className = "",
 }) {
-  const sourceHtml = (html || "").trim();
+  const sourceHtml = resolveSourceHtml(html, plain);
   const sourcePlain = (plain || "").trim()
     || stripHtml(sourceHtml, { preserveBreaks: true });
   const {
@@ -32,7 +32,7 @@ export default function TranslatableContent({
     html: sourceHtml,
     entityType,
     entityId,
-    field: sourceHtml ? `${field}_html` : field,
+    field,
     auto,
     enabled,
   });
@@ -47,7 +47,7 @@ export default function TranslatableContent({
   } else if (showTranslated) {
     body = <ForumRichContent html={plainTextToRichHtml(visible)} className={className} />;
   } else {
-    body = <ForumRichContent html={html} plain={plain} className={className} />;
+    body = <ForumRichContent html={sourceHtml || html} plain={plain} className={className} />;
   }
 
   return (
