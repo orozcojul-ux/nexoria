@@ -19,17 +19,21 @@ TEMPLATE_PATH = ASSETS_DIR / "welcome_template.png"
 CARD_WIDTH = 1200
 CARD_HEIGHT = 480
 
-# Positions calibrées sur welcome_template.png (1200×480)
-AVATAR_CY = 155
-AVATAR_RADIUS = 72
+AVATAR_CY = 138
+AVATAR_RADIUS = 68
 RING_WIDTH = 5
-NAME_Y = 312
-SUBTITLE_Y = 348
-COVER_BAND = (200, 306, 1000, 334)  # masque la zone « NEW HERO »
 
-GOLD = (212, 175, 90)
-GOLD_LIGHT = (255, 228, 160)
-SUBTITLE_COLOR = (180, 160, 210)
+GOLD = (235, 198, 120)
+GOLD_DARK = (180, 140, 70)
+SUBTITLE_COLOR = (196, 178, 220)
+PANEL_TOP = 208
+PANEL_BOTTOM = 408
+
+GOLD_GRADIENT = (
+    (255, 236, 180),
+    (235, 198, 120),
+    (190, 150, 75),
+)
 
 
 def display_name(user: dict[str, Any]) -> str:
@@ -38,6 +42,18 @@ def display_name(user: dict[str, Any]) -> str:
         or user.get("username")
         or "Aventurier"
     ).strip() or "Aventurier"
+
+
+def welcome_headline() -> str:
+    lang = os.environ.get("DISCORD_WELCOME_CARD_LANG", "fr").strip().lower()
+    return "BIENVENUE" if lang.startswith("fr") else "WELCOME"
+
+
+def welcome_subtitle() -> str:
+    return (
+        os.environ.get("DISCORD_WELCOME_SUBTITLE", "Un nouveau héros rejoint le royaume").strip()
+        or "Un nouveau héros rejoint le royaume"
+    )
 
 
 def _font(size: int, *, bold: bool = True) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -54,7 +70,12 @@ def _font(size: int, *, bold: bool = True) -> ImageFont.FreeTypeFont | ImageFont
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         ]
     if not bold:
-        paths = [p.replace("-Bold", "").replace("b.ttf", ".ttf") for p in paths]
+        paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+            "C:/Windows/Fonts/georgia.ttf",
+            *paths,
+        ]
     for path in paths:
         if Path(path).is_file():
             try:
@@ -69,12 +90,7 @@ def _procedural_background(w: int, h: int) -> Image.Image:
     draw = ImageDraw.Draw(base)
     for y in range(h):
         t = y / max(h - 1, 1)
-        color = (
-            int(12 + 30 * t),
-            int(8 + 8 * t),
-            int(22 + 40 * t),
-            255,
-        )
+        color = (int(12 + 30 * t), int(8 + 8 * t), int(22 + 40 * t), 255)
         draw.line([(0, y), (w, y)], fill=color)
     return base
 
@@ -105,13 +121,13 @@ def _circular_avatar(avatar: Image.Image, size: int) -> Image.Image:
 
 def _draw_gold_ring(base: Image.Image, cx: int, cy: int, radius: int) -> None:
     draw = ImageDraw.Draw(base)
-    outer = radius + RING_WIDTH + 3
-    for i in range(RING_WIDTH):
-        t = i / max(RING_WIDTH - 1, 1)
+    outer = radius + RING_WIDTH + 4
+    for i in range(RING_WIDTH + 2):
+        t = i / max(RING_WIDTH + 1, 1)
         color = (
-            int(GOLD_LIGHT[0] * (1 - t) + GOLD[0] * t),
-            int(GOLD_LIGHT[1] * (1 - t) + GOLD[1] * t),
-            int(GOLD_LIGHT[2] * (1 - t) + GOLD[2] * t),
+            int(GOLD_GRADIENT[0][0] * (1 - t) + GOLD_GRADIENT[2][0] * t),
+            int(GOLD_GRADIENT[0][1] * (1 - t) + GOLD_GRADIENT[2][1] * t),
+            int(GOLD_GRADIENT[0][2] * (1 - t) + GOLD_GRADIENT[2][2] * t),
             255,
         )
         draw.ellipse(
@@ -119,23 +135,36 @@ def _draw_gold_ring(base: Image.Image, cx: int, cy: int, radius: int) -> None:
             outline=color,
             width=2,
         )
-    for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0)):
-        px = cx + dx * (radius + RING_WIDTH + 6)
-        py = cy + dy * (radius + RING_WIDTH + 6)
-        draw.polygon(
-            [(px, py - 5), (px + 5, py), (px, py + 5), (px - 5, py)],
-            fill=GOLD_LIGHT,
-        )
+    glow = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    gdraw = ImageDraw.Draw(glow)
+    gdraw.ellipse(
+        (cx - radius - 8, cy - radius - 8, cx + radius + 8, cy + radius + 8),
+        fill=(140, 90, 220, 45),
+    )
+    glow = glow.filter(ImageFilter.GaussianBlur(radius=6))
+    base.alpha_composite(glow)
 
 
-def _cover_band(base: Image.Image, box: tuple[int, int, int, int]) -> None:
-    x0, y0, x1, y1 = box
-    sample = base.crop((x0, max(0, y0 - 24), x1, y0))
-    if sample.height < 4:
-        return
-    patch = sample.resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS)
-    patch = patch.filter(ImageFilter.GaussianBlur(radius=1.5))
-    base.paste(patch, (x0, y0))
+def _draw_text_panel(base: Image.Image) -> None:
+    """Voile opaque sur la zone texte du template (masque WELCOME / NEW HERO)."""
+    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    x0, x1 = int(CARD_WIDTH * 0.05), int(CARD_WIDTH * 0.95)
+    y0, y1 = PANEL_TOP, PANEL_BOTTOM
+    core_top, core_bottom = y0 + 18, y1 - 18
+
+    draw.rectangle((x0, core_top, x1, core_bottom), fill=(10, 6, 20, 252))
+
+    for y in range(y0, core_top):
+        t = (y - y0) / max(core_top - y0, 1)
+        alpha = int(252 * t)
+        draw.line([(x0, y), (x1, y)], fill=(10, 6, 20, alpha))
+    for y in range(core_bottom, y1):
+        t = 1 - (y - core_bottom) / max(y1 - core_bottom, 1)
+        alpha = int(252 * t)
+        draw.line([(x0, y), (x1, y)], fill=(10, 6, 20, alpha))
+
+    base.alpha_composite(overlay)
 
 
 def _truncate_to_width(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> str:
@@ -147,6 +176,38 @@ def _truncate_to_width(draw: ImageDraw.ImageDraw, text: str, font, max_width: in
     return (text + ell) if text else ell
 
 
+def _auto_font_size(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    max_width: int,
+    start: int,
+    *,
+    bold: bool = True,
+) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    size = start
+    while size > 18:
+        font = _font(size, bold=bold)
+        if draw.textlength(text, font=font) <= max_width:
+            return font
+        size -= 2
+    return _font(18, bold=bold)
+
+
+def _draw_gold_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    y: int,
+    font,
+    max_width: int,
+) -> None:
+    text = _truncate_to_width(draw, text, font, max_width)
+    tw = draw.textlength(text, font=font)
+    x = int((CARD_WIDTH - tw) / 2)
+    draw.text((x + 2, y + 2), text, font=font, fill=(0, 0, 0, 180))
+    draw.text((x + 1, y + 1), text, font=font, fill=(*GOLD_DARK, 255))
+    draw.text((x, y), text, font=font, fill=(*GOLD, 255))
+
+
 def _draw_centered_text(
     draw: ImageDraw.ImageDraw,
     text: str,
@@ -154,14 +215,11 @@ def _draw_centered_text(
     font,
     fill: tuple[int, ...],
     max_width: int,
-    shadow: bool = True,
 ) -> None:
     text = _truncate_to_width(draw, text, font, max_width)
-    w = CARD_WIDTH
     tw = draw.textlength(text, font=font)
-    x = int((w - tw) / 2)
-    if shadow:
-        draw.text((x + 2, y + 2), text, font=font, fill=(0, 0, 0, 160))
+    x = int((CARD_WIDTH - tw) / 2)
+    draw.text((x + 1, y + 1), text, font=font, fill=(0, 0, 0, 140))
     draw.text((x, y), text, font=font, fill=fill)
 
 
@@ -173,23 +231,29 @@ def render_welcome_card(user: dict[str, Any], avatar: Image.Image) -> Image.Imag
     r = AVATAR_RADIUS
     size = r * 2
 
+    _draw_text_panel(base)
+
     av = _circular_avatar(avatar, size)
     base.paste(av, (cx - r, cy - r), av)
     _draw_gold_ring(base, cx, cy, r)
-    _cover_band(base, COVER_BAND)
 
     draw = ImageDraw.Draw(base)
     name = display_name(user)
-    name_font = _font(42)
-    sub_font = _font(22, bold=False)
-    subtitle = os.environ.get(
-        "DISCORD_WELCOME_SUBTITLE",
-        "Un nouveau héros rejoint le royaume",
-    ).strip() or "Un nouveau héros rejoint le royaume"
+    max_w = CARD_WIDTH - 140
 
-    _draw_centered_text(draw, name, NAME_Y, name_font, (*GOLD, 255), CARD_WIDTH - 120)
+    headline_font = _auto_font_size(draw, welcome_headline(), max_w, 44)
+    name_font = _auto_font_size(draw, name, max_w, 62)
+    sub_font = _font(22, bold=False)
+
+    _draw_gold_text(draw, welcome_headline(), 228, headline_font, max_w)
+    _draw_gold_text(draw, name, 292, name_font, max_w)
     _draw_centered_text(
-        draw, subtitle, SUBTITLE_Y, sub_font, (*SUBTITLE_COLOR, 255), CARD_WIDTH - 80, shadow=False,
+        draw,
+        welcome_subtitle(),
+        362,
+        sub_font,
+        (*SUBTITLE_COLOR, 255),
+        max_w,
     )
 
     return base.convert("RGB")

@@ -69,7 +69,7 @@ def _is_globe_reaction(emoji: dict | None) -> bool:
 async def _handle_dispatch(event: str, data: dict[str, Any]) -> None:
     if event == "GUILD_MEMBER_ADD":
         guild_id = str(data.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", ""))
-        asyncio.create_task(discord_welcome.handle_member_join(data, guild_id=guild_id))
+        await discord_welcome.handle_member_join(data, guild_id=guild_id)
         return
 
     if event == "GUILD_MEMBER_UPDATE":

@@ -14,12 +14,18 @@ from discord_welcome_card import (
     CARD_WIDTH,
     display_name,
     render_welcome_card,
+    welcome_headline,
 )
 
 
 def test_display_name_prefers_global_name():
     user = {"id": "1", "username": "smouz", "global_name": "SmouzYi"}
     assert display_name(user) == "SmouzYi"
+
+
+def test_welcome_headline_french_default(monkeypatch):
+    monkeypatch.delenv("DISCORD_WELCOME_CARD_LANG", raising=False)
+    assert welcome_headline() == "BIENVENUE"
 
 
 def test_render_welcome_card_size():

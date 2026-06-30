@@ -1,6 +1,7 @@
 """Message de bienvenue Discord — carte visuelle + texte d'accompagnement."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from pymongo.errors import DuplicateKeyError
 
 import discord_welcome_card
 
@@ -20,6 +22,7 @@ DEFAULT_REGLEMENT_CHANNEL_ID = "1514271110101995651"
 WELCOME_EMBED_COLOR = 0x9B59B6  # violet NEXORIA
 
 _db = None
+_user_locks: dict[str, asyncio.Lock] = {}
 
 
 def init(db) -> None:
@@ -100,14 +103,39 @@ def build_fallback_text(user: dict) -> str:
     return f"{build_welcome_content(user)}\n\n🌌 Bienvenue dans NEXORIA, {discord_welcome_card.display_name(user)} !"
 
 
-async def _already_welcomed(user_id: str) -> bool:
-    if _db is None or not user_id:
+def _user_lock(user_id: str) -> asyncio.Lock:
+    lock = _user_locks.get(user_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _user_locks[user_id] = lock
+    return lock
+
+
+async def _try_claim_welcome(user_id: str) -> bool:
+    """Réserve l'envoi (anti-doublon multi-workers / race Gateway)."""
+    if _db is None:
+        return True
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        await _db.discord_welcome_sent.insert_one(
+            {
+                "user_id": user_id,
+                "status": "pending",
+                "started_at": now,
+            }
+        )
+        return True
+    except DuplicateKeyError:
         return False
-    doc = await _db.discord_welcome_sent.find_one({"user_id": user_id}, {"_id": 1})
-    return doc is not None
 
 
-async def _mark_welcomed(user_id: str, channel_id: str, message_id: str, *, kind: str = "card") -> None:
+async def _finalize_welcome(
+    user_id: str,
+    channel_id: str,
+    message_id: str,
+    *,
+    kind: str,
+) -> None:
     if _db is None or not user_id:
         return
     now = datetime.now(timezone.utc).isoformat()
@@ -115,15 +143,20 @@ async def _mark_welcomed(user_id: str, channel_id: str, message_id: str, *, kind
         {"user_id": user_id},
         {
             "$set": {
-                "user_id": user_id,
                 "channel_id": channel_id,
                 "message_id": message_id,
                 "sent_at": now,
                 "kind": kind,
+                "status": "sent",
             }
         },
-        upsert=True,
     )
+
+
+async def _release_welcome_claim(user_id: str) -> None:
+    if _db is None:
+        return
+    await _db.discord_welcome_sent.delete_one({"user_id": user_id, "status": "pending"})
 
 
 async def _post_message(
@@ -184,7 +217,9 @@ async def send_welcome_message(user: dict, *, channel_id: str, token: str) -> bo
                     image_name=filename,
                 )
                 if body:
-                    await _mark_welcomed(user_id, channel_id, str(body.get("id") or ""), kind="card")
+                    await _finalize_welcome(
+                        user_id, channel_id, str(body.get("id") or ""), kind="card",
+                    )
                     logger.info(
                         "discord welcome card sent user_id=%s channel_id=%s message_id=%s",
                         user_id,
@@ -202,7 +237,9 @@ async def send_welcome_message(user: dict, *, channel_id: str, token: str) -> bo
                 embeds=[build_welcome_embed(user)],
             )
             if body:
-                await _mark_welcomed(user_id, channel_id, str(body.get("id") or ""), kind="embed")
+                await _finalize_welcome(
+                    user_id, channel_id, str(body.get("id") or ""), kind="embed",
+                )
                 logger.info(
                     "discord welcome fallback embed user_id=%s channel_id=%s message_id=%s",
                     user_id,
@@ -218,7 +255,9 @@ async def send_welcome_message(user: dict, *, channel_id: str, token: str) -> bo
                 content=build_fallback_text(user),
             )
             if body:
-                await _mark_welcomed(user_id, channel_id, str(body.get("id") or ""), kind="text")
+                await _finalize_welcome(
+                    user_id, channel_id, str(body.get("id") or ""), kind="text",
+                )
                 return True
     except Exception as exc:  # noqa: BLE001
         logger.warning(
@@ -254,15 +293,18 @@ async def handle_member_join(member: dict, *, guild_id: str = "") -> None:
         logger.warning("discord welcome skipped: token or channel missing")
         return
 
-    if await _already_welcomed(user_id):
-        logger.info("discord welcome skipped user_id=%s reason=already_sent", user_id)
-        return
+    async with _user_lock(user_id):
+        if not await _try_claim_welcome(user_id):
+            logger.info("discord welcome skipped user_id=%s reason=already_claimed", user_id)
+            return
 
-    logger.info(
-        "discord welcome member_join user_id=%s guild_id=%s channel_id=%s",
-        user_id,
-        guild_id,
-        channel_id,
-    )
+        logger.info(
+            "discord welcome member_join user_id=%s guild_id=%s channel_id=%s",
+            user_id,
+            guild_id,
+            channel_id,
+        )
 
-    await send_welcome_message(user, channel_id=channel_id, token=token)
+        ok = await send_welcome_message(user, channel_id=channel_id, token=token)
+        if not ok:
+            await _release_welcome_claim(user_id)
