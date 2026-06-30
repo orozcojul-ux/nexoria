@@ -1867,12 +1867,14 @@ async def _issue_beta_session(user: dict, response: Response, *, auth_method: st
     asyncio.create_task(_notify_friends_presence(user["user_id"], True))
     result = public_user(fresh_user)
     result["session_token"] = token
+    result["beta_key_used"] = key_used or fresh_user.get("beta_key_used")
     result["message"] = "Accès bêta déjà actif. Bienvenue dans le Nexus."
     result["redirect_feed"] = True
     return result
 
 
 async def _activate_beta_key_for_user(user: dict, beta_key: str, response: Response, *, auth_method: str = "beta") -> dict:
+    user_id = user["user_id"]
     if user.get("beta_access"):
         return await _issue_beta_session(user, response, auth_method=auth_method)
 
@@ -1883,29 +1885,34 @@ async def _activate_beta_key_for_user(user: dict, beta_key: str, response: Respo
     key_doc = await beta_access.find_beta_key(db, key_norm)
     if not key_doc or not key_doc.get("active", True):
         raise HTTPException(404, "Clé beta invalide")
-    if not beta_access.beta_key_is_available(key_doc):
-        raise HTTPException(403, "Clé déjà utilisée")
-    if not beta_access.beta_key_matches_user(key_doc, user["user_id"]):
+    if not beta_access.beta_key_matches_user(key_doc, user_id):
         raise HTTPException(403, "Cette clé n'est pas assignée à votre compte")
+    if not beta_access.beta_key_grants_access(key_doc, user_id):
+        raise HTTPException(403, "Clé déjà utilisée")
 
     now = now_utc().isoformat()
-    key_result = await db.beta_keys.update_one(
-        {"key": key_norm, "active": True, "used_by_user_id": None},
-        {
-            "$set": {
-                "used_by_user_id": user["user_id"],
-                "used_by_username": user.get("username"),
-                "used_at": now,
-                "last_used_at": now,
+    key_already_owned = key_doc.get("used_by_user_id") == user_id
+
+    if not key_already_owned:
+        key_result = await db.beta_keys.update_one(
+            {"key": key_norm, "active": True, "used_by_user_id": None},
+            {
+                "$set": {
+                    "used_by_user_id": user_id,
+                    "used_by_username": user.get("username"),
+                    "used_at": now,
+                    "last_used_at": now,
+                },
+                "$inc": {"uses": 1},
             },
-            "$inc": {"uses": 1},
-        },
-    )
-    if key_result.modified_count == 0:
-        raise HTTPException(403, "Clé déjà utilisée")
+        )
+        if key_result.modified_count == 0:
+            key_doc = await beta_access.find_beta_key(db, key_norm)
+            if not key_doc or key_doc.get("used_by_user_id") != user_id:
+                raise HTTPException(403, "Clé déjà utilisée")
 
     await db.users.update_one(
-        {"user_id": user["user_id"], "beta_access": {"$ne": True}},
+        {"user_id": user_id},
         {
             "$set": {
                 "beta_access": True,
@@ -1914,24 +1921,25 @@ async def _activate_beta_key_for_user(user: dict, beta_key: str, response: Respo
             },
         },
     )
-    fresh_user = await db.users.find_one({"user_id": user["user_id"]})
+    fresh_user = await db.users.find_one({"user_id": user_id})
     if not fresh_user or not fresh_user.get("beta_access"):
-        raise HTTPException(409, "Compte déjà activé")
+        raise HTTPException(500, "Impossible d'activer l'accès bêta")
 
-    await claim_beta_activation_rewards(user["user_id"], user.get("username") or "Héros")
-    discord_auth_forum.schedule_beta_redeemed(user.get("username"))
+    if not key_already_owned:
+        await claim_beta_activation_rewards(user_id, user.get("username") or "Héros")
+        discord_auth_forum.schedule_beta_redeemed(user.get("username"))
 
     if not fresh_user.get("discord_id"):
         await db.users.update_one(
-            {"user_id": user["user_id"]},
+            {"user_id": user_id},
             {"$set": {"needs_discord_link": True}},
         )
-        fresh_user = await db.users.find_one({"user_id": user["user_id"]})
+        fresh_user = await db.users.find_one({"user_id": user_id})
 
     token = create_session_token()
     await db.user_sessions.insert_one({
         "session_token": token,
-        "user_id": user["user_id"],
+        "user_id": user_id,
         "expires_at": session_expiry().isoformat(),
         **_session_bootstrap_fields(),
     })
@@ -1940,13 +1948,19 @@ async def _activate_beta_key_for_user(user: dict, beta_key: str, response: Respo
         beta_access.BETA_COOKIE, key_norm, httponly=True, secure=True, samesite="none",
         max_age=30 * 24 * 3600, path="/",
     )
-    await record_user_connection(db, user["user_id"])
+    await record_user_connection(db, user_id)
     discord_auth_forum.schedule_auth_event("login", fresh_user, method=auth_method)
-    asyncio.create_task(_notify_friends_presence(user["user_id"], True))
+    asyncio.create_task(_notify_friends_presence(user_id, True))
 
     result = public_user(fresh_user)
     result["session_token"] = token
-    result["message"] = "Accès bêta activé. Bienvenue dans le Nexus."
+    result["beta_key_used"] = key_norm
+    result["redirect_feed"] = True
+    result["message"] = (
+        "Accès bêta déjà actif. Bienvenue dans le Nexus."
+        if key_already_owned
+        else "Accès bêta activé. Bienvenue dans le Nexus."
+    )
     return result
 
 

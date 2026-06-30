@@ -40,7 +40,11 @@ def gen_beta_key() -> str:
 
 
 def normalize_beta_key(key: str) -> str:
-    return (key or "").strip().upper()[:BETA_KEY_MAX_LEN]
+    raw = (key or "").strip().upper()
+    compact = raw.replace("-", "").replace(" ", "")
+    if compact.startswith("BETA") and len(compact) >= 12:
+        return f"BETA-{compact[4:8]}-{compact[8:12]}"
+    return raw[:BETA_KEY_MAX_LEN]
 
 
 def beta_key_is_available(doc: Optional[dict]) -> bool:
@@ -77,9 +81,16 @@ def beta_key_matches_user(doc: dict, user_id: str) -> bool:
 
 async def find_beta_key(db, key: str) -> Optional[dict]:
     norm = normalize_beta_key(key)
-    if not norm or len(norm) < 8:
+    if not norm or len(norm.replace("-", "")) < 8:
         return None
-    return await db.beta_keys.find_one({"key": norm})
+    doc = await db.beta_keys.find_one({"key": norm})
+    if doc:
+        return doc
+    compact = norm.replace("-", "")
+    if len(compact) >= 12 and compact.startswith("BETA"):
+        alt = f"BETA-{compact[4:8]}-{compact[8:12]}"
+        return await db.beta_keys.find_one({"key": alt})
+    return None
 
 
 def new_beta_key_doc(

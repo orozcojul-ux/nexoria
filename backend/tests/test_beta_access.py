@@ -24,3 +24,9 @@ def test_beta_key_grants_access_for_owner_after_use():
 def test_beta_key_grants_access_when_still_available():
     doc = {"key": "BETA-ABCD-1234", "active": True, "uses": 0, "max_uses": 1}
     assert beta_access.beta_key_grants_access(doc, None) is True
+
+
+def test_normalize_beta_key_accepts_compact_format():
+    assert beta_access.normalize_beta_key("betaabcd1234") == "BETA-ABCD-1234"
+    assert beta_access.normalize_beta_key("BETA-ABCD-1234") == "BETA-ABCD-1234"
+    assert beta_access.normalize_beta_key("  beta-abcd-1234  ") == "BETA-ABCD-1234"

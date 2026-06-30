@@ -5,12 +5,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { translateMaintenanceApiError, translateMaintenanceApiSuccess } from "@/lib/maintenance-i18n";
 import MaintenanceModalShell from "./MaintenanceModalShell";
-import MaintenanceDiscordOAuthButton from "./MaintenanceDiscordOAuthButton";
-import {
-  MAINT_DISCORD_FLOW_BETA,
-  applyMaintenanceDiscordSession,
-  shouldRedirectFeedAfterMaintDiscord,
-} from "@/lib/maintenanceDiscordOAuth";
 
 export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitchToCreate }) {
   const { setUser } = useAuth();
@@ -26,21 +20,15 @@ export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitc
       setToken(data.session_token);
       setUser(data);
     }
-    if (form.betaKey.trim()) {
-      setBetaKey(form.betaKey.trim().toUpperCase());
-    } else if (data.beta_key_used) {
-      setBetaKey(String(data.beta_key_used).toUpperCase());
-    }
+    const key = data.beta_key_used || form.betaKey.trim();
+    if (key) setBetaKey(String(key).toUpperCase());
+
     onSuccess(translateMaintenanceApiSuccess(t, data.message) || t("maintenance.success.beta_activated"));
     onClose();
-    if (shouldRedirectFeedAfterMaintDiscord(data)) {
-      setTimeout(() => window.location.replace("/feed"), 800);
-    }
-  };
 
-  const handleDiscordComplete = ({ data }) => {
-    applyMaintenanceDiscordSession(data, { setUser });
-    finishSuccess(data);
+    if (data.session_token && (data.redirect_feed || data.beta_access)) {
+      window.location.replace("/feed");
+    }
   };
 
   const submit = async (e) => {
@@ -87,26 +75,6 @@ export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitc
             data-testid="maint-beta-key"
           />
         </label>
-
-        <MaintenanceDiscordOAuthButton
-          flow={MAINT_DISCORD_FLOW_BETA}
-          betaKey={form.betaKey}
-          login={form.login}
-          password={form.password}
-          disabled={loading}
-          label={t("maintenance.modal.beta.discord")}
-          testId="maint-beta-discord"
-          onComplete={handleDiscordComplete}
-          onError={(err) => setError(translateMaintenanceApiError(t, err?.message || formatApiError(err)))}
-        />
-
-        <p className="maint-modal-hint text-[11px] text-zinc-500 italic">
-          {t("maintenance.modal.beta.discord_hint")}
-        </p>
-
-        <div className="maint-modal-divider">
-          <span>{t("maintenance.modal.divider_or_email")}</span>
-        </div>
 
         <label className="maint-modal-field">
           <span>{t("maintenance.modal.field.login")}</span>

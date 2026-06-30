@@ -1,36 +1,17 @@
 import React, { useState } from "react";
 import { Loader2 } from "lucide-react";
 import api, { formatApiError } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { translateMaintenanceApiError, translateMaintenanceApiSuccess } from "@/lib/maintenance-i18n";
 import MaintenanceModalShell from "./MaintenanceModalShell";
-import MaintenanceDiscordOAuthButton from "./MaintenanceDiscordOAuthButton";
-import {
-  MAINT_DISCORD_FLOW_REGISTER,
-  applyMaintenanceDiscordSession,
-  shouldRedirectFeedAfterMaintDiscord,
-} from "@/lib/maintenanceDiscordOAuth";
 
 export default function MaintenanceCreateAccountModal({ onClose, onSuccess, onSwitchToBeta }) {
-  const { setUser } = useAuth();
   const { t } = useI18n();
   const [form, setForm] = useState({ username: "", email: "", password: "", confirm: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
-
-  const handleDiscordComplete = ({ data }) => {
-    applyMaintenanceDiscordSession(data, { setUser });
-    if (shouldRedirectFeedAfterMaintDiscord(data)) {
-      onClose();
-      window.location.replace("/feed");
-      return;
-    }
-    onSuccess(translateMaintenanceApiSuccess(t, data.message) || data.message || t("maintenance.success.account_discord"));
-    onClose();
-  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -67,19 +48,6 @@ export default function MaintenanceCreateAccountModal({ onClose, onSuccess, onSw
     >
       <form onSubmit={submit} className="maint-modal-form">
         <p className="maint-modal-notice">{t("maintenance.modal.create.notice")}</p>
-
-        <MaintenanceDiscordOAuthButton
-          flow={MAINT_DISCORD_FLOW_REGISTER}
-          disabled={loading}
-          label={t("maintenance.modal.create.discord")}
-          testId="maint-register-discord"
-          onComplete={handleDiscordComplete}
-          onError={(err) => setError(translateMaintenanceApiError(t, err?.message || formatApiError(err)))}
-        />
-
-        <div className="maint-modal-divider">
-          <span>{t("maintenance.modal.divider_or_email")}</span>
-        </div>
 
         <label className="maint-modal-field">
           <span>{t("maintenance.modal.field.username")}</span>
