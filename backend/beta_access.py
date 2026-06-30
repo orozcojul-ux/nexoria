@@ -58,6 +58,16 @@ def beta_key_is_available(doc: Optional[dict]) -> bool:
     return uses < max_uses
 
 
+def beta_key_grants_access(doc: Optional[dict], user_id: str | None = None) -> bool:
+    """Clé valide, disponible, ou déjà consommée par ce joueur."""
+    if not doc or not doc.get("active", True):
+        return False
+    uid = (user_id or "").strip()
+    if uid and doc.get("used_by_user_id") == uid:
+        return True
+    return beta_key_is_available(doc)
+
+
 def beta_key_matches_user(doc: dict, user_id: str) -> bool:
     assigned = doc.get("assigned_user_id")
     if not assigned:

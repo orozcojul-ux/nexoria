@@ -1,6 +1,7 @@
 """Discord Gateway — réactions 🌍, threads forum, bienvenue membres.
 
 Connexion WebSocket légère (sans discord.py) pour compléter l'endpoint Interactions HTTP.
+Une seule instance par déploiement (verrou MongoDB) pour éviter les événements en double.
 """
 from __future__ import annotations
 
@@ -8,10 +9,14 @@ import asyncio
 import json
 import logging
 import os
+import socket
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
 import websockets
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 import discord_translate
 import discord_welcome
@@ -20,6 +25,8 @@ logger = logging.getLogger("nexoria.discord_gateway")
 
 DISCORD_API = "https://discord.com/api/v10"
 GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json"
+GATEWAY_LOCK_ID = "discord_gateway"
+GATEWAY_LEASE_SECONDS = 45
 
 # GUILDS | GUILD_MEMBERS | GUILD_MESSAGES | GUILD_MESSAGE_REACTIONS
 GATEWAY_INTENTS = (1 << 0) | (1 << 1) | (1 << 9) | (1 << 10)
@@ -27,6 +34,13 @@ GATEWAY_INTENTS = (1 << 0) | (1 << 1) | (1 << 9) | (1 << 10)
 _gateway_task: asyncio.Task | None = None
 _bot_user_id: str = ""
 _stop_event: asyncio.Event | None = None
+_db = None
+_owner_id = f"{socket.gethostname()}:{os.getpid()}"
+
+
+def init(db) -> None:
+    global _db
+    _db = db
 
 
 def is_enabled() -> bool:
@@ -35,6 +49,51 @@ def is_enabled() -> bool:
     ):
         return False
     return bool(os.environ.get("DISCORD_BOT_TOKEN", "").strip())
+
+
+async def _try_acquire_or_renew_leader() -> bool:
+    """Un seul worker tient la connexion Gateway (évite GUILD_MEMBER_ADD en double)."""
+    if _db is None:
+        return True
+
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    expires_iso = (now + timedelta(seconds=GATEWAY_LEASE_SECONDS)).isoformat()
+
+    doc = await _db.discord_gateway_lock.find_one_and_update(
+        {
+            "_id": GATEWAY_LOCK_ID,
+            "$or": [
+                {"expires_at": {"$lt": now_iso}},
+                {"owner": _owner_id},
+            ],
+        },
+        {
+            "$set": {
+                "owner": _owner_id,
+                "expires_at": expires_iso,
+                "heartbeat_at": now_iso,
+            },
+        },
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    if doc and doc.get("owner") == _owner_id:
+        return True
+
+    try:
+        await _db.discord_gateway_lock.insert_one(
+            {
+                "_id": GATEWAY_LOCK_ID,
+                "owner": _owner_id,
+                "expires_at": expires_iso,
+                "heartbeat_at": now_iso,
+            }
+        )
+        return True
+    except DuplicateKeyError:
+        doc = await _db.discord_gateway_lock.find_one({"_id": GATEWAY_LOCK_ID})
+        return bool(doc and doc.get("owner") == _owner_id)
 
 
 def _reaction_translate_enabled() -> bool:
@@ -119,16 +178,32 @@ async def _gateway_loop() -> None:
     if not token:
         return
 
-    _bot_user_id = await _fetch_bot_user_id(token)
     backoff = 5
+    leader_wait = 15
 
     while _stop_event and not _stop_event.is_set():
+        while _stop_event and not _stop_event.is_set():
+            if await _try_acquire_or_renew_leader():
+                break
+            logger.debug(
+                "discord gateway waiting for leader lock on %s",
+                _owner_id,
+            )
+            await asyncio.sleep(leader_wait)
+
+        if _stop_event.is_set():
+            break
+
+        if not _bot_user_id:
+            _bot_user_id = await _fetch_bot_user_id(token)
+
         try:
             async with websockets.connect(
                 GATEWAY_URL,
                 ping_interval=None,
                 max_size=2**22,
             ) as ws:
+                logger.info("discord gateway connected on %s", _owner_id)
                 hello = json.loads(await ws.recv())
                 if hello.get("op") != 10:
                     logger.warning("discord gateway unexpected hello op=%s", hello.get("op"))
@@ -138,10 +213,15 @@ async def _gateway_loop() -> None:
                 interval_ms = hello["d"]["heartbeat_interval"]
                 last_seq: int | None = None
                 backoff = 5
+                disconnect = asyncio.Event()
 
                 async def heartbeat() -> None:
-                    while not _stop_event.is_set():
+                    while not _stop_event.is_set() and not disconnect.is_set():
                         await asyncio.sleep(interval_ms / 1000.0)
+                        if not await _try_acquire_or_renew_leader():
+                            logger.warning("discord gateway lost leader lock during heartbeat")
+                            disconnect.set()
+                            break
                         payload: dict[str, Any] = {"op": 1, "d": last_seq}
                         await ws.send(json.dumps(payload))
 
@@ -163,7 +243,7 @@ async def _gateway_loop() -> None:
 
                 try:
                     async for raw in ws:
-                        if _stop_event.is_set():
+                        if _stop_event.is_set() or disconnect.is_set():
                             break
                         msg = json.loads(raw)
                         op = msg.get("op")
@@ -207,7 +287,7 @@ async def _gateway_loop() -> None:
 
 
 def start() -> None:
-    """Démarre la connexion Gateway en tâche de fond."""
+    """Démarre la connexion Gateway en tâche de fond (après init(db))."""
     global _gateway_task, _stop_event
     if not is_enabled():
         logger.info("discord gateway disabled (token missing or DISCORD_GATEWAY_ENABLED=0)")
@@ -216,7 +296,7 @@ def start() -> None:
         return
     _stop_event = asyncio.Event()
     _gateway_task = asyncio.create_task(_gateway_loop())
-    logger.info("discord gateway starting (welcome + reactions + threads)")
+    logger.info("discord gateway task scheduled on %s", _owner_id)
 
 
 def stop() -> None:

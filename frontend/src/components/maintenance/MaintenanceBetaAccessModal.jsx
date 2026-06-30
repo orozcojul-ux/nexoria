@@ -28,6 +28,8 @@ export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitc
     }
     if (form.betaKey.trim()) {
       setBetaKey(form.betaKey.trim().toUpperCase());
+    } else if (data.beta_key_used) {
+      setBetaKey(String(data.beta_key_used).toUpperCase());
     }
     onSuccess(translateMaintenanceApiSuccess(t, data.message) || t("maintenance.success.beta_activated"));
     onClose();

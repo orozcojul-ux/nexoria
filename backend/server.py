@@ -1836,9 +1836,36 @@ async def activate_beta_access(req: ActivateBetaReq, response: Response):
     return result
 
 
+async def _issue_beta_session(user: dict, response: Response, *, auth_method: str = "beta") -> dict:
+    """Session + cookie beta pour un compte déjà activé (reconnexion maintenance)."""
+    fresh_user = await db.users.find_one({"user_id": user["user_id"]}) or user
+    key_used = fresh_user.get("beta_key_used")
+    if key_used:
+        response.set_cookie(
+            beta_access.BETA_COOKIE, key_used, httponly=True, secure=True, samesite="none",
+            max_age=30 * 24 * 3600, path="/",
+        )
+    token = create_session_token()
+    await db.user_sessions.insert_one({
+        "session_token": token,
+        "user_id": user["user_id"],
+        "expires_at": session_expiry().isoformat(),
+        **_session_bootstrap_fields(),
+    })
+    set_session_cookie(response, token)
+    await record_user_connection(db, user["user_id"])
+    discord_auth_forum.schedule_auth_event("login", fresh_user, method=auth_method)
+    asyncio.create_task(_notify_friends_presence(user["user_id"], True))
+    result = public_user(fresh_user)
+    result["session_token"] = token
+    result["message"] = "Accès bêta déjà actif. Bienvenue dans le Nexus."
+    result["redirect_feed"] = True
+    return result
+
+
 async def _activate_beta_key_for_user(user: dict, beta_key: str, response: Response, *, auth_method: str = "beta") -> dict:
     if user.get("beta_access"):
-        raise HTTPException(409, "Compte déjà activé")
+        return await _issue_beta_session(user, response, auth_method=auth_method)
 
     key_norm = beta_access.normalize_beta_key(beta_key)
     if not key_norm:
@@ -4416,6 +4443,7 @@ def _gen_beta_key() -> str:
 
 async def has_beta_access(request: Request) -> bool:
     """Compte avec beta_access, staff, ou clé beta legacy (cookie/header)."""
+    user = None
     try:
         user = await get_current_user(request, db)
         if user.get("beta_access"):
@@ -4429,7 +4457,8 @@ async def has_beta_access(request: Request) -> bool:
     if not key:
         return False
     doc = await beta_access.find_beta_key(db, key)
-    return beta_access.beta_key_is_available(doc)
+    user_id = user.get("user_id") if user else None
+    return beta_access.beta_key_grants_access(doc, user_id)
 
 
 async def is_maintenance_active() -> tuple[bool, str]:
@@ -6219,7 +6248,12 @@ async def discord_url():
 
 
 @api.post("/auth/discord/link")
-async def discord_link_account(req: DiscordExchangeReq, user: dict = Depends(get_user_dep)):
+async def discord_link_account(
+    req: DiscordExchangeReq,
+    request: Request,
+    response: Response,
+    user: dict = Depends(get_user_dep),
+):
     """Lie le compte Discord au profil NEXORIA déjà connecté (beta / réglages)."""
     if user.get("discord_id"):
         raise HTTPException(
@@ -6258,6 +6292,18 @@ async def discord_link_account(req: DiscordExchangeReq, user: dict = Depends(get
     await add_chronicle(user["user_id"], "Compte Discord lié au profil NEXORIA", "profile")
 
     result = public_user(fresh or user)
+    token = _extract_session_token(request)
+    if not token:
+        token = create_session_token()
+        await db.user_sessions.insert_one({
+            "session_token": token,
+            "user_id": user["user_id"],
+            "expires_at": session_expiry().isoformat(),
+            **_session_bootstrap_fields(),
+        })
+        set_session_cookie(response, token)
+    result["session_token"] = token
+    result["redirect_feed"] = bool(result.get("beta_access"))
     result["auth_meta"] = {
         "discord_linked": True,
         "badge_granted": badge_granted,
@@ -9428,6 +9474,7 @@ async def startup():
         discord_sync.start_periodic_sync(db, interval=30)
         try:
             import discord_gateway
+            discord_gateway.init(db)
             discord_gateway.start()
         except Exception as gw_exc:  # noqa: BLE001
             logger.warning(f"NEXORIA: could not start Discord gateway — {gw_exc}")

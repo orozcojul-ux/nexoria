@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { toast } from "sonner";
 
-import api, { formatApiError, extractBanDetail } from "@/lib/api";
+import api, { formatApiError, extractBanDetail, setToken } from "@/lib/api";
 
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -166,6 +166,7 @@ export default function DiscordCallback() {
 
         try { localStorage.removeItem("nexoria_ref"); } catch {}
 
+        if (data.session_token) setToken(data.session_token);
         setUser(data);
 
         const meta = data.auth_meta || {};
@@ -181,6 +182,9 @@ export default function DiscordCallback() {
             toast.success(t("discord.callback.badge_unlocked"), { duration: 6000 });
 
           }
+
+          window.location.replace("/feed");
+          return;
 
         } else if (meta.is_new_account) {
 
@@ -240,7 +244,7 @@ export default function DiscordCallback() {
 
         toast.error(formatApiError(err) || t("discord.callback.failed"));
 
-        navigate(linkIntent ? "/feed" : "/login");
+        navigate(linkIntent ? "/maintenance" : "/login");
 
       }
 

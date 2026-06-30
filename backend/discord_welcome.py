@@ -114,17 +114,22 @@ def _user_lock(user_id: str) -> asyncio.Lock:
 async def _try_claim_welcome(user_id: str) -> bool:
     """Réserve l'envoi (anti-doublon multi-workers / race Gateway)."""
     if _db is None:
-        return True
+        logger.warning("discord welcome claim refused: db not initialized")
+        return False
     now = datetime.now(timezone.utc).isoformat()
     try:
-        await _db.discord_welcome_sent.insert_one(
+        result = await _db.discord_welcome_sent.update_one(
+            {"user_id": user_id},
             {
-                "user_id": user_id,
-                "status": "pending",
-                "started_at": now,
-            }
+                "$setOnInsert": {
+                    "user_id": user_id,
+                    "status": "pending",
+                    "started_at": now,
+                }
+            },
+            upsert=True,
         )
-        return True
+        return result.upserted_id is not None
     except DuplicateKeyError:
         return False
 

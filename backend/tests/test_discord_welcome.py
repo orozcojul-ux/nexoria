@@ -1,13 +1,39 @@
 """Tests discord_welcome and lock channel classification."""
+import asyncio
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(SCRIPTS))
 
+import discord_welcome
 from discord_welcome import avatar_url, build_welcome_content, build_welcome_embed, is_enabled
+
+
+def test_try_claim_welcome_only_first_inserts():
+    class UpdateResult:
+        def __init__(self, upserted_id):
+            self.upserted_id = upserted_id
+
+    collection = AsyncMock()
+    collection.update_one = AsyncMock(
+        side_effect=[UpdateResult("abc"), UpdateResult(None)],
+    )
+    db = MagicMock()
+    db.discord_welcome_sent = collection
+    discord_welcome.init(db)
+
+    assert asyncio.run(discord_welcome._try_claim_welcome("user-1")) is True
+    assert asyncio.run(discord_welcome._try_claim_welcome("user-1")) is False
+    assert collection.update_one.await_count == 2
+
+
+def test_try_claim_welcome_refuses_without_db():
+    discord_welcome.init(None)
+    assert asyncio.run(discord_welcome._try_claim_welcome("user-1")) is False
 
 
 def test_build_welcome_content_mention_and_channels():
