@@ -20,7 +20,9 @@ function DiscordIcon({ className = "w-5 h-5" }) {
 export default function BetaDiscordLinkModal({ user, maintenanceEnabled }) {
   const { t } = useI18n();
   const [loading, setLoading] = useState(false);
+  const [password, setPassword] = useState("");
   const open = needsBetaDiscordLink(user, { maintenanceEnabled });
+  const loginHint = user?.email || user?.username || "";
 
   useEffect(() => {
     if (open) {
@@ -33,9 +35,13 @@ export default function BetaDiscordLinkModal({ user, maintenanceEnabled }) {
   }, [open]);
 
   const handleLink = async () => {
+    if (!password) {
+      toast.error(t("discord.beta_link.password_required"));
+      return;
+    }
     setLoading(true);
     try {
-      await startDiscordLinkOAuth();
+      await startDiscordLinkOAuth({ login: loginHint, password });
     } catch (err) {
       toast.error(formatApiError(err) || t("login.discord_error"));
       setLoading(false);
@@ -68,6 +74,33 @@ export default function BetaDiscordLinkModal({ user, maintenanceEnabled }) {
             {t("discord.beta_link.reason_beta")}
           </li>
         </ul>
+        {loginHint && (
+          <label className="block space-y-1.5">
+            <span className="text-[11px] uppercase tracking-wider text-zinc-500 font-semibold">
+              {t("discord.beta_link.account")}
+            </span>
+            <input
+              type="text"
+              value={loginHint}
+              readOnly
+              className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm text-zinc-300"
+              data-testid="beta-discord-link-login"
+            />
+          </label>
+        )}
+        <label className="block space-y-1.5">
+          <span className="text-[11px] uppercase tracking-wider text-zinc-500 font-semibold">
+            {t("auth.password")}
+          </span>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm text-zinc-100 focus:outline-none focus:border-[#5865F2]/50"
+            data-testid="beta-discord-link-password"
+          />
+        </label>
         <button
           type="button"
           onClick={handleLink}

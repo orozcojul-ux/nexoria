@@ -17,6 +17,8 @@ function DiscordIcon({ className }) {
 export default function MaintenanceDiscordOAuthButton({
   flow,
   betaKey,
+  login,
+  password,
   disabled,
   onComplete,
   onError,
@@ -55,7 +57,7 @@ export default function MaintenanceDiscordOAuthButton({
   const click = () => {
     try {
       setLoading(true);
-      startMaintenanceDiscordOAuth({ flow, betaKey, discordUrl });
+      startMaintenanceDiscordOAuth({ flow, betaKey, discordUrl, login, password });
       setLoading(false);
     } catch (err) {
       setLoading(false);

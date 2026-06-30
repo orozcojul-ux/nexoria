@@ -129,6 +129,7 @@ MAINTENANCE_PUBLIC_PATHS = frozenset({
     "/api/auth/activate-beta-access",
     "/api/auth/maintenance-discord-register",
     "/api/auth/maintenance-discord-beta",
+    "/api/auth/maintenance-discord-link",
     "/api/auth/check-availability",
     "/api/maintenance/recent-heroes",
     "/api/webhooks/stripe",  # Stripe calls this server-to-server (no session)
@@ -1287,6 +1288,14 @@ class MaintenanceDiscordCodeReq(BaseModel):
 class MaintenanceDiscordBetaReq(BaseModel):
     code: str = Field(..., min_length=1)
     beta_key: str = Field(..., min_length=8, max_length=32)
+    login: Optional[str] = Field(None, min_length=3, max_length=120)
+    password: Optional[str] = Field(None, min_length=6)
+
+
+class MaintenanceDiscordLinkReq(BaseModel):
+    code: str = Field(..., min_length=1)
+    login: str = Field(..., min_length=3, max_length=120)
+    password: str = Field(..., min_length=6)
 
 
 class ForgotPasswordReq(BaseModel):
@@ -1966,6 +1975,64 @@ async def _resolve_discord_user_conflict(profile: dict) -> tuple[dict | None, bo
     return existing, existing is None
 
 
+async def _resolve_user_for_maintenance_discord(
+    profile: dict,
+    *,
+    login: str | None = None,
+    password: str | None = None,
+) -> dict:
+    """Trouve le compte NEXORIA à lier (Discord, e-mail Discord, ou login/mdp)."""
+    existing, _is_new = await _resolve_discord_user_conflict(profile)
+    if existing:
+        return existing
+
+    login_raw = (login or "").strip()
+    pwd = password or ""
+    if login_raw and pwd:
+        user = await _find_user_by_login(login_raw)
+        if not user or not user.get("password_hash") or not verify_password(pwd, user["password_hash"]):
+            raise HTTPException(401, "Identifiants invalides")
+        discord_id = profile["discord_id"]
+        other = await db.users.find_one({"discord_id": discord_id, "user_id": {"$ne": user["user_id"]}})
+        if other:
+            raise HTTPException(
+                409,
+                detail={
+                    "code": "discord_account_conflict",
+                    "message": "Ce compte Discord est déjà lié à un autre profil NEXORIA",
+                },
+            )
+        return user
+
+    raise HTTPException(
+        404,
+        detail={
+            "code": "account_not_found",
+            "message": (
+                "Aucun compte NEXORIA lié à ce Discord. "
+                "Saisis ton e-mail/pseudo et ton mot de passe avant de continuer."
+            ),
+        },
+    )
+
+
+async def _apply_discord_link_to_user(user: dict, profile: dict) -> dict:
+    """Lie Discord au profil et retourne le document utilisateur à jour."""
+    user_id = user["user_id"]
+    patch = _discord_link_patch(user, profile)
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": patch, "$unset": {"needs_discord_link": ""}},
+    )
+    await grant_badge(user_id, DISCORD_SIGNUP_BADGE_ID)
+    fresh = await db.users.find_one({"user_id": user_id})
+    discord_sync.schedule_sync(db, user_id)
+    discord_beta.schedule_maybe_grant_beta_on_link(db, user_id, (fresh or user).get("email") or "")
+    discord_beta.schedule_grant_beta_tester(db, user_id)
+    await add_chronicle(user_id, "Compte Discord lié au profil NEXORIA", "profile")
+    return fresh or {**user, **patch}
+
+
 @api.post("/auth/maintenance-discord-register")
 async def maintenance_discord_register(req: MaintenanceDiscordCodeReq, response: Response):
     """Inscription/connexion Discord pendant la maintenance — sans accès beta."""
@@ -2054,36 +2121,64 @@ async def maintenance_discord_beta(req: MaintenanceDiscordBetaReq, response: Res
     try:
         profile = await discord_auth.exchange_code(req.code)
     except discord_auth.DiscordAuthError as e:
-        raise HTTPException(e.status, e.message)
+        raise HTTPException(e.status, detail={"code": e.code, "message": e.message})
 
-    existing, is_new = await _resolve_discord_user_conflict(profile)
-    if is_new or not existing:
-        raise HTTPException(404, "Aucun compte NEXORIA lié à ce Discord — crée d'abord ton compte")
-
-    enforce_ban_or_raise(existing)
-    user_id = existing["user_id"]
-    patch = _discord_link_patch(existing, profile)
-    await db.users.update_one({"user_id": user_id}, {"$set": patch})
-    user = await db.users.find_one({"user_id": user_id})
+    user = await _resolve_user_for_maintenance_discord(
+        profile,
+        login=req.login,
+        password=req.password,
+    )
+    enforce_ban_or_raise(user)
+    user = await _apply_discord_link_to_user(user, profile)
 
     if user.get("beta_access"):
-        token = create_session_token()
-        await db.user_sessions.insert_one({
-            "session_token": token,
-            "user_id": user_id,
-            "expires_at": session_expiry().isoformat(),
-            "provider": "discord",
-            **_session_bootstrap_fields(),
-        })
-        set_session_cookie(response, token)
-        await record_user_connection(db, user_id)
-        result = public_user(user)
-        result["session_token"] = token
+        result = await _issue_beta_session(user, response, auth_method="discord_beta")
         result["message"] = "Accès bêta déjà actif. Bienvenue dans le Nexus."
-        result["redirect_feed"] = True
         return result
 
     return await _activate_beta_key_for_user(user, req.beta_key, response, auth_method="discord_beta")
+
+
+@api.post("/auth/maintenance-discord-link")
+async def maintenance_discord_link(req: MaintenanceDiscordLinkReq, response: Response):
+    """Lie Discord pendant la maintenance via login/mdp (sans session — mobile OAuth)."""
+    enabled, _ = await is_maintenance_active()
+    if not enabled:
+        raise HTTPException(400, "Liaison Discord maintenance disponible uniquement pendant la maintenance")
+
+    user = await _find_user_by_login(req.login)
+    if not user or not user.get("password_hash") or not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(401, "Identifiants invalides")
+    enforce_ban_or_raise(user)
+    if not user.get("beta_access"):
+        raise HTTPException(403, "Accès bêta requis pour lier Discord")
+
+    if user.get("discord_id"):
+        result = await _issue_beta_session(user, response, auth_method="discord_link")
+        result["message"] = "Discord déjà lié. Bienvenue dans le Nexus."
+        return result
+
+    try:
+        profile = await discord_auth.exchange_code(req.code)
+    except discord_auth.DiscordAuthError as e:
+        raise HTTPException(e.status, detail={"code": e.code, "message": e.message})
+
+    discord_id = profile["discord_id"]
+    other = await db.users.find_one({"discord_id": discord_id, "user_id": {"$ne": user["user_id"]}})
+    if other:
+        raise HTTPException(
+            409,
+            detail={
+                "code": "discord_account_conflict",
+                "message": "Ce compte Discord est déjà lié à un autre profil NEXORIA",
+            },
+        )
+
+    user = await _apply_discord_link_to_user(user, profile)
+    result = await _issue_beta_session(user, response, auth_method="discord_link")
+    result["message"] = "Discord lié. Bienvenue dans le Nexus."
+    result["auth_meta"] = {"discord_linked": True}
+    return result
 
 
 @api.get("/referral/me")

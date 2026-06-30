@@ -125,6 +125,11 @@ export const TRANSLATIONS_EXTENDED = {
   ),
   "discord.beta_link.cta": T("Lier mon compte Discord", "Link my Discord account"),
   "discord.beta_link.linking": T("Redirection vers Discord…", "Redirecting to Discord…"),
+  "discord.beta_link.account": T("Compte NEXORIA", "NEXORIA account"),
+  "discord.beta_link.password_required": T(
+    "Saisissez votre mot de passe pour confirmer la liaison Discord.",
+    "Enter your password to confirm Discord linking.",
+  ),
   "discord.beta_link.required": T(
     "Cette étape est obligatoire pour continuer.",
     "This step is required to continue.",

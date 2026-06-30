@@ -4,13 +4,17 @@ export const MAINT_DISCORD_FLOW_REGISTER = "register";
 export const MAINT_DISCORD_FLOW_BETA = "beta";
 const FLOW_KEY = "nexoria_maint_discord_flow_type";
 const BETA_KEY_STORAGE = "nexoria_maint_discord_beta_key";
+const LOGIN_KEY = "nexoria_maint_discord_login";
+const PASSWORD_KEY = "nexoria_maint_discord_password";
 
 export function clearMaintenanceDiscordFlow() {
   sessionStorage.removeItem(FLOW_KEY);
   sessionStorage.removeItem(BETA_KEY_STORAGE);
+  sessionStorage.removeItem(LOGIN_KEY);
+  sessionStorage.removeItem(PASSWORD_KEY);
 }
 
-export function startMaintenanceDiscordOAuth({ flow, betaKey, discordUrl }) {
+export function startMaintenanceDiscordOAuth({ flow, betaKey, discordUrl, login, password }) {
   if (!discordUrl) {
     throw new Error("Connexion Discord indisponible — réessayez dans quelques secondes.");
   }
@@ -22,6 +26,8 @@ export function startMaintenanceDiscordOAuth({ flow, betaKey, discordUrl }) {
   sessionStorage.setItem(FLOW_KEY, flow);
   if (flow === MAINT_DISCORD_FLOW_BETA) {
     sessionStorage.setItem(BETA_KEY_STORAGE, betaKey.trim().toUpperCase());
+    if (login?.trim()) sessionStorage.setItem(LOGIN_KEY, login.trim());
+    if (password) sessionStorage.setItem(PASSWORD_KEY, password);
   }
 
   const w = 500;
@@ -55,10 +61,17 @@ export async function completeMaintenanceDiscordOAuth(code) {
     }
     if (flow === MAINT_DISCORD_FLOW_BETA) {
       const betaKey = sessionStorage.getItem(BETA_KEY_STORAGE) || "";
-      const { data } = await api.post("/auth/maintenance-discord-beta", {
+      const login = sessionStorage.getItem(LOGIN_KEY) || "";
+      const password = sessionStorage.getItem(PASSWORD_KEY) || "";
+      const payload = {
         code,
         beta_key: betaKey,
-      });
+      };
+      if (login && password) {
+        payload.login = login;
+        payload.password = password;
+      }
+      const { data } = await api.post("/auth/maintenance-discord-beta", payload);
       if (betaKey) setBetaKey(betaKey);
       return { flow, data };
     }

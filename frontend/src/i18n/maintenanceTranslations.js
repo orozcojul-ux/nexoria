@@ -769,6 +769,18 @@ export const MAINTENANCE_TRANSLATIONS = {
       ja: "Discordでログイン",
     },
   ),
+  "maintenance.modal.beta.discord_hint": T(
+    "Si ton compte a été créé par e-mail, remplis aussi ton identifiant et mot de passe avant Discord.",
+    "If you registered by email, also fill in your login and password before using Discord.",
+    {
+      es: "Si creaste tu cuenta por email, rellena también usuario y contraseña antes de Discord.",
+      de: "Wurde dein Konto per E-Mail erstellt, fülle auch Login und Passwort vor Discord aus.",
+      it: "Se hai creato l'account via email, inserisci anche login e password prima di Discord.",
+      pt: "Se criou a conta por e-mail, preencha login e senha antes do Discord.",
+      nl: "Heb je per e-mail geregistreerd, vul ook login en wachtwoord in vóór Discord.",
+      ja: "メール登録の場合は、Discordの前にログインとパスワードも入力してください。",
+    },
+  ),
   "maintenance.modal.field.login": T(
     "Email ou pseudo",
     "Email or username",

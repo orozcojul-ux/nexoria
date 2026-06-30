@@ -91,12 +91,18 @@ export default function MaintenanceBetaAccessModal({ onClose, onSuccess, onSwitc
         <MaintenanceDiscordOAuthButton
           flow={MAINT_DISCORD_FLOW_BETA}
           betaKey={form.betaKey}
+          login={form.login}
+          password={form.password}
           disabled={loading}
           label={t("maintenance.modal.beta.discord")}
           testId="maint-beta-discord"
           onComplete={handleDiscordComplete}
           onError={(err) => setError(translateMaintenanceApiError(t, err?.message || formatApiError(err)))}
         />
+
+        <p className="maint-modal-hint text-[11px] text-zinc-500 italic">
+          {t("maintenance.modal.beta.discord_hint")}
+        </p>
 
         <div className="maint-modal-divider">
           <span>{t("maintenance.modal.divider_or_email")}</span>

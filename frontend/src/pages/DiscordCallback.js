@@ -9,7 +9,7 @@ import api, { formatApiError, extractBanDetail, setToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 import { useI18n } from "@/contexts/I18nContext";
-import { consumeDiscordLinkIntent } from "@/lib/discordLink";
+import { consumeDiscordLinkIntent, consumeDiscordLinkCredentials } from "@/lib/discordLink";
 
 
 
@@ -153,6 +153,7 @@ export default function DiscordCallback() {
     (async () => {
 
       const linkIntent = consumeDiscordLinkIntent();
+      const linkCredentials = consumeDiscordLinkCredentials();
 
       try {
 
@@ -160,9 +161,21 @@ export default function DiscordCallback() {
 
         try { referralCode = localStorage.getItem("nexoria_ref"); } catch {}
 
-        const { data } = linkIntent
-          ? await api.post("/auth/discord/link", { code })
-          : await api.post("/auth/discord/exchange", { code, referral_code: referralCode || undefined });
+        let data;
+        if (linkIntent && linkCredentials) {
+          ({ data } = await api.post("/auth/maintenance-discord-link", {
+            code,
+            login: linkCredentials.login,
+            password: linkCredentials.password,
+          }));
+        } else if (linkIntent) {
+          ({ data } = await api.post("/auth/discord/link", { code }));
+        } else {
+          ({ data } = await api.post("/auth/discord/exchange", {
+            code,
+            referral_code: referralCode || undefined,
+          }));
+        }
 
         try { localStorage.removeItem("nexoria_ref"); } catch {}
 
