@@ -57,11 +57,11 @@ Le script :
 
 Quand un **nouveau membre** rejoint le serveur :
 
-1. Le bot envoie un **embed** dans `#bienvenue` (`1514271114405216359`)
-2. Contenu bilingue FR/EN court
-3. **Thumbnail** = avatar Discord du membre
-4. **Une seule fois** par membre (déduplication MongoDB)
-5. Les **bots** sont ignorés
+1. Le bot génère une **welcome card PNG** (avatar en cercle, pseudo, style NEXORIA)
+2. Le bot poste l'image + un texte d'accompagnement dans `#bienvenue` (`1514271114405216359`)
+3. **Une seule fois** par membre (déduplication MongoDB)
+4. Les **bots** sont ignorés
+5. **Fallback** : embed + texte si la génération d'image échoue
 
 ### Permissions & intents requis
 
@@ -69,7 +69,7 @@ Quand un **nouveau membre** rejoint le serveur :
 |---------|--------|
 | **Server Members Intent** | **Oui** — Developer Portal → Bot → Privileged Gateway Intents → *Server Members Intent* |
 | Gateway intents code | `GUILDS`, `GUILD_MEMBERS`, `GUILD_MESSAGES`, `GUILD_MESSAGE_REACTIONS` |
-| Salon bienvenue | Bot : View Channel, Send Messages, Embed Links |
+| Salon bienvenue | Bot : View Channel, Send Messages, Embed Links, **Attach Files** |
 | Verrouillage bienvenue | @everyone ne peut pas écrire — le **bot** peut toujours poster (overwrite membre bot) |
 
 Le backend démarre le Gateway automatiquement (`discord_gateway.start()`).
@@ -81,6 +81,18 @@ Variable optionnelle (VPS, manuel) :
 ```env
 DISCORD_WELCOME_ENABLED=false
 DISCORD_WELCOME_CHANNEL_ID=1514271114405216359
+DISCORD_REGLEMENT_CHANNEL_ID=1514271110101995651
+DISCORD_WELCOME_SUBTITLE=Un nouveau héros rejoint le royaume
+```
+
+Dépendance Python : **Pillow** (`pip install Pillow`).
+
+### Prévisualiser une carte (local)
+
+```bash
+cd backend
+source .venv/bin/activate
+python scripts/preview_welcome_card.py --username SmouzYi --out /tmp/welcome-test.png
 ```
 
 ## Tests
@@ -97,7 +109,7 @@ DISCORD_WELCOME_CHANNEL_ID=1514271114405216359
 1. Activer **Server Members Intent** dans le Developer Portal
 2. Redémarrer le backend : `systemctl restart nexoria-backend`
 3. Rejoindre avec un **compte test** (ou simuler via un second compte)
-4. Vérifier l'embed dans `#bienvenue` avec avatar + mention
+4. Vérifier la **bannière PNG** + le texte dans `#bienvenue`
 5. Rejoindre à nouveau → **pas** de second message (dédup)
 
 ### Logs
@@ -135,7 +147,9 @@ journalctl -u nexoria-backend -f
 | Fichier | Rôle |
 |---------|------|
 | `backend/scripts/lock_discord_info_channels.py` | Verrouillage salons info |
-| `backend/discord_welcome.py` | Embed bienvenue + dédup |
+| `backend/discord_welcome.py` | Orchestration bienvenue + fallback |
+| `backend/discord_welcome_card.py` | Génération PNG (Pillow) |
+| `backend/assets/discord/welcome_template.png` | Fond dark fantasy |
 | `backend/discord_gateway.py` | Event `GUILD_MEMBER_ADD` |
 
 Ne pas casser : traduction 🌍, `/traduire`, inscriptions-beta, beta-test, onboarding langue/pays.

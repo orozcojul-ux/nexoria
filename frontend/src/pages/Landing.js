@@ -7,7 +7,7 @@ import api from "@/lib/api";
 import "@/pages/landing.css";
 
 const DISCORD_URL = "https://discord.gg/RC5QjcWDCH";
-const CASTLE_BG = "/assets/backgrounds/nexoria-castle.webp";
+const CASTLE_BG = "/assets/backgrounds/nexoria-nexus-city.webp";
 const LANDING_NEWS_LIMIT = 3;
 
 const CAT_LABELS = {

@@ -7,17 +7,23 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(SCRIPTS))
 
-from discord_welcome import avatar_url, build_welcome_embed, is_enabled
+from discord_welcome import avatar_url, build_welcome_content, build_welcome_embed, is_enabled
 
 
-def test_build_welcome_embed_mention_and_title():
+def test_build_welcome_content_mention_and_channels():
+    user = {"id": "123456789012345678", "avatar": "abc123"}
+    text = build_welcome_content(user)
+    assert "<@123456789012345678>" in text
+    assert "1514271114405216359" in text
+    assert "NEXORIA" in text
+
+
+def test_build_welcome_embed_fallback():
     user = {"id": "123456789012345678", "avatar": "abc123"}
     embed = build_welcome_embed(user)
     assert embed["title"] == "🌌 Bienvenue dans NEXORIA"
     assert "<@123456789012345678>" in embed["description"]
-    assert "Welcome to NEXORIA" in embed["description"]
     assert embed["thumbnail"]["url"].startswith("https://cdn.discordapp.com/")
-    assert "Communauté fantasy" in embed["footer"]["text"]
 
 
 def test_avatar_url_default():

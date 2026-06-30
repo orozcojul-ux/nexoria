@@ -1,9 +1,10 @@
 import React from "react";
 
 const BASE = process.env.PUBLIC_URL || "";
-/** Image principale (salle du trône) + repli sur l'ancien fond si absente. */
-const HALL_URL = `${BASE}/assets/backgrounds/nexoria-hall.png`;
-const FALLBACK_URL = `${BASE}/assets/backgrounds/nexoria-bg.webp`;
+/** Cité flottante du Nexus — fond principal du site. */
+const PRIMARY_URL = `${BASE}/assets/backgrounds/nexoria-nexus-city.webp`;
+const FALLBACK_URL = `${BASE}/assets/backgrounds/nexoria-nexus-city.jpg`;
+const LEGACY_URL = `${BASE}/assets/backgrounds/nexoria-hall.png`;
 
 /**
  * Fond global Nexoria — wallpaper CONSTANT quel que soit le thème.
@@ -21,7 +22,10 @@ export default function SiteBackground({ variant = "app" }) {
     >
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105"
-        style={{ backgroundImage: `url(${HALL_URL}), url(${FALLBACK_URL})` }}
+        style={{
+          backgroundImage: `url(${PRIMARY_URL}), url(${FALLBACK_URL}), url(${LEGACY_URL})`,
+          backgroundPosition: "center 42%",
+        }}
       />
       {/* Voile sombre neutre (non teinté par le thème) pour garder le texte lisible */}
       <div
