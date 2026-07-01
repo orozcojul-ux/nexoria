@@ -22,7 +22,7 @@ function StatBox({ label, value, accent = "#22D3EE" }) {
   );
 }
 
-export default function SentinelLogsPanel({ sentinel, title, subtitle, accent = "#A855F7" }) {
+export default function SentinelLogsPanel({ sentinel, title, subtitle, accent = "#A855F7", showScores = false }) {
   const [logs, setLogs] = useState([]);
   const [scores, setScores] = useState([]);
   const [filter, setFilter] = useState("pending_review");
@@ -31,18 +31,18 @@ export default function SentinelLogsPanel({ sentinel, title, subtitle, accent = 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [logsRes, scoresRes] = await Promise.all([
-        api.get("/admin/moderation/logs", { params: { sentinel, status: filter } }),
-        api.get("/admin/moderation/scores"),
-      ]);
+      const logsRes = await api.get("/admin/moderation/logs", { params: { sentinel, status: filter } });
       setLogs(logsRes.data);
-      setScores(scoresRes.data);
+      if (showScores) {
+        const scoresRes = await api.get("/admin/moderation/scores");
+        setScores(scoresRes.data);
+      }
     } catch (err) {
       toast.error(formatApiError(err) || `Erreur chargement logs ${title}`);
     } finally {
       setLoading(false);
     }
-  }, [sentinel, filter, title]);
+  }, [sentinel, filter, title, showScores]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -217,6 +217,7 @@ export default function SentinelLogsPanel({ sentinel, title, subtitle, accent = 
         )}
       </section>
 
+      {showScores && (
       <section>
         <h3 className="font-display font-bold text-sm uppercase tracking-widest text-zinc-300 mb-3">
           Scores joueurs (top)
@@ -237,6 +238,7 @@ export default function SentinelLogsPanel({ sentinel, title, subtitle, accent = 
           ))}
         </div>
       </section>
+      )}
     </div>
   );
 }

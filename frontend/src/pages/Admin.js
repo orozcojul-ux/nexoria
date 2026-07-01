@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { ADMIN_TAB_META, getActiveAdminTab, resolveAdminTab, MOD_TABS } from "@/lib/admin-nav";
+import { ADMIN_TAB_META, getActiveAdminTab, resolveAdminTab, getVisibleAdminTabs } from "@/lib/admin-nav";
 import { PageShell, PremiumCard, PremiumStat, PremiumButton } from "@/components/ui-premium";
 import StaffChat from "@/components/StaffChat";
 import BroadcastPanel from "@/components/BroadcastPanel";
@@ -234,9 +234,10 @@ export default function Admin() {
 
       {/* Sélecteur mobile — la navigation principale est dans la sidebar */}
       <div className="lg:hidden flex gap-2 mb-6 overflow-x-auto pb-1 -mx-1 px-1">
-        {Object.entries(ADMIN_TAB_META)
-          .filter(([id]) => isAdmin || MOD_TABS.has(id))
-          .map(([id, meta]) => (
+        {getVisibleAdminTabs(isAdmin).map((id) => {
+          const meta = ADMIN_TAB_META[id];
+          if (!meta) return null;
+          return (
             <button
               key={id}
               type="button"
@@ -250,7 +251,8 @@ export default function Admin() {
             >
               {t(meta.labelKey)}
             </button>
-          ))}
+          );
+        })}
       </div>
 
       {isMod && (

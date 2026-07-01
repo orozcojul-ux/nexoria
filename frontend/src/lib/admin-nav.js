@@ -32,6 +32,31 @@ export const ADMIN_TAB_KEYS = {
 
 const VALID_TABS = new Set(Object.keys(ADMIN_TAB_KEYS));
 
+/** Ordre d'affichage des onglets (sidebar + mobile). */
+export const ADMIN_TAB_ORDER = [
+  "pulse",
+  "users",
+  "tickets",
+  "roles",
+  "reports",
+  "bans",
+  "moderation",
+  "forum-mod",
+  "broadcast",
+  "chat",
+  "logs",
+  "shop",
+  "news",
+  "team",
+  "events",
+  "seasons",
+  "grant",
+  "economy",
+  "system",
+  "discord",
+  "legend",
+];
+
 export function isValidAdminTab(tab) {
   return VALID_TABS.has(tab);
 }
@@ -62,10 +87,16 @@ export function buildAdminSidebarNav({ isAdmin }) {
       items: [
         item("users", "admin.tab.users", Users, "nav-cms-players"),
         item("tickets", "admin.tab.tickets", Ticket, "nav-cms-tickets"),
+        ...(isAdmin ? [item("roles", "admin.tab.roles", Shield, "nav-cms-roles")] : []),
+      ],
+    },
+    {
+      titleKey: "sidebar.section.moderation",
+      items: [
         item("reports", "admin.tab.reports", Flag, "nav-cms-reports", { dynamicBadge: "open_reports" }),
         item("bans", "admin.tab.bans", Ban, "nav-cms-sanctions"),
         item("moderation", "admin.tab.moderation", Shield, "nav-cms-moderation", { dynamicBadge: "naria_pending" }),
-        ...(isAdmin ? [item("roles", "admin.tab.roles", Shield, "nav-cms-roles")] : []),
+        item("forum-mod", "admin.tab.forum_mod", MessagesSquare, "nav-cms-forum-mod"),
       ],
     },
     {
@@ -73,7 +104,6 @@ export function buildAdminSidebarNav({ isAdmin }) {
       items: [
         ...(isAdmin ? [item("broadcast", "admin.tab.broadcast", Megaphone, "nav-cms-broadcast")] : []),
         item("chat", "admin.tab.chat", MessageSquare, "nav-cms-chat"),
-        item("forum-mod", "admin.tab.forum_mod", MessagesSquare, "nav-cms-forum-mod"),
         item("logs", "admin.tab.logs", ScrollText, "nav-cms-logs"),
       ],
     },
@@ -113,6 +143,7 @@ export function buildPlayerAdminShortcuts({ isAdmin }) {
     { tab: "tickets", labelKey: "admin.tab.tickets", icon: Ticket, testid: "nav-admin-tickets" },
     { tab: "reports", labelKey: "admin.tab.reports", icon: Flag, testid: "nav-admin-reports" },
     { tab: "bans", labelKey: "admin.tab.bans", icon: Ban, testid: "nav-admin-bans" },
+    { tab: "moderation", labelKey: "admin.tab.moderation", icon: Shield, testid: "nav-admin-moderation" },
     { tab: "forum-mod", labelKey: "admin.tab.forum_mod", icon: MessagesSquare, testid: "nav-admin-forum" },
   ];
   if (isAdmin) {
@@ -139,6 +170,11 @@ export function resolveAdminTab(tab, isAdmin) {
   const resolved = isValidAdminTab(normalized) ? normalized : "pulse";
   if (isAdmin) return resolved;
   return MOD_TABS.has(resolved) ? resolved : "pulse";
+}
+
+/** Liste ordonnée des onglets visibles pour le sélecteur mobile. */
+export function getVisibleAdminTabs(isAdmin) {
+  return ADMIN_TAB_ORDER.filter((id) => isAdmin || MOD_TABS.has(id));
 }
 
 /** Resolve admin tab label with t() */
