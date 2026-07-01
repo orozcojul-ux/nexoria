@@ -3,8 +3,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from game_data import TITLES
-from naria_system import find_naria_user, is_official_sentinel, merge_naria_team_row, NARIA_SYSTEM_KEY
+from game_data import TITLES, CLASSES, resolve_class_id
+from naria_system import (
+    get_sentinel_def,
+    is_official_sentinel,
+    is_shumi_sentinel,
+    merge_official_sentinel_team_row,
+    load_community_sentinels_for_team,
+    resolve_community_sentinel_by_id,
+)
 
 TEAM_PAGE_SETTINGS_ID = "team_page"
 # Legacy id — profils équipe migrés vers le vrai user_id via create_naria_system_user.py
@@ -23,7 +30,45 @@ DEFAULT_MEMBER_PROFILE = {
     "tagline": "",
     "bio": "",
     "specialties": [],
+    "moderator_trial": False,
 }
+
+PLAYABLE_CLASS_IDS = tuple(CLASSES.keys())
+
+
+def _needs_team_class_override(user: dict) -> bool:
+    if is_official_sentinel(user):
+        return True
+    if user.get("role") in ("moderator", "sentinelle"):
+        return True
+    name = (user.get("class_name") or "").strip().lower()
+    return name in ("", "sentinelle")
+
+
+def team_card_class_fields(user: dict) -> dict[str, str]:
+    """Classe affichée en pied de carte équipe — variée pour les modos sans classe héros."""
+    name = (user.get("class_name") or "").strip().lower()
+    cid = resolve_class_id(user)
+    if cid and cid in CLASSES and name not in ("", "sentinelle"):
+        return {"class_id": cid, "class_name": CLASSES[cid]["name"]}
+
+    defn = get_sentinel_def(user.get("system_key"))
+    if not defn and is_shumi_sentinel(user):
+        defn = get_sentinel_def("shumi")
+    if defn and defn.display_class_id in CLASSES:
+        cid = defn.display_class_id
+        return {"class_id": cid, "class_name": CLASSES[cid]["name"]}
+
+    seed = user.get("user_id") or user.get("username") or "mod"
+    idx = sum(ord(c) for c in seed) % len(PLAYABLE_CLASS_IDS)
+    cid = PLAYABLE_CLASS_IDS[idx]
+    return {"class_id": cid, "class_name": CLASSES[cid]["name"]}
+
+
+def apply_team_card_class(row: dict, user: dict) -> dict:
+    if not _needs_team_class_override(user):
+        return row
+    return {**row, **team_card_class_fields(user)}
 
 
 def is_team_eligible(user: dict, owner_username: str) -> bool:
@@ -68,6 +113,7 @@ def normalize_member_profile(doc: dict | None) -> dict:
     for key in ("role_label", "nationality", "tagline", "bio"):
         base[key] = str(doc.get(key) or "").strip()
     base["specialties"] = normalize_specialties(doc.get("specialties"))
+    base["moderator_trial"] = bool(doc.get("moderator_trial", False))
     return base
 
 
@@ -106,10 +152,11 @@ def merge_team_member(user: dict, profile: dict | None, owner_username: str) -> 
         "team_specialties": p["specialties"],
         "team_visible": p["visible"],
         "team_sort_order": p["sort_order"],
+        "team_moderator_trial": p["moderator_trial"],
     }
     if is_official_sentinel(user):
-        return merge_naria_team_row(user, profile, owner_username)
-    return row
+        return apply_team_card_class(merge_official_sentinel_team_row(user, profile, owner_username), user)
+    return apply_team_card_class(row, user)
 
 
 def sort_team_members(members: list[dict]) -> list[dict]:
@@ -127,13 +174,12 @@ def sort_team_members(members: list[dict]) -> list[dict]:
 
 
 async def load_naria_for_team(db, profiles: dict, owner_username: str) -> dict | None:
-    naria_user = await find_naria_user(db)
-    if not naria_user or not naria_user.get("show_in_community_team", True):
-        return None
-    row = merge_naria_team_row(naria_user, profiles.get(naria_user["user_id"]), owner_username)
-    if not row.get("team_visible", True):
-        return None
-    return row
+    rows = await load_community_sentinels_for_team(db, profiles, owner_username)
+    return rows[0] if rows else None
+
+
+async def load_community_team_sentinels(db, profiles: dict, owner_username: str) -> list[dict]:
+    return await load_community_sentinels_for_team(db, profiles, owner_username)
 
 
 async def build_public_team(db, owner_username: str) -> tuple[dict, list[dict]]:
@@ -153,9 +199,9 @@ async def build_public_team(db, owner_username: str) -> tuple[dict, list[dict]]:
         if row.get("team_visible", True):
             merged.append(row)
 
-    naria_row = await load_naria_for_team(db, profiles, owner_username)
-    if naria_row:
-        merged.append(naria_row)
+    naria_rows = await load_community_team_sentinels(db, profiles, owner_username)
+    for row in naria_rows:
+        merged.append(row)
 
     return settings, sort_team_members(merged)
 
@@ -178,13 +224,8 @@ def member_to_admin_dict(m: dict) -> dict:
 
 
 async def resolve_team_member_id(db, user_id: str) -> tuple[bool, dict | None]:
-    """True when user_id refers to Naria (system sentinel)."""
-    naria = await find_naria_user(db)
-    if not naria:
-        return user_id == NARIA_SENTINEL_USER_ID, None
-    if user_id in (naria["user_id"], NARIA_SENTINEL_USER_ID):
-        return True, naria
-    return False, None
+    """True when user_id refers to a community official sentinel (ex. Naria)."""
+    return await resolve_community_sentinel_by_id(db, user_id)
 
 
 def naria_system_key(user_id: str, naria_user: dict | None) -> bool:

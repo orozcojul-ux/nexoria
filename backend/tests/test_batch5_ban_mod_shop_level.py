@@ -216,6 +216,25 @@ class TestModeratorPermissions:
         admin_s, _ = admin_session
         admin_s.post(f"{API}/admin/users/{victim['user_id']}/unban", timeout=15)
 
+    def test_mod_cannot_double_ban_same_user(self, moderator_session, admin_session):
+        ms, _, _ = moderator_session
+        _, victim, _ = _register("TEST_b5dblban")
+        uid = victim["user_id"]
+        r1 = ms.post(f"{API}/admin/users/{uid}/ban",
+                     json={"duration_hours": 1, "reason": "first-ban"}, timeout=15)
+        assert r1.status_code == 200, r1.text
+        r2 = ms.post(f"{API}/admin/users/{uid}/ban",
+                     json={"duration_hours": 2, "reason": "duplicate-ban"}, timeout=15)
+        assert r2.status_code == 409, f"Double ban should be 409: {r2.status_code} {r2.text}"
+        admin_s, _ = admin_session
+        admin_s.post(f"{API}/admin/users/{uid}/unban", timeout=15)
+
+    def test_unban_without_active_ban_fails(self, moderator_session):
+        ms, _, _ = moderator_session
+        _, victim, _ = _register("TEST_b5unbannoop")
+        r = ms.post(f"{API}/admin/users/{victim['user_id']}/unban", timeout=15)
+        assert r.status_code == 409, f"Unban without ban should be 409: {r.status_code} {r.text}"
+
     def test_mod_cannot_ban_other_mod_or_admin(self, moderator_session, admin_session):
         ms, mdoc, _ = moderator_session
         admin_s, admin_doc = admin_session

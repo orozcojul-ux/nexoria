@@ -78,7 +78,7 @@ export const TRANSLATIONS = {
   "admin.tab.broadcast": T("Proclamation", "Broadcast"),
   "admin.tab.chat": T("Chat Staff", "Staff Chat"),
   "admin.tab.forum_mod": T("Modération forum", "Forum moderation"),
-  "admin.tab.moderation": T("Naria — Sentinelle", "Naria — Sentinel"),
+  "admin.tab.moderation": T("Shumi — Sentinelle", "Shumi — Sentinel"),
   "admin.tab.logs": T("Chroniques", "Logs"),
   "admin.tab.shop": T("Gestion boutique", "Shop management"),
   "admin.tab.news": T("Actualités", "News"),

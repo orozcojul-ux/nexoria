@@ -211,7 +211,7 @@ export default function Admin() {
 
   const unban = async (uid) => {
     try { await api.post(`/admin/users/${uid}/unban`); toast.success(t("admin.ban_lifted")); await load(); }
-    catch { toast.error("Erreur"); }
+    catch (err) { toast.error(formatApiError(err) || "Erreur"); }
   };
 
   return (
@@ -682,8 +682,13 @@ function RolesGuide() {
 function BanDialog({ target, onClose, onDone, t }) {
   const [hours, setHours] = useState(24);
   const [reason, setReason] = useState("");
+  const alreadyBanned = target.banned_until && new Date(target.banned_until) > new Date();
   const submit = async (e) => {
     e.preventDefault();
+    if (alreadyBanned) {
+      toast.error("Ce héros est déjà banni — levez le ban avant d'en appliquer un nouveau.");
+      return;
+    }
     if (!reason.trim()) { toast.error("Raison requise"); return; }
     try {
       await api.post(`/admin/users/${target.user_id}/ban`, { duration_hours: hours, reason });
@@ -698,6 +703,11 @@ function BanDialog({ target, onClose, onDone, t }) {
         initial={{ scale: 0.9 }} animate={{ scale: 1 }}
         className={`${SURFACE} rounded-2xl p-6 max-w-md w-full space-y-4`} data-testid="ban-dialog">
         <h3 className="font-display font-black text-2xl text-red-300">Bannir {target.username}</h3>
+        {alreadyBanned && (
+          <p className="text-sm text-amber-300/90 italic">
+            Ce héros est déjà banni — levez le ban existant avant d&apos;en appliquer un nouveau.
+          </p>
+        )}
         <div>
           <label className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold mb-2 block">{t("admin.ban_duration")}</label>
           <input type="number" min="1" max="87600" value={hours} onChange={(e) => setHours(parseInt(e.target.value) || 1)}
@@ -717,7 +727,7 @@ function BanDialog({ target, onClose, onDone, t }) {
         </div>
         <div className="flex gap-2 justify-end">
           <button type="button" onClick={onClose} className="px-4 py-2 rounded border border-white/10 text-sm">{t("common.cancel")}</button>
-          <button type="submit" data-testid="confirm-ban-btn" className="px-4 py-2 rounded border border-red-500/50 text-red-300 hover:bg-red-500/10 font-bold text-sm">
+          <button type="submit" disabled={alreadyBanned} data-testid="confirm-ban-btn" className="px-4 py-2 rounded border border-red-500/50 text-red-300 hover:bg-red-500/10 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed">
             <Ban className="w-3 h-3 inline mr-1" /> Bannir
           </button>
         </div>

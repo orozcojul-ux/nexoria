@@ -9,7 +9,7 @@ import { PageShell } from "@/components/ui-premium";
 import HeroName from "@/components/HeroName";
 import HeroCardOpener from "@/components/HeroCardOpener";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
-import { getStaffVisuals, NEXUS_SUPREME } from "@/lib/staff-roles";
+import { getStaffVisuals, NEXUS_SUPREME, groupTeamMembersByGrade } from "@/lib/staff-roles";
 import { translateClassName } from "@/lib/translate-class";
 import { usePageBanner } from "@/lib/page-banners";
 import { useI18n } from "@/contexts/I18nContext";
@@ -31,20 +31,52 @@ function resolveTeamPageField(value, defaultFr, i18nKey, t) {
 
 function getStaffGradeLabel(member, visuals, t) {
   if (member.is_nexus_supreme) return t(NEXUS_SUPREME.labelKey);
-  if (member.is_official_sentinel) return t("community.naria.grade");
+  if (member.is_official_sentinel || member.role === "moderator") return t("community.teamGrade.sentinelleSingular");
+  if (member.role === "admin") return t("sidebar.staff_role.admin");
   if (visuals?.labelKey) return t(visuals.labelKey);
   return visuals?.label || member.role;
+}
+
+function isNariaMember(member) {
+  const key = (member.system_key || "").toLowerCase();
+  const name = (member.username || "").toLowerCase();
+  return key === "naria" || name === "naria" || member.user_id === "naria_sentinelle";
+}
+
+function isShumiMember(member) {
+  const key = (member.system_key || "").toLowerCase();
+  const name = (member.username || "").toLowerCase();
+  return key === "shumi" || key === "vigile" || name === "shumi" || name === "vigile";
+}
+
+function getSentinelBadgeLabel(member, t) {
+  if (isShumiMember(member)) return t("community.shumi.badge");
+  if (isNariaMember(member)) return t("community.naria.badge");
+  return t("community.naria.badge");
+}
+
+function getTeamCardClassLabel(member, t) {
+  return member.class_name ? translateClassName(t, member.class_name) : t("community.adventurer");
+}
+
+function showsModeratorBadge(member) {
+  return Boolean(member.is_official_sentinel || member.role === "moderator");
+}
+
+function getModeratorBadgeLabel(member, t) {
+  return member.team_moderator_trial
+    ? t("community.teamModerator.trial")
+    : t("community.teamModerator.label");
 }
 
 function TeamMemberCard({ member }) {
   const { t } = useI18n();
   const isOfficialSentinel = member.is_official_sentinel;
+  const showModBadge = showsModeratorBadge(member);
   const avatar = getUserAvatarUrl(member);
   const visuals = member.is_nexus_supreme
     ? NEXUS_SUPREME
-    : isOfficialSentinel
-      ? { color: "#8B5CF6", labelKey: "community.naria.grade" }
-      : getStaffVisuals(member);
+    : getStaffVisuals(member);
   const accent = visuals?.color || "#FBBF24";
   const gradeLabel = getStaffGradeLabel(member, visuals, t);
   const GradeIcon = member.is_nexus_supreme ? Crown : Shield;
@@ -68,25 +100,25 @@ function TeamMemberCard({ member }) {
               member.username?.[0]?.toUpperCase() || "?"
             )}
           </div>
-          {!isOfficialSentinel && (
-            <span className="team-card-profile-hint">{t("community.viewProfile")}</span>
-          )}
+          <span className="team-card-profile-hint">{t("community.viewProfile")}</span>
         </div>
 
         <div className="team-card-meta">
           <div className="team-card-name-row">
             <HeroName user={member} size="base" />
-            {!isOfficialSentinel && <ExternalLink className="team-card-link-icon w-3.5 h-3.5" aria-hidden />}
+            <ExternalLink className="team-card-link-icon w-3.5 h-3.5" aria-hidden />
           </div>
           <div className="team-card-grade" style={{ color: accent }}>
             <GradeIcon className="w-3 h-3" />
             {gradeLabel}
           </div>
           {roleLabel && <p className="team-card-role">{roleLabel}</p>}
-          {isOfficialSentinel && (
+          {showModBadge && (
             <>
-              <span className="team-card-sentinel-badge">{t("community.naria.badge")}</span>
-              <span className="team-card-sentinel-official">{t("community.naria.status")}</span>
+              <span className="team-card-sentinel-badge">{getSentinelBadgeLabel(member, t)}</span>
+              <span className={`team-card-sentinel-official${member.team_moderator_trial ? " team-card-sentinel-official--trial" : ""}`}>
+                {getModeratorBadgeLabel(member, t)}
+              </span>
             </>
           )}
           {nationality && (
@@ -115,40 +147,43 @@ function TeamMemberCard({ member }) {
       )}
 
       <footer className="team-card-foot">
-        {isOfficialSentinel ? (
-          <span>{t("community.naria.footer")}</span>
-        ) : (
-          <>
-            <span>{member.class_name ? translateClassName(t, member.class_name) : t("community.adventurer")}</span>
-            <span>{t("friends.levelShort", { level: member.level || 1 })}</span>
-          </>
-        )}
+        <span>{getTeamCardClassLabel(member, t)}</span>
+        <span>{t("friends.levelShort", { level: member.level || 1 })}</span>
       </footer>
     </>
   );
-
-  if (isOfficialSentinel) {
-    return (
-      <article
-        className="team-card team-card--sentinel team-card--static"
-        style={{ "--team-accent": accent }}
-        data-testid={`team-card-${member.user_id}`}
-      >
-        {cardInner}
-      </article>
-    );
-  }
 
   return (
     <HeroCardOpener
       userId={member.user_id}
       username={member.username}
-      className="team-card team-card--clickable"
+      className={`team-card team-card--clickable${isOfficialSentinel ? " team-card--sentinel" : ""}`}
       style={{ "--team-accent": accent }}
       testid={`team-card-${member.user_id}`}
     >
       {cardInner}
     </HeroCardOpener>
+  );
+}
+
+function TeamGradeSection({ section, t, renderCard }) {
+  const GradeIcon = section.id === "supreme" ? Crown : section.id === "sage" ? Sparkles : Shield;
+  return (
+    <div className="team-grade-section" data-grade={section.id}>
+      <header className="team-grade-head" style={{ "--grade-color": section.color, "--grade-glow": section.glow }}>
+        <div className="team-grade-head-icon">
+          <GradeIcon className="w-4 h-4" />
+        </div>
+        <div className="team-grade-head-text">
+          <h3 className="team-grade-title">{t(section.labelKey)}</h3>
+          <p className="team-grade-count">{t("community.teamGrade.memberCount", { count: section.members.length })}</p>
+        </div>
+        <div className="team-grade-head-line" aria-hidden />
+      </header>
+      <div className="team-grid team-grid--premium">
+        {section.members.map((m) => renderCard(m))}
+      </div>
+    </div>
   );
 }
 
@@ -232,6 +267,7 @@ export default function Community() {
   const teamTitle = resolveTeamPageField(teamPage.title, TEAM_PAGE_DEFAULTS.title, "community.teamDefault", t);
   const teamSubtitle = resolveTeamPageField(teamPage.subtitle, TEAM_PAGE_DEFAULTS.subtitle, "community.teamSubtitle", t);
   const teamIntro = resolveTeamPageField(teamPage.intro, TEAM_PAGE_DEFAULTS.intro, "community.teamIntro", t);
+  const teamByGrade = groupTeamMembersByGrade(team);
 
   return (
     <PageShell wide testid="community-page" banner={banner}>
@@ -271,9 +307,14 @@ export default function Community() {
             ) : team.length === 0 ? (
               <div className="community-team-empty">{t("community.teamSoon")}</div>
             ) : (
-              <div className="team-grid team-grid--premium">
-                {team.map((m) => (
-                  <TeamMemberCard key={m.user_id} member={m} />
+              <div className="team-grade-stack">
+                {teamByGrade.map((section) => (
+                  <TeamGradeSection
+                    key={section.id}
+                    section={section}
+                    t={t}
+                    renderCard={(m) => <TeamMemberCard key={m.user_id} member={m} />}
+                  />
                 ))}
               </div>
             )}

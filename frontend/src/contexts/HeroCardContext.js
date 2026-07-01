@@ -34,6 +34,10 @@ export function HeroCardProvider({ children }) {
     try {
       const { data } = await api.get(`/profile/${encodeURIComponent(name)}`);
       if (data?.hidden) {
+        if (data.reason === "official_sentinel" && data.user_id) {
+          openHeroCard(data.user_id);
+          return;
+        }
         toast.info("Ce profil n'est pas visible.");
         return;
       }

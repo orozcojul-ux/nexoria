@@ -1,6 +1,7 @@
 """Routes API Naria — modération site."""
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 from datetime import timedelta
@@ -8,11 +9,47 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 import naria_moderation as naria
+from naria_system import (
+    COMMUNITY_MODERATION_CONTENT_TYPES,
+    NARIA_SYSTEM_KEY,
+    NARIA_USERNAME,
+    NEXUS_MODERATION_CONTENT_TYPES,
+    SHUMI_SYSTEM_KEY,
+    SHUMI_USERNAME,
+)
 
 router = APIRouter()
 
 
-def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, now_utc):
+def _sentinel_log_filter(sentinel: str) -> dict:
+    key = (sentinel or "").strip().lower()
+    if key == NARIA_SYSTEM_KEY:
+        return {
+            "$or": [
+                {"actionSource": NARIA_SYSTEM_KEY},
+                {"actorName": NARIA_USERNAME},
+                {
+                    "$and": [
+                        {"actionSource": {"$exists": False}},
+                        {"contentType": {"$in": list(COMMUNITY_MODERATION_CONTENT_TYPES)}},
+                    ],
+                },
+            ],
+        }
+    if key == SHUMI_SYSTEM_KEY:
+        nexus_types = list(NEXUS_MODERATION_CONTENT_TYPES)
+        return {
+            "$or": [
+                {"actionSource": SHUMI_SYSTEM_KEY},
+                {"actorName": {"$in": [SHUMI_USERNAME, "Vigile", "vigile"]}},
+                {"contentType": {"$in": nexus_types}},
+                {"contentType": {"$regex": "^nexus_"}},
+            ],
+        }
+    raise HTTPException(400, "Sentinelle invalide (naria ou shumi)")
+
+
+def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_council_dep, now_utc):
     """Monte les routes sur le router API principal."""
 
     @api.get("/moderation/status")
@@ -68,13 +105,16 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, now_utc):
 
     @api.get("/admin/moderation/logs")
     async def admin_moderation_logs(
+        sentinel: str = "all",
         status: str = "all",
         limit: int = 100,
-        user: dict = Depends(get_staff_dep),
+        user: dict = Depends(get_supreme_council_dep),
     ):
-        q = {}
+        q: dict = {}
         if status != "all":
             q["status"] = status
+        if sentinel != "all":
+            q.update(_sentinel_log_filter(sentinel))
         return await db.moderation_logs.find(q, {"_id": 0}).sort("createdAt", -1).limit(min(limit, 200)).to_list(200)
 
     @api.get("/admin/moderation/warnings")
@@ -96,7 +136,7 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, now_utc):
         restore_content: bool = False
 
     @api.put("/admin/moderation/logs/{log_id}")
-    async def admin_review_log(log_id: str, req: ReviewLogReq, user: dict = Depends(get_staff_dep)):
+    async def admin_review_log(log_id: str, req: ReviewLogReq, user: dict = Depends(get_supreme_council_dep)):
         if req.status not in ("approved", "dismissed", "restored"):
             raise HTTPException(400, "Statut invalide")
         restore = req.restore_content or req.status == "restored"
@@ -125,6 +165,11 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, now_utc):
 
     @api.post("/admin/moderation/users/{user_id}/lift-restriction")
     async def admin_lift_restriction(user_id: str, user: dict = Depends(get_staff_dep)):
+        target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "user_id": 1, "moderation_restricted_until": 1})
+        if not target:
+            raise HTTPException(404, "Joueur introuvable")
+        from moderation_guards import require_restriction_active
+        require_restriction_active(target)
         await naria.lift_restriction(db, user_id)
         return {"ok": True}
 
@@ -183,5 +228,100 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, now_utc):
             icon="Shield", link="/profile",
         )
         return {"ok": True, "warning_id": warning_id}
+
+    @api.get("/admin/moderation/friend-messages")
+    async def admin_moderation_friend_messages(
+        user_id: Optional[str] = None,
+        username: Optional[str] = None,
+        q: Optional[str] = None,
+        after: Optional[str] = None,
+        limit: int = 100,
+        user: dict = Depends(get_staff_dep),
+    ):
+        query: dict = {}
+        resolved_uid = (user_id or "").strip() or None
+        if username and username.strip():
+            un = username.strip()
+            u = await db.users.find_one(
+                {"username": {"$regex": f"^{re.escape(un)}$", "$options": "i"}},
+                {"_id": 0, "user_id": 1},
+            )
+            if not u:
+                return []
+            resolved_uid = u["user_id"]
+        if resolved_uid:
+            query["$or"] = [{"from_user": resolved_uid}, {"to_user": resolved_uid}]
+        if q and q.strip():
+            query["text"] = {"$regex": q.strip()[:80], "$options": "i"}
+        if after and after.strip():
+            query["created_at"] = {"$gt": after.strip()}
+        rows = await db.friend_messages.find(
+            query, {"_id": 0},
+        ).sort("created_at", -1).limit(min(limit, 200)).to_list(200)
+        uids = {u for m in rows for u in (m.get("from_user"), m.get("to_user")) if u}
+        users = await db.users.find(
+            {"user_id": {"$in": list(uids)}},
+            {"_id": 0, "user_id": 1, "username": 1, "role": 1},
+        ).to_list(500)
+        umap = {u["user_id"]: u for u in users}
+        for m in rows:
+            m["from_username"] = (umap.get(m.get("from_user")) or {}).get("username")
+            m["to_username"] = (umap.get(m.get("to_user")) or {}).get("username")
+        return rows
+
+    @api.get("/admin/moderation/comments")
+    async def admin_moderation_comments(
+        source: str = "all",
+        user_id: Optional[str] = None,
+        limit: int = 100,
+        user: dict = Depends(get_staff_dep),
+    ):
+        cap = min(limit, 200)
+        out: list[dict] = []
+        if source in ("all", "news"):
+            q: dict = {}
+            if user_id:
+                q["user_id"] = user_id
+            news_rows = await db.news_comments.find(q, {"_id": 0}).sort("created_at", -1).limit(cap).to_list(cap)
+            for r in news_rows:
+                r["source"] = "news"
+                r["text"] = r.get("content")
+                out.append(r)
+        if source in ("all", "feed"):
+            q = {}
+            if user_id:
+                q["user_id"] = user_id
+            feed_rows = await db.comments.find(q, {"_id": 0}).sort("created_at", -1).limit(cap).to_list(cap)
+            for r in feed_rows:
+                r["source"] = "feed"
+                r["text"] = r.get("content")
+                out.append(r)
+        out.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return out[:cap]
+
+    class HideContentReq(BaseModel):
+        reason: str = Field("Masqué par le staff", max_length=300)
+
+    @api.post("/admin/moderation/friend-messages/{message_id}/hide")
+    async def admin_hide_friend_message(
+        message_id: str,
+        req: HideContentReq,
+        user: dict = Depends(get_staff_dep),
+    ):
+        msg = await db.friend_messages.find_one({"message_id": message_id}, {"_id": 0, "message_id": 1})
+        if not msg:
+            raise HTTPException(404, "Message introuvable")
+        await naria.hide_content(
+            db, "friend_message", message_id, req.reason,
+            actor_name=user.get("username") or "staff",
+        )
+        return {"ok": True}
+
+    @api.post("/admin/moderation/friend-messages/{message_id}/restore")
+    async def admin_restore_friend_message(message_id: str, user: dict = Depends(get_staff_dep)):
+        ok = await naria.restore_content(db, "friend_message", message_id)
+        if not ok:
+            raise HTTPException(404, "Message introuvable ou déjà visible")
+        return {"ok": True}
 
     return api

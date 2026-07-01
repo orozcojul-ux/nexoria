@@ -32,6 +32,7 @@ export default function Profile() {
   const [following, setFollowing] = useState(false);
   const [editAvatar, setEditAvatar] = useState(false);
   const [editBanner, setEditBanner] = useState(false);
+  const [sentinelCardUserId, setSentinelCardUserId] = useState(null);
   const [heroCardOpen, setHeroCardOpen] = useState(false);
   const [heroCardAvailable, setHeroCardAvailable] = useState(true);
 
@@ -39,6 +40,15 @@ export default function Profile() {
     try {
       const p = await api.get(`/profile/${username}`);
       if (p.data?.hidden) {
+        if (p.data.reason === "official_sentinel" && p.data.user_id) {
+          setSentinelCardUserId(p.data.user_id);
+          setHiddenInfo(null);
+          setProfile(null);
+          setBadges([]);
+          setChronicle([]);
+          return;
+        }
+        setSentinelCardUserId(null);
         setHiddenInfo(p.data);
         setProfile(null);
         setBadges([]);
@@ -46,6 +56,7 @@ export default function Profile() {
         return;
       }
       setHiddenInfo(null);
+      setSentinelCardUserId(null);
       const [c, ab] = await Promise.all([
         api.get(`/chronicle/${username}`),
         api.get("/game/badges"),
@@ -58,6 +69,7 @@ export default function Profile() {
     } catch (err) {
       console.error("Profile load failed", err);
       setHiddenInfo(null);
+      setSentinelCardUserId(null);
       setProfile(null);
       toast.error(t("profile.notFound"));
     }
@@ -82,11 +94,28 @@ export default function Profile() {
       toast.success(data.following ? t("profile.followed") : t("profile.unfollowed"));
     } catch { toast.error(t("common.error")); }
   };
-
   const share = () => {
     navigator.clipboard.writeText(window.location.href);
     toast.success(t("profile.linkCopied"));
   };
+
+  if (sentinelCardUserId) {
+    return (
+      <HeroCard
+        userId={sentinelCardUserId}
+        open
+        onClose={() => navigate("/community")}
+      />
+    );
+  }
+
+  if (!profile && !hiddenInfo) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center text-zinc-500" data-testid="profile-page">
+        {t("common.loading")}
+      </div>
+    );
+  }
 
   if (hiddenInfo) {
     return (
@@ -94,16 +123,16 @@ export default function Profile() {
         username={hiddenInfo.username}
         displayName={hiddenInfo.display_name}
         reason={hiddenInfo.reason}
+        avatarUrl={hiddenInfo.avatar_url}
+        bio={hiddenInfo.bio}
+        rank={hiddenInfo.rank}
+        roleLabel={hiddenInfo.role_label}
       />
     );
   }
 
   if (!profile) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center text-zinc-500" data-testid="profile-page">
-        {t("common.loading")}
-      </div>
-    );
+    return null;
   }
 
   const isSelf = user?.username === username;

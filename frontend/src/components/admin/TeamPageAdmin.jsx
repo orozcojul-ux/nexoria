@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import api from "@/lib/api";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
 import { getStaffVisuals } from "@/lib/staff-roles";
+import { useI18n } from "@/contexts/I18nContext";
 
 const EMPTY_PROFILE = {
   visible: true,
@@ -14,6 +15,7 @@ const EMPTY_PROFILE = {
   tagline: "",
   bio: "",
   specialties: [],
+  moderator_trial: false,
 };
 
 function Field({ label, hint, children }) {
@@ -28,14 +30,18 @@ function Field({ label, hint, children }) {
 
 const inputCls = "w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50";
 
-function TeamCardPreview({ member, form }) {
+function TeamCardPreview({ member, form, t }) {
   const visuals = getStaffVisuals(member);
-  const accent = member.is_official_sentinel ? "#8B5CF6" : member.is_nexus_supreme ? "#FBBF24" : (visuals?.color || "#A78BFA");
+  const accent = getStaffVisuals(member)?.color || (member.is_nexus_supreme ? "#FBBF24" : "#A78BFA");
   const avatar = getUserAvatarUrl(member);
   const specialties = String(form.specialtiesText || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  const showModBadge = member.is_official_sentinel || member.role === "moderator";
+  const modBadgeLabel = form.moderator_trial
+    ? t("community.teamModerator.trial")
+    : t("community.teamModerator.label");
 
   return (
     <div
@@ -49,7 +55,7 @@ function TeamCardPreview({ member, form }) {
           style={{ borderColor: accent }}
         >
           {member.is_official_sentinel ? (
-            avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : <Shield className="w-7 h-7 text-violet-300" />
+            avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : <Shield className="w-7 h-7" style={{ color: accent }} />
           ) : avatar ? (
             <img src={avatar} alt="" className="w-full h-full object-cover" />
           ) : (
@@ -59,6 +65,11 @@ function TeamCardPreview({ member, form }) {
         <div className="min-w-0 flex-1">
           <div className="font-display font-bold text-base truncate">{member.display_name || member.username}</div>
           {form.role_label && <p className="text-xs text-zinc-400 mt-0.5">{form.role_label}</p>}
+          {showModBadge && (
+            <p className="text-[10px] font-bold uppercase tracking-wider mt-1" style={{ color: accent }}>
+              {modBadgeLabel}
+            </p>
+          )}
           {form.nationality && (
             <p className="text-[11px] text-zinc-500 mt-1">{form.nationality}</p>
           )}
@@ -79,7 +90,12 @@ function TeamCardPreview({ member, form }) {
           ))}
         </div>
       )}
-      {!member.is_official_sentinel && (
+      {member.is_official_sentinel ? (
+        <p className="text-[10px] flex items-center gap-1" style={{ color: `${accent}bb` }}>
+          <ExternalLink className="w-3 h-3" />
+          Clic sur la carte → fiche Sentinelle (profil fermé)
+        </p>
+      ) : (
         <p className="text-[10px] text-violet-300/70 flex items-center gap-1">
           <ExternalLink className="w-3 h-3" />
           Clic sur la carte → profil héros
@@ -90,6 +106,7 @@ function TeamCardPreview({ member, form }) {
 }
 
 export default function TeamPageAdmin() {
+  const { t } = useI18n();
   const [settings, setSettings] = useState({ title: "", subtitle: "", intro: "" });
   const [members, setMembers] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -156,6 +173,7 @@ export default function TeamPageAdmin() {
         tagline: form.tagline,
         bio: form.bio,
         specialties,
+        moderator_trial: Boolean(form.moderator_trial),
       });
       setMembers((prev) => prev.map((m) => (
         m.user_id === selectedId ? { ...m, profile: data } : m
@@ -218,12 +236,12 @@ export default function TeamPageAdmin() {
             const visuals = getStaffVisuals(m);
             const active = selectedId === m.user_id;
             const avatar = m.is_automated_sentinel ? null : getUserAvatarUrl(m);
-            const gradeLabel = m.is_official_sentinel
-              ? "Sentinelle officielle"
+            const gradeLabel = (m.is_official_sentinel || m.role === "moderator")
+              ? (m.profile?.moderator_trial ? t("community.teamModerator.trial") : t("community.teamModerator.label"))
               : m.is_nexus_supreme
                 ? "Gardien Suprême"
                 : (visuals?.label || m.role);
-            const accent = m.is_official_sentinel ? "#8B5CF6" : (visuals?.color || "#888");
+            const accent = getStaffVisuals(m)?.color || (visuals?.color || "#888");
             return (
               <button
                 key={m.user_id}
@@ -312,7 +330,25 @@ export default function TeamPageAdmin() {
                 <input className={inputCls} value={form.specialtiesText ?? (form.specialties || []).join(", ")} onChange={(e) => setForm((f) => ({ ...f, specialtiesText: e.target.value }))} placeholder="Modération, Discord, Événements" data-testid="team-member-specialties" />
               </Field>
 
-              <TeamCardPreview member={selected} form={form} />
+              {(selected.is_official_sentinel || selected.role === "moderator") && (
+                <label className="flex items-start gap-3 cursor-pointer rounded-lg border border-orange-500/25 bg-orange-500/[0.06] px-3 py-3">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={Boolean(form.moderator_trial)}
+                    onChange={(e) => setForm((f) => ({ ...f, moderator_trial: e.target.checked }))}
+                    data-testid="team-member-moderator-trial"
+                  />
+                  <span>
+                    <span className="text-sm text-orange-100 font-semibold block">Modérateur(trice) en test</span>
+                    <span className="text-[11px] text-zinc-500 block mt-0.5">
+                      Affiche « Modérateur(trice) en test » sur la carte publique au lieu de « Modérateur(trice) ».
+                    </span>
+                  </span>
+                </label>
+              )}
+
+              <TeamCardPreview member={selected} form={form} t={t} />
 
               <button type="submit" disabled={savingMember} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-violet-500/40 text-violet-200 text-sm font-bold hover:bg-violet-500/10 disabled:opacity-50" data-testid="team-member-save">
                 {savingMember ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

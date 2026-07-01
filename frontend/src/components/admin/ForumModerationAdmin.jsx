@@ -235,15 +235,35 @@ export default function ForumModerationAdmin() {
               )}
 
               {isAdmin && targetUser.role !== "admin" && (
-                <PremiumButton
-                  variant="ghost"
-                  size="sm"
-                  icon={Ban}
-                  onClick={() => setSiteBan({ user_id: targetUser.user_id, username: targetUser.username, hours: 24, reason: "" })}
-                  testid="forum-mod-site-ban"
-                >
-                  Bannir du site (royaume)
-                </PremiumButton>
+                isActiveUntil(targetUser.banned_until) ? (
+                  <PremiumButton
+                    variant="ghost"
+                    size="sm"
+                    icon={Shield}
+                    onClick={async () => {
+                      try {
+                        await api.post(`/admin/users/${targetUser.user_id}/unban`);
+                        toast.success("Ban site levé");
+                        await searchUser();
+                      } catch (err) {
+                        toast.error(formatApiError(err));
+                      }
+                    }}
+                    testid="forum-mod-site-unban"
+                  >
+                    Lever ban site
+                  </PremiumButton>
+                ) : (
+                  <PremiumButton
+                    variant="ghost"
+                    size="sm"
+                    icon={Ban}
+                    onClick={() => setSiteBan({ user_id: targetUser.user_id, username: targetUser.username, hours: 24, reason: "" })}
+                    testid="forum-mod-site-ban"
+                  >
+                    Bannir du site (royaume)
+                  </PremiumButton>
+                )
               )}
             </PremiumCard>
           )}

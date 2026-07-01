@@ -68,6 +68,10 @@ export function getStaffVisuals(userOrPlayer) {
   if (userOrPlayer.is_nexus_supreme) {
     return { ...NEXUS_SUPREME, role: "admin" };
   }
+  if (userOrPlayer.is_official_sentinel) {
+    const mod = STAFF_GRADES.find((g) => g.id === "moderator");
+    return mod ? { ...mod, role: "moderator" } : null;
+  }
   const role = userOrPlayer.role;
   const grade = STAFF_GRADES.find((g) => g.id === role);
   if (!grade) return null;
@@ -148,3 +152,43 @@ export const EMPTY_STAFF_ONLINE = {
   by_role: { admin: 0, moderator: 0 },
   members: [],
 };
+
+export const TEAM_GRADE_SECTIONS = [
+  { id: "supreme", labelKey: "community.teamGrade.supreme", color: NEXUS_SUPREME.color, glow: NEXUS_SUPREME.glow },
+  { id: "sage", labelKey: "community.teamGrade.sage", color: "#9D4CDD", glow: "rgba(157,76,221,0.35)" },
+  { id: "sentinelle", labelKey: "community.teamGrade.sentinelle", color: "#F97316", glow: "rgba(249,115,22,0.35)" },
+];
+
+/** Sage ou Gardien Suprême — accès logs sentinelles automatisées (Naria / Shumi). */
+export function isSupremeCouncil(user) {
+  if (!user) return false;
+  return user.role === "admin" || !!user.is_nexus_supreme;
+}
+
+/** Classement d'un membre pour la page équipe : supreme → sage → sentinelle. */
+export function teamMemberGradeId(member) {
+  if (!member) return "sentinelle";
+  if (member.is_nexus_supreme) return "supreme";
+  if (member.role === "admin") return "sage";
+  return "sentinelle";
+}
+
+/** Regroupe et trie l'équipe par grade (Gardien Suprême, Sage, Sentinelle). */
+export function groupTeamMembersByGrade(members = []) {
+  const buckets = Object.fromEntries(TEAM_GRADE_SECTIONS.map((s) => [s.id, []]));
+  for (const m of members) {
+    const grade = teamMemberGradeId(m);
+    buckets[grade]?.push(m);
+  }
+  const sortFn = (a, b) => {
+    const order = (a.team_sort_order ?? 100) - (b.team_sort_order ?? 100);
+    if (order !== 0) return order;
+    return (a.username || "").localeCompare(b.username || "");
+  };
+  for (const id of Object.keys(buckets)) {
+    buckets[id].sort(sortFn);
+  }
+  return TEAM_GRADE_SECTIONS
+    .map((section) => ({ ...section, members: buckets[section.id] || [] }))
+    .filter((section) => section.members.length > 0);
+}

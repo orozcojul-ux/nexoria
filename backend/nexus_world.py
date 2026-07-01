@@ -1342,6 +1342,13 @@ def build_socketio_app(db, hooks=None):
         # Moderator can only ban regular users
         if gm["role"] == "moderator" and target["role"] != "user":
             return await _send_err(sid, "Réservé aux Archontes.")
+        try:
+            from moderation_guards import is_site_ban_active
+            db_user = await db.users.find_one({"user_id": target["user_id"]}, {"_id": 0, "banned_until": 1})
+            if db_user and is_site_ban_active(db_user):
+                return await _send_err(sid, "Ce héros est déjà banni du royaume.")
+        except Exception as e:
+            logger.warning("[gm_ban] ban check failed: %s", e)
         until = datetime.now(timezone.utc) + timedelta(hours=max(1, min(duration_hours, 24 * 365)))
         try:
             await db.users.update_one(

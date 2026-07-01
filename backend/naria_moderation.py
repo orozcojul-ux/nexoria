@@ -9,13 +9,22 @@ from datetime import datetime, timezone, timedelta
 from moderation_rules import AnalysisResult, analyze_content, preview_text
 from naria_language import detect_content_language, normalize_lang, resolve_user_language
 from naria_messages import get_message, hidden_placeholder, pick_user_message
-from naria_system import NARIA_PUBLIC_ROLE, NARIA_USERNAME, resolve_naria_actor
+from naria_system import (
+    NARIA_PUBLIC_ROLE,
+    NARIA_USERNAME,
+    SHUMI_PUBLIC_ROLE,
+    SHUMI_USERNAME,
+    resolve_moderation_actor,
+    moderation_actor_system_key,
+)
 from notifications import push_notification, push_staff_alert
 
 logger = logging.getLogger("nexoria.naria")
 
 NARIA_ACTOR = NARIA_USERNAME
 NARIA_ROLE = NARIA_PUBLIC_ROLE
+MODERATION_ACTOR = NARIA_USERNAME
+MODERATION_ROLE = NARIA_PUBLIC_ROLE
 AUTO_BAN_ENABLED = False
 
 SCORE_DECAY_DAYS = 14
@@ -81,14 +90,15 @@ def naria_team_member() -> dict:
     }
 
 
-async def _actor_fields(db) -> dict:
-    actor = await resolve_naria_actor(db)
+async def _actor_fields(db, content_type: str = "generic") -> dict:
+    actor = await resolve_moderation_actor(db, content_type)
+    source = actor.get("action_source") or moderation_actor_system_key(content_type)
     return {
         "actorId": actor["user_id"],
         "actorName": actor["username"],
         "actorRole": actor["role"],
         "actorType": actor.get("actor_type", "system"),
-        "actionSource": actor.get("action_source", "naria"),
+        "actionSource": source,
         "actor": actor["username"],
         "role": actor["role"],
     }
@@ -159,6 +169,7 @@ def decide_action(
     user: dict,
     score_doc: dict,
     content_type: str = "generic",
+    actor_name: str = NARIA_USERNAME,
 ) -> ModerationAction:
     user_lang = normalize_lang(user.get("language") or score_doc.get("preferredLanguage") or "fr")
     action = ModerationAction(
@@ -189,14 +200,17 @@ def decide_action(
     if conf < CONFIDENCE_WARN and warnings == 0:
         effective_score = max(1, int(total_score * 0.5))
 
-    chat_zones = {"nexus_room_chat", "nexus_global_chat", "nexus_trade_chat", "nexus_guild_chat", "guild_chat"}
+    chat_zones = {
+        "nexus_room_chat", "nexus_global_chat", "nexus_trade_chat", "nexus_guild_chat",
+        "guild_chat", "friend_message",
+    }
     if content_type in chat_zones and conf < CONFIDENCE_HIDE and analysis.max_severity != "critical":
         effective_score = min(effective_score, 3)
 
     if analysis.max_severity == "critical" and conf >= 0.85 and effective_score >= 5:
         action.block = True
         action.action = "block"
-        key, msg = pick_user_message(analysis.hits, user_lang, block=True)
+        key, msg = pick_user_message(analysis.hits, user_lang, block=True, actor=actor_name)
         action.user_message_key = key
         action.user_message = msg
         return action
@@ -237,10 +251,11 @@ def decide_action(
         restrict_minutes=action.restrict_minutes,
         hide=action.hide,
         block=action.block,
+        actor=actor_name,
     )
     if action.propose_ban and not action.block:
         key = "naria.ban.notice"
-        msg = get_message(key, user_lang)
+        msg = get_message(key, user_lang, actor=actor_name)
     action.user_message_key = key
     action.user_message = msg
     action.allowed = not action.block
@@ -261,7 +276,12 @@ def moderation_restriction_detail(user: dict | None) -> dict | None:
         "remaining_seconds": remaining,
         "reason": user.get("moderation_restriction_reason") or "Restriction modération",
         "actor": user.get("moderation_restriction_by_name") or user.get("moderation_restriction_by") or NARIA_ACTOR,
-        "message": get_message("naria.restriction.temporary", lang, minutes=max(1, remaining // 60)),
+        "message": get_message(
+            "naria.restriction.temporary",
+            lang,
+            minutes=max(1, remaining // 60),
+            actor=user.get("moderation_restriction_by_name") or NARIA_ACTOR,
+        ),
     }
 
 
@@ -351,12 +371,47 @@ async def _build_action(
     analysis.total_score = added
 
     new_total = int(score_doc.get("score") or 0) + added
-    action = decide_action(new_total, analysis, user=user, score_doc=score_doc, content_type=content_type)
+    actor = await resolve_moderation_actor(db, content_type)
+    actor_name = actor["username"]
+    action = decide_action(new_total, analysis, user=user, score_doc=score_doc, content_type=content_type, actor_name=actor_name)
     action.score_added = added
     action.total_score = new_total
     action.user_language = user_lang
     action.detected_language = analysis.detected_language
     return analysis, action
+
+
+async def publish_with_moderation(
+    db,
+    *,
+    user: dict,
+    text: str,
+    content_type: str,
+    content_id: str,
+) -> ModerationAction:
+    """Vérifie restrictions + preflight, puis modère après publication. Lève HTTP 403 si blocage."""
+    from fastapi import HTTPException
+
+    await enforce_post_allowed(user)
+    blocked = await preflight_content(db, user, text, content_type=content_type)
+    if blocked:
+        raise HTTPException(status_code=403, detail={
+            "moderation_blocked": True,
+            "message": blocked.user_message or HIDDEN_PLACEHOLDER,
+        })
+    return await moderate_published_content(
+        db, user=user, text=text, content_type=content_type, content_id=content_id,
+    )
+
+
+def sanitize_moderated_document(doc: dict | None, text_field: str, lang: str = "fr") -> dict | None:
+    if not doc:
+        return doc
+    if not doc.get("moderation_hidden"):
+        return doc
+    out = dict(doc)
+    out[text_field] = hidden_placeholder(lang)
+    return out
 
 
 async def preflight_content(
@@ -439,7 +494,7 @@ def _log_payload(user, analysis, action, content_type, content_id, text, actor: 
 
 async def _log_only(db, user, analysis, action, content_type, content_id, text) -> str:
     log_id = f"mlog_{uuid.uuid4().hex[:12]}"
-    actor = await _actor_fields(db)
+    actor = await _actor_fields(db, content_type)
     payload = _log_payload(user, analysis, action, content_type, content_id, text, actor)
     payload.update({
         "log_id": log_id,
@@ -458,7 +513,7 @@ async def _apply_action(db, user, analysis, action, content_type, content_id, te
     warning_id = None
     now = now_iso()
     user_lang = action.user_language
-    actor = await _actor_fields(db)
+    actor = await _actor_fields(db, content_type)
     actor_name = actor["actorName"]
     actor_id = actor["actorId"]
 
@@ -486,7 +541,7 @@ async def _apply_action(db, user, analysis, action, content_type, content_id, te
 
     if action.warn:
         warning_id = f"mwarn_{uuid.uuid4().hex[:12]}"
-        msg = action.user_message or get_message("naria.warning.respect", user_lang)
+        msg = action.user_message or get_message("naria.warning.respect", user_lang, actor=actor_name)
         await db.moderation_warnings.insert_one({
             "warning_id": warning_id,
             "userId": user["user_id"],
@@ -513,7 +568,7 @@ async def _apply_action(db, user, analysis, action, content_type, content_id, te
         })
         await push_notification(
             db, user["user_id"], "naria_warning",
-            get_message("naria.title", user_lang),
+            get_message("naria.title", user_lang, actor=actor_name),
             msg,
             sound="war", icon="Shield", link="/profile",
             actor_id=actor_id,
@@ -528,7 +583,7 @@ async def _apply_action(db, user, analysis, action, content_type, content_id, te
             },
         )
 
-    if action.restrict_minutes:
+    if action.restrict_minutes and not moderation_restriction_detail(user):
         until = (now_utc() + timedelta(minutes=action.restrict_minutes)).isoformat()
         await db.users.update_one(
             {"user_id": user["user_id"]},
@@ -543,13 +598,18 @@ async def _apply_action(db, user, analysis, action, content_type, content_id, te
             {"user_id": user["user_id"]},
             {"$set": {"restricted_until": until}},
         )
+    elif action.restrict_minutes and moderation_restriction_detail(user):
+        logger.info(
+            "Skip duplicate restriction for %s — already restricted",
+            user.get("username"),
+        )
 
     if content_id and action.hide:
         await hide_content(db, content_type, content_id, action.reason, user_lang, actor_name=actor_name)
 
     if action.admin_alert or action.propose_ban:
         await push_staff_alert(
-            db, "naria_alert", "Alerte Naria",
+            db, "naria_alert", f"Alerte {actor_name}",
             f"{user.get('username')} [{user_lang}/{action.detected_language}] "
             f"conf={action.confidence:.0%} score={action.total_score} — {action.reason[:100]}",
             sound="war", icon="Shield", link="/admin?tab=moderation",
@@ -606,7 +666,27 @@ async def hide_content(db, content_type: str, content_id: str, reason: str, lang
         await db.nexus_room_chat.update_one(
             {"message_id": content_id},
             {"$set": {**hidden_fields, "content": placeholder, "deleted": True,
-                      "deleted_by": NARIA_ACTOR, "deleted_at": now_iso()}},
+                      "deleted_by": by, "deleted_at": now_iso()}},
+        )
+    elif content_type == "feed_post":
+        await db.posts.update_one(
+            {"post_id": content_id},
+            {"$set": {**hidden_fields, "content": placeholder}},
+        )
+    elif content_type == "feed_comment":
+        await db.comments.update_one(
+            {"comment_id": content_id},
+            {"$set": {**hidden_fields, "content": placeholder}},
+        )
+    elif content_type == "news_comment":
+        await db.news_comments.update_one(
+            {"comment_id": content_id},
+            {"$set": {**hidden_fields, "hidden": True, "content": placeholder}},
+        )
+    elif content_type == "friend_message":
+        await db.friend_messages.update_one(
+            {"message_id": content_id},
+            {"$set": {**hidden_fields, "text": placeholder}},
         )
 
 
@@ -626,18 +706,40 @@ async def restore_content(db, content_type: str, content_id: str) -> bool:
             {"$unset": unset, "$set": {"deleted": False, "deleted_by": None, "deleted_at": None}},
         )
         return r.modified_count > 0
+    if content_type == "feed_post":
+        r = await db.posts.update_one({"post_id": content_id}, {"$unset": unset})
+        return r.modified_count > 0
+    if content_type == "feed_comment":
+        r = await db.comments.update_one({"comment_id": content_id}, {"$unset": unset})
+        return r.modified_count > 0
+    if content_type == "news_comment":
+        r = await db.news_comments.update_one(
+            {"comment_id": content_id},
+            {"$unset": unset, "$set": {"hidden": False}},
+        )
+        return r.modified_count > 0
+    if content_type == "friend_message":
+        r = await db.friend_messages.update_one({"message_id": content_id}, {"$unset": unset})
+        return r.modified_count > 0
     return False
 
 
-async def apply_naria_ban(db, user: dict, reason: str, hours: int = 24, language: str = "fr", *, actor: dict | None = None) -> None:
+async def apply_naria_ban(db, user: dict, reason: str, hours: int = 24, language: str = "fr", *, actor: dict | None = None) -> bool:
+    """Applique un ban site. Retourne False si le héros est déjà banni."""
     import nexus_world
+    from moderation_guards import is_site_ban_active
+
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "banned_until": 1, "username": 1})
+    if fresh and is_site_ban_active(fresh):
+        logger.info("Skip auto-ban: %s already banned", fresh.get("username"))
+        return False
 
     if actor is None:
         actor = await _actor_fields(db)
 
     banned_until = (now_utc() + timedelta(hours=hours)).isoformat()
     user_id = user["user_id"]
-    ban_reason = get_message("naria.ban.notice", language)[:300] if reason else reason[:300]
+    ban_reason = get_message("naria.ban.notice", language, actor=actor.get("actorName") or NARIA_ACTOR)[:300] if reason else reason[:300]
     await db.users.update_one(
         {"user_id": user_id},
         {"$set": {"banned_until": banned_until, "ban_reason": ban_reason}},
@@ -659,9 +761,10 @@ async def apply_naria_ban(db, user: dict, reason: str, hours: int = 24, language
         "created_at": now_iso(),
         "lifted": False,
         "actor_type": actor.get("actorType", "system"),
-        "action_source": actor.get("actionSource", "naria"),
+        "action_source": actor.get("actionSource", "shumi"),
         "language": language,
     })
+    return True
 
 
 def sanitize_forum_doc(doc: dict, is_staff: bool = False, lang: str = "fr") -> dict:

@@ -25,12 +25,17 @@ class TestLanguageDetection:
 
 
 class TestMultilingualMessages:
-    def test_warning_french(self):
-        msg = get_message("naria.warning.respect", "fr")
+    def test_warning_french_naria(self):
+        msg = get_message("naria.warning.respect", "fr", actor="Naria")
+        assert "Naria" in msg
         assert "Sentinelle du Nexus" in msg
 
+    def test_warning_french_shumi(self):
+        msg = get_message("naria.warning.respect", "fr", actor="Shumi")
+        assert "Shumi" in msg
+
     def test_warning_english(self):
-        msg = get_message("naria.warning.respect", "en")
+        msg = get_message("naria.warning.respect", "en", actor="Naria")
         assert "Sentinel of the Nexus" in msg
 
     def test_warning_spanish(self):

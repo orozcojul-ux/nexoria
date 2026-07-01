@@ -6,7 +6,7 @@ import {
   Settings2, Pencil, Repeat,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import api, { getToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { RARITY } from "@/lib/design-tokens";
@@ -160,6 +160,34 @@ function badgeGlowClass(rarity) {
   return styles.badgeGlowDefault;
 }
 
+function ClosedProfilePanel({ user, t }) {
+  const visuals = getStaffVisuals(user);
+  const accent = visuals?.color || "#F97316";
+  const avatarUrl = getUserAvatarUrl(user);
+
+  return (
+    <div className={styles.hiddenPanel}>
+      <div className={styles.closedIdentity}>
+        <div
+          className={styles.closedAvatarWrap}
+          style={{ borderColor: `${accent}66`, boxShadow: `0 0 20px ${accent}22` }}
+        >
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className={styles.closedAvatarImg} />
+          ) : (
+            <Shield className="w-10 h-10" style={{ color: accent, opacity: 0.85 }} />
+          )}
+        </div>
+        <HeroName user={user} size="lg" className={styles.closedHeroName} />
+        {user.rank && <p className={styles.closedRankLine}>{user.rank}</p>}
+      </div>
+      <Shield className="w-12 h-12 mx-auto opacity-60" style={{ color: accent }} />
+      <h3 className={styles.hiddenTitle}>{t("heroCard.profileClosedTitle")}</h3>
+      <p className={styles.empty}>{t("heroCard.profileClosedBody")}</p>
+    </div>
+  );
+}
+
 export default function HeroCard({ userId, open, onClose }) {
   const { t, fmtDate } = useI18n();
   const { user: me, refresh: refreshAuth, loading: authLoading, checkAuth } = useAuth();
@@ -221,6 +249,7 @@ export default function HeroCard({ userId, open, onClose }) {
     if (open && data?.is_self) loadCard();
   }, [open, data?.is_self, loadCard]));
 
+  const isClosedSentinel = Boolean(data?.closed && data?.reason === "official_sentinel");
   const u = data?.hidden ? null : data?.user;
   const classColor = u?.class_id ? CLASS_HEX[u.class_id] || "#f5a623" : "#f5a623";
 
@@ -329,6 +358,8 @@ export default function HeroCard({ userId, open, onClose }) {
 
             {loading ? (
               <div className={styles.loading}>{t("heroCard.loading")}</div>
+            ) : isClosedSentinel && u ? (
+              <ClosedProfilePanel user={u} t={t} />
             ) : data?.hidden ? (
               <div className={styles.hiddenPanel}>
                 <Shield className="w-12 h-12 mx-auto opacity-60" style={{ color: "#00e5cc" }} />

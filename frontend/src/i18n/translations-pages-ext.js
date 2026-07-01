@@ -510,6 +510,27 @@ export const TRANSLATIONS_PAGES_EXT = {
   "community.viewProfile": T("Voir le profil", "View profile", {
     es: "Ver perfil", de: "Profil ansehen", it: "Vedi profilo", pt: "Ver perfil", nl: "Profiel bekijken", ja: "プロフィールを見る",
   }),
+  "community.teamGrade.supreme": T("Gardien Suprême", "Supreme Guardian", {
+    es: "Guardián Supremo", de: "Oberster Hüter", it: "Custode Supremo", pt: "Guardião Supremo", nl: "Opperste Bewaker", ja: "最高守護者",
+  }),
+  "community.teamGrade.sage": T("Sages", "Sages", {
+    es: "Sabios", de: "Weise", it: "Saggi", pt: "Sábios", nl: "Wijzen", ja: "賢者",
+  }),
+  "community.teamGrade.sentinelle": T("Sentinelles", "Sentinels", {
+    es: "Centinelas", de: "Sentinellen", it: "Sentinelle", pt: "Sentinelas", nl: "Sentinellen", ja: "センチネル",
+  }),
+  "community.teamGrade.sentinelleSingular": T("Sentinelle", "Sentinel", {
+    es: "Centinela", de: "Sentinelle", it: "Sentinella", pt: "Sentinela", nl: "Sentinelle", ja: "センチネル",
+  }),
+  "community.teamGrade.memberCount": T("{count} membre", "{count} member", {
+    es: "{count} miembro", de: "{count} Mitglied", it: "{count} membro", pt: "{count} membro", nl: "{count} lid", ja: "{count} 人",
+  }),
+  "community.teamGrade.memberCount_one": T("{count} membre", "{count} member", {
+    es: "{count} miembro", de: "{count} Mitglied", it: "{count} membro", pt: "{count} membro", nl: "{count} lid", ja: "{count} 人",
+  }),
+  "community.teamGrade.memberCount_other": T("{count} membres", "{count} members", {
+    es: "{count} miembros", de: "{count} Mitglieder", it: "{count} membri", pt: "{count} membros", nl: "{count} leden", ja: "{count} 人",
+  }),
   "community.specialties": T("Spécialités", "Specialties", {
     es: "Especialidades", de: "Spezialitäten", it: "Specialità", pt: "Especialidades", nl: "Specialiteiten", ja: "特技",
   }),
@@ -591,11 +612,26 @@ export const TRANSLATIONS_PAGES_EXT = {
   "community.naria.status": T("Officielle", "Official", {
     es: "Oficial", de: "Offiziell", it: "Ufficiale", pt: "Oficial", nl: "Officieel", ja: "公式",
   }),
+  "community.teamModerator.label": T("Modérateur(trice)", "Moderator", {
+    es: "Moderador(a)", de: "Moderator(in)", it: "Moderatore/trice", pt: "Moderador(a)", nl: "Moderator", ja: "モデレーター",
+  }),
+  "community.teamModerator.trial": T("Modérateur(trice) en test", "Moderator (trial)", {
+    es: "Moderador(a) en prueba", de: "Moderator(in) in Test", it: "Moderatore/trice in prova", pt: "Moderador(a) em teste", nl: "Moderator in test", ja: "モデレーター（試用）",
+  }),
   "community.naria.automated": T("Officielle", "Official", {
     es: "Oficial", de: "Offiziell", it: "Ufficiale", pt: "Oficial", nl: "Officieel", ja: "公式",
   }),
   "community.naria.footer": T("Sentinelle officielle du Nexus", "Official Nexus Sentinel", {
     es: "Centinela oficial del Nexus", de: "Offizielle Nexus-Sentinelle", it: "Sentinella ufficiale del Nexus", pt: "Sentinela oficial do Nexus", nl: "Officiële Nexus-sentinelle", ja: "ネクサス公式センチネル",
+  }),
+  "community.shumi.status": T("Modération", "Moderation", {
+    es: "Moderación", de: "Moderation", it: "Moderazione", pt: "Moderação", nl: "Moderatie", ja: "モデレーション",
+  }),
+  "community.shumi.badge": T("Shumi", "Shumi", {
+    es: "Shumi", de: "Shumi", it: "Shumi", pt: "Shumi", nl: "Shumi", ja: "Shumi",
+  }),
+  "community.shumi.footer": T("Sentinelle de modération du Nexus", "Nexus moderation Sentinel", {
+    es: "Centinela de moderación del Nexus", de: "Nexus-Moderations-Sentinelle", it: "Sentinella di moderazione del Nexus", pt: "Sentinela de moderação do Nexus", nl: "Nexus-moderatie-sentinelle", ja: "ネクサス・モデレーション・センチネル",
   }),
   "community.recruitment": T("Recrutement", "Recruitment", {
     es: "Reclutamiento", de: "Rekrutierung", it: "Reclutamento", pt: "Recrutamento", nl: "Werving", ja: "募集",
