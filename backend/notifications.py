@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 
 async def push_notification(db, user_id: str, kind: str, title: str, message: str,
                             sound: str = "ding", icon: str = "Bell", link: str | None = None,
-                            params: dict | None = None):
+                            params: dict | None = None,
+                            actor_id: str | None = None, actor_name: str | None = None):
     """Create a notification visible in the user's bell dropdown.
     Also pushes a `notification:new` event over Socket.IO if connected.
 
@@ -20,13 +21,17 @@ async def push_notification(db, user_id: str, kind: str, title: str, message: st
         "notif_id": f"notif_{uuid.uuid4().hex[:12]}",
         "user_id": user_id,
         "kind": kind,
+        "type": "moderation" if kind.startswith("naria") else kind,
         "title": title,
         "message": message,
         "params": params or {},
+        "actor_id": actor_id,
+        "actor_name": actor_name,
         "sound": sound,
         "icon": icon,
         "link": link,
         "read": False,
+        "read_at": None,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.notifications.insert_one(doc)

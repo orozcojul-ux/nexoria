@@ -19,6 +19,7 @@ import NewsAdmin from "@/components/admin/NewsAdmin";
 import TeamPageAdmin from "@/components/admin/TeamPageAdmin";
 import AdminEditHeroDialog from "@/components/admin/AdminEditHeroDialog";
 import ReportsAdmin from "@/components/admin/ReportsAdmin";
+import NariaModerationAdmin from "@/components/admin/NariaModerationAdmin";
 import EventsAdmin from "@/components/admin/EventsAdmin";
 import EconomyAdmin from "@/components/admin/EconomyAdmin";
 import TwoFAGate from "@/components/admin/TwoFAGate";
@@ -389,6 +390,7 @@ export default function Admin() {
       {tab === "seasons" && <SeasonsAdmin />}
       {tab === "tickets" && <TicketsAdmin />}
       {tab === "reports" && <ReportsAdmin />}
+      {tab === "moderation" && <NariaModerationAdmin />}
       {tab === "grant" && <AetherGrantAdmin />}
       {tab === "economy" && <EconomyAdmin />}
       {tab === "discord" && <DiscordSyncAdmin />}

@@ -250,6 +250,12 @@ async def get_current_user(request: Request, db) -> dict:
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
+    from naria_system import can_system_user_login, is_system_user
+
+    if is_system_user(user) and not can_system_user_login(user):
+        await db.user_sessions.delete_one({"session_token": token})
+        raise HTTPException(status_code=403, detail="Compte système — connexion impossible")
+
     # Check ban
     banned_until = user.get("banned_until")
     if banned_until:

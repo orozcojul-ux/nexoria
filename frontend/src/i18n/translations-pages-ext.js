@@ -489,6 +489,30 @@ export const TRANSLATIONS_PAGES_EXT = {
   "community.kicker": T("Le cœur du royaume", "The heart of the realm", {
     es: "El corazón del reino", de: "Das Herz des Reichs", it: "Il cuore del regno", pt: "O coração do reino", nl: "Het hart van het rijk", ja: "王国の心臓",
   }),
+  "community.pageKicker": T("Le cœur du royaume", "The heart of the realm", {
+    es: "El corazón del reino", de: "Das Herz des Reichs", it: "Il cuore del regno", pt: "O coração do reino", nl: "Het hart van het rijk", ja: "王国の心臓",
+  }),
+  "community.pageTitle": T("Communauté", "Community", {
+    es: "Comunidad", de: "Community", it: "Community", pt: "Comunidade", nl: "Community", ja: "コミュニティ",
+  }),
+  "community.pageLead": T(
+    "Rencontrez l'équipe, rejoignez le Nexus sur Discord et suivez le pulse du royaume.",
+    "Meet the team, join the Nexus on Discord and follow the pulse of the realm.",
+    {
+      es: "Conoce al equipo, únete al Nexus en Discord y sigue el pulso del reino.",
+      de: "Lerne das Team kennen, tritt dem Nexus auf Discord bei und verfolge den Puls des Reichs.",
+      it: "Incontra il team, unisciti al Nexus su Discord e segui il battito del regno.",
+      pt: "Conhece a equipa, junta-te ao Nexus no Discord e segue o pulso do reino.",
+      nl: "Ontmoet het team, word lid van de Nexus op Discord en volg de hartslag van het rijk.",
+      ja: "チームに会い、Discordでネクサスに参加し、王国の鼓動を追いましょう。",
+    },
+  ),
+  "community.viewProfile": T("Voir le profil", "View profile", {
+    es: "Ver perfil", de: "Profil ansehen", it: "Vedi profilo", pt: "Ver perfil", nl: "Profiel bekijken", ja: "プロフィールを見る",
+  }),
+  "community.specialties": T("Spécialités", "Specialties", {
+    es: "Especialidades", de: "Spezialitäten", it: "Specialità", pt: "Especialidades", nl: "Specialiteiten", ja: "特技",
+  }),
   "community.title": T("Communauté", "Community", {
     es: "Comunidad", de: "Community", it: "Community", pt: "Comunidade", nl: "Community", ja: "コミュニティ",
   }),
@@ -557,6 +581,21 @@ export const TRANSLATIONS_PAGES_EXT = {
   ),
   "community.teamSoon": T("L'équipe sera bientôt présentée ici.", "The team will be presented here soon.", {
     es: "El equipo se presentará aquí pronto.", de: "Das Team wird hier bald vorgestellt.", it: "Il team sarà presto presentato qui.", pt: "A equipa será apresentada aqui em breve.", nl: "Het team wordt hier binnenkort gepresenteerd.", ja: "チームは近日ここに掲載されます。",
+  }),
+  "community.naria.grade": T("Sentinelle", "Sentinel", {
+    es: "Centinela", de: "Sentinelle", it: "Sentinella", pt: "Sentinela", nl: "Sentinelle", ja: "センチネル",
+  }),
+  "community.naria.badge": T("Sentinelle", "Sentinel", {
+    es: "Centinela", de: "Sentinelle", it: "Sentinella", pt: "Sentinela", nl: "Sentinelle", ja: "センチネル",
+  }),
+  "community.naria.status": T("Officielle", "Official", {
+    es: "Oficial", de: "Offiziell", it: "Ufficiale", pt: "Oficial", nl: "Officieel", ja: "公式",
+  }),
+  "community.naria.automated": T("Officielle", "Official", {
+    es: "Oficial", de: "Offiziell", it: "Ufficiale", pt: "Oficial", nl: "Officieel", ja: "公式",
+  }),
+  "community.naria.footer": T("Sentinelle officielle du Nexus", "Official Nexus Sentinel", {
+    es: "Centinela oficial del Nexus", de: "Offizielle Nexus-Sentinelle", it: "Sentinella ufficiale del Nexus", pt: "Sentinela oficial do Nexus", nl: "Officiële Nexus-sentinelle", ja: "ネクサス公式センチネル",
   }),
   "community.recruitment": T("Recrutement", "Recruitment", {
     es: "Reclutamiento", de: "Rekrutierung", it: "Reclutamento", pt: "Recrutamento", nl: "Werving", ja: "募集",

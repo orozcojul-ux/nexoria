@@ -89,6 +89,9 @@ from profile_chronicle import build_staff_edit_chronicle
 import team_page as team_page_service
 from economy_transactions import record_economy_transaction, infer_economy_source
 from economy_admin import register_economy_admin_routes
+import naria_moderation as naria
+from naria_routes import register_naria_routes
+import naria_system
 
 # ---------- DB ----------
 mongo_url = os.environ["MONGO_URL"]
@@ -327,7 +330,8 @@ def public_user(user: dict) -> dict:
     """
     if not user:
         return {}
-    user = {k: v for k, v in user.items() if k not in ("password_hash", "_id")}
+    user = {k: v for k, v in user.items() if k not in ("password_hash", "_id", "email")}
+    user = naria_system.strip_system_fields(user)
     for k, v in list(user.items()):
         if isinstance(v, datetime):
             user[k] = v.isoformat()
@@ -615,7 +619,7 @@ async def check_chatter_badges(user_id: str):
 
 async def check_hall_of_legends(user_id: str):
     """Top 10 mondial XP — badge réservé à un classement réel (pas en base vide / dev)."""
-    total_users = await db.users.count_documents({})
+    total_users = await db.users.count_documents(naria_system.player_users_filter())
     if total_users < 10:
         return
 
@@ -624,7 +628,7 @@ async def check_hall_of_legends(user_id: str):
         return
 
     ranked = await db.users.find(
-        {"xp": {"$gt": 0}},
+        naria_system.player_users_filter({"xp": {"$gt": 0}}),
         {"user_id": 1, "xp": 1},
     ).sort("xp", -1).limit(10).to_list(10)
 
@@ -644,6 +648,71 @@ async def on_nexus_chat_message(user_id: str, channel: str):
         "created_at": now_utc().isoformat(),
     })
     await check_chatter_badges(user_id)
+
+
+async def moderate_nexus_chat(db_ref, user, text, content_type, message_id=None):
+    """Hook Naria pour le tchat Nexus Online."""
+    from naria_messages import get_message, hidden_placeholder
+    from naria_language import resolve_user_language
+
+    user_lang = resolve_user_language(user)
+    detail = naria.moderation_restriction_detail(user)
+    if detail:
+        return {
+            "block": True,
+            "message": detail.get("message") or get_message("naria.restriction.temporary", user_lang, minutes=1),
+        }
+    if not message_id:
+        blocked = await naria.preflight_content(db_ref, user, text, content_type=content_type)
+        if blocked:
+            return {
+                "block": True,
+                "message": blocked.user_message or get_message("naria.content.blocked", user_lang),
+            }
+        return {}
+    action = await naria.moderate_published_content(
+        db_ref,
+        user=user,
+        text=text,
+        content_type=content_type,
+        content_id=message_id,
+    )
+    out = {}
+    if action.hide:
+        out["hide"] = True
+        out["content"] = hidden_placeholder(user_lang)
+    if action.user_message:
+        out["naria"] = action.user_message
+    return out
+
+
+def _naria_response(action) -> dict | None:
+    if not action or (not action.user_message and not action.warn):
+        return None
+    return {
+        "actor": naria.NARIA_ACTOR,
+        "role": naria.NARIA_ROLE,
+        "message": action.user_message,
+        "message_key": getattr(action, "user_message_key", None),
+        "language": getattr(action, "user_language", None),
+        "confidence": getattr(action, "confidence", None),
+        "warning_id": action.warning_id,
+        "log_id": action.log_id,
+    }
+
+
+def _naria_block_detail(user: dict, blocked) -> dict:
+    from naria_messages import get_message
+    from naria_language import resolve_user_language
+
+    lang = resolve_user_language(user)
+    return {
+        "naria": True,
+        "message": blocked.user_message or get_message("naria.content.blocked", lang),
+        "message_key": blocked.user_message_key,
+        "language": lang,
+        "confidence": blocked.confidence,
+    }
 
 
 async def on_boss_defeated(user_ids: list):
@@ -2231,6 +2300,8 @@ async def login(req: LoginReq, response: Response):
     user = await db.users.find_one({"email": email})
     if not user or not user.get("password_hash") or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(401, "Identifiants invalides")
+    if not naria_system.can_system_user_login(user):
+        raise HTTPException(403, "Compte système — connexion impossible")
     # Reject login if currently banned (don't issue a token at all)
     enforce_ban_or_raise(user)
     token = create_session_token()
@@ -2440,6 +2511,8 @@ async def google_session(req: SessionExchangeReq, response: Response):
     if user:
         # Reject banned user before creating session
         enforce_ban_or_raise(user)
+        if not naria_system.can_system_user_login(user):
+            raise HTTPException(403, "Compte système — connexion impossible")
     if not user:
         is_new_google_account = True
         # New user — assign default class explorer until they pick one
@@ -2583,7 +2656,7 @@ async def search_users(q: str, user: dict = Depends(get_user_dep)):
         return []
     regex = {"$regex": re.escape(q), "$options": "i"}
     docs = await db.users.find(
-        {"$or": [{"username": regex}, {"display_name": regex}]},
+        naria_system.player_users_filter({"$or": [{"username": regex}, {"display_name": regex}]}),
         {"_id": 0, "user_id": 1, "username": 1, "display_name": 1, "level": 1, "avatar_url": 1, "class_name": 1, "role": 1},
     ).sort("level", -1).limit(8).to_list(8)
     return [public_user(d) for d in docs]
@@ -2737,6 +2810,19 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         update["avatar_url"] = upload_storage.normalize_public_media_url(update["avatar_url"])
     if "banner_url" in update:
         update["banner_url"] = upload_storage.normalize_public_media_url(update["banner_url"])
+
+    profile_text_parts = []
+    for key in ("bio", "quote", "display_name"):
+        if key in update and update.get(key):
+            profile_text_parts.append(str(update[key]))
+    profile_mod_action = None
+    if profile_text_parts:
+        await naria.enforce_post_allowed(user)
+        combined_profile = "\n".join(profile_text_parts)
+        blocked = await naria.preflight_content(db, user, combined_profile, content_type="profile")
+        if blocked:
+            raise HTTPException(403, detail=_naria_block_detail(user, blocked))
+
     # Language change tracking → polyglot badge after 2 distinct languages
     if "language" in update and update["language"]:
         await db.user_languages.update_one(
@@ -2759,6 +2845,15 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         ops["$inc"] = class_change_inc
     if ops:
         await db.users.update_one({"user_id": user["user_id"]}, ops)
+
+    if profile_text_parts:
+        profile_mod_action = await naria.moderate_published_content(
+            db,
+            user=user,
+            text="\n".join(profile_text_parts),
+            content_type="profile",
+            content_id=user["user_id"],
+        )
 
     # Real-time profile sync (Nexus cosmetics / title / aura / class)
     cosmetic_fields = {k: update[k] for k in (
@@ -2812,6 +2907,15 @@ async def get_profile_by_username(username: str, request: Request):
     user = await db.users.find_one({"username": username}, {"_id": 0, "password_hash": 0, "email": 0})
     if not user:
         raise HTTPException(404, "Héros introuvable")
+
+    if naria_system.is_system_user(user):
+        return {
+            "hidden": True,
+            "reason": "official_sentinel",
+            "username": user["username"],
+            "display_name": user.get("display_name") or user["username"],
+            "is_official_sentinel": True,
+        }
 
     viewer = await _resolve_viewer(request)
 
@@ -4081,7 +4185,7 @@ async def user_badges(username: str):
 async def leaderboard(category: str):
     sort_field = {"xp": "xp", "reputation": "reputation", "level": "level", "aether": "aether"}.get(category, "xp")
     users = await db.users.find(
-        {},
+        naria_system.player_users_filter(),
         {"_id": 0, "password_hash": 0, "email": 0},
     ).sort(sort_field, -1).limit(50).to_list(50)
     return [public_user(u) for u in users]
@@ -4089,7 +4193,10 @@ async def leaderboard(category: str):
 
 @api.get("/hall-of-legends")
 async def hall_of_legends():
-    users = await db.users.find({}, {"_id": 0, "password_hash": 0, "email": 0}).sort("level", -1).limit(10).to_list(10)
+    users = await db.users.find(
+        naria_system.player_users_filter(),
+        {"_id": 0, "password_hash": 0, "email": 0},
+    ).sort("level", -1).limit(10).to_list(10)
     return [public_user(u) for u in users]
 
 
@@ -4646,7 +4753,7 @@ async def maintenance_recent_heroes(limit: int = 6):
     """Public — derniers comptes inscrits (page maintenance)."""
     cap = max(1, min(12, int(limit or 6)))
     rows = await db.users.find(
-        {},
+        naria_system.player_users_filter(),
         {"_id": 0, "password_hash": 0, "email": 0},
     ).sort("created_at", -1).limit(cap * 4).to_list(cap * 4)
 
@@ -5987,7 +6094,10 @@ async def kingdom_weather():
     active_session_count = await db.user_sessions.count_documents({"created_at": {"$gte": cutoff}})
     posts_today = await db.posts.count_documents({"created_at": {"$gte": today_start.isoformat()}})
     new_heroes = await db.users.count_documents({"created_at": {"$gte": today_start.isoformat()}})
-    top = await db.users.find({}, {"_id": 0, "username": 1, "level": 1, "class_name": 1, "avatar_url": 1}).sort("xp", -1).limit(1).to_list(1)
+    top = await db.users.find(
+        naria_system.player_users_filter(),
+        {"_id": 0, "username": 1, "level": 1, "class_name": 1, "avatar_url": 1},
+    ).sort("xp", -1).limit(1).to_list(1)
     return {
         "active_now": active_session_count,
         "posts_today": posts_today,
@@ -6714,7 +6824,7 @@ async def community_overview(user: dict = Depends(get_user_dep)):
     news = await db.news.find({"published": True}, {"_id": 0}).sort("created_at", -1).limit(4).to_list(4)
 
     # ----- Stats -----
-    total_heroes = await db.users.count_documents({})
+    total_heroes = await db.users.count_documents(naria_system.player_users_filter())
     total_guilds = await db.guilds.count_documents({})
     try:
         online_now = nexus_world._presence_payload().get("total", 0)
@@ -6766,18 +6876,11 @@ async def admin_get_team_page(user: dict = Depends(get_admin_dep)):
         for u in staff_rows
     ]
     merged_rows = team_page_service.sort_team_members(merged_rows)
-    members = [{
-        "user_id": m["user_id"],
-        "username": m.get("username"),
-        "display_name": m.get("display_name"),
-        "role": m.get("role"),
-        "avatar_url": m.get("avatar_url"),
-        "discord_avatar_url": m.get("discord_avatar_url"),
-        "level": m.get("level"),
-        "class_name": m.get("class_name"),
-        "is_nexus_supreme": m.get("is_nexus_supreme"),
-        "profile": m.get("team_profile"),
-    } for m in merged_rows]
+    naria_row = await team_page_service.load_naria_for_team(db, profiles, OWNER_USERNAME)
+    if naria_row:
+        merged_rows.append(naria_row)
+    merged_rows = team_page_service.sort_team_members(merged_rows)
+    members = [team_page_service.member_to_admin_dict(m) for m in merged_rows]
     return {"settings": settings, "members": members}
 
 
@@ -6798,11 +6901,17 @@ async def admin_update_team_page_settings(req: TeamPageSettingsReq, user: dict =
 
 @api.put("/admin/team-page/members/{user_id}")
 async def admin_update_team_member_profile(user_id: str, req: TeamMemberProfileReq, user: dict = Depends(get_admin_dep)):
-    target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "user_id": 1, "username": 1, "role": 1})
-    if not target:
-        raise HTTPException(404, "Utilisateur introuvable")
-    if not team_page_service.is_team_eligible(target, OWNER_USERNAME):
-        raise HTTPException(400, "Seuls les membres staff peuvent apparaître sur la page équipe")
+    is_naria, naria_user = await team_page_service.resolve_team_member_id(db, user_id)
+    if is_naria:
+        if not naria_user:
+            raise HTTPException(404, "Naria introuvable — exécutez create_naria_system_user.py --apply")
+        user_id = naria_user["user_id"]
+    else:
+        target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "user_id": 1, "username": 1, "role": 1})
+        if not target:
+            raise HTTPException(404, "Utilisateur introuvable")
+        if not team_page_service.is_team_eligible(target, OWNER_USERNAME):
+            raise HTTPException(400, "Seuls les membres staff peuvent apparaître sur la page équipe")
     doc = {
         "user_id": user_id,
         "visible": req.visible,
@@ -7152,7 +7261,9 @@ async def admin_delete_shop_item(sku: str, user: dict = Depends(get_admin_dep)):
 @api.get("/world/heroes")
 async def world_heroes():
     """All heroes for live map — deterministic position from user_id."""
-    users = await db.users.find({}, {
+    users = await db.users.find(
+        naria_system.player_users_filter(),
+        {
         "_id": 0, "user_id": 1, "username": 1, "class_id": 1, "class_name": 1,
         "level": 1, "rank": 1, "avatar_url": 1, "active_title": 1, "role": 1,
         "appear_offline": 1, "country_code": 1,
@@ -7212,6 +7323,10 @@ async def create_guild(req: GuildCreateReq, user: dict = Depends(get_user_dep)):
         raise HTTPException(400, "Tag : 2 à 5 caractères")
     if await db.guilds.find_one({"$or": [{"name": name}, {"tag": tag}]}):
         raise HTTPException(400, "Ce nom ou ce tag est déjà pris")
+    guild_text = f"{name} {tag}\n{req.description}"
+    blocked = await naria.preflight_content(db, user, guild_text, content_type="guild")
+    if blocked:
+        raise HTTPException(403, detail=_naria_block_detail(user, blocked))
     guild_id = f"guild_{uuid.uuid4().hex[:12]}"
     guild = {
         "guild_id": guild_id,
@@ -7226,6 +7341,9 @@ async def create_guild(req: GuildCreateReq, user: dict = Depends(get_user_dep)):
         "created_at": now_utc().isoformat(),
     }
     await db.guilds.insert_one(guild)
+    await naria.moderate_published_content(
+        db, user=user, text=guild_text, content_type="guild", content_id=guild_id,
+    )
     await db.guild_members.insert_one({
         "guild_id": guild_id, "user_id": user["user_id"],
         "role": "chef",
@@ -7433,12 +7551,19 @@ async def post_guild_chat(guild_id: str, req: GuildChatReq, user: dict = Depends
     content = req.content.strip()
     if not content or len(content) > 500:
         raise HTTPException(400, "Message invalide (1-500 caractères)")
+    await naria.enforce_post_allowed(user)
+    blocked = await naria.preflight_content(db, user, content, content_type="guild_chat")
+    if blocked:
+        raise HTTPException(403, detail=_naria_block_detail(user, blocked))
     msg = {
         "message_id": f"gmsg_{uuid.uuid4().hex[:10]}",
         "guild_id": guild_id, "user_id": user["user_id"],
         "content": content, "created_at": now_utc().isoformat(),
     }
     await db.guild_chat.insert_one(msg)
+    await naria.moderate_published_content(
+        db, user=user, text=content, content_type="guild_chat", content_id=msg["message_id"],
+    )
     await progress_quests(user["user_id"], "guild_chat", 1)
     msg.pop("_id", None)
     return msg
@@ -7558,6 +7683,21 @@ def enforce_forum_post(user: dict):
     detail = get_forum_mute_detail(user)
     if detail:
         raise HTTPException(status_code=403, detail=detail)
+    mod_detail = naria.moderation_restriction_detail(user)
+    if mod_detail:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "moderation_restricted": True,
+                "restricted_until": mod_detail["restricted_until"],
+                "remaining_seconds": mod_detail["remaining_seconds"],
+                "reason": mod_detail["reason"],
+                "message": (
+                    f"Tu ne peux plus publier temporairement. "
+                    f"Temps restant : {mod_detail['remaining_seconds']} s."
+                ),
+            },
+        )
 
 
 class ForumThreadReq(BaseModel):
@@ -7614,8 +7754,11 @@ async def list_forum_threads(category: str, user: dict = Depends(get_user_dep)):
     user_ids = list({t["user_id"] for t in threads})
     udocs = await db.users.find({"user_id": {"$in": user_ids}}, FORUM_AUTHOR_FIELDS).to_list(100)
     umap = {u["user_id"]: _enrich_forum_author(u) for u in udocs}
-    for t in threads:
+    is_staff = user.get("role") in ("admin", "moderator")
+    for idx, t in enumerate(threads):
         t["author"] = umap.get(t["user_id"], {})
+        if t.get("moderation_hidden") and not is_staff:
+            threads[idx] = naria.sanitize_forum_doc(t)
     return threads
 
 
@@ -7631,6 +7774,10 @@ async def create_forum_thread(req: ForumThreadReq, user: dict = Depends(get_user
         raise HTTPException(400, "Titre 5-120 caractères")
     if len(plain) < 10 or len(plain) > 5000:
         raise HTTPException(400, "Message 10-5000 caractères")
+    combined = f"{title}\n{plain}"
+    blocked = await naria.preflight_content(db, user, combined, content_type="forum_thread")
+    if blocked:
+        raise HTTPException(403, detail=_naria_block_detail(user, blocked))
     thread_id = f"thr_{uuid.uuid4().hex[:12]}"
     now_iso = now_utc().isoformat()
     thread = {
@@ -7642,6 +7789,11 @@ async def create_forum_thread(req: ForumThreadReq, user: dict = Depends(get_user
         "created_at": now_iso, "last_activity_at": now_iso,
     }
     await db.forum_threads.insert_one(thread)
+    mod_action = await naria.moderate_published_content(
+        db, user=user, text=combined, content_type="forum_thread", content_id=thread_id,
+    )
+    if mod_action.hide:
+        thread = await db.forum_threads.find_one({"thread_id": thread_id}, {"_id": 0})
     await progress_quests(user["user_id"], "forum_thread", 1)
     await grant_xp(user["user_id"], 30, "forum_thread")
     await add_chronicle(
@@ -7653,7 +7805,11 @@ async def create_forum_thread(req: ForumThreadReq, user: dict = Depends(get_user
     )
     await grant_badge(user["user_id"], "scholar")
     thread.pop("_id", None)
-    return thread
+    out = dict(thread)
+    nr = _naria_response(mod_action)
+    if nr:
+        out["naria"] = nr
+    return out
 
 
 @api.get("/forum/threads/{thread_id}")
@@ -7670,8 +7826,13 @@ async def get_forum_thread(thread_id: str, user: dict = Depends(get_user_dep)):
     udocs = await db.users.find({"user_id": {"$in": list(user_ids)}}, FORUM_AUTHOR_FIELDS).to_list(500)
     umap = {u["user_id"]: _enrich_forum_author(u) for u in udocs}
     thread["author"] = umap.get(thread["user_id"], {})
-    for r in replies:
+    is_staff = user.get("role") in ("admin", "moderator")
+    if thread.get("moderation_hidden") and not is_staff:
+        thread = naria.sanitize_forum_doc(thread)
+    for idx, r in enumerate(replies):
         r["author"] = umap.get(r["user_id"], {})
+        if r.get("moderation_hidden") and not is_staff:
+            replies[idx] = naria.sanitize_forum_doc(r)
     return {"thread": thread, "replies": replies}
 
 
@@ -7692,6 +7853,9 @@ async def reply_thread(thread_id: str, req: ForumReplyReq, user: dict = Depends(
     plain = strip_forum_plain(content_html) or req.content.strip()
     if len(plain) < 2 or len(plain) > 2000:
         raise HTTPException(400, "Message 2-2000 caractères")
+    blocked = await naria.preflight_content(db, user, plain, content_type="forum_reply")
+    if blocked:
+        raise HTTPException(403, detail=_naria_block_detail(user, blocked))
     reply = {
         "reply_id": f"rpl_{uuid.uuid4().hex[:12]}",
         "thread_id": thread_id, "user_id": user["user_id"],
@@ -7699,6 +7863,9 @@ async def reply_thread(thread_id: str, req: ForumReplyReq, user: dict = Depends(
         "created_at": now_utc().isoformat(),
     }
     await db.forum_replies.insert_one(reply)
+    mod_action = await naria.moderate_published_content(
+        db, user=user, text=plain, content_type="forum_reply", content_id=reply["reply_id"],
+    )
     await db.forum_threads.update_one({"thread_id": thread_id},
         {"$inc": {"replies_count": 1}, "$set": {"last_activity_at": now_utc().isoformat()}})
     await progress_quests(user["user_id"], "forum_reply", 1)
@@ -7709,7 +7876,11 @@ async def reply_thread(thread_id: str, req: ForumReplyReq, user: dict = Depends(
             thread["title"][:100], "ding", "MessageCircle",
             params={"username": user["username"], "threadTitle": thread["title"][:100]})
     reply.pop("_id", None)
-    return reply
+    out = dict(reply)
+    nr = _naria_response(mod_action)
+    if nr:
+        out["naria"] = nr
+    return out
 
 
 @api.delete("/forum/threads/{thread_id}")
@@ -8112,7 +8283,7 @@ async def create_season(req: SeasonCreateReq, user: dict = Depends(get_admin_dep
         "kind": "season",
     }
     await db.broadcasts.insert_one(alert_doc)
-    all_users = await db.users.find({}, {"_id": 0, "user_id": 1}).to_list(5000)
+    all_users = await db.users.find(naria_system.player_users_filter(), {"_id": 0, "user_id": 1}).to_list(5000)
     for u in all_users:
         await push_notification(db, u["user_id"], "season_start",
             f"Saison « {req.name} » ouverte", req.description[:200], "war", "Sparkles",
@@ -8754,8 +8925,8 @@ async def admin_list_tickets(status: str = "all", user: dict = Depends(get_staff
 # ============================================================================
 # REPORTS — Signalements joueurs / contenus
 # ============================================================================
-REPORT_TARGET_TYPES = {"forum_thread", "forum_reply", "user", "news_article"}
-REPORT_REASONS = {"spam", "harassment", "inappropriate", "cheating", "other"}
+REPORT_TARGET_TYPES = {"forum_thread", "forum_reply", "user", "news_article", "nexus_room_chat"}
+REPORT_REASONS = {"spam", "harassment", "inappropriate", "cheating", "other", "insult", "suspicious_link"}
 
 
 class ReportCreateReq(BaseModel):
@@ -8811,6 +8982,15 @@ async def create_report(req: ReportCreateReq, user: dict = Depends(get_user_dep)
         if not doc:
             raise HTTPException(404, "Article introuvable")
         context_label = doc.get("title", "")[:120]
+    elif req.target_type == "nexus_room_chat":
+        doc = await db.nexus_room_chat.find_one(
+            {"message_id": req.target_id},
+            {"_id": 0, "username": 1, "user_id": 1, "room_name": 1},
+        )
+        if not doc:
+            raise HTTPException(404, "Message introuvable")
+        reported_user_id = reported_user_id or doc.get("user_id")
+        context_label = f"Tchat {doc.get('room_name', 'Nexus')} — {doc.get('username', '?')}"
     if reported_user_id == user["user_id"]:
         raise HTTPException(400, "Vous ne pouvez pas vous signaler vous-même")
     reported = None
@@ -9046,7 +9226,7 @@ async def list_nexus_rooms_public():
 async def public_stats(request: Request):
     """Lightweight public counters for the Landing/Dashboard pages."""
     try:
-        heroes = await db.users.count_documents({})
+        heroes = await db.users.count_documents(naria_system.player_users_filter())
         guilds = await db.guilds.count_documents({})
         events_active = 0
         try:
@@ -9309,6 +9489,13 @@ register_economy_admin_routes(
     add_chronicle=add_chronicle,
     now_utc=now_utc,
 )
+register_naria_routes(
+    api,
+    db=db,
+    get_user_dep=get_user_dep,
+    get_staff_dep=get_staff_dep,
+    now_utc=now_utc,
+)
 app.include_router(api)
 app.mount("/uploads", StaticFiles(directory=str(upload_storage.UPLOAD_ROOT)), name="uploads")
 
@@ -9323,6 +9510,7 @@ _nexus_asgi = nexus_world.build_socketio_app(db, hooks={
     "on_chat_message": on_nexus_chat_message,
     "on_boss_defeated": on_boss_defeated,
     "on_nexus_join": on_nexus_join,
+    "moderate_nexus_chat": moderate_nexus_chat,
     "grant_xp": grant_xp,
     "grant_aether": grant_aether,
     "_give_relic": _give_relic,
@@ -9445,6 +9633,8 @@ async def startup():
     await db.beta_applications.create_index("email")
     await db.beta_applications.create_index("discord_username")
     await db.beta_applications.create_index([("status", 1), ("created_at", -1)])
+    await naria.ensure_indexes(db)
+    await naria_system.ensure_indexes(db)
     craft_service.register_craft_hooks(_craft_helpers())
     try:
         seeded = await craft_service.seed_craft_recipes(db)

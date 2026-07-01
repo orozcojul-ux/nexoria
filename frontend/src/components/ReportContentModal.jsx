@@ -5,7 +5,7 @@ import api, { formatApiError } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import { PremiumModal, PremiumButton } from "@/components/ui-premium";
 
-const REASON_IDS = ["spam", "harassment", "inappropriate", "cheating", "other"];
+const REASON_IDS = ["spam", "insult", "harassment", "inappropriate", "suspicious_link", "cheating", "other"];
 
 /**
  * Signaler un contenu ou un joueur aux modérateurs.

@@ -1,90 +1,306 @@
-/* Page Communauté — section équipe */
+/* ═══════════════════════════════════════════════════════════════
+   Page Communauté — refonte premium
+   ═══════════════════════════════════════════════════════════════ */
 
-.team-section-head {
-  margin-bottom: 1.25rem;
+.community-page {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 1rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
 }
 
-.team-section-title {
+/* ─── Hero ─── */
+.community-hero {
+  position: relative;
+  border-radius: 1.25rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2rem 1.75rem 1.75rem;
+}
+
+.community-hero-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(139, 92, 246, 0.22), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 90% 100%, rgba(34, 211, 238, 0.12), transparent 50%),
+    linear-gradient(165deg, rgba(15, 8, 32, 0.95) 0%, rgba(8, 6, 16, 0.98) 100%);
+  pointer-events: none;
+}
+
+.community-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.community-hero-kicker {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: rgba(167, 139, 250, 0.9);
+  margin-bottom: 0.5rem;
+}
+
+.community-hero-title {
   font-family: var(--font-display, "Cinzel", serif);
   font-weight: 900;
-  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #f5f3ff 0%, #c4b5fd 45%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  line-height: 1.15;
+}
+
+.community-hero-lead {
+  margin-top: 0.65rem;
+  max-width: 36rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(212, 212, 216, 0.82);
+}
+
+.community-stats-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.65rem;
+  margin-top: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .community-stats-row {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.community-stat-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.community-stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.6rem;
+  color: var(--stat-color);
+  background: color-mix(in srgb, var(--stat-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--stat-color) 28%, transparent);
+}
+
+.community-stat-value {
+  font-family: var(--font-display, "Cinzel", serif);
+  font-weight: 900;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--stat-color);
+}
+
+.community-stat-label {
+  font-size: 0.58rem;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  color: rgba(113, 113, 122, 0.95);
+  margin-top: 0.2rem;
+}
+
+/* ─── Section équipe ─── */
+.community-team-section {
+  scroll-margin-top: 5rem;
+}
+
+.community-team-panel {
+  position: relative;
+  border-radius: 1.25rem;
+  padding: 1.75rem 1.5rem 1.5rem;
+  border: 1px solid rgba(251, 191, 36, 0.15);
+  background:
+    linear-gradient(180deg, rgba(251, 191, 36, 0.04) 0%, transparent 28%),
+    linear-gradient(155deg, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0.45) 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 24px 64px rgba(0, 0, 0, 0.35);
+}
+
+.community-team-panel-head {
+  display: flex;
+  gap: 1.15rem;
+  align-items: flex-start;
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.community-team-panel-icon {
+  flex-shrink: 0;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.85rem;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  box-shadow: 0 0 24px rgba(251, 191, 36, 0.12);
+}
+
+.community-team-panel-kicker {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(251, 191, 36, 0.75);
+}
+
+.community-team-panel-title {
+  font-family: var(--font-display, "Cinzel", serif);
+  font-weight: 900;
+  font-size: clamp(1.4rem, 3vw, 1.85rem);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 0.25rem;
   background: linear-gradient(90deg, #fde68a, #fbbf24, #f59e0b);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-.team-section-subtitle {
-  font-size: 0.8rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: rgba(251, 191, 36, 0.75);
-  font-weight: 700;
-  margin-top: 0.35rem;
-}
-
-.team-section-intro {
-  margin-top: 0.75rem;
-  max-width: 42rem;
+.community-team-panel-intro {
+  margin-top: 0.65rem;
+  max-width: 44rem;
   font-size: 0.9rem;
-  line-height: 1.55;
-  color: rgba(212, 212, 216, 0.85);
+  line-height: 1.6;
+  color: rgba(212, 212, 216, 0.88);
 }
 
-.team-grid {
+.community-team-loading,
+.community-team-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: rgba(113, 113, 122, 0.95);
+  font-size: 0.9rem;
+}
+
+.community-team-empty {
+  font-style: italic;
+}
+
+/* ─── Grille équipe ─── */
+.team-grid--premium {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17.5rem), 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: 1.15rem;
 }
 
 .team-card {
   position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
   border-radius: 1rem;
-  padding: 1.15rem 1.15rem 1rem;
+  padding: 1.25rem 1.2rem 1.1rem;
   background:
-    linear-gradient(155deg, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0.35) 55%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.4) 60%),
     rgba(10, 8, 18, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
 
-.team-card:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--team-accent) 45%, transparent);
-  box-shadow: 0 12px 40px color-mix(in srgb, var(--team-accent) 18%, transparent);
+.team-card--clickable {
+  cursor: pointer;
+  appearance: none;
+  color: inherit;
+  font: inherit;
+}
+
+.team-card--clickable:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--team-accent) 50%, transparent);
+  box-shadow:
+    0 16px 48px color-mix(in srgb, var(--team-accent) 20%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--team-accent) 15%, transparent) inset;
+}
+
+.team-card--clickable:hover .team-card-profile-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.team-card--clickable:hover .team-card-link-icon {
+  opacity: 1;
+  color: var(--team-accent);
+}
+
+.team-card--clickable:focus-visible {
+  outline: 2px solid var(--team-accent);
+  outline-offset: 2px;
+}
+
+.team-card--static {
+  cursor: default;
+}
+
+.team-card-shine {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--team-accent) 60%, white), transparent);
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .team-card-glow {
   position: absolute;
-  inset: -40% -20% auto auto;
-  width: 70%;
-  height: 70%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--team-accent) 22%, transparent), transparent 68%);
+  inset: -50% -30% auto auto;
+  width: 75%;
+  height: 75%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--team-accent) 18%, transparent), transparent 70%);
   pointer-events: none;
 }
 
-.team-card-top {
+.team-card-header {
   display: flex;
-  gap: 0.85rem;
+  gap: 1rem;
   align-items: flex-start;
 }
 
-.team-card-avatar {
-  width: 4.25rem;
-  height: 4.25rem;
-  border-radius: 0.85rem;
-  overflow: hidden;
+.team-card-avatar-wrap {
+  position: relative;
   flex-shrink: 0;
+}
+
+.team-card-avatar {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 0.9rem;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 900;
-  font-size: 1.25rem;
+  font-size: 1.35rem;
+  color: var(--team-accent);
   border: 2px solid var(--team-accent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--team-accent) 35%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--team-accent) 30%, transparent);
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .team-card-avatar img {
@@ -93,29 +309,61 @@
   object-fit: cover;
 }
 
+.team-card-profile-hint {
+  position: absolute;
+  bottom: -0.35rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  white-space: nowrap;
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid color-mix(in srgb, var(--team-accent) 40%, transparent);
+  color: var(--team-accent);
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+}
+
 .team-card-meta {
   min-width: 0;
   flex: 1;
 }
 
+.team-card-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.team-card-link-icon {
+  flex-shrink: 0;
+  opacity: 0.35;
+  color: #71717a;
+  transition: opacity 0.2s, color 0.2s;
+}
+
 .team-card-grade {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
   font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--team-accent);
-  margin-bottom: 0.25rem;
 }
 
 .team-card-role {
-  font-size: 0.78rem;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: #e4e4e7;
-  line-height: 1.35;
-  margin-top: 0.15rem;
+  line-height: 1.4;
 }
 
 .team-card-nationality {
@@ -123,61 +371,352 @@
   align-items: center;
   gap: 0.3rem;
   margin-top: 0.45rem;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(161, 161, 170, 0.95);
 }
 
 .team-card-tagline {
-  margin-top: 0.85rem;
-  padding-top: 0.75rem;
+  margin: 1rem 0 0;
+  padding: 0.85rem 0 0;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-style: italic;
-  line-height: 1.45;
-  color: rgba(212, 212, 216, 0.88);
+  line-height: 1.5;
+  color: rgba(228, 228, 231, 0.9);
 }
 
 .team-card-bio {
-  margin-top: 0.55rem;
-  font-size: 0.75rem;
-  line-height: 1.5;
+  margin-top: 0.65rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
   color: rgba(161, 161, 170, 0.95);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .team-card-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.75rem;
+  gap: 0.4rem;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  list-style: none;
 }
 
 .team-card-tag {
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: 0.2rem 0.45rem;
+  padding: 0.25rem 0.55rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--team-accent) 35%, transparent);
   background: color-mix(in srgb, var(--team-accent) 10%, transparent);
-  color: color-mix(in srgb, var(--team-accent) 85%, white);
+  color: color-mix(in srgb, var(--team-accent) 88%, white);
 }
 
 .team-card-foot {
-  margin-top: 0.85rem;
-  padding-top: 0.65rem;
+  margin-top: 1rem;
+  padding-top: 0.7rem;
   border-top: 1px dashed rgba(255, 255, 255, 0.06);
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(113, 113, 122, 0.95);
+}
+
+/* Naria */
+.team-card--sentinel {
+  border-color: color-mix(in srgb, #8b5cf6 35%, rgba(255, 255, 255, 0.08));
+  background: linear-gradient(
+    155deg,
+    rgba(139, 92, 246, 0.1) 0%,
+    rgba(15, 8, 32, 0.88) 50%,
+    rgba(10, 6, 19, 0.95) 100%
+  );
+}
+
+.team-card-avatar--sentinel {
+  background: radial-gradient(circle at 50% 30%, rgba(139, 92, 246, 0.28), transparent 72%);
+  border-color: color-mix(in srgb, #8b5cf6 50%, transparent);
+}
+
+.team-card-sentinel-badge {
+  display: inline-flex;
+  margin-top: 0.4rem;
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(139, 92, 246, 0.45);
+  background: rgba(139, 92, 246, 0.12);
+  color: #c4b5fd;
+}
+
+.team-card-sentinel-official {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: rgba(167, 139, 250, 0.85);
+  font-style: italic;
+}
+
+/* ─── Discord ─── */
+.community-discord-strip {
+  border-radius: 1rem;
+  border: 1px solid rgba(88, 101, 242, 0.25);
+  background: linear-gradient(135deg, rgba(88, 101, 242, 0.12) 0%, rgba(15, 8, 32, 0.6) 100%);
+  overflow: hidden;
+}
+
+.community-discord-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem 1.75rem;
+  align-items: flex-start;
+}
+
+@media (min-width: 640px) {
+  .community-discord-inner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.community-discord-kicker {
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(147, 197, 253, 0.9);
+}
+
+.community-discord-title {
+  font-family: var(--font-display, "Cinzel", serif);
+  font-weight: 900;
+  font-size: 1.15rem;
+  color: #fff;
+  margin-top: 0.25rem;
+}
+
+.community-discord-body {
+  font-size: 0.85rem;
+  color: rgba(161, 161, 170, 0.95);
+  margin-top: 0.35rem;
+  max-width: 28rem;
+}
+
+.community-discord-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.35rem;
+  border-radius: 0.75rem;
+  font-family: var(--font-display, "Cinzel", serif);
+  font-weight: 900;
+  font-size: 0.8rem;
+  color: #fff;
+  white-space: nowrap;
+  background: linear-gradient(135deg, #5865f2 0%, #404eed 100%);
+  box-shadow: 0 8px 24px rgba(88, 101, 242, 0.4);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.community-discord-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 32px rgba(88, 101, 242, 0.5);
+}
+
+/* ─── Secondary grid ─── */
+.community-secondary-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 900px) {
+  .community-secondary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.community-block-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.community-block-head h2 {
+  font-family: var(--font-display, "Cinzel", serif);
+  font-weight: 900;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #e4e4e7;
+  flex: 1;
+}
+
+.community-block-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: rgba(161, 161, 170, 0.95);
+  transition: color 0.15s;
+}
+
+.community-block-link:hover {
+  color: #fff;
+}
+
+.community-block-empty {
+  text-align: center;
+  padding: 2rem;
+  font-size: 0.85rem;
+  color: rgba(113, 113, 122, 0.95);
+  font-style: italic;
+  border-radius: 0.85rem;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+/* Guildes */
+.community-guild-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.community-guild-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(52, 211, 153, 0.15);
+  background: rgba(0, 0, 0, 0.25);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.community-guild-card:hover {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.05);
+}
+
+.community-guild-emblem {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.65rem;
+  font-weight: 900;
+  font-size: 0.7rem;
+  color: #6ee7b7;
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.community-guild-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.community-guild-name {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #d1fae5;
+  truncate: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.community-guild-meta {
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(113, 113, 122, 0.95);
+  margin-top: 0.15rem;
+}
+
+.community-guild-desc {
+  font-size: 0.72rem;
+  color: rgba(161, 161, 170, 0.9);
+  margin-top: 0.35rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.community-guild-chevron {
+  flex-shrink: 0;
+  color: rgba(113, 113, 122, 0.8);
+}
+
+/* News */
+.community-news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.community-news-card {
+  display: block;
+  padding: 0.9rem 1rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(34, 211, 238, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.community-news-card:hover {
+  border-color: rgba(34, 211, 238, 0.3);
+  background: rgba(34, 211, 238, 0.04);
+}
+
+.community-news-kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(34, 211, 238, 0.85);
+}
+
+.community-news-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #cffafe;
+  margin-top: 0.35rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.community-news-excerpt {
+  font-size: 0.72rem;
+  color: rgba(161, 161, 170, 0.9);
+  margin-top: 0.35rem;
+  line-height: 1.45;
+}
+
+.community-news-date {
+  display: block;
+  font-size: 0.6rem;
+  color: rgba(82, 82, 91, 0.95);
+  margin-top: 0.45rem;
 }

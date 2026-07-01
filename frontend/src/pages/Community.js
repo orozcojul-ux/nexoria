@@ -2,11 +2,12 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
   Users, Shield, Crown, Newspaper, Swords, Sparkles, ChevronRight,
-  Globe, UserPlus, Flag, MapPin,
+  Globe, Flag, MapPin, ExternalLink,
 } from "lucide-react";
 import api from "@/lib/api";
-import { PageShell, PremiumCard } from "@/components/ui-premium";
+import { PageShell } from "@/components/ui-premium";
 import HeroName from "@/components/HeroName";
+import HeroCardOpener from "@/components/HeroCardOpener";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
 import { getStaffVisuals, NEXUS_SUPREME } from "@/lib/staff-roles";
 import { translateClassName } from "@/lib/translate-class";
@@ -29,44 +30,21 @@ function resolveTeamPageField(value, defaultFr, i18nKey, t) {
 }
 
 function getStaffGradeLabel(member, visuals, t) {
-  if (member.is_nexus_supreme) {
-    return t(NEXUS_SUPREME.labelKey);
-  }
+  if (member.is_nexus_supreme) return t(NEXUS_SUPREME.labelKey);
+  if (member.is_official_sentinel) return t("community.naria.grade");
   if (visuals?.labelKey) return t(visuals.labelKey);
   return visuals?.label || member.role;
 }
 
-function StatPill({ icon: Icon, value, label, color }) {
-  return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/10 bg-white/[0.03]">
-      <div className="p-2 rounded-lg" style={{ background: `${color}1a`, border: `1px solid ${color}40` }}>
-        <Icon className="w-4 h-4" style={{ color }} />
-      </div>
-      <div>
-        <div className="font-display font-black text-lg leading-none" style={{ color }}>{value ?? 0}</div>
-        <div className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</div>
-      </div>
-    </div>
-  );
-}
-
-function SectionTitle({ icon: Icon, title, accent, action }) {
-  return (
-    <div className="flex items-center gap-2 mb-4">
-      {Icon && <Icon className="w-5 h-5" style={{ color: accent }} />}
-      <h2 className="font-display font-black text-xl uppercase tracking-widest" style={{ color: accent }}>{title}</h2>
-      <div className="flex-1 h-px bg-gradient-to-r from-white/20 to-transparent ml-2" />
-      {action}
-    </div>
-  );
-}
-
-function TeamCard({ member }) {
+function TeamMemberCard({ member }) {
   const { t } = useI18n();
+  const isOfficialSentinel = member.is_official_sentinel;
   const avatar = getUserAvatarUrl(member);
   const visuals = member.is_nexus_supreme
     ? NEXUS_SUPREME
-    : getStaffVisuals(member);
+    : isOfficialSentinel
+      ? { color: "#8B5CF6", labelKey: "community.naria.grade" }
+      : getStaffVisuals(member);
   const accent = visuals?.color || "#FBBF24";
   const gradeLabel = getStaffGradeLabel(member, visuals, t);
   const GradeIcon = member.is_nexus_supreme ? Crown : Shield;
@@ -76,102 +54,153 @@ function TeamCard({ member }) {
   const bio = member.team_bio;
   const specialties = member.team_specialties || [];
 
-  return (
-    <article className="team-card" style={{ "--team-accent": accent }} data-testid={`team-card-${member.user_id}`}>
+  const cardInner = (
+    <>
+      <div className="team-card-shine" aria-hidden />
       <div className="team-card-glow" aria-hidden />
-      <div className="team-card-top">
-        <div className="team-card-avatar" style={{ color: accent }}>
-          {avatar ? (
-            <img src={avatar} alt="" />
-          ) : (
-            member.username?.[0]?.toUpperCase() || "?"
+
+      <header className="team-card-header">
+        <div className="team-card-avatar-wrap" style={{ "--team-accent": accent }}>
+          <div className={`team-card-avatar${isOfficialSentinel ? " team-card-avatar--sentinel" : ""}`}>
+            {avatar ? (
+              <img src={avatar} alt="" />
+            ) : (
+              member.username?.[0]?.toUpperCase() || "?"
+            )}
+          </div>
+          {!isOfficialSentinel && (
+            <span className="team-card-profile-hint">{t("community.viewProfile")}</span>
           )}
         </div>
+
         <div className="team-card-meta">
-          <HeroName user={member} size="base" />
-          <div className="team-card-grade">
+          <div className="team-card-name-row">
+            <HeroName user={member} size="base" />
+            {!isOfficialSentinel && <ExternalLink className="team-card-link-icon w-3.5 h-3.5" aria-hidden />}
+          </div>
+          <div className="team-card-grade" style={{ color: accent }}>
             <GradeIcon className="w-3 h-3" />
             {gradeLabel}
           </div>
-          {roleLabel && <div className="team-card-role">{roleLabel}</div>}
+          {roleLabel && <p className="team-card-role">{roleLabel}</p>}
+          {isOfficialSentinel && (
+            <>
+              <span className="team-card-sentinel-badge">{t("community.naria.badge")}</span>
+              <span className="team-card-sentinel-official">{t("community.naria.status")}</span>
+            </>
+          )}
           {nationality && (
-            <div className="team-card-nationality">
+            <p className="team-card-nationality">
               <MapPin className="w-3 h-3" />
               {nationality}
-            </div>
+            </p>
           )}
         </div>
-      </div>
+      </header>
 
       {tagline && (
-        <p className="team-card-tagline">{tagline.startsWith("«") ? tagline : `« ${tagline} »`}</p>
+        <blockquote className="team-card-tagline">
+          {tagline.startsWith("«") ? tagline : `« ${tagline} »`}
+        </blockquote>
       )}
+
       {bio && <p className="team-card-bio">{bio}</p>}
 
       {specialties.length > 0 && (
-        <div className="team-card-tags">
+        <ul className="team-card-tags" aria-label={t("community.specialties")}>
           {specialties.map((tag) => (
-            <span key={tag} className="team-card-tag">{tag}</span>
+            <li key={tag} className="team-card-tag">{tag}</li>
           ))}
-        </div>
+        </ul>
       )}
 
-      <div className="team-card-foot">
-        <span>{member.class_name ? translateClassName(t, member.class_name) : t("community.adventurer")}</span>
-        <span>{t("friends.levelShort", { level: member.level || 1 })}</span>
+      <footer className="team-card-foot">
+        {isOfficialSentinel ? (
+          <span>{t("community.naria.footer")}</span>
+        ) : (
+          <>
+            <span>{member.class_name ? translateClassName(t, member.class_name) : t("community.adventurer")}</span>
+            <span>{t("friends.levelShort", { level: member.level || 1 })}</span>
+          </>
+        )}
+      </footer>
+    </>
+  );
+
+  if (isOfficialSentinel) {
+    return (
+      <article
+        className="team-card team-card--sentinel team-card--static"
+        style={{ "--team-accent": accent }}
+        data-testid={`team-card-${member.user_id}`}
+      >
+        {cardInner}
+      </article>
+    );
+  }
+
+  return (
+    <HeroCardOpener
+      userId={member.user_id}
+      username={member.username}
+      className="team-card team-card--clickable"
+      style={{ "--team-accent": accent }}
+      testid={`team-card-${member.user_id}`}
+    >
+      {cardInner}
+    </HeroCardOpener>
+  );
+}
+
+function StatTile({ icon: Icon, value, label, color }) {
+  return (
+    <div className="community-stat-tile" style={{ "--stat-color": color }}>
+      <div className="community-stat-icon">
+        <Icon className="w-4 h-4" />
       </div>
-    </article>
+      <div>
+        <div className="community-stat-value">{value ?? 0}</div>
+        <div className="community-stat-label">{label}</div>
+      </div>
+    </div>
   );
 }
 
 function GuildCard({ guild }) {
   const { t } = useI18n();
   return (
-    <Link to="/guilds" className="block">
-      <PremiumCard tone="emerald" hover className="p-4 h-full">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-lg border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center text-emerald-300 font-black shrink-0">
-            {guild.tag ? guild.tag.slice(0, 3).toUpperCase() : <Swords className="w-5 h-5" />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="font-display font-bold text-sm text-emerald-100 truncate">{guild.name}</div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">
-              {t("community.memberCount", { count: guild.member_count || 0, level: guild.level || 1 })}
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0" />
+    <Link to="/guilds" className="community-guild-card">
+      <div className="community-guild-emblem">
+        {guild.tag ? guild.tag.slice(0, 3).toUpperCase() : <Swords className="w-5 h-5" />}
+      </div>
+      <div className="community-guild-body">
+        <div className="community-guild-name">{guild.name}</div>
+        <div className="community-guild-meta">
+          {t("community.memberCount", { count: guild.member_count || 0, level: guild.level || 1 })}
         </div>
-        {guild.description && (
-          <p className="text-xs text-zinc-400 mt-3 line-clamp-2">{guild.description}</p>
-        )}
-        <div className="mt-3 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300">
-          <UserPlus className="w-3 h-3" /> {t("community.joinOrder")}
-        </div>
-      </PremiumCard>
+        {guild.description && <p className="community-guild-desc">{guild.description}</p>}
+      </div>
+      <ChevronRight className="w-4 h-4 community-guild-chevron" />
     </Link>
   );
 }
 
 function NewsCard({ article }) {
   const { t, locale } = useI18n();
-  const excerpt = (article.excerpt || article.summary || (article.body || "").replace(/<[^>]+>/g, "")).slice(0, 140);
+  const excerpt = (article.excerpt || article.summary || (article.body || "").replace(/<[^>]+>/g, "")).slice(0, 120);
   return (
-    <Link to="/feed" className="block">
-      <PremiumCard tone="cyan" hover className="p-4 h-full">
-        <div className="flex items-center gap-2 mb-2">
-          <Newspaper className="w-3.5 h-3.5 text-cyan-300" />
-          <span className="text-[10px] uppercase tracking-widest text-cyan-400 font-bold">
-            {article.category || t("community.newsDefault")}
-          </span>
-        </div>
-        <div className="font-display font-bold text-sm text-cyan-100 mb-1 line-clamp-2">{article.title}</div>
-        {excerpt && <p className="text-xs text-zinc-400 line-clamp-3">{excerpt}…</p>}
-        {article.created_at && (
-          <div className="text-[10px] text-zinc-600 mt-2">
-            {new Date(article.created_at).toLocaleDateString(locale || "fr-FR")}
-          </div>
-        )}
-      </PremiumCard>
+    <Link to="/feed" className="community-news-card">
+      <div className="community-news-kicker">
+        <Newspaper className="w-3.5 h-3.5" />
+        {article.category || t("community.newsDefault")}
+      </div>
+      <h3 className="community-news-title">{article.title}</h3>
+      {excerpt && <p className="community-news-excerpt">{excerpt}…</p>}
+      {article.created_at && (
+        <time className="community-news-date">
+          {new Date(article.created_at).toLocaleDateString(locale || "fr-FR")}
+        </time>
+      )}
     </Link>
   );
 }
@@ -206,83 +235,107 @@ export default function Community() {
 
   return (
     <PageShell wide testid="community-page" banner={banner}>
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-10">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatPill icon={Users} value={stats.heroes} label={t("community.stat.heroes")} color="#22D3EE" />
-          <StatPill icon={Globe} value={stats.online} label={t("community.stat.online")} color="#34D399" />
-          <StatPill icon={Swords} value={stats.guilds} label={t("community.stat.orders")} color="#A855F7" />
-          <StatPill icon={Shield} value={stats.staff} label={t("community.stat.team")} color="#FBBF24" />
-        </div>
+      <div className="community-page">
+        {/* Hero */}
+        <section className="community-hero">
+          <div className="community-hero-bg" aria-hidden />
+          <div className="community-hero-content">
+            <p className="community-hero-kicker">{t("community.pageKicker")}</p>
+            <h1 className="community-hero-title">{t("community.pageTitle")}</h1>
+            <p className="community-hero-lead">{t("community.pageLead")}</p>
+            <div className="community-stats-row">
+              <StatTile icon={Users} value={stats.heroes} label={t("community.stat.heroes")} color="#22D3EE" />
+              <StatTile icon={Globe} value={stats.online} label={t("community.stat.online")} color="#34D399" />
+              <StatTile icon={Swords} value={stats.guilds} label={t("community.stat.orders")} color="#A855F7" />
+              <StatTile icon={Shield} value={stats.staff} label={t("community.stat.team")} color="#FBBF24" />
+            </div>
+          </div>
+        </section>
 
-        <PremiumCard tone="violet" className="p-6 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-30" style={{ background: "radial-gradient(120% 140% at 100% 0%, rgba(88,101,242,0.4), transparent 60%)" }} aria-hidden />
-          <div className="relative flex flex-col sm:flex-row items-center justify-between gap-4">
+        {/* Équipe — section principale */}
+        <section className="community-team-section" aria-labelledby="community-team-heading">
+          <div className="community-team-panel">
+            <div className="community-team-panel-head">
+              <div className="community-team-panel-icon" aria-hidden>
+                <Shield className="w-6 h-6" />
+              </div>
+              <div className="community-team-panel-titles">
+                <p className="community-team-panel-kicker">{teamSubtitle}</p>
+                <h2 id="community-team-heading" className="community-team-panel-title">{teamTitle}</h2>
+                {teamIntro && <p className="community-team-panel-intro">{teamIntro}</p>}
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="community-team-loading">{t("common.loading")}</div>
+            ) : team.length === 0 ? (
+              <div className="community-team-empty">{t("community.teamSoon")}</div>
+            ) : (
+              <div className="team-grid team-grid--premium">
+                {team.map((m) => (
+                  <TeamMemberCard key={m.user_id} member={m} />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Discord */}
+        <section className="community-discord-strip">
+          <div className="community-discord-inner">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-300 font-bold mb-1">{t("community.discordKicker")}</div>
-              <h3 className="font-display font-black text-xl text-white">{t("community.discordTitle")}</h3>
-              <p className="text-sm text-zinc-400 mt-1">{t("community.discordBody")}</p>
+              <p className="community-discord-kicker">{t("community.discordKicker")}</p>
+              <h3 className="community-discord-title">{t("community.discordTitle")}</h3>
+              <p className="community-discord-body">{t("community.discordBody")}</p>
             </div>
             <a
               href={DISCORD_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-5 py-3 rounded-xl font-display font-black text-white text-sm whitespace-nowrap"
-              style={{ background: "linear-gradient(135deg, #5865F2 0%, #404EED 100%)", boxShadow: "0 8px 24px rgba(88,101,242,0.4)" }}
+              className="community-discord-btn"
               data-testid="community-discord-btn"
             >
               {t("community.discordBtn")}
             </a>
           </div>
-        </PremiumCard>
-
-        <section>
-          <div className="team-section-head">
-            <h2 className="team-section-title">{teamTitle}</h2>
-            {teamSubtitle && <p className="team-section-subtitle">{teamSubtitle}</p>}
-            {teamIntro && <p className="team-section-intro">{teamIntro}</p>}
-          </div>
-          {loading ? (
-            <div className="text-center py-8 text-zinc-500">{t("common.loading")}</div>
-          ) : team.length === 0 ? (
-            <div className="text-center py-8 text-zinc-500 italic">{t("community.teamSoon")}</div>
-          ) : (
-            <div className="team-grid">
-              {team.map((m) => <TeamCard key={m.user_id} member={m} />)}
-            </div>
-          )}
         </section>
 
-        <section>
-          <SectionTitle
-            icon={Flag}
-            title={t("community.recruitment")}
-            accent="#34D399"
-            action={<Link to="/guilds" className="text-xs font-bold text-emerald-300 hover:text-emerald-200 inline-flex items-center gap-1">{t("community.allOrders")} <ChevronRight className="w-3 h-3" /></Link>}
-          />
-          {guilds.length === 0 ? (
-            <div className="text-center py-8 text-zinc-500 italic">{t("community.noGuilds")}</div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {guilds.map((g) => <GuildCard key={g.guild_id} guild={g} />)}
+        {/* Guildes + Actualités */}
+        <div className="community-secondary-grid">
+          <section className="community-block">
+            <div className="community-block-head">
+              <Flag className="w-5 h-5 text-emerald-400" />
+              <h2>{t("community.recruitment")}</h2>
+              <Link to="/guilds" className="community-block-link">
+                {t("community.allOrders")} <ChevronRight className="w-3 h-3" />
+              </Link>
             </div>
-          )}
-        </section>
+            {guilds.length === 0 ? (
+              <p className="community-block-empty">{t("community.noGuilds")}</p>
+            ) : (
+              <div className="community-guild-list">
+                {guilds.map((g) => <GuildCard key={g.guild_id} guild={g} />)}
+              </div>
+            )}
+          </section>
 
-        <section>
-          <SectionTitle
-            icon={Sparkles}
-            title={t("community.feed")}
-            accent="#22D3EE"
-            action={<Link to="/feed" className="text-xs font-bold text-cyan-300 hover:text-cyan-200 inline-flex items-center gap-1">{t("community.viewFeed")} <ChevronRight className="w-3 h-3" /></Link>}
-          />
-          {news.length === 0 ? (
-            <div className="text-center py-8 text-zinc-500 italic">{t("community.noNews")}</div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {news.map((n) => <NewsCard key={n.news_id} article={n} />)}
+          <section className="community-block">
+            <div className="community-block-head">
+              <Sparkles className="w-5 h-5 text-cyan-400" />
+              <h2>{t("community.feed")}</h2>
+              <Link to="/feed" className="community-block-link">
+                {t("community.viewFeed")} <ChevronRight className="w-3 h-3" />
+              </Link>
             </div>
-          )}
-        </section>
+            {news.length === 0 ? (
+              <p className="community-block-empty">{t("community.noNews")}</p>
+            ) : (
+              <div className="community-news-list">
+                {news.map((n) => <NewsCard key={n.news_id} article={n} />)}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </PageShell>
   );

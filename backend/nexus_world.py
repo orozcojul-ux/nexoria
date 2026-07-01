@@ -79,6 +79,27 @@ _sio_ref = None
 _hooks: dict = {}
 
 
+async def _naria_moderate_chat(p: dict, text: str, content_type: str, message_id=None) -> dict:
+    """Appelle le hook Naria (défini dans server.py) si présent."""
+    hook = _hooks.get("moderate_nexus_chat")
+    if not hook or _db_ref is None:
+        return {}
+    try:
+        user = await _db_ref.users.find_one({"user_id": p["user_id"]}, {"_id": 0})
+    except Exception:
+        user = p
+    try:
+        return await hook(_db_ref, user or p, text, content_type, message_id) or {}
+    except Exception as e:
+        logger.warning("moderate_nexus_chat hook failed: %s", e)
+        return {}
+
+
+async def _emit_naria_notice(sio, sid, mod: dict):
+    if mod.get("naria"):
+        await sio.emit("system_msg", {"kind": "warn", "text": mod["naria"]}, to=sid)
+
+
 def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
@@ -654,6 +675,15 @@ def build_socketio_app(db, hooks=None):
         if channel not in CHAT_CHANNELS:
             channel = "room"
 
+        pre_mod = await _naria_moderate_chat(p, text, f"nexus_{channel}_chat")
+        if pre_mod.get("block"):
+            await sio.emit(
+                "system_msg",
+                {"kind": "error", "text": pre_mod.get("message") or "Message refusé."},
+                to=sid,
+            )
+            return
+
         # Event channel is staff-only (server-wide live event announcements)
         if channel == "event" and p["role"] not in STAFF_ROLES:
             await sio.emit("system_msg", {"kind": "error", "text": "Canal Événement réservé aux Gardiens."}, to=sid)
@@ -680,13 +710,23 @@ def build_socketio_app(db, hooks=None):
                 await sio.emit("system_msg", {"kind": "error", "text": "Vous n'avez pas de guilde."}, to=sid)
                 return
             msg["guild_id"] = p["guild_id"]
+            chat_msg_id = f"nchat_{uuid.uuid4().hex[:12]}"
+            post_mod = await _naria_moderate_chat(p, text, "nexus_guild_chat", chat_msg_id)
+            if post_mod.get("hide"):
+                msg["text"] = post_mod.get("content") or "Message masqué par la modération."
             for other_sid, other in _players.items():
                 if other.get("guild_id") == p["guild_id"]:
                     await sio.emit("chat", msg, to=other_sid)
+            await _emit_naria_notice(sio, sid, post_mod)
         elif channel == "global" or channel == "trade" or channel == "event":
+            chat_msg_id = f"nchat_{uuid.uuid4().hex[:12]}"
+            post_mod = await _naria_moderate_chat(p, text, f"nexus_{channel}_chat", chat_msg_id)
+            if post_mod.get("hide"):
+                msg["text"] = post_mod.get("content") or "Message masqué par la modération."
             # Broadcast to every connected player
             for other_sid in _players:
                 await sio.emit("chat", msg, to=other_sid)
+            await _emit_naria_notice(sio, sid, post_mod)
         else:
             # Default: room channel (local)
             room = p["room"]
@@ -734,6 +774,12 @@ def build_socketio_app(db, hooks=None):
                 await sio.emit("system_msg", {"kind": "warn", "text": err}, to=sid)
                 return
             doc = room_chat.build_message_doc(p, room, room_name, content)
+            post_mod = await _naria_moderate_chat(
+                p, content, "nexus_room_chat", doc["message_id"],
+            )
+            if post_mod.get("hide"):
+                doc["content"] = post_mod.get("content") or "Message masqué par la modération."
+                content = doc["content"]
             if _db_ref is not None:
                 try:
                     await room_chat.persist_message(_db_ref, doc)
@@ -753,6 +799,7 @@ def build_socketio_app(db, hooks=None):
                 {"sid": sid, "user_id": p["user_id"], "typing": False},
                 to=room,
             )
+            await _emit_naria_notice(sio, sid, post_mod)
 
         hook = _hooks.get("on_chat_message")
         if hook:
@@ -777,6 +824,14 @@ def build_socketio_app(db, hooks=None):
             await sio.emit("system_msg", {"kind": "muted", "text": "Tu es temporairement réduit au silence."}, to=sid)
             return
         raw = (data or {}).get("content") or (data or {}).get("text") or ""
+        pre_mod = await _naria_moderate_chat(p, raw, "nexus_room_chat")
+        if pre_mod.get("block"):
+            await sio.emit(
+                "system_msg",
+                {"kind": "error", "text": pre_mod.get("message") or "Message refusé."},
+                to=sid,
+            )
+            return
         content, err = room_chat.validate_message(raw, sid)
         if err:
             await sio.emit("system_msg", {"kind": "error", "text": err}, to=sid)
@@ -784,6 +839,10 @@ def build_socketio_app(db, hooks=None):
         room_id = p["room"]
         room_name = ROOMS.get(room_id, {}).get("name", room_id)
         doc = room_chat.build_message_doc(p, room_id, room_name, content)
+        post_mod = await _naria_moderate_chat(p, content, "nexus_room_chat", doc["message_id"])
+        if post_mod.get("hide"):
+            doc["content"] = post_mod.get("content") or "Message masqué par la modération."
+            content = doc["content"]
         if _db_ref is not None:
             try:
                 await room_chat.persist_message(_db_ref, doc)
@@ -804,6 +863,7 @@ def build_socketio_app(db, hooks=None):
             {"sid": sid, "user_id": p["user_id"], "typing": False},
             to=room_id,
         )
+        await _emit_naria_notice(sio, sid, post_mod)
         hook = _hooks.get("on_room_chat_message") or _hooks.get("on_chat_message")
         if hook:
             try:

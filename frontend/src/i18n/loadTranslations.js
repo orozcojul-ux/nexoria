@@ -27,6 +27,7 @@ import { TRANSLATIONS_NOTIFICATIONS } from "./translations-notifications.js";
 import { TRANSLATIONS_NEWS_UI } from "./translations-news-ui.js";
 import { TRANSLATIONS_LEGAL } from "./translations-legal.js";
 import { TRANSLATIONS_LEGAL_PRIVACY } from "./translations-legal-privacy.js";
+import { TRANSLATIONS_NARIA } from "./translations-naria.js";
 import { applyLocaleOverrides } from "./locale-overrides.js";
 import { mergeTranslationModules } from "./mergeTranslations.js";
 import { normalizeI18nPlaceholders } from "../lib/i18n-safe.js";
@@ -82,6 +83,7 @@ export function getTranslationEntries() {
         TRANSLATIONS_NEWS_UI,
         TRANSLATIONS_LEGAL,
         TRANSLATIONS_LEGAL_PRIVACY,
+        TRANSLATIONS_NARIA,
       ),
     ));
   }

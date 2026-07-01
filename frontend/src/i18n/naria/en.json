@@ -1,0 +1,17 @@
+{
+  "naria.title": "Naria — Sentinel",
+  "naria.warning.respect": "⚠️ Naria — Sentinel of the Nexus: your message may violate the community rules. Please remain respectful.",
+  "naria.warning.spam": "⚠️ Naria: your message looks like spam. Avoid repetition and unsolicited advertising.",
+  "naria.warning.link": "⚠️ Naria: suspicious link detected. Only share safe, allowed links.",
+  "naria.warning.caps": "⚠️ Naria: excessive capitals detected. Please write normally.",
+  "naria.warning.repeated": "⚠️ Naria: message repeated too often. Please wait between posts.",
+  "naria.warning.harassment": "⚠️ Naria: aggressive or threatening behavior detected. The Nexus must stay safe for everyone.",
+  "naria.warning.offensive": "⚠️ Naria: offensive language detected. Please respect other players.",
+  "naria.content.hidden": "Message hidden by moderation.",
+  "naria.content.blocked": "Your message was blocked by Naria because it may violate Nexus rules.",
+  "naria.content.hidden_notice": "Your message was hidden by Naria because it may violate Nexus rules.",
+  "naria.restriction.temporary": "You cannot post temporarily. Time remaining: {minutes} min.",
+  "naria.restriction.hour": "You cannot post temporarily (1 h). The team has been alerted.",
+  "naria.ban.notice": "Serious behavior detected. Naria has reported your account to the team.",
+  "community.naria.official": "Official automated moderation"
+}

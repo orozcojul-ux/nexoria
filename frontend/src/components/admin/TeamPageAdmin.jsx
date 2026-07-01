@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Crown, Eye, EyeOff, Loader2, Save, Shield, Users } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Crown, Eye, EyeOff, ExternalLink, Loader2, Save, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
@@ -26,6 +27,67 @@ function Field({ label, hint, children }) {
 }
 
 const inputCls = "w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50";
+
+function TeamCardPreview({ member, form }) {
+  const visuals = getStaffVisuals(member);
+  const accent = member.is_official_sentinel ? "#8B5CF6" : member.is_nexus_supreme ? "#FBBF24" : (visuals?.color || "#A78BFA");
+  const avatar = getUserAvatarUrl(member);
+  const specialties = String(form.specialtiesText || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  return (
+    <div
+      className="rounded-xl border border-white/10 bg-gradient-to-br from-black/50 to-violet-950/20 p-4 space-y-3"
+      style={{ borderColor: `${accent}44` }}
+    >
+      <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Aperçu carte publique</p>
+      <div className="flex gap-3">
+        <div
+          className="w-14 h-14 rounded-xl border-2 overflow-hidden shrink-0 flex items-center justify-center bg-black/40"
+          style={{ borderColor: accent }}
+        >
+          {member.is_official_sentinel ? (
+            avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : <Shield className="w-7 h-7 text-violet-300" />
+          ) : avatar ? (
+            <img src={avatar} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-lg font-bold">{member.username?.[0]?.toUpperCase()}</span>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="font-display font-bold text-base truncate">{member.display_name || member.username}</div>
+          {form.role_label && <p className="text-xs text-zinc-400 mt-0.5">{form.role_label}</p>}
+          {form.nationality && (
+            <p className="text-[11px] text-zinc-500 mt-1">{form.nationality}</p>
+          )}
+        </div>
+      </div>
+      {form.tagline && (
+        <blockquote className="text-xs italic text-violet-200/80 border-l-2 pl-3" style={{ borderColor: accent }}>
+          {form.tagline.startsWith("«") ? form.tagline : `« ${form.tagline} »`}
+        </blockquote>
+      )}
+      {form.bio && <p className="text-xs text-zinc-400 leading-relaxed line-clamp-3">{form.bio}</p>}
+      {specialties.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {specialties.map((tag) => (
+            <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-zinc-300">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+      {!member.is_official_sentinel && (
+        <p className="text-[10px] text-violet-300/70 flex items-center gap-1">
+          <ExternalLink className="w-3 h-3" />
+          Clic sur la carte → profil héros
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function TeamPageAdmin() {
   const [settings, setSettings] = useState({ title: "", subtitle: "", intro: "" });
@@ -115,8 +177,16 @@ export default function TeamPageAdmin() {
 
   return (
     <div className="space-y-6" data-testid="team-page-admin">
-      <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-100/90">
-        <strong>Rangs verrouillés.</strong> Cet écran ne modifie pas les grades Sage / Sentinelle — uniquement la présentation publique sur la page Communauté.
+      <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-100/90 flex flex-wrap items-center justify-between gap-3">
+        <span>
+          <strong>Rangs verrouillés.</strong> Cet écran ne modifie pas les grades Sage / Sentinelle — uniquement la présentation publique sur la page Communauté.
+        </span>
+        <Link
+          to="/community"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-200 hover:text-amber-100 shrink-0"
+        >
+          Voir la page Communauté <ExternalLink className="w-3.5 h-3.5" />
+        </Link>
       </div>
 
       <form onSubmit={saveSettings} className="rounded-xl border border-white/10 bg-black/30 p-5 space-y-4">
@@ -147,8 +217,13 @@ export default function TeamPageAdmin() {
           {members.map((m) => {
             const visuals = getStaffVisuals(m);
             const active = selectedId === m.user_id;
-            const avatar = getUserAvatarUrl(m);
-            const gradeLabel = m.is_nexus_supreme ? "Gardien Suprême" : (visuals?.label || m.role);
+            const avatar = m.is_automated_sentinel ? null : getUserAvatarUrl(m);
+            const gradeLabel = m.is_official_sentinel
+              ? "Sentinelle officielle"
+              : m.is_nexus_supreme
+                ? "Gardien Suprême"
+                : (visuals?.label || m.role);
+            const accent = m.is_official_sentinel ? "#8B5CF6" : (visuals?.color || "#888");
             return (
               <button
                 key={m.user_id}
@@ -157,12 +232,18 @@ export default function TeamPageAdmin() {
                 className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors ${active ? "border-violet-500/50 bg-violet-500/10" : "border-white/10 hover:border-white/20 bg-black/20"}`}
                 data-testid={`team-admin-member-${m.user_id}`}
               >
-                <div className="w-10 h-10 rounded-lg overflow-hidden border shrink-0" style={{ borderColor: visuals?.color || "#888" }}>
-                  {avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-xs font-bold">{m.username?.[0]}</span>}
+                <div className="w-10 h-10 rounded-lg overflow-hidden border shrink-0 flex items-center justify-center bg-black/30" style={{ borderColor: accent }}>
+                  {m.is_official_sentinel ? (
+                    avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : <Shield className="w-5 h-5 text-violet-300" />
+                  ) : avatar ? (
+                    <img src={avatar} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="flex items-center justify-center h-full text-xs font-bold">{m.username?.[0]}</span>
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="font-bold text-sm truncate">{m.display_name || m.username}</div>
-                  <div className="text-[10px] uppercase tracking-wider truncate" style={{ color: visuals?.color }}>{gradeLabel}</div>
+                  <div className="text-[10px] uppercase tracking-wider truncate" style={{ color: accent }}>{gradeLabel}</div>
                 </div>
                 {m.profile?.visible === false ? <EyeOff className="w-4 h-4 text-zinc-500 shrink-0" /> : <Eye className="w-4 h-4 text-emerald-400/80 shrink-0" />}
               </button>
@@ -179,9 +260,26 @@ export default function TeamPageAdmin() {
                 <div>
                   <h4 className="font-display font-bold text-lg">{selected.display_name || selected.username}</h4>
                   <p className="text-xs text-zinc-500 mt-1 flex items-center gap-1">
-                    {selected.is_nexus_supreme ? <Crown className="w-3 h-3 text-amber-300" /> : <Shield className="w-3 h-3 text-violet-300" />}
-                    Grade actuel : {selected.is_nexus_supreme ? "Gardien Suprême" : (selected.role === "admin" ? "Sage" : "Sentinelle")} — non modifiable ici
+                    {selected.is_official_sentinel ? (
+                      <>
+                        <Shield className="w-3 h-3 text-violet-300" />
+                        Sentinelle officielle du Nexus — fiche publique éditable, sans profil joueur
+                      </>
+                    ) : (
+                      <>
+                        {selected.is_nexus_supreme ? <Crown className="w-3 h-3 text-amber-300" /> : <Shield className="w-3 h-3 text-violet-300" />}
+                        Grade actuel : {selected.is_nexus_supreme ? "Gardien Suprême" : (selected.role === "admin" ? "Sage" : "Sentinelle")} — non modifiable ici
+                      </>
+                    )}
                   </p>
+                  {!selected.is_official_sentinel && selected.username && (
+                    <Link
+                      to={`/profile/${selected.username}`}
+                      className="inline-flex items-center gap-1 text-xs text-violet-300 hover:text-violet-200 mt-2"
+                    >
+                      Voir le profil public <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  )}
                 </div>
                 <label className="flex items-center gap-2 text-xs text-zinc-400 shrink-0 cursor-pointer">
                   <input type="checkbox" checked={form.visible !== false} onChange={(e) => setForm((f) => ({ ...f, visible: e.target.checked }))} data-testid="team-member-visible" />
@@ -213,6 +311,8 @@ export default function TeamPageAdmin() {
               <Field label="Spécialités" hint="Séparées par des virgules — affichées en badges.">
                 <input className={inputCls} value={form.specialtiesText ?? (form.specialties || []).join(", ")} onChange={(e) => setForm((f) => ({ ...f, specialtiesText: e.target.value }))} placeholder="Modération, Discord, Événements" data-testid="team-member-specialties" />
               </Field>
+
+              <TeamCardPreview member={selected} form={form} />
 
               <button type="submit" disabled={savingMember} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-violet-500/40 text-violet-200 text-sm font-bold hover:bg-violet-500/10 disabled:opacity-50" data-testid="team-member-save">
                 {savingMember ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

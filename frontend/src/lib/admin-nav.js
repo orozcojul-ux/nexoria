@@ -17,6 +17,7 @@ export const ADMIN_TAB_KEYS = {
   chat: "admin.tab.chat",
   logs: "admin.tab.logs",
   "forum-mod": "admin.tab.forum_mod",
+  moderation: "admin.tab.moderation",
   shop: "admin.tab.shop",
   news: "admin.tab.news",
   team: "admin.tab.team",
@@ -63,6 +64,7 @@ export function buildAdminSidebarNav({ isAdmin }) {
         item("tickets", "admin.tab.tickets", Ticket, "nav-cms-tickets"),
         item("reports", "admin.tab.reports", Flag, "nav-cms-reports", { dynamicBadge: "open_reports" }),
         item("bans", "admin.tab.bans", Ban, "nav-cms-sanctions"),
+        item("moderation", "admin.tab.moderation", Shield, "nav-cms-moderation", { dynamicBadge: "naria_pending" }),
         ...(isAdmin ? [item("roles", "admin.tab.roles", Shield, "nav-cms-roles")] : []),
       ],
     },
@@ -130,7 +132,7 @@ export function getActiveAdminTab(search) {
   return isValidAdminTab(tab) ? tab : "pulse";
 }
 
-export const MOD_TABS = new Set(["pulse", "users", "tickets", "reports", "bans", "chat", "forum-mod", "logs", "legend"]);
+export const MOD_TABS = new Set(["pulse", "users", "tickets", "reports", "bans", "moderation", "chat", "forum-mod", "logs", "legend"]);
 
 export function resolveAdminTab(tab, isAdmin) {
   const normalized = tab === "overview" ? "pulse" : tab;
