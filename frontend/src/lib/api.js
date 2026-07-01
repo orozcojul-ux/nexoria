@@ -110,6 +110,9 @@ export function formatApiError(err) {
   if (detail?.forum_muted) {
     return detail.reason || "Publication forum temporairement désactivée";
   }
+  if (detail?.moderation_blocked || detail?.naria) {
+    return detail.message || "Message refusé par la modération";
+  }
   if (typeof detail?.reason === "string") return detail.reason;
   if (detail?.msg) return detail.msg;
   if (typeof detail === "object") {

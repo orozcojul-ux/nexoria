@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { MessageCircle, Send, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import api from "@/lib/api";
+import api, { formatApiError } from "@/lib/api";
+import { handleModerationApiResult } from "@/lib/moderation-notice";
+import ModeratedContent from "@/components/moderation/ModeratedContent";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { LOCALE_MAP } from "@/lib/languages";
@@ -43,10 +45,15 @@ export default function NewsComments({ newsId }) {
       const { data } = await api.post(`/news/${newsId}/comments`, { content });
       setComments((c) => [...c, data]);
       setText("");
+      if (handleModerationApiResult(data)) {
+        sfx.success();
+        return;
+      }
       sfx.success();
       toast.success(t("news.comments.published"));
     } catch (err) {
-      toast.error(err.response?.data?.detail || t("errors.generic"));
+      if (handleModerationApiResult(err, { isError: true })) return;
+      toast.error(formatApiError(err) || t("errors.generic"));
     } finally {
       setSending(false);
     }
@@ -59,7 +66,7 @@ export default function NewsComments({ newsId }) {
       setComments((c) => c.filter((x) => x.comment_id !== commentId));
       toast.success(t("news.comments.moderated"));
     } catch (err) {
-      toast.error(err.response?.data?.detail || t("errors.generic"));
+      toast.error(formatApiError(err) || t("errors.generic"));
     }
   };
 
@@ -109,14 +116,18 @@ export default function NewsComments({ newsId }) {
                 </span>
               </div>
               <div className="text-sm text-zinc-300 mt-1 leading-relaxed">
-                <TranslatableText
-                  as="span"
-                  text={c.content}
-                  entityType="news_comment"
-                  entityId={c.comment_id}
-                  field="content"
-                  compact
-                />
+                {c.moderation_hidden ? (
+                  <ModeratedContent text={c.content} />
+                ) : (
+                  <TranslatableText
+                    as="span"
+                    text={c.content}
+                    entityType="news_comment"
+                    entityId={c.comment_id}
+                    field="content"
+                    compact
+                  />
+                )}
               </div>
             </div>
             {(isStaff || c.user_id === user?.user_id) && (

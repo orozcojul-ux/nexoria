@@ -57,6 +57,27 @@ class TestModerationRules:
         r = analyze_content("espèce de connard", user_language="fr")
         assert r.total_score >= 2
         assert r.confidence >= 0.7
+        action = naria.decide_action(
+            r.total_score, r, user={"user_id": "u1", "level": 5}, score_doc={"score": 0, "warnings_count": 0},
+            content_type="news_comment",
+        )
+        assert action.hide is True
+        assert action.warn is True
+
+    def test_news_slur_blocked(self):
+        r = analyze_content("ferme ta gueule pd", user_language="fr")
+        assert r.total_score >= 2
+        user = {"user_id": "u1", "username": "TEST", "level": 5, "created_at": "2025-01-01T00:00:00+00:00"}
+        action = naria.decide_action(
+            r.total_score, r, user=user, score_doc={"score": 0, "warnings_count": 0},
+            content_type="news_comment",
+        )
+        assert action.block is True
+        assert action.hide is True
+
+    def test_aggressive_phrase_harassment(self):
+        r = analyze_content("ferme ta gueule", user_language="fr")
+        assert any(h.rule == "hate_threat" for h in r.hits)
 
     def test_insult_english(self):
         r = analyze_content("you fucking asshole", user_language="en")

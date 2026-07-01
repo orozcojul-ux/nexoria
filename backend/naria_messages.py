@@ -87,14 +87,54 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "ja": "⚠️ {actor}：攻撃的な言葉遣いが検出されました。他のプレイヤーを尊重してください。",
     },
     "naria.content.hidden": {
-        "fr": "Message masqué par la modération.",
-        "en": "Message hidden by moderation.",
-        "es": "Mensaje oculto por moderación.",
-        "de": "Nachricht durch Moderation ausgeblendet.",
-        "it": "Messaggio nascosto dalla moderazione.",
-        "pt": "Mensagem ocultada pela moderação.",
-        "nl": "Bericht verborgen door moderatie.",
-        "ja": "モデレーションにより非表示にされました。",
+        "fr": "Message masqué par {actor}.",
+        "en": "Message hidden by {actor}.",
+        "es": "Mensaje oculto por {actor}.",
+        "de": "Nachricht von {actor} ausgeblendet.",
+        "it": "Messaggio nascosto da {actor}.",
+        "pt": "Mensagem ocultada por {actor}.",
+        "nl": "Bericht verborgen door {actor}.",
+        "ja": "{actor}により非表示にされました。",
+    },
+    "naria.content.hidden.comment": {
+        "fr": "Commentaire masqué par {actor}.",
+        "en": "Comment hidden by {actor}.",
+        "es": "Comentario oculto por {actor}.",
+        "de": "Kommentar von {actor} ausgeblendet.",
+        "it": "Commento nascosto da {actor}.",
+        "pt": "Comentário ocultado por {actor}.",
+        "nl": "Reactie verborgen door {actor}.",
+        "ja": "{actor}によりコメントが非表示になりました。",
+    },
+    "naria.content.hidden.post": {
+        "fr": "Publication masquée par {actor}.",
+        "en": "Post hidden by {actor}.",
+        "es": "Publicación oculta por {actor}.",
+        "de": "Beitrag von {actor} ausgeblendet.",
+        "it": "Pubblicazione nascosta da {actor}.",
+        "pt": "Publicação ocultada por {actor}.",
+        "nl": "Bericht verborgen door {actor}.",
+        "ja": "{actor}により投稿が非表示になりました。",
+    },
+    "naria.content.hidden.thread": {
+        "fr": "Sujet masqué par {actor}.",
+        "en": "Thread hidden by {actor}.",
+        "es": "Tema oculto por {actor}.",
+        "de": "Thema von {actor} ausgeblendet.",
+        "it": "Discussione nascosta da {actor}.",
+        "pt": "Tópico ocultado por {actor}.",
+        "nl": "Topic verborgen door {actor}.",
+        "ja": "{actor}によりスレッドが非表示になりました。",
+    },
+    "naria.content.hidden.reply": {
+        "fr": "Réponse masquée par {actor}.",
+        "en": "Reply hidden by {actor}.",
+        "es": "Respuesta oculta por {actor}.",
+        "de": "Antwort von {actor} ausgeblendet.",
+        "it": "Risposta nascosta da {actor}.",
+        "pt": "Resposta ocultada por {actor}.",
+        "nl": "Antwoord verborgen door {actor}.",
+        "ja": "{actor}により返信が非表示になりました。",
     },
     "naria.content.blocked": {
         "fr": "Ton message a été bloqué par {actor} car il semble contraire aux règles du Nexus.",
@@ -207,5 +247,16 @@ def pick_user_message(
     return key, get_message(key, lang, actor=actor_name)
 
 
-def hidden_placeholder(lang: str) -> str:
-    return get_message("naria.content.hidden", lang)
+_HIDDEN_KEY_BY_CONTENT_TYPE = {
+    "news_comment": "naria.content.hidden.comment",
+    "feed_comment": "naria.content.hidden.comment",
+    "feed_post": "naria.content.hidden.post",
+    "forum_thread": "naria.content.hidden.thread",
+    "forum_reply": "naria.content.hidden.reply",
+    "friend_message": "naria.content.hidden",
+}
+
+
+def hidden_placeholder(lang: str, *, actor: str | None = None, content_type: str = "generic") -> str:
+    key = _HIDDEN_KEY_BY_CONTENT_TYPE.get(content_type, "naria.content.hidden")
+    return get_message(key, lang, actor=actor or NARIA_USERNAME)

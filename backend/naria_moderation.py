@@ -35,7 +35,25 @@ CONFIDENCE_HIDE = 0.72
 NEW_ACCOUNT_DAYS = 3
 VETERAN_LEVEL = 15
 
+PUBLIC_CONTENT_TYPES = frozenset({
+    "forum_thread", "forum_reply", "profile", "guild", "generic",
+    "feed_post", "feed_comment", "news_comment",
+})
+
+CHAT_ZONES = frozenset({
+    "nexus_room_chat", "nexus_global_chat", "nexus_trade_chat", "nexus_guild_chat",
+    "guild_chat", "friend_message",
+})
+
 HIDDEN_PLACEHOLDER = "Message masqué par la modération."
+
+
+def _has_toxic_hit(analysis: AnalysisResult) -> bool:
+    return any(
+        h.rule in ("bad_word", "hate_threat", "harassment")
+        and h.severity in ("high", "critical")
+        for h in analysis.hits
+    )
 
 
 def now_utc() -> datetime:
@@ -200,24 +218,37 @@ def decide_action(
     if conf < CONFIDENCE_WARN and warnings == 0:
         effective_score = max(1, int(total_score * 0.5))
 
-    chat_zones = {
-        "nexus_room_chat", "nexus_global_chat", "nexus_trade_chat", "nexus_guild_chat",
-        "guild_chat", "friend_message",
-    }
+    chat_zones = CHAT_ZONES
     if content_type in chat_zones and conf < CONFIDENCE_HIDE and analysis.max_severity != "critical":
         effective_score = min(effective_score, 3)
 
+    if _has_toxic_hit(analysis) and conf >= CONFIDENCE_HIDE:
+        action.hide = True
+        action.warn = True
+        action.block = True
+        action.action = "block"
+        key, msg = pick_user_message(
+            analysis.hits, user_lang, block=True, hide=True, actor=actor_name,
+        )
+        action.user_message_key = key
+        action.user_message = msg
+        action.allowed = False
+        return action
+
     if analysis.max_severity == "critical" and conf >= 0.85 and effective_score >= 5:
         action.block = True
+        action.warn = True
         action.action = "block"
         key, msg = pick_user_message(analysis.hits, user_lang, block=True, actor=actor_name)
         action.user_message_key = key
         action.user_message = msg
+        action.allowed = False
         return action
 
     if effective_score <= 2:
         action.warn = True
-        action.action = "warn"
+        action.hide = True
+        action.action = "hide"
     elif effective_score <= 4:
         if conf >= CONFIDENCE_HIDE or warnings >= 1:
             action.hide = True
@@ -253,6 +284,9 @@ def decide_action(
         block=action.block,
         actor=actor_name,
     )
+    if action.warn and not action.block and action.hide:
+        key = "naria.content.hidden_notice"
+        msg = get_message(key, user_lang, actor=actor_name)
     if action.propose_ban and not action.block:
         key = "naria.ban.notice"
         msg = get_message(key, user_lang, actor=actor_name)
@@ -404,13 +438,21 @@ async def publish_with_moderation(
     )
 
 
-def sanitize_moderated_document(doc: dict | None, text_field: str, lang: str = "fr") -> dict | None:
+def sanitize_moderated_document(
+    doc: dict | None,
+    text_field: str,
+    lang: str = "fr",
+    *,
+    content_type: str = "generic",
+    is_staff: bool = False,
+) -> dict | None:
     if not doc:
         return doc
-    if not doc.get("moderation_hidden"):
+    if is_staff or not doc.get("moderation_hidden"):
         return doc
+    actor = doc.get("moderation_hidden_by")
     out = dict(doc)
-    out[text_field] = hidden_placeholder(lang)
+    out[text_field] = hidden_placeholder(lang, actor=actor, content_type=content_type)
     return out
 
 
@@ -423,6 +465,7 @@ async def preflight_content(
     analysis, action = built
     if action.block:
         await _log_only(db, user, analysis, action, content_type, None, text)
+        await _send_moderation_warning(db, user, action, content_type=content_type)
         return action
     return None
 
@@ -508,6 +551,69 @@ async def _log_only(db, user, analysis, action, content_type, content_id, text) 
     return log_id
 
 
+async def _send_moderation_warning(
+    db,
+    user: dict,
+    action: ModerationAction,
+    *,
+    content_type: str,
+    content_id: str | None = None,
+) -> str | None:
+    """Notification + entrée warning — visible par le joueur (cloche, profil)."""
+    if not (action.warn or action.block) or not action.user_message:
+        return None
+    actor = await _actor_fields(db, content_type)
+    actor_name = actor["actorName"]
+    actor_id = actor["actorId"]
+    user_lang = action.user_language
+    warning_id = f"mwarn_{uuid.uuid4().hex[:12]}"
+    now = now_iso()
+    msg = action.user_message
+
+    await db.moderation_warnings.insert_one({
+        "warning_id": warning_id,
+        "userId": user["user_id"],
+        "username": user.get("username"),
+        "warningMessage": msg,
+        "warningMessageKey": action.user_message_key,
+        "reason": action.reason,
+        "reasonCode": action.reason_code,
+        "severity": action.severity,
+        "confidence": action.confidence,
+        "language": user_lang,
+        "contentType": content_type,
+        "contentId": content_id,
+        "actorId": actor_id,
+        "actorName": actor_name,
+        "actorRole": actor["actorRole"],
+        "actorType": actor["actorType"],
+        "actionSource": actor["actionSource"],
+        "createdBy": actor_id,
+        "createdByName": actor_name,
+        "createdAt": now,
+        "readAt": None,
+        "status": "active",
+    })
+    await push_notification(
+        db, user["user_id"], "naria_warning",
+        get_message("naria.title", user_lang, actor=actor_name),
+        msg,
+        sound="war", icon="Shield", link="/profile",
+        actor_id=actor_id,
+        actor_name=actor_name,
+        params={
+            "warning_id": warning_id,
+            "message_key": action.user_message_key,
+            "language": user_lang,
+            "severity": action.severity,
+            "actor_id": actor_id,
+            "actor_name": actor_name,
+        },
+    )
+    action.warning_id = warning_id
+    return warning_id
+
+
 async def _apply_action(db, user, analysis, action, content_type, content_id, text) -> None:
     log_id = f"mlog_{uuid.uuid4().hex[:12]}"
     warning_id = None
@@ -540,47 +646,8 @@ async def _apply_action(db, user, analysis, action, content_type, content_id, te
     )
 
     if action.warn:
-        warning_id = f"mwarn_{uuid.uuid4().hex[:12]}"
-        msg = action.user_message or get_message("naria.warning.respect", user_lang, actor=actor_name)
-        await db.moderation_warnings.insert_one({
-            "warning_id": warning_id,
-            "userId": user["user_id"],
-            "username": user.get("username"),
-            "warningMessage": msg,
-            "warningMessageKey": action.user_message_key,
-            "reason": action.reason,
-            "reasonCode": action.reason_code,
-            "severity": action.severity,
-            "confidence": action.confidence,
-            "language": user_lang,
-            "contentType": content_type,
-            "contentId": content_id,
-            "actorId": actor_id,
-            "actorName": actor_name,
-            "actorRole": actor["actorRole"],
-            "actorType": actor["actorType"],
-            "actionSource": actor["actionSource"],
-            "createdBy": actor_id,
-            "createdByName": actor_name,
-            "createdAt": now,
-            "readAt": None,
-            "status": "active",
-        })
-        await push_notification(
-            db, user["user_id"], "naria_warning",
-            get_message("naria.title", user_lang, actor=actor_name),
-            msg,
-            sound="war", icon="Shield", link="/profile",
-            actor_id=actor_id,
-            actor_name=actor_name,
-            params={
-                "warning_id": warning_id,
-                "message_key": action.user_message_key,
-                "language": user_lang,
-                "severity": action.severity,
-                "actor_id": actor_id,
-                "actor_name": actor_name,
-            },
+        await _send_moderation_warning(
+            db, user, action, content_type=content_type, content_id=content_id,
         )
 
     if action.restrict_minutes and not moderation_restriction_detail(user):
@@ -650,8 +717,8 @@ def _action_type_label(action: ModerationAction) -> str:
 
 
 async def hide_content(db, content_type: str, content_id: str, reason: str, lang: str = "fr", *, actor_name: str | None = None) -> None:
-    placeholder = hidden_placeholder(lang)
     by = actor_name or NARIA_ACTOR
+    placeholder = hidden_placeholder(lang, actor=by, content_type=content_type)
     hidden_fields = {
         "moderation_hidden": True,
         "moderation_hidden_by": by,
@@ -659,9 +726,15 @@ async def hide_content(db, content_type: str, content_id: str, reason: str, lang
         "moderation_hidden_reason": (reason or "")[:300],
     }
     if content_type == "forum_thread":
-        await db.forum_threads.update_one({"thread_id": content_id}, {"$set": hidden_fields})
+        await db.forum_threads.update_one(
+            {"thread_id": content_id},
+            {"$set": {**hidden_fields, "content": placeholder, "title": placeholder}},
+        )
     elif content_type == "forum_reply":
-        await db.forum_replies.update_one({"reply_id": content_id}, {"$set": hidden_fields})
+        await db.forum_replies.update_one(
+            {"reply_id": content_id},
+            {"$set": {**hidden_fields, "content": placeholder, "content_html": f"<p>{placeholder}</p>"}},
+        )
     elif content_type == "nexus_room_chat":
         await db.nexus_room_chat.update_one(
             {"message_id": content_id},
@@ -681,7 +754,7 @@ async def hide_content(db, content_type: str, content_id: str, reason: str, lang
     elif content_type == "news_comment":
         await db.news_comments.update_one(
             {"comment_id": content_id},
-            {"$set": {**hidden_fields, "hidden": True, "content": placeholder}},
+            {"$set": {**hidden_fields, "content": placeholder}},
         )
     elif content_type == "friend_message":
         await db.friend_messages.update_one(
@@ -767,13 +840,16 @@ async def apply_naria_ban(db, user: dict, reason: str, hours: int = 24, language
     return True
 
 
-def sanitize_forum_doc(doc: dict, is_staff: bool = False, lang: str = "fr") -> dict:
+def sanitize_forum_doc(doc: dict, is_staff: bool = False, lang: str = "fr", content_type: str = "forum_reply") -> dict:
     if is_staff or not doc.get("moderation_hidden"):
         return doc
-    ph = hidden_placeholder(lang)
+    actor = doc.get("moderation_hidden_by")
+    ph = hidden_placeholder(lang, actor=actor, content_type=content_type)
     out = dict(doc)
     out["content"] = ph
     out["content_html"] = f"<p>{ph}</p>"
+    if content_type == "forum_thread" and "title" in out:
+        out["title"] = ph
     out["moderation_hidden"] = True
     return out
 

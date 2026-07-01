@@ -21,6 +21,8 @@ import ForumBannedView from "@/components/forum/ForumBannedView";
 import ForumModPanel from "@/components/forum/ForumModPanel";
 import ForumAuthorName from "@/components/forum/ForumAuthorName";
 import { sfx } from "@/lib/sfx";
+import { handleModerationApiResult } from "@/lib/moderation-notice";
+import ModeratedContent from "@/components/moderation/ModeratedContent";
 import { stripHtml } from "@/lib/stripHtml";
 import { usePageBanner } from "@/lib/page-banners";
 import "@/pages/pages-hub.css";
@@ -711,17 +713,23 @@ function NewThreadDialog({ category, onClose, onCreated }) {
     }
     setSaving(true);
     try {
-      await api.post("/forum/threads", {
+      const { data } = await api.post("/forum/threads", {
         category,
         title: title.trim(),
         content: plain,
         content_html: contentHtml,
       });
+      if (handleModerationApiResult(data)) {
+        sfx.success();
+        await onCreated();
+        return;
+      }
       toast.success(t("forum.topicCreated"));
       sfx.success();
       await onCreated();
     } catch (err) {
       const detail = err.response?.data?.detail;
+      if (handleModerationApiResult(err, { isError: true })) return;
       if (detail?.forum_muted) {
         toast.error(t("forum.mutedCreateFailed", { date: fmtDate(detail.until) }));
       } else {
@@ -791,12 +799,14 @@ function ThreadView({ threadId, category, forumMute, onBack, onDeleted }) {
     const plain = stripHtml(replyHtml).trim();
     if (!plain) return;
     try {
-      await api.post(`/forum/threads/${threadId}/replies`, { content: plain, content_html: replyHtml });
+      const { data } = await api.post(`/forum/threads/${threadId}/replies`, { content: plain, content_html: replyHtml });
+      handleModerationApiResult(data);
       sfx.click();
       setReplyHtml("");
       await load();
     } catch (err) {
       const detail = err.response?.data?.detail;
+      if (handleModerationApiResult(err, { isError: true })) return;
       if (detail?.forum_muted) {
         toast.error(t("forum.mutedUntilReply", { date: fmtDate(detail.until) }));
       } else {
@@ -943,13 +953,17 @@ function ThreadView({ threadId, category, forumMute, onBack, onDeleted }) {
           <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {t("forum.viewsWithCount", { count: thread.views })}</span>
           <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {t("forum.repliesWithCount", { count: thread.replies_count })}</span>
         </div>
-        <TranslatableContent
-          html={thread.content_html}
-          plain={thread.content}
-          entityType="forum_thread"
-          entityId={thread.thread_id}
-          field="content"
-        />
+        {thread.moderation_hidden ? (
+          <ModeratedContent text={thread.content} className="text-sm" />
+        ) : (
+          <TranslatableContent
+            html={thread.content_html}
+            plain={thread.content}
+            entityType="forum_thread"
+            entityId={thread.thread_id}
+            field="content"
+          />
+        )}
         {isStaff && thread.user_id !== user?.user_id && (
           <div className="mt-3 pt-2 border-t border-white/8">
             <ForumModPanel targetUser={thread.author} onDone={load} />
@@ -986,13 +1000,17 @@ function ThreadView({ threadId, category, forumMute, onBack, onDeleted }) {
                 )}
               </div>
             </div>
-            <TranslatableContent
-              html={r.content_html}
-              plain={r.content}
-              entityType="forum_reply"
-              entityId={r.reply_id}
-              field="content"
-            />
+            {r.moderation_hidden ? (
+              <ModeratedContent text={r.content} className="text-sm" />
+            ) : (
+              <TranslatableContent
+                html={r.content_html}
+                plain={r.content}
+                entityType="forum_reply"
+                entityId={r.reply_id}
+                field="content"
+              />
+            )}
             {isStaff && r.user_id !== user?.user_id && (
               <div className="mt-3 pt-2 border-t border-white/8">
                 <ForumModPanel

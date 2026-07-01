@@ -56,6 +56,7 @@ HARASSMENT_PATTERNS_BY_LANGUAGE: dict[str, list[re.Pattern]] = {
     "fr": [
         re.compile(r"\b(tu\s+vas\s+mourir|je\s+te\s+tue|crève|suicide)\b", re.I),
         re.compile(r"\b(mort\s+aux|haine\s+envers)\b", re.I),
+        re.compile(r"\b(ferme\s+ta\s+gueule|ferme\s+la\s+gueule|ta\s+gueule)\b", re.I),
     ],
     "en": [
         re.compile(r"\b(i\s+will\s+kill\s+you|go\s+die|kill\s+yourself|kys)\b", re.I),

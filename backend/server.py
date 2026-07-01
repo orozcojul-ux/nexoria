@@ -688,11 +688,12 @@ async def moderate_nexus_chat(db_ref, user, text, content_type, message_id=None)
     return out
 
 
-def _naria_response(action) -> dict | None:
+def _naria_response(action, *, actor_name: str | None = None) -> dict | None:
     if not action or (not action.user_message and not action.warn):
         return None
+    actor = actor_name or naria.NARIA_ACTOR
     return {
-        "actor": naria.NARIA_ACTOR,
+        "actor": actor,
         "role": naria.NARIA_ROLE,
         "message": action.user_message,
         "message_key": getattr(action, "user_message_key", None),
@@ -700,6 +701,8 @@ def _naria_response(action) -> dict | None:
         "confidence": getattr(action, "confidence", None),
         "warning_id": action.warning_id,
         "log_id": action.log_id,
+        "hidden": bool(getattr(action, "hide", False)),
+        "blocked": bool(getattr(action, "block", False)),
     }
 
 
@@ -708,9 +711,12 @@ def _naria_block_detail(user: dict, blocked) -> dict:
     from naria_language import resolve_user_language
 
     lang = resolve_user_language(user)
+    actor = getattr(blocked, "actor_name", None) or naria.NARIA_ACTOR
     return {
         "naria": True,
-        "message": blocked.user_message or get_message("naria.content.blocked", lang),
+        "moderation_blocked": True,
+        "actor": actor,
+        "message": blocked.user_message or get_message("naria.content.blocked", lang, actor=actor),
         "message_key": blocked.user_message_key,
         "language": lang,
         "confidence": blocked.confidence,
@@ -3760,18 +3766,21 @@ async def upgrade_building(building_id: str, user: dict = Depends(get_user_dep))
 
 # ---------- Posts / Feed ----------
 @api.get("/feed")
-async def get_feed():
-    posts = await db.posts.find(
-        {"moderation_hidden": {"$ne": True}},
-        {"_id": 0},
-    ).sort("created_at", -1).limit(50).to_list(50)
-    # enrich with author info
+async def get_feed(user: dict = Depends(get_user_dep)):
+    from naria_language import resolve_user_language
+    posts = await db.posts.find({}, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
     user_ids = list({p["user_id"] for p in posts})
     users = await db.users.find({"user_id": {"$in": user_ids}}, SOCIAL_USER_PROJECTION).to_list(500)
     umap = {u["user_id"]: u for u in users}
+    lang = resolve_user_language(user)
+    is_staff = user.get("role") in ("admin", "moderator")
+    out = []
     for p in posts:
         p["author"] = umap.get(p["user_id"], {})
-    return posts
+        if p.get("moderation_hidden") and not is_staff:
+            p = naria.sanitize_moderated_document(p, "content", lang, content_type="feed_post", is_staff=is_staff)
+        out.append(p)
+    return out
 
 
 @api.post("/posts")
@@ -3779,6 +3788,10 @@ async def create_post(req: PostReq, user: dict = Depends(get_user_dep)):
     content = req.content.strip()
     if not content:
         raise HTTPException(400, "Contenu vide")
+    await naria.enforce_post_allowed(user)
+    blocked = await naria.preflight_content(db, user, content, content_type="feed_post")
+    if blocked:
+        raise HTTPException(status_code=403, detail=_naria_block_detail(user, blocked))
     post_id = f"post_{uuid.uuid4().hex[:12]}"
     post = {
         "post_id": post_id,
@@ -3789,10 +3802,18 @@ async def create_post(req: PostReq, user: dict = Depends(get_user_dep)):
         "created_at": now_utc().isoformat(),
     }
     await db.posts.insert_one(post)
-    await naria.publish_with_moderation(
+    mod_action = await naria.moderate_published_content(
         db, user=user, text=content[:1000], content_type="feed_post", content_id=post_id,
     )
     post.pop("_id", None)
+    if mod_action.hide:
+        fresh = await db.posts.find_one({"post_id": post_id}, {"_id": 0})
+        if fresh:
+            post = fresh
+    from naria_language import resolve_user_language
+    post = naria.sanitize_moderated_document(
+        post, "content", resolve_user_language(user), content_type="feed_post",
+    ) or post
     XP_PER_POST = 20
     await grant_xp(user["user_id"], XP_PER_POST, "post")
     # badges
@@ -3804,6 +3825,9 @@ async def create_post(req: PostReq, user: dict = Depends(get_user_dep)):
     if count >= 100:
         await grant_badge(user["user_id"], "innovator")
     post["xp_gained"] = XP_PER_POST
+    nr = _naria_response(mod_action)
+    if nr:
+        post["naria"] = nr
     return post
 
 
@@ -3852,17 +3876,21 @@ async def react_to_post(post_id: str, user: dict = Depends(get_user_dep)):
 
 
 @api.get("/posts/{post_id}/comments")
-async def get_comments(post_id: str):
-    comments = await db.comments.find(
-        {"post_id": post_id, "moderation_hidden": {"$ne": True}},
-        {"_id": 0},
-    ).sort("created_at", 1).to_list(200)
+async def get_comments(post_id: str, user: dict = Depends(get_user_dep)):
+    from naria_language import resolve_user_language
+    comments = await db.comments.find({"post_id": post_id}, {"_id": 0}).sort("created_at", 1).to_list(200)
     user_ids = list({c["user_id"] for c in comments})
     users = await db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0, "user_id": 1, "username": 1, "avatar_url": 1, "level": 1, "rank": 1, "role": 1}).to_list(500)
     umap = {u["user_id"]: u for u in users}
+    lang = resolve_user_language(user)
+    is_staff = user.get("role") in ("admin", "moderator")
+    out = []
     for c in comments:
         c["author"] = umap.get(c["user_id"], {})
-    return comments
+        if c.get("moderation_hidden") and not is_staff:
+            c = naria.sanitize_moderated_document(c, "content", lang, content_type="feed_comment", is_staff=is_staff)
+        out.append(c)
+    return out
 
 
 @api.post("/posts/{post_id}/comments")
@@ -3871,6 +3899,10 @@ async def add_comment(post_id: str, req: CommentReq, user: dict = Depends(get_us
     if not content:
         raise HTTPException(400, "Commentaire vide")
     XP_PER_COMMENT = 10
+    await naria.enforce_post_allowed(user)
+    blocked = await naria.preflight_content(db, user, content, content_type="feed_comment")
+    if blocked:
+        raise HTTPException(status_code=403, detail=_naria_block_detail(user, blocked))
     comment_id = f"cmt_{uuid.uuid4().hex[:12]}"
     comment = {
         "comment_id": comment_id,
@@ -3880,13 +3912,24 @@ async def add_comment(post_id: str, req: CommentReq, user: dict = Depends(get_us
         "created_at": now_utc().isoformat(),
     }
     await db.comments.insert_one(comment)
-    await naria.publish_with_moderation(
+    mod_action = await naria.moderate_published_content(
         db, user=user, text=content[:500], content_type="feed_comment", content_id=comment_id,
     )
     comment.pop("_id", None)
+    if mod_action.hide:
+        fresh = await db.comments.find_one({"comment_id": comment_id}, {"_id": 0})
+        if fresh:
+            comment = fresh
+    from naria_language import resolve_user_language
+    comment = naria.sanitize_moderated_document(
+        comment, "content", resolve_user_language(user), content_type="feed_comment",
+    ) or comment
     await db.posts.update_one({"post_id": post_id}, {"$inc": {"comments_count": 1}})
     await grant_xp(user["user_id"], XP_PER_COMMENT, "comment")
     comment["xp_gained"] = XP_PER_COMMENT
+    nr = _naria_response(mod_action)
+    if nr:
+        comment["naria"] = nr
     return comment
 
 
@@ -7095,6 +7138,7 @@ class NewsCommentReq(BaseModel):
 
 @api.get("/news/{news_id}/comments")
 async def list_news_comments(news_id: str, user: dict = Depends(get_user_dep)):
+    from naria_language import resolve_user_language
     article = await db.news.find_one({"news_id": news_id, "published": True})
     if not article:
         raise HTTPException(404, "Article introuvable")
@@ -7102,7 +7146,16 @@ async def list_news_comments(news_id: str, user: dict = Depends(get_user_dep)):
         {"news_id": news_id, "hidden": {"$ne": True}},
         {"_id": 0},
     ).sort("created_at", 1).limit(200).to_list(200)
-    return await _attach_country_codes(db, comments)
+    lang = resolve_user_language(user)
+    is_staff = user.get("role") in ("admin", "moderator")
+    sanitized = []
+    for c in comments:
+        if c.get("moderation_hidden") and not is_staff:
+            c = naria.sanitize_moderated_document(
+                c, "content", lang, content_type="news_comment", is_staff=is_staff,
+            )
+        sanitized.append(c)
+    return await _attach_country_codes(db, sanitized)
 
 
 @api.post("/news/{news_id}/comments")
@@ -7120,6 +7173,10 @@ async def post_news_comment(news_id: str, req: NewsCommentReq, user: dict = Depe
     })
     if daily >= 20:
         raise HTTPException(429, "Limite de commentaires quotidienne atteinte")
+    await naria.enforce_post_allowed(user)
+    blocked = await naria.preflight_content(db, user, content, content_type="news_comment")
+    if blocked:
+        raise HTTPException(status_code=403, detail=_naria_block_detail(user, blocked))
     doc = {
         "comment_id": f"nc_{uuid.uuid4().hex[:12]}",
         "news_id": news_id,
@@ -7133,10 +7190,18 @@ async def post_news_comment(news_id: str, req: NewsCommentReq, user: dict = Depe
         "created_at": now_utc().isoformat(),
     }
     await db.news_comments.insert_one(doc)
-    await naria.publish_with_moderation(
+    mod_action = await naria.moderate_published_content(
         db, user=user, text=content, content_type="news_comment", content_id=doc["comment_id"],
     )
     doc.pop("_id", None)
+    if mod_action.hide:
+        fresh = await db.news_comments.find_one({"comment_id": doc["comment_id"]}, {"_id": 0})
+        if fresh:
+            doc = fresh
+    from naria_language import resolve_user_language
+    doc = naria.sanitize_moderated_document(
+        doc, "content", resolve_user_language(user), content_type="news_comment",
+    ) or doc
     await grant_xp(user["user_id"], 15, "news_comment")
     total = await db.news_comments.count_documents({"user_id": user["user_id"]})
     if total == 1:
@@ -7145,6 +7210,9 @@ async def post_news_comment(news_id: str, req: NewsCommentReq, user: dict = Depe
         await grant_badge(user["user_id"], "news_sage")
     if total >= 100:
         await grant_badge(user["user_id"], "news_herald")
+    nr = _naria_response(mod_action)
+    if nr:
+        doc["naria"] = nr
     return doc
 
 
@@ -7802,7 +7870,7 @@ async def list_forum_threads(category: str, user: dict = Depends(get_user_dep)):
     for idx, t in enumerate(threads):
         t["author"] = umap.get(t["user_id"], {})
         if t.get("moderation_hidden") and not is_staff:
-            threads[idx] = naria.sanitize_forum_doc(t)
+            threads[idx] = naria.sanitize_forum_doc(t, content_type="forum_thread")
     return threads
 
 
@@ -7872,11 +7940,11 @@ async def get_forum_thread(thread_id: str, user: dict = Depends(get_user_dep)):
     thread["author"] = umap.get(thread["user_id"], {})
     is_staff = user.get("role") in ("admin", "moderator")
     if thread.get("moderation_hidden") and not is_staff:
-        thread = naria.sanitize_forum_doc(thread)
+        thread = naria.sanitize_forum_doc(thread, content_type="forum_thread")
     for idx, r in enumerate(replies):
         r["author"] = umap.get(r["user_id"], {})
         if r.get("moderation_hidden") and not is_staff:
-            replies[idx] = naria.sanitize_forum_doc(r)
+            replies[idx] = naria.sanitize_forum_doc(r, content_type="forum_reply")
     return {"thread": thread, "replies": replies}
 
 

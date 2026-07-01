@@ -8,6 +8,7 @@ import NexoriaDrawer from "./NexoriaDrawer";
 import DiscordFab from "./DiscordFab";
 import GuildInvitePrompt from "./GuildInvitePrompt";
 import GameLegendModal, { useGameLegend, GameLegendAutoOpen } from "./GameLegendModal";
+import ModerationNoticeBanner from "./moderation/ModerationNoticeBanner";
 
 export default function Layout({ children }) {
   const { user } = useAuth();
@@ -33,6 +34,8 @@ export default function Layout({ children }) {
       <SiteBackground variant="app" />
 
       {!nexusOpen && <SiteHeader />}
+
+      <ModerationNoticeBanner />
 
       {!nexusOpen && (
         <NexoriaDrawer
