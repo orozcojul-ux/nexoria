@@ -312,20 +312,50 @@ function resolveWithLegacyFallback(notif, resolved) {
   };
 }
 
+/** i18n returns "—" in production when a key is missing — must not count as a hit. */
+function isMissingTranslation(value, key) {
+  if (!value || value === key) return true;
+  const trimmed = String(value).trim();
+  return trimmed === "—" || trimmed === "–" || trimmed === "-";
+}
+
 function tryTranslate(t, key, params) {
   if (!key) return null;
   const titleKey = `${key}.title`;
   const messageKey = `${key}.message`;
   const title = t(titleKey, params);
-  if (!title || title === titleKey) return null;
+  if (isMissingTranslation(title, titleKey)) return null;
   const message = t(messageKey, params);
   return {
     title: applyNotificationPlaceholders(title, params),
     message: applyNotificationPlaceholders(
-      message && message !== messageKey ? message : "",
+      message && !isMissingTranslation(message, messageKey) ? message : "",
       params,
     ),
   };
+}
+
+function resolveModerationWarning(notif, params, t) {
+  const actor = params.actor_name || notif.actor_name || "Naria";
+  const actorVars = { ...params, actor_name: actor, actor };
+
+  let message = "";
+  const msgKey = params.message_key || params.messageKey;
+  if (msgKey) {
+    message = t(msgKey, actorVars);
+    if (isMissingTranslation(message, msgKey)) message = notif.message || "";
+  } else {
+    message = notif.message || "";
+  }
+
+  const fromKeys = tryTranslate(t, "notif.naria_warning", actorVars);
+  let title = fromKeys?.title;
+  if (isMissingTranslation(title, "notif.naria_warning.title")) {
+    title = notif.title || t("naria.title", actorVars) || `${actor} — Sentinelle`;
+    if (isMissingTranslation(title, "naria.title")) title = notif.title || `${actor} — Sentinelle`;
+  }
+
+  return { title, message };
 }
 
 export function translateNotification(notif, t) {
@@ -348,6 +378,20 @@ export function translateNotification(notif, t) {
       title: params.title || notif.title || "",
       message: params.message || notif.message || "",
     };
+  }
+
+  if (notif.kind === "naria_warning") {
+    return resolveModerationWarning(notif, params, t);
+  }
+
+  if (notif.kind === "naria_alert") {
+    if (notif.title || notif.message) {
+      return { title: notif.title || "", message: notif.message || "" };
+    }
+    const alertParams = { ...params, preview: params.preview || notif.message, actor_name: params.actor_name || "Naria" };
+    const resolved = tryTranslate(t, "notif.naria_alert", alertParams);
+    if (resolved) return resolved;
+    return { title: "", message: "" };
   }
 
   const prefix = resolveKeyPrefix(notif);

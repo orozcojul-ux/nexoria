@@ -266,6 +266,17 @@ export function AuthProvider({ children }) {
     return "/";
   }, [user?.beta_access]);
 
+  // Sync tutorial completion flag on user (Settings, help button, etc.)
+  useEffect(() => {
+    const handler = () => {
+      setUserState((prev) => (
+        prev ? { ...prev, tutorialCompleted: true, tutorialSkipped: false } : prev
+      ));
+    };
+    window.addEventListener("nexoria:tutorial-completed", handler);
+    return () => window.removeEventListener("nexoria:tutorial-completed", handler);
+  }, []);
+
   return (
     <AuthContext.Provider value={{ user, setUser, loading, refresh, logout, checkAuth, banInfo, setBanInfo }}>
       {children}

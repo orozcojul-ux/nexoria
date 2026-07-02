@@ -129,4 +129,52 @@ describe("translate-notification", () => {
     expect(title).toBe("Badge débloqué : Pionnier");
     expect(message).toBe("Premier sur le Nexus");
   });
+
+  test("resolves naria_warning from message_key instead of em-dash placeholder", () => {
+    const t = (key, vars) => {
+      if (key === "notif.naria_warning.title") return `${vars?.actor_name || "Naria"} — Sentinelle`;
+      if (key === "notif.naria_warning.message") return "—";
+      if (key === "naria.warning.offensive") {
+        return "⚠️ Naria : langage offensant détecté.";
+      }
+      return "—";
+    };
+
+    const { title, message } = translateNotification(
+      {
+        kind: "naria_warning",
+        title: "Naria — Sentinelle",
+        message: "⚠️ Naria : langage offensant détecté.",
+        actor_name: "Naria",
+        params: {
+          message_key: "naria.warning.offensive",
+          actor_name: "Naria",
+          severity: "warn",
+        },
+      },
+      t,
+    );
+
+    expect(title).toBe("Naria — Sentinelle");
+    expect(message).toContain("langage offensant");
+    expect(title).not.toBe("—");
+    expect(message).not.toBe("—");
+  });
+
+  test("falls back to stored text for naria_alert staff notifications", () => {
+    const t = () => "—";
+
+    const { title, message } = translateNotification(
+      {
+        kind: "naria_alert",
+        title: "Alerte Naria",
+        message: "JoueurTest [fr/fr] conf=95% score=8 — insulte",
+        params: { preview: "JoueurTest [fr/fr] conf=95% score=8 — insulte" },
+      },
+      t,
+    );
+
+    expect(title).toBe("Alerte Naria");
+    expect(message).toContain("JoueurTest");
+  });
 });

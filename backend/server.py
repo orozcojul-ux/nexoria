@@ -91,6 +91,7 @@ from economy_transactions import record_economy_transaction, infer_economy_sourc
 from economy_admin import register_economy_admin_routes
 import naria_moderation as naria
 from naria_routes import register_naria_routes
+from onboarding import register_onboarding_routes, ensure_indexes as ensure_onboarding_indexes
 import naria_system
 
 # ---------- DB ----------
@@ -645,6 +646,11 @@ async def on_nexus_chat_message(user_id: str, channel: str):
         "created_at": now_utc().isoformat(),
     })
     await check_chatter_badges(user_id)
+    try:
+        import onboarding as onboarding_mod
+        await onboarding_mod.track_first_message(db, user_id)
+    except Exception as e:
+        logger.debug("onboarding chat track: %s", e)
 
 
 async def moderate_nexus_chat(db_ref, user, text, content_type, message_id=None):
@@ -730,6 +736,11 @@ async def on_boss_defeated(user_ids: list):
 
 async def on_nexus_join(user_id: str):
     await progress_quests(user_id, "nexus_enter", 1)
+    try:
+        import onboarding as onboarding_mod
+        await onboarding_mod.track_nexus_join(db, user_id)
+    except Exception as e:
+        logger.debug("onboarding nexus track: %s", e)
 
 
 _pending_tab_close_tasks: dict[str, asyncio.Task] = {}
@@ -1669,6 +1680,12 @@ def _new_user_doc(*, user_id: str, email: str, username: str, password: str, cla
         "beta_key_used": None,
         "beta_rewards_claimed": False,
         "beta_class_changes_used": 0,
+        "tutorialCompleted": False,
+        "tutorialSkipped": False,
+        "tutorialRewardsClaimed": False,
+        "tutorialStep": 0,
+        "tutorialStartedAt": None,
+        "tutorialCompletedAt": None,
     }
     for stat, bonus in cls.get("stat_bonus", {}).items():
         if stat in doc["dna"]:
@@ -3802,6 +3819,11 @@ async def create_post(req: PostReq, user: dict = Depends(get_user_dep)):
         "created_at": now_utc().isoformat(),
     }
     await db.posts.insert_one(post)
+    try:
+        import onboarding as onboarding_mod
+        await onboarding_mod.track_first_message(db, user["user_id"])
+    except Exception as e:
+        logger.debug("onboarding feed chat track: %s", e)
     mod_action = await naria.moderate_published_content(
         db, user=user, text=content[:1000], content_type="feed_post", content_id=post_id,
     )
@@ -3846,6 +3868,18 @@ async def delete_post(post_id: str, user: dict = Depends(get_user_dep)):
     await db.reactions.delete_many({"post_id": post_id})
     if is_staff and not is_author:
         await add_chronicle(post["user_id"], f"Publication retirée par le Conseil ({user['username']})", "moderation")
+        author = await db.users.find_one({"user_id": post["user_id"]}, {"_id": 0, "username": 1})
+        await naria.log_staff_action(
+            db,
+            staff=user,
+            action_type="delete",
+            reason="Publication retirée par le staff",
+            target_user_id=post["user_id"],
+            target_username=(author or {}).get("username"),
+            content_type="feed_post",
+            content_id=post_id,
+            preview=(post.get("content") or "")[:200],
+        )
     return {"ok": True}
 
 
@@ -6365,6 +6399,27 @@ async def admin_edit_user(user_id: str, req: UserEditReq, user: dict = Depends(g
                 "old_username": target.get("username"),
             })
         await db.users.update_one({"user_id": user_id}, {"$set": update})
+        if "role" in update and update["role"] != target.get("role"):
+            old_role = target.get("role") or "user"
+            new_role = update["role"]
+            if new_role == "moderator":
+                action_type, reason = "role_grant", "Promotion modérateur (Sentinelle)"
+            elif new_role == "admin":
+                action_type, reason = "role_grant", "Promotion Sage (admin)"
+            elif old_role in ("moderator", "admin") and new_role == "user":
+                action_type, reason = "role_revoke", f"Rétrogradation {old_role} → héros"
+            else:
+                action_type, reason = "role_change", f"Rôle {old_role} → {new_role}"
+            await naria.log_staff_action(
+                db,
+                staff=user,
+                action_type=action_type,
+                reason=reason,
+                target_user_id=user_id,
+                target_username=target.get("username"),
+                severity="low",
+                metadata={"old_role": old_role, "new_role": new_role},
+            )
         chronicle_text = build_staff_edit_chronicle(
             target, update, staff_username=user.get("username"),
         )
@@ -6381,6 +6436,14 @@ async def admin_edit_user(user_id: str, req: UserEditReq, user: dict = Depends(g
             {"$set": {"lifted": True, "lifted_at": now_utc().isoformat()}},
         )
         await add_chronicle(user_id, "Banni levé par le Conseil (édition héros)", "unban")
+        await naria.log_staff_action(
+            db,
+            staff=user,
+            action_type="unban",
+            reason="Ban site levé (édition héros)",
+            target_user_id=user_id,
+            target_username=target.get("username"),
+        )
         updated_fields.append("clear_ban")
 
     economy_deltas = {}
@@ -6446,6 +6509,16 @@ async def admin_ban_user(user_id: str, req: BanReq, user: dict = Depends(get_sta
         "created_at": now_utc().isoformat(),
         "lifted": False,
     })
+    await naria.log_staff_action(
+        db,
+        staff=user,
+        action_type="ban",
+        reason=req.reason[:300],
+        target_user_id=user_id,
+        target_username=target.get("username"),
+        severity="high",
+        metadata={"duration_hours": req.duration_hours, "banned_until": banned_until},
+    )
     await add_chronicle(user_id, f"Banni par le Conseil pour {req.duration_hours}h — raison : {req.reason}", "ban")
     return {"ok": True, "banned_until": banned_until}
 
@@ -6462,6 +6535,15 @@ async def admin_unban_user(user_id: str, user: dict = Depends(get_staff_dep)):
         {"$unset": {"banned_until": "", "ban_reason": ""}},
     )
     await db.ban_history.update_many({"user_id": user_id, "lifted": False}, {"$set": {"lifted": True, "lifted_at": now_utc().isoformat()}})
+    target_full = await db.users.find_one({"user_id": user_id}, {"_id": 0, "username": 1})
+    await naria.log_staff_action(
+        db,
+        staff=user,
+        action_type="unban",
+        reason="Ban site levé",
+        target_user_id=user_id,
+        target_username=(target_full or {}).get("username"),
+    )
     await add_chronicle(user_id, "Banni levé par le Conseil", "unban")
     return {"ok": True}
 
@@ -7226,8 +7308,28 @@ async def delete_news_comment(comment_id: str, user: dict = Depends(get_user_dep
         raise HTTPException(403, "Action interdite")
     await db.news_comments.update_one(
         {"comment_id": comment_id},
-        {"$set": {"hidden": True, "moderated_by": user["username"], "moderated_at": now_utc().isoformat()}},
+        {"$set": {
+            "hidden": True,
+            "moderation_hidden": True,
+            "moderated_by": user["username"],
+            "moderated_at": now_utc().isoformat(),
+            "moderation_hidden_by": user["username"],
+            "moderation_hidden_at": now_utc().isoformat(),
+        }},
     )
+    if is_staff and c["user_id"] != user["user_id"]:
+        author = await db.users.find_one({"user_id": c["user_id"]}, {"_id": 0, "username": 1})
+        await naria.log_staff_action(
+            db,
+            staff=user,
+            action_type="hide",
+            reason="Commentaire actualité masqué par le staff",
+            target_user_id=c["user_id"],
+            target_username=(author or {}).get("username"),
+            content_type="news_comment",
+            content_id=comment_id,
+            preview=(c.get("content") or "")[:200],
+        )
     return {"ok": True}
 
 
@@ -8005,6 +8107,19 @@ async def delete_thread(thread_id: str, user: dict = Depends(get_user_dep)):
         raise HTTPException(403, "Action interdite")
     await db.forum_threads.delete_one({"thread_id": thread_id})
     await db.forum_replies.delete_many({"thread_id": thread_id})
+    if is_staff and thread["user_id"] != user["user_id"]:
+        author = await db.users.find_one({"user_id": thread["user_id"]}, {"_id": 0, "username": 1})
+        await naria.log_staff_action(
+            db,
+            staff=user,
+            action_type="delete",
+            reason="Sujet forum supprimé par le staff",
+            target_user_id=thread["user_id"],
+            target_username=(author or {}).get("username"),
+            content_type="forum_thread",
+            content_id=thread_id,
+            preview=(thread.get("title") or "")[:200],
+        )
     return {"ok": True}
 
 
@@ -8013,8 +8128,22 @@ async def pin_thread(thread_id: str, user: dict = Depends(get_staff_dep)):
     thread = await db.forum_threads.find_one({"thread_id": thread_id})
     if not thread:
         raise HTTPException(404, "Sujet introuvable")
-    await db.forum_threads.update_one({"thread_id": thread_id}, {"$set": {"pinned": not thread.get("pinned", False)}})
-    return {"ok": True}
+    pinned = not thread.get("pinned", False)
+    await db.forum_threads.update_one({"thread_id": thread_id}, {"$set": {"pinned": pinned}})
+    author = await db.users.find_one({"user_id": thread["user_id"]}, {"_id": 0, "username": 1})
+    await naria.log_staff_action(
+        db,
+        staff=user,
+        action_type="forum_pin" if pinned else "forum_unpin",
+        reason=f"Sujet {'épinglé' if pinned else 'désépinglé'}",
+        target_user_id=thread["user_id"],
+        target_username=(author or {}).get("username"),
+        content_type="forum_thread",
+        content_id=thread_id,
+        preview=(thread.get("title") or "")[:200],
+        severity="low",
+    )
+    return {"ok": True, "pinned": pinned}
 
 
 @api.post("/forum/threads/{thread_id}/lock")
@@ -8022,8 +8151,22 @@ async def lock_thread(thread_id: str, user: dict = Depends(get_staff_dep)):
     thread = await db.forum_threads.find_one({"thread_id": thread_id})
     if not thread:
         raise HTTPException(404, "Sujet introuvable")
-    await db.forum_threads.update_one({"thread_id": thread_id}, {"$set": {"locked": not thread.get("locked", False)}})
-    return {"ok": True}
+    locked = not thread.get("locked", False)
+    await db.forum_threads.update_one({"thread_id": thread_id}, {"$set": {"locked": locked}})
+    author = await db.users.find_one({"user_id": thread["user_id"]}, {"_id": 0, "username": 1})
+    await naria.log_staff_action(
+        db,
+        staff=user,
+        action_type="forum_lock" if locked else "forum_unlock",
+        reason=f"Sujet {'verrouillé' if locked else 'déverrouillé'}",
+        target_user_id=thread["user_id"],
+        target_username=(author or {}).get("username"),
+        content_type="forum_thread",
+        content_id=thread_id,
+        preview=(thread.get("title") or "")[:200],
+        severity="low",
+    )
+    return {"ok": True, "locked": locked}
 
 
 @api.get("/forum/recent")
@@ -8097,11 +8240,18 @@ async def admin_pulse(user: dict = Depends(get_staff_dep)):
     open_tickets = await db.tickets.count_documents({"status": {"$ne": "closed"}})
     open_reports = await db.reports.count_documents({"status": "open"})
     banned = await db.users.count_documents({"banned_until": {"$gt": now.isoformat()}})
+    naria_pending = await db.moderation_logs.count_documents({"status": "pending_review"})
+    onboarding_started = await db.onboarding_progress.count_documents({"tutorialStartedAt": {"$ne": None}})
+    onboarding_completed = await db.onboarding_progress.count_documents({"completed": True})
     return {
         "maintenance_enabled": enabled,
         "online_open": online_open,
         "open_tickets": open_tickets,
         "open_reports": open_reports,
+        "naria_pending": naria_pending,
+        "onboarding_started": onboarding_started,
+        "onboarding_completed": onboarding_completed,
+        "onboarding_completion_rate": round(onboarding_completed / onboarding_started * 100, 1) if onboarding_started else 0.0,
         "banned_users": banned,
         "new_users_week": await db.users.count_documents({"created_at": {"$gte": week_ago}}),
         "forum_threads": await db.forum_threads.count_documents({}),
@@ -8288,6 +8438,17 @@ async def forum_mute_user(user_id: str, req: ForumMuteReq, user: dict = Depends(
         {"user_id": user_id},
         {"$set": {"forum_muted_until": muted_until, "forum_mute_reason": req.reason[:300]}},
     )
+    await naria.log_staff_action(
+        db,
+        staff=user,
+        action_type="forum_mute",
+        reason=req.reason[:300],
+        target_user_id=user_id,
+        target_username=target.get("username"),
+        content_type="forum",
+        severity="medium",
+        metadata={"duration_hours": hours, "muted_until": muted_until},
+    )
     await add_chronicle(user_id, f"Mute forum {hours}h par {user['username']}", "forum_mute")
     return {"ok": True, "forum_muted_until": muted_until}
 
@@ -8302,6 +8463,16 @@ async def forum_unmute_user(user_id: str, user: dict = Depends(get_staff_dep)):
     await db.users.update_one(
         {"user_id": user_id},
         {"$unset": {"forum_muted_until": "", "forum_mute_reason": ""}},
+    )
+    target_full = await db.users.find_one({"user_id": user_id}, {"_id": 0, "username": 1})
+    await naria.log_staff_action(
+        db,
+        staff=user,
+        action_type="forum_unmute",
+        reason="Mute forum levé",
+        target_user_id=user_id,
+        target_username=(target_full or {}).get("username"),
+        content_type="forum",
     )
     return {"ok": True}
 
@@ -8333,6 +8504,17 @@ async def forum_ban_user(user_id: str, req: BanReq, user: dict = Depends(get_sta
         },
     )
     await add_chronicle(user_id, f"Exclu de la Tribune {hours}h par {user['username']}", "forum_ban")
+    await naria.log_staff_action(
+        db,
+        staff=user,
+        action_type="forum_ban",
+        reason=req.reason[:300],
+        target_user_id=user_id,
+        target_username=target.get("username"),
+        content_type="forum",
+        severity="high",
+        metadata={"duration_hours": hours, "forum_banned_until": banned_until},
+    )
     return {"ok": True, "forum_banned_until": banned_until, "reason": req.reason[:300]}
 
 
@@ -8348,6 +8530,16 @@ async def forum_unban_user(user_id: str, user: dict = Depends(get_staff_dep)):
         {"$unset": {"forum_banned_until": "", "forum_ban_reason": ""}},
     )
     await add_chronicle(user_id, f"Exclusion forum levée par {user['username']}", "forum_unban")
+    target_full = await db.users.find_one({"user_id": user_id}, {"_id": 0, "username": 1})
+    await naria.log_staff_action(
+        db,
+        staff=user,
+        action_type="forum_unban",
+        reason="Exclusion forum levée",
+        target_user_id=user_id,
+        target_username=(target_full or {}).get("username"),
+        content_type="forum",
+    )
     return {"ok": True}
 
 
@@ -9196,6 +9388,19 @@ async def admin_resolve_report(report_id: str, req: ReportStatusReq, user: dict 
             "resolved_by": user["username"] if req.status != "open" else None,
         }},
     )
+    if req.status in ("resolved", "dismissed"):
+        await naria.log_staff_action(
+            db,
+            staff=user,
+            action_type=f"report_{req.status}",
+            reason=existing.get("reason") or existing.get("category") or "Signalement",
+            target_user_id=existing.get("reported_user_id"),
+            target_username=existing.get("reported_username"),
+            content_type=existing.get("target_type") or "report",
+            content_id=existing.get("target_id") or report_id,
+            preview=existing.get("details") or existing.get("context_label") or "",
+            metadata={"report_id": report_id, "reporter": existing.get("reporter_username")},
+        )
     if req.status == "resolved" and existing.get("status") == "open":
         reporter_id = existing.get("reporter_id")
         if reporter_id:
@@ -9654,6 +9859,15 @@ register_naria_routes(
     get_supreme_council_dep=get_supreme_council_dep,
     now_utc=now_utc,
 )
+register_onboarding_routes(
+    api,
+    db=db,
+    get_user_dep=get_user_dep,
+    grant_xp=grant_xp,
+    grant_aether=grant_aether,
+    grant_badge=grant_badge,
+    add_chronicle=add_chronicle,
+)
 app.include_router(api)
 app.mount("/uploads", StaticFiles(directory=str(upload_storage.UPLOAD_ROOT)), name="uploads")
 
@@ -9793,6 +10007,7 @@ async def startup():
     await db.beta_applications.create_index([("status", 1), ("created_at", -1)])
     await naria.ensure_indexes(db)
     await naria_system.ensure_indexes(db)
+    await ensure_onboarding_indexes(db)
     craft_service.register_craft_hooks(_craft_helpers())
     try:
         seeded = await craft_service.seed_craft_recipes(db)

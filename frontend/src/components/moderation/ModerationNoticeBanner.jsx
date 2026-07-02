@@ -36,7 +36,7 @@ export default function ModerationNoticeBanner() {
           className="fixed top-16 left-0 right-0 z-[60] px-4 pointer-events-none"
         >
           <div
-            className={`mx-auto max-w-2xl pointer-events-auto flex gap-3 p-4 rounded-xl border shadow-2xl backdrop-blur-md ${
+            className={`mx-auto max-w-2xl pointer-events-auto flex gap-3 p-4 rounded-2xl border shadow-2xl backdrop-blur-md overflow-hidden ${
               notice.blocked
                 ? "border-red-500/50 bg-red-950/90"
                 : "border-amber-500/50 bg-amber-950/90"

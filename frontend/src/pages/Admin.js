@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Shield, Trash2, Users, MessageSquare, ScrollText, Sparkles, Ban, Edit3, Hammer, Megaphone, Crown, ShieldCheck, UserCog, ShoppingBag, Plus, X, ChevronLeft, Activity, Pin, Lock, Zap, ExternalLink } from "lucide-react";
+import { Shield, Trash2, Users, MessageSquare, ScrollText, Sparkles, Ban, Edit3, Hammer, Megaphone, Crown, ShieldCheck, UserCog, ShoppingBag, Plus, X, ChevronLeft, Activity, Pin, Lock, Zap, ExternalLink, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -1606,6 +1606,8 @@ function PulseAdmin({ onNavigate }) {
           { label: "Réponses forum", value: pulse.forum_replies, tone: "cyan", icon: MessageSquare },
           { label: "Sujets aujourd'hui", value: pulse.threads_today, tone: "emerald", icon: Sparkles },
           { label: "Réponses aujourd'hui", value: pulse.replies_today, tone: "violet", icon: Sparkles },
+          { label: "Guide démarré", value: pulse.onboarding_started ?? 0, tone: "gold", icon: Sparkles },
+          { label: "Guide terminé", value: pulse.onboarding_completed ?? 0, tone: "emerald", icon: CheckCircle2 },
         ].map((s) => (
           <PremiumStat key={s.label} icon={s.icon} label={s.label} value={s.value} tone={s.tone} />
         ))}

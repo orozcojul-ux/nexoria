@@ -48,6 +48,8 @@ import TermsPage from "@/pages/TermsPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import MobileAppRedirect from "@/components/MobileAppRedirect";
 import PwaTutorialHost from "@/components/PwaTutorialHost";
+import OnboardingHost from "@/components/onboarding/OnboardingHost";
+import { OnboardingProvider } from "@/contexts/OnboardingContext";
 import { BetaDiscordLinkHost } from "@/components/BetaDiscordLinkModal";
 import LegalRoute from "@/components/legal/LegalRoute";
 import UnderConstruction from "@/pages/UnderConstruction";
@@ -115,6 +117,7 @@ function AppRouter() {
       <NexusFAB />
       <AetherTicker />
       <PwaTutorialHost />
+      <OnboardingHost />
       <BetaDiscordLinkHost />
       <Routes>
         <Route path="/" element={<RootRoute />} />
@@ -171,10 +174,12 @@ function App() {
                 <HeroCardProvider>
                   <UserPrefsSync>
                     <NexusSocketProvider>
-                      <AppRouter />
-                      <Toaster theme="dark" position="top-right" toastOptions={{
-                        style: { background: "var(--nx-surface)", border: "1px solid var(--nx-border)", color: "var(--nx-fg)" },
-                      }} />
+                      <OnboardingProvider>
+                        <AppRouter />
+                        <Toaster theme="dark" position="top-right" toastOptions={{
+                          style: { background: "var(--nx-surface)", border: "1px solid var(--nx-border)", color: "var(--nx-fg)" },
+                        }} />
+                      </OnboardingProvider>
                     </NexusSocketProvider>
                   </UserPrefsSync>
                 </HeroCardProvider>

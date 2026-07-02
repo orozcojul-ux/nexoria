@@ -32,6 +32,7 @@ export default function StaffAdminDock({ shortcuts, role, openReports: openRepor
 
   const openTickets = pulse?.open_tickets ?? 0;
   const openReports = openReportsProp ?? pulse?.open_reports ?? 0;
+  const nariaPending = pulse?.naria_pending ?? 0;
   const nexusOpen = pulse?.online_open !== false;
   const maintenance = pulse?.maintenance_enabled === true;
 
@@ -47,6 +48,12 @@ export default function StaffAdminDock({ shortcuts, role, openReports: openRepor
             <span className="staff-dock-alert staff-dock-alert--report" title={t("admin.tab.reports")}>
               <Flag className="w-2.5 h-2.5" />
               {openReports}
+            </span>
+          )}
+          {nariaPending > 0 && (
+            <span className="staff-dock-alert staff-dock-alert--mod" title={t("admin.tab.moderation")}>
+              <Shield className="w-2.5 h-2.5" />
+              {nariaPending}
             </span>
           )}
           {openTickets > 0 && (

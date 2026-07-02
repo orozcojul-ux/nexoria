@@ -10,9 +10,13 @@ export function HeroCardProvider({ children }) {
   const [open, setOpen] = useState(false);
 
   const closeHeroCard = useCallback(() => {
+    const wasOpen = open;
     setOpen(false);
     setUserId(null);
-  }, []);
+    if (wasOpen) {
+      window.dispatchEvent(new CustomEvent("nexoria:hero-card-closed"));
+    }
+  }, [open]);
 
   const openHeroCard = useCallback((id) => {
     if (!id) return;

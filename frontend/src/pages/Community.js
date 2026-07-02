@@ -52,27 +52,19 @@ function isShumiMember(member) {
 function getSentinelBadgeLabel(member, t) {
   if (isShumiMember(member)) return t("community.shumi.badge");
   if (isNariaMember(member)) return t("community.naria.badge");
-  return t("community.naria.badge");
+  if (member.role === "moderator") return t("community.teamModerator.badge");
+  return t("community.adventurer");
 }
 
 function getTeamCardClassLabel(member, t) {
   return member.class_name ? translateClassName(t, member.class_name) : t("community.adventurer");
 }
 
-function showsModeratorBadge(member) {
-  return Boolean(member.is_official_sentinel || member.role === "moderator");
-}
-
-function getModeratorBadgeLabel(member, t) {
-  return member.team_moderator_trial
-    ? t("community.teamModerator.trial")
-    : t("community.teamModerator.label");
-}
-
 function TeamMemberCard({ member }) {
   const { t } = useI18n();
   const isOfficialSentinel = member.is_official_sentinel;
-  const showModBadge = showsModeratorBadge(member);
+  const isHumanModerator = member.role === "moderator" && !isOfficialSentinel;
+  const isStaffGrade = member.is_nexus_supreme || member.role === "admin";
   const avatar = getUserAvatarUrl(member);
   const visuals = member.is_nexus_supreme
     ? NEXUS_SUPREME
@@ -86,6 +78,12 @@ function TeamMemberCard({ member }) {
   const bio = member.team_bio;
   const specialties = member.team_specialties || [];
 
+  const cardClassName = [
+    "team-card team-card--clickable",
+    isOfficialSentinel ? "team-card--sentinel" : "",
+    isHumanModerator ? "team-card--human-mod" : "",
+  ].filter(Boolean).join(" ");
+
   const cardInner = (
     <>
       <div className="team-card-shine" aria-hidden />
@@ -93,7 +91,7 @@ function TeamMemberCard({ member }) {
 
       <header className="team-card-header">
         <div className="team-card-avatar-wrap" style={{ "--team-accent": accent }}>
-          <div className={`team-card-avatar${isOfficialSentinel ? " team-card-avatar--sentinel" : ""}`}>
+          <div className={`team-card-avatar${isOfficialSentinel ? " team-card-avatar--sentinel" : ""}${isHumanModerator ? " team-card-avatar--human-mod" : ""}`}>
             {avatar ? (
               <img src={avatar} alt="" />
             ) : (
@@ -108,19 +106,30 @@ function TeamMemberCard({ member }) {
             <HeroName user={member} size="base" />
             <ExternalLink className="team-card-link-icon w-3.5 h-3.5" aria-hidden />
           </div>
-          <div className="team-card-grade" style={{ color: accent }}>
-            <GradeIcon className="w-3 h-3" />
-            {gradeLabel}
-          </div>
+
+          {isHumanModerator ? (
+            <div className="team-card-badges">
+              <span className="team-card-pill team-card-pill--mod">{gradeLabel}</span>
+              {member.team_moderator_trial && (
+                <span className="team-card-pill team-card-pill--trial">{t("community.teamModerator.trialShort")}</span>
+              )}
+            </div>
+          ) : isOfficialSentinel ? (
+            <div className="team-card-badges">
+              <span className="team-card-pill team-card-pill--official">{getSentinelBadgeLabel(member, t)}</span>
+            </div>
+          ) : isStaffGrade ? (
+            <div className="team-card-grade" style={{ color: accent }}>
+              <GradeIcon className="w-3 h-3" />
+              {gradeLabel}
+            </div>
+          ) : null}
+
           {roleLabel && <p className="team-card-role">{roleLabel}</p>}
-          {showModBadge && (
-            <>
-              <span className="team-card-sentinel-badge">{getSentinelBadgeLabel(member, t)}</span>
-              <span className={`team-card-sentinel-official${member.team_moderator_trial ? " team-card-sentinel-official--trial" : ""}`}>
-                {getModeratorBadgeLabel(member, t)}
-              </span>
-            </>
+          {!roleLabel && isHumanModerator && (
+            <p className="team-card-role-muted">{t("community.teamModerator.label")}</p>
           )}
+
           {nationality && (
             <p className="team-card-nationality">
               <MapPin className="w-3 h-3" />
@@ -157,7 +166,7 @@ function TeamMemberCard({ member }) {
     <HeroCardOpener
       userId={member.user_id}
       username={member.username}
-      className={`team-card team-card--clickable${isOfficialSentinel ? " team-card--sentinel" : ""}`}
+      className={cardClassName}
       style={{ "--team-accent": accent }}
       testid={`team-card-${member.user_id}`}
     >

@@ -615,6 +615,12 @@ export const TRANSLATIONS_PAGES_EXT = {
   "community.teamModerator.label": T("Modérateur(trice)", "Moderator", {
     es: "Moderador(a)", de: "Moderator(in)", it: "Moderatore/trice", pt: "Moderador(a)", nl: "Moderator", ja: "モデレーター",
   }),
+  "community.teamModerator.badge": T("Sentinelle", "Sentinel", {
+    es: "Centinela", de: "Sentinelle", it: "Sentinella", pt: "Sentinela", nl: "Sentinelle", ja: "センチネル",
+  }),
+  "community.teamModerator.trialShort": T("En test", "Trial", {
+    es: "En prueba", de: "Testphase", it: "In prova", pt: "Em teste", nl: "Proefperiode", ja: "試用中",
+  }),
   "community.teamModerator.trial": T("Modérateur(trice) en test", "Moderator (trial)", {
     es: "Moderador(a) en prueba", de: "Moderator(in) in Test", it: "Moderatore/trice in prova", pt: "Moderador(a) em teste", nl: "Moderator in test", ja: "モデレーター（試用）",
   }),

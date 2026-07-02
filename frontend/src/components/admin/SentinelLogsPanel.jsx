@@ -22,16 +22,59 @@ function StatBox({ label, value, accent = "#22D3EE" }) {
   );
 }
 
-export default function SentinelLogsPanel({ sentinel, title, subtitle, accent = "#A855F7", showScores = false }) {
+function ActorBadge({ log }) {
+  const name = log.actorName || log.actor || "—";
+  const source = log.actionSource;
+  const isStaff = source === "staff" || ["admin", "moderator", "staff"].includes(log.actorType);
+  const isShumi = source === "shumi" || name === "Shumi" || name === "Vigile";
+  const isNaria = source === "naria" || name === "Naria";
+  let cls = "bg-orange-500/20 text-orange-300 border-orange-500/30";
+  let label = name;
+  if (isNaria) cls = "bg-violet-500/20 text-violet-300 border-violet-500/30";
+  else if (isShumi) cls = "bg-cyan-500/20 text-cyan-300 border-cyan-500/30";
+  else if (isStaff) {
+    cls = "bg-orange-500/20 text-orange-300 border-orange-500/30";
+  }
+  return (
+    <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+export default function SentinelLogsPanel({
+  sentinel: initialSentinel = "all",
+  title,
+  subtitle,
+  accent = "#A855F7",
+  showScores = false,
+  humanSentinel = false,
+  supremeCanReview = false,
+}) {
+  const [sentinel, setSentinel] = useState(initialSentinel);
   const [logs, setLogs] = useState([]);
   const [scores, setScores] = useState([]);
-  const [filter, setFilter] = useState("pending_review");
+  const [filter, setFilter] = useState(
+    () => (humanSentinel || initialSentinel === "all" || String(initialSentinel).startsWith("user:") ? "all" : "pending_review"),
+  );
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => { setSentinel(initialSentinel); }, [initialSentinel]);
+
+  useEffect(() => {
+    if (humanSentinel || String(initialSentinel).startsWith("user:")) {
+      setFilter("all");
+    } else if (initialSentinel === "naria" || initialSentinel === "shumi") {
+      setFilter("pending_review");
+    }
+  }, [humanSentinel, initialSentinel]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const logsRes = await api.get("/admin/moderation/logs", { params: { sentinel, status: filter } });
+      const params = { status: filter };
+      if (sentinel !== "all") params.sentinel = sentinel;
+      const logsRes = await api.get("/admin/moderation/logs", { params });
       setLogs(logsRes.data);
       if (showScores) {
         const scoresRes = await api.get("/admin/moderation/scores");
@@ -127,7 +170,7 @@ export default function SentinelLogsPanel({ sentinel, title, subtitle, accent = 
       </div>
 
       <section>
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
           <span className="font-display font-bold text-sm uppercase tracking-widest text-zinc-300">File de modération</span>
           <select
             value={filter}
@@ -146,35 +189,52 @@ export default function SentinelLogsPanel({ sentinel, title, subtitle, accent = 
         {loading ? (
           <div className="text-zinc-500 text-sm py-6">Chargement…</div>
         ) : logs.length === 0 ? (
-          <div className="text-zinc-500 text-sm italic py-6">Aucun log {title} pour ce filtre.</div>
+          <div className="text-zinc-500 text-sm italic py-6">
+            Aucune action enregistrée pour {title}.
+            {humanSentinel && (
+              <span className="block mt-2 text-zinc-600 not-italic">
+                Les bans, masquages et signalements traités apparaîtront ici.
+              </span>
+            )}
+          </div>
         ) : (
           <div className="space-y-2">
-            {logs.map((log) => (
+            {logs.map((log) => {
+              const isAutomated = log.actionSource === "naria" || log.actionSource === "shumi"
+                || ["Naria", "Shumi", "Vigile"].includes(log.actorName);
+              const canReview = supremeCanReview && isAutomated
+                && (log.status === "pending_review" || log.status === "applied");
+              return (
               <div
                 key={log.log_id}
                 className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-sm"
                 data-testid={`naria-log-${log.log_id}`}
               >
                 <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className="font-bold text-violet-200">{log.username || log.user_id}</span>
+                  <ActorBadge log={log} />
+                  <span className="font-bold text-violet-200">{log.username || log.user_id || "—"}</span>
                   <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-violet-500/20 text-violet-300">
                     {log.actionType || log.action}
                   </span>
                   {log.contentType && (
                     <span className="text-[10px] text-zinc-500">{log.contentType}</span>
                   )}
-                  <LangBadge label="Joueur" value={log.userLanguage} />
-                  <LangBadge label="Contenu" value={log.detectedContentLanguage} />
-                  {log.confidence != null && (
-                    <span className="text-[10px] text-amber-400/90">
-                      conf. {Math.round((log.confidence || 0) * 100)}%
-                    </span>
+                  {isAutomated && (
+                    <>
+                      <LangBadge label="Joueur" value={log.userLanguage} />
+                      <LangBadge label="Contenu" value={log.detectedContentLanguage} />
+                      {log.confidence != null && (
+                        <span className="text-[10px] text-amber-400/90">
+                          conf. {Math.round((log.confidence || 0) * 100)}%
+                        </span>
+                      )}
+                      <span className="text-[10px] text-zinc-500">score +{log.scoreAdded} → {log.totalScore}</span>
+                    </>
                   )}
-                  <span className="text-[10px] text-zinc-500">score +{log.scoreAdded} → {log.totalScore}</span>
                   <span className="text-[10px] text-zinc-600 ml-auto">{log.createdAt?.slice(0, 16)}</span>
                 </div>
                 <p className="text-zinc-400 text-xs mb-1">
-                  {log.reasonCode || log.reason} · {log.severity}
+                  {log.reasonCode || log.reason} {log.severity ? `· ${log.severity}` : ""}
                   {log.userMessageKey && (
                     <span className="text-zinc-600"> · {log.userMessageKey}</span>
                   )}
@@ -183,7 +243,7 @@ export default function SentinelLogsPanel({ sentinel, title, subtitle, accent = 
                   <p className="text-zinc-600 text-xs italic line-clamp-2">« {log.originalTextPreview} »</p>
                 )}
                 <div className="flex gap-2 mt-3 flex-wrap items-center">
-                  {(log.status === "pending_review" || log.status === "applied") && (
+                  {canReview && (
                     <>
                       <button type="button" onClick={() => reviewLog(log.log_id, "approved")} className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-400 hover:text-emerald-300">
                         <Check className="w-3 h-3" /> Confirmer
@@ -196,7 +256,7 @@ export default function SentinelLogsPanel({ sentinel, title, subtitle, accent = 
                       </button>
                     </>
                   )}
-                  {log.user_id && (
+                  {log.user_id && isAutomated && supremeCanReview && (
                     <>
                       <button type="button" onClick={() => reduceScore(log.user_id)} className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-zinc-500 hover:text-zinc-300">
                         <Minus className="w-3 h-3" /> Réduire score
@@ -212,7 +272,7 @@ export default function SentinelLogsPanel({ sentinel, title, subtitle, accent = 
                   <span className="text-[10px] text-zinc-600 uppercase ml-auto">{log.status}</span>
                 </div>
               </div>
-            ))}
+            );})}
           </div>
         )}
       </section>

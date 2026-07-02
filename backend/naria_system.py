@@ -288,7 +288,7 @@ async def find_moderation_actor_user(db, system_key: str | None = None) -> dict 
 
 
 COMMUNITY_MODERATION_CONTENT_TYPES = frozenset({
-    "forum_thread", "forum_reply", "profile", "guild", "generic",
+    "forum_thread", "forum_reply", "forum", "profile", "guild", "generic",
     "feed_post", "feed_comment", "news_comment", "friend_message",
 })
 NEXUS_MODERATION_CONTENT_TYPES = frozenset({

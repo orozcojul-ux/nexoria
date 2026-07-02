@@ -17,6 +17,9 @@ import TwoFASetup from "@/components/admin/TwoFASetup";
 import { PageShell, PremiumSidebar, PremiumCard } from "@/components/ui-premium";
 import ProfileCustomizeForm from "@/components/profile/ProfileCustomizeForm";
 import { usePageBanner } from "@/lib/page-banners";
+import { openOnboarding, useOnboardingOptional } from "@/contexts/OnboardingContext";
+import { isTutorialPermanentlyFinished } from "@/lib/onboarding-lock";
+import { Sparkles, Trophy } from "lucide-react";
 import { isStaffRole } from "@/lib/staff-roles";
 
 const BASE_SECTIONS = [
@@ -285,6 +288,8 @@ function SecuritySection({ t }) {
 }
 
 function PreferencesSection({ user, refresh, t }) {
+  const onboarding = useOnboardingOptional();
+  const tutorialFinished = isTutorialPermanentlyFinished(user, onboarding?.state);
   const [savingPresence, setSavingPresence] = useState(false);
   const [savingAuto, setSavingAuto] = useState(false);
   const appearOnline = user?.appear_offline !== true;
@@ -341,6 +346,37 @@ function PreferencesSection({ user, refresh, t }) {
       </div>
 
       <InstallAppButton variant="settings" />
+
+      <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-4">
+        <div className="text-sm font-bold text-white mb-1 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-violet-300" />
+          {t("settings.tutorial.title")}
+        </div>
+        {tutorialFinished ? (
+          <div
+            className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-violet-500/5 px-3 py-3"
+            data-testid="settings-tutorial-completed"
+          >
+            <Trophy className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" aria-hidden />
+            <div>
+              <p className="text-sm font-bold text-amber-100">{t("settings.tutorial.completedTitle")}</p>
+              <p className="text-xs text-zinc-400 leading-relaxed mt-1">{t("settings.tutorial.completedDesc")}</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-3">{t("settings.tutorial.desc")}</p>
+            <button
+              type="button"
+              className="text-[10px] uppercase tracking-widest font-bold text-violet-200 border border-violet-500/35 rounded-lg px-3 py-2 hover:bg-violet-500/10"
+              data-testid="settings-replay-tutorial"
+              onClick={() => openOnboarding()}
+            >
+              {t("settings.tutorial.continue")}
+            </button>
+          </>
+        )}
+      </div>
 
       <div>
         <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-400 font-bold mb-3">{t("settings.presence.title")}</div>

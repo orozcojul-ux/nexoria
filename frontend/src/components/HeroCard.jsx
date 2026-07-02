@@ -197,6 +197,8 @@ export default function HeroCard({ userId, open, onClose }) {
   const [tab, setTab] = useState("overview");
   const [classModalOpen, setClassModalOpen] = useState(false);
   const openedAtRef = useRef(0);
+  const openRef = useRef(open);
+  openRef.current = open;
 
   useEffect(() => {
     if (!open) setClassModalOpen(false);
@@ -217,6 +219,7 @@ export default function HeroCard({ userId, open, onClose }) {
     setLoading(true);
     try {
       const { data: card } = await api.get(`/users/${userId}/card`);
+      if (!openRef.current) return;
       setData(card);
     } catch (err) {
       if (err?.response?.status === 401 && !retry) {
@@ -227,10 +230,12 @@ export default function HeroCard({ userId, open, onClose }) {
             return;
           }
         } catch { /* fall through */ }
+        if (!openRef.current) return;
         toast.error(t("heroCard.sessionExpired"));
         onClose?.();
         return;
       }
+      if (!openRef.current) return;
       toast.error(t("heroCard.loadFailed"));
     } finally {
       setLoading(false);

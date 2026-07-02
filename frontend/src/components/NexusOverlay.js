@@ -27,6 +27,7 @@ import {
   NexusCombatHud,
 } from "@/components/nexus-hud";
 import NexusChatHelpPanel from "@/components/nexus-hud/NexusChatHelpPanel";
+import NexusOnboardingHints from "@/components/onboarding/NexusOnboardingHints";
 import "@/components/nexus-hud/NexusHud.css";
 
 export default function NexusOverlay() {
@@ -524,6 +525,8 @@ export default function NexusOverlay() {
             onOpenGm={() => { setSelectedTarget(null); setGmOpen(true); }}
             onClose={() => setOverlayOpen(false)}
           />
+
+          <NexusOnboardingHints />
 
           <NexusRoomPulse room={room} weather={weather} playersCount={players.length} />
 

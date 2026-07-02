@@ -323,6 +323,8 @@ async def ensure_indexes(db) -> None:
     await db.moderation_logs.create_index([("createdAt", -1)])
     await db.moderation_logs.create_index([("user_id", 1), ("createdAt", -1)])
     await db.moderation_logs.create_index([("status", 1), ("createdAt", -1)])
+    await db.moderation_logs.create_index([("actionSource", 1), ("createdAt", -1)])
+    await db.moderation_logs.create_index([("actorId", 1), ("createdAt", -1)])
     await db.moderation_warnings.create_index([("userId", 1), ("createdAt", -1)])
     await db.moderation_warnings.create_index("warning_id", unique=True)
     await db.moderation_user_scores.create_index("user_id", unique=True)
@@ -650,6 +652,8 @@ async def _apply_action(db, user, analysis, action, content_type, content_id, te
             db, user, action, content_type=content_type, content_id=content_id,
         )
 
+    warning_id = action.warning_id
+
     if action.restrict_minutes and not moderation_restriction_detail(user):
         until = (now_utc() + timedelta(minutes=action.restrict_minutes)).isoformat()
         await db.users.update_one(
@@ -852,6 +856,56 @@ def sanitize_forum_doc(doc: dict, is_staff: bool = False, lang: str = "fr", cont
         out["title"] = ph
     out["moderation_hidden"] = True
     return out
+
+
+async def log_staff_action(
+    db,
+    *,
+    staff: dict,
+    action_type: str,
+    reason: str = "",
+    target_user_id: str | None = None,
+    target_username: str | None = None,
+    content_type: str | None = None,
+    content_id: str | None = None,
+    preview: str = "",
+    severity: str = "medium",
+    status: str = "applied",
+    metadata: dict | None = None,
+) -> str:
+    """Journalise une action de modération humaine (modérateur / Sage)."""
+    log_id = f"mlog_{uuid.uuid4().hex[:12]}"
+    now = now_iso()
+    staff_role = staff.get("role") or "moderator"
+    staff_name = staff.get("username") or "staff"
+    doc = {
+        "log_id": log_id,
+        "actionSource": "staff",
+        "actorId": staff.get("user_id"),
+        "actorName": staff_name,
+        "actorType": staff_role,
+        "actorRole": staff_role,
+        "actor": staff_name,
+        "role": staff_role,
+        "user_id": target_user_id,
+        "username": target_username,
+        "actionType": action_type,
+        "action": action_type,
+        "reason": reason[:500] if reason else "",
+        "severity": severity,
+        "contentType": content_type,
+        "contentId": content_id,
+        "originalTextPreview": preview_text(preview) if preview else "",
+        "scoreAdded": 0,
+        "totalScore": 0,
+        "createdAt": now,
+        "metadata": metadata or {},
+        "reviewedBy": None,
+        "reviewedAt": None,
+        "status": status,
+    }
+    await db.moderation_logs.insert_one(doc)
+    return log_id
 
 
 async def review_log(db, log_id: str, *, status: str, admin_username: str, restore_content_flag: bool = False):

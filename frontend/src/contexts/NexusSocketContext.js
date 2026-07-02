@@ -771,7 +771,14 @@ export function NexusSocketProvider({ children }) {
     });
   }, []);
   const openNexus = useCallback(() => setOverlayOpen(true), []);
-  const closeNexus = useCallback(() => setOverlayOpen(false), []);
+  const closeNexus = useCallback(() => {
+    setOverlayOpen((wasOpen) => {
+      if (wasOpen) {
+        window.dispatchEvent(new CustomEvent("nexoria:nexus-closed"));
+      }
+      return false;
+    });
+  }, []);
 
   const reconnectNexus = useCallback(() => {
     const socket = socketRef.current;

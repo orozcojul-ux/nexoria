@@ -192,6 +192,20 @@ export const TRANSLATIONS_NOTIFICATIONS = {
     { es: "Recibes: {icon} {name} ({rarity}).", de: "Du erhältst: {icon} {name} ({rarity}).", it: "Ricevi: {icon} {name} ({rarity}).", pt: "Recebes: {icon} {name} ({rarity}).", nl: "Je ontvangt: {icon} {name} ({rarity}).", ja: "受け取り: {icon} {name} ({rarity})." },
   ),
 
+  // ─── moderation (Naria / Shumi) ───
+  "notif.naria_warning.title": T(
+    "{actor_name} — Sentinelle",
+    "{actor_name} — Sentinel",
+    { es: "{actor_name} — Centinela", de: "{actor_name} — Wächter", it: "{actor_name} — Sentinella", pt: "{actor_name} — Sentinela", nl: "{actor_name} — Wachter", ja: "{actor_name} — 番人" },
+  ),
+  "notif.naria_warning.message": T("{preview}", "{preview}", { es: "{preview}", de: "{preview}", it: "{preview}", pt: "{preview}", nl: "{preview}", ja: "{preview}" }),
+  "notif.naria_alert.title": T(
+    "Alerte {actor_name}",
+    "Alert {actor_name}",
+    { es: "Alerta {actor_name}", de: "Alarm {actor_name}", it: "Allerta {actor_name}", pt: "Alerta {actor_name}", nl: "Alarm {actor_name}", ja: "{actor_name} アラート" },
+  ),
+  "notif.naria_alert.message": T("{preview}", "{preview}", { es: "{preview}", de: "{preview}", it: "{preview}", pt: "{preview}", nl: "{preview}", ja: "{preview}" }),
+
   // ─── broadcast (admin custom text — shown as-is, may be any language) ───
   "notif.broadcast.title": T("{title}", "{title}", { es: "{title}", de: "{title}", it: "{title}", pt: "{title}", nl: "{title}", ja: "{title}" }),
   "notif.broadcast.message": T("{message}", "{message}", { es: "{message}", de: "{message}", it: "{message}", pt: "{message}", nl: "{message}", ja: "{message}" }),

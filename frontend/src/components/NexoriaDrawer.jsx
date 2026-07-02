@@ -67,6 +67,7 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
   const [godMode, setGodMode] = useState(() => localStorage.getItem("nexoria_godmode") === "1");
   const [pendingFriends, setPendingFriends] = useState(0);
   const [openReports, setOpenReports] = useState(0);
+  const [nariaPending, setNariaPending] = useState(0);
 
   const tr = useCallback((key, fallback) => {
     const v = t(key);
@@ -89,7 +90,10 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
   const loadStaffPulse = useCallback(() => {
     if (!isStaff) return;
     api.get("/admin/pulse")
-      .then((r) => setOpenReports(r.data?.open_reports ?? 0))
+      .then((r) => {
+        setOpenReports(r.data?.open_reports ?? 0);
+        setNariaPending(r.data?.naria_pending ?? 0);
+      })
       .catch(() => {});
   }, [isStaff]);
 
@@ -149,6 +153,7 @@ export default function NexoriaDrawer({ isOpen, onClose, onOpen }) {
   const resolveBadge = (item) => {
     if (item.dynamicBadge === "friends" || item.badgeKey === "friends") return pendingFriends;
     if (item.dynamicBadge === "open_reports") return openReports;
+    if (item.dynamicBadge === "naria_pending") return nariaPending;
     return item.badge ?? 0;
   };
 

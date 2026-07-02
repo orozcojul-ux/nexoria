@@ -81,11 +81,33 @@ export const TRANSLATIONS = {
   "admin.tab.forum_mod": T("Modération forum", "Forum moderation"),
   "admin.tab.moderation": T("Logs sentinelles", "Sentinel logs"),
   "admin.mod.panel.overview": T("Vue d'ensemble", "Overview"),
+  "admin.mod.panel.logs": T("Tous les logs", "All logs"),
   "admin.mod.panel.naria": T("Naria", "Naria"),
   "admin.mod.panel.shumi": T("Shumi", "Shumi"),
   "admin.mod.panel.pm": T("Messagerie privée", "Private messages"),
+  "admin.mod.section.sentinel": T("Sentinelles", "Sentinels"),
   "admin.mod.section.auto": T("Modération auto", "Auto moderation"),
   "admin.mod.section.watch": T("Surveillance", "Monitoring"),
+  "admin.mod.subtitle": T(
+    "Naria, Shumi et chaque Sentinelle humaine (modérateur).",
+    "Naria, Shumi and each human Sentinel (moderator).",
+  ),
+  "admin.mod.sentinel.naria": T(
+    "Forum, profils, fil social, articles, guildes.",
+    "Forum, profiles, social feed, news, guilds.",
+  ),
+  "admin.mod.sentinel.shumi": T(
+    "Nexus Online — salons temps réel, trade, guildes.",
+    "Nexus Online — real-time rooms, trade, guilds.",
+  ),
+  "admin.mod.sentinel.admin": T(
+    "Sage — actions de modération.",
+    "Sage — moderation actions.",
+  ),
+  "admin.mod.sentinel.human": T(
+    "Sentinelle humaine — actions de modération.",
+    "Human Sentinel — moderation actions.",
+  ),
   "admin.tab.logs": T("Chroniques", "Logs"),
   "admin.tab.shop": T("Gestion boutique", "Shop management"),
   "admin.tab.news": T("Actualités", "News"),

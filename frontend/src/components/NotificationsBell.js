@@ -9,6 +9,9 @@ import { sfx } from "@/lib/sfx";
 import { useI18n } from "@/contexts/I18nContext";
 import { useNexusSocket } from "@/contexts/NexusSocketContext";
 import { translateNotification } from "@/lib/translate-notification";
+import { showModerationNotice } from "@/lib/moderation-notice";
+
+const MODERATION_KINDS = new Set(["naria_warning", "naria_alert"]);
 
 // Kinds qui méritent un toast bien visible même quand la cloche est fermée.
 const TOAST_KINDS = new Set([
@@ -18,6 +21,7 @@ const TOAST_KINDS = new Set([
   "guild_invite",
   "guild_reward",
   "referral",
+  "naria_warning",
 ]);
 
 export default function NotificationsBell() {
@@ -62,11 +66,20 @@ export default function NotificationsBell() {
     // Toast visible (en plus du badge) pour les notifications importantes.
     if (doc && TOAST_KINDS.has(doc.kind)) {
       const { title, message } = translateNotification(doc, t);
-      const opts = { duration: 7000 };
-      if (doc.link) {
-        opts.action = { label: t("notif.view"), onClick: () => navigate(doc.link) };
+      if (doc.kind === "naria_warning") {
+        showModerationNotice({
+          title: title && title !== "—" ? title : undefined,
+          message: message || title,
+          actor: doc.actor_name || doc.params?.actor_name,
+          blocked: doc.params?.severity === "block",
+        });
+      } else {
+        const opts = { duration: 7000 };
+        if (doc.link) {
+          opts.action = { label: t("notif.view"), onClick: () => navigate(doc.link) };
+        }
+        toast(title || t("notif.new_toast"), { description: message, ...opts });
       }
-      toast(title || t("notif.new_toast"), { description: message, ...opts });
     }
     ns.consumePushNotif();
   }, [ns?.pushNotif, ns, navigate, t]);
@@ -138,7 +151,8 @@ export default function NotificationsBell() {
                 <div className="py-8 text-center text-sm text-zinc-500 italic">{t("notif.empty")}</div>
               )}
               {notifs.map((n) => {
-                const Icon = Lucide[n.icon] || Lucide.Bell;
+                const isModeration = MODERATION_KINDS.has(n.kind);
+                const Icon = isModeration ? Lucide.Shield : (Lucide[n.icon] || Lucide.Bell);
                 const { title, message } = translateNotification(n, t);
                 const clickable = !!n.link;
                 const go = () => {
@@ -146,6 +160,7 @@ export default function NotificationsBell() {
                   setOpen(false);
                   navigate(n.link);
                 };
+                const isBlock = n.params?.severity === "block";
                 return (
                   <div
                     key={n.notif_id}
@@ -153,15 +168,29 @@ export default function NotificationsBell() {
                     tabIndex={clickable ? 0 : undefined}
                     onClick={go}
                     onKeyDown={(e) => { if (clickable && (e.key === "Enter" || e.key === " ")) go(); }}
-                    className={`px-4 py-3 border-b border-white/5 last:border-0 ${!n.read ? "bg-cyan-500/5" : ""} ${clickable ? "cursor-pointer hover:bg-cyan-500/10" : ""}`}
+                    className={
+                      isModeration
+                        ? `mx-2 my-2 px-3 py-3 rounded-2xl border ${
+                            isBlock
+                              ? "border-red-500/35 bg-red-950/40"
+                              : "border-amber-500/35 bg-amber-950/30"
+                          } ${!n.read ? "ring-1 ring-amber-400/20" : ""} ${clickable ? "cursor-pointer hover:brightness-110" : ""}`
+                        : `px-4 py-3 border-b border-white/5 last:border-0 ${!n.read ? "bg-cyan-500/5" : ""} ${clickable ? "cursor-pointer hover:bg-cyan-500/10" : ""}`
+                    }
                     data-testid={`notif-${n.notif_id}`}
                   >
                     <div className="flex gap-3">
-                      <Icon className="w-4 h-4 text-cyan-400 mt-0.5 shrink-0" />
+                      <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${isModeration ? (isBlock ? "text-red-400" : "text-amber-400") : "text-cyan-400 w-4 h-4"}`} />
                       <div className="flex-1 min-w-0">
-                        <div className="font-display font-bold text-sm">{title}</div>
-                        <div className="text-xs text-zinc-400 mt-0.5">{message}</div>
-                        <div className="text-[10px] font-mono-stat text-zinc-600 mt-1">{new Date(n.created_at).toLocaleString()}</div>
+                        <div className={`font-display font-bold ${isModeration ? "text-sm text-white" : "text-sm"}`}>{title}</div>
+                        {message && (
+                          <div className={`mt-1 leading-relaxed whitespace-pre-wrap ${isModeration ? "text-xs text-zinc-200" : "text-xs text-zinc-400 mt-0.5"}`}>
+                            {message}
+                          </div>
+                        )}
+                        <div className={`font-mono-stat mt-1.5 ${isModeration ? "text-[11px] text-zinc-500" : "text-[10px] text-zinc-600"}`}>
+                          {new Date(n.created_at).toLocaleString()}
+                        </div>
                       </div>
                     </div>
                   </div>

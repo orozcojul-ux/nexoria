@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, RefreshCw, AlertTriangle, MessageCircle, Sparkles, LayoutDashboard, Shield } from "lucide-react";
+import { Eye, RefreshCw, AlertTriangle, MessageCircle, Sparkles, LayoutDashboard, Shield, User } from "lucide-react";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,7 +23,7 @@ function NavSection({ label, children }) {
   );
 }
 
-function NavButton({ active, onClick, icon: Icon, label }) {
+function NavButton({ active, onClick, icon: Icon, label, accent }) {
   return (
     <button
       type="button"
@@ -33,22 +33,44 @@ function NavButton({ active, onClick, icon: Icon, label }) {
           ? "border-violet-500/60 text-violet-100 bg-violet-500/15"
           : "border-white/10 text-zinc-500 hover:text-zinc-300 hover:border-white/20"
       }`}
+      style={active && accent ? { borderColor: `${accent}99`, color: accent } : undefined}
     >
       <Icon className="w-4 h-4 shrink-0" />
-      {label}
+      <span className="truncate">{label}</span>
     </button>
   );
+}
+
+function sentinelIcon(s) {
+  if (s.kind === "system" && s.key === "naria") return Eye;
+  if (s.kind === "system" && s.key === "shumi") return Sparkles;
+  return User;
 }
 
 export default function NariaModerationAdmin() {
   const { t } = useI18n();
   const { user: me } = useAuth();
   const supreme = isSupremeCouncil(me);
+  const isMod = me?.role === "moderator";
 
-  const defaultPanel = supreme ? "overview" : "pm";
-  const [panel, setPanel] = useState(defaultPanel);
+  const [sentinels, setSentinels] = useState([]);
+  const [panel, setPanel] = useState(null);
   const [dashboard, setDashboard] = useState(null);
   const [loadingDash, setLoadingDash] = useState(false);
+  const [loadingSentinels, setLoadingSentinels] = useState(true);
+
+  const loadSentinels = useCallback(async () => {
+    setLoadingSentinels(true);
+    try {
+      const { data } = await api.get("/admin/moderation/sentinels");
+      setSentinels(Array.isArray(data) ? data : []);
+    } catch (err) {
+      toast.error(formatApiError(err) || "Erreur chargement sentinelles");
+      setSentinels([]);
+    } finally {
+      setLoadingSentinels(false);
+    }
+  }, []);
 
   const loadDashboard = useCallback(async () => {
     if (!supreme) return;
@@ -64,19 +86,44 @@ export default function NariaModerationAdmin() {
   }, [supreme]);
 
   useEffect(() => {
+    loadSentinels();
     loadDashboard();
-  }, [loadDashboard]);
+  }, [loadSentinels, loadDashboard]);
 
-  const allowedPanels = useMemo(() => {
-    const ids = supreme ? ["overview", "naria", "shumi", "pm"] : ["pm"];
-    return new Set(ids);
-  }, [supreme]);
+  const activeSentinel = useMemo(
+    () => sentinels.find((s) => s.key === panel) || null,
+    [sentinels, panel],
+  );
+
+  const defaultSentinelKey = useMemo(() => {
+    if (supreme && sentinels.some((s) => s.key === "naria")) return "naria";
+    if (isMod) {
+      const own = sentinels.find((s) => s.user_id === me?.user_id);
+      if (own) return own.key;
+    }
+    return sentinels[0]?.key || "pm";
+  }, [supreme, isMod, sentinels, me?.user_id]);
 
   useEffect(() => {
-    if (!allowedPanels.has(panel)) {
-      setPanel(supreme ? "overview" : "pm");
+    if (panel != null) return;
+    if (!sentinels.length) {
+      setPanel("pm");
+      return;
     }
-  }, [allowedPanels, panel, supreme]);
+    setPanel(defaultSentinelKey === "pm" ? "pm" : defaultSentinelKey);
+  }, [panel, sentinels, defaultSentinelKey]);
+
+  useEffect(() => {
+    if (panel == null || panel === "pm" || panel === "overview") return;
+    if (sentinels.length && !sentinels.some((s) => s.key === panel)) {
+      setPanel(defaultSentinelKey);
+    }
+  }, [sentinels, panel, defaultSentinelKey]);
+
+  const refreshAll = () => {
+    loadSentinels();
+    loadDashboard();
+  };
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 max-w-6xl" data-testid="naria-moderation-admin">
@@ -87,7 +134,7 @@ export default function NariaModerationAdmin() {
             {t("admin.tab.moderation")}
           </h2>
           <p className="text-xs text-zinc-500 mt-1">
-            Naria & Shumi — modération automatisée, messagerie privée.
+            {t("admin.mod.subtitle")}
           </p>
         </div>
 
@@ -101,6 +148,25 @@ export default function NariaModerationAdmin() {
             />
           </NavSection>
 
+          <NavSection label={t("admin.mod.section.sentinel")}>
+            {loadingSentinels && (
+              <p className="text-xs text-zinc-600 px-1 italic">Chargement…</p>
+            )}
+            {!loadingSentinels && sentinels.length === 0 && (
+              <p className="text-xs text-zinc-600 px-1 italic">Aucune sentinelle.</p>
+            )}
+            {sentinels.map((s) => (
+              <NavButton
+                key={s.key}
+                active={panel === s.key}
+                onClick={() => setPanel(s.key)}
+                icon={sentinelIcon(s)}
+                label={s.label}
+                accent={s.accent}
+              />
+            ))}
+          </NavSection>
+
           {supreme && (
             <NavSection label={t("admin.mod.section.auto")}>
               <NavButton
@@ -109,31 +175,19 @@ export default function NariaModerationAdmin() {
                 icon={LayoutDashboard}
                 label={t("admin.mod.panel.overview")}
               />
-              <NavButton
-                active={panel === "naria"}
-                onClick={() => setPanel("naria")}
-                icon={Eye}
-                label={t("admin.mod.panel.naria")}
-              />
-              <NavButton
-                active={panel === "shumi"}
-                onClick={() => setPanel("shumi")}
-                icon={Sparkles}
-                label={t("admin.mod.panel.shumi")}
-              />
             </NavSection>
           )}
         </nav>
 
-        {supreme && (
+        {(supreme || isMod) && (
           <PremiumButton
             variant="ghost"
             size="sm"
             className="mt-4 w-full"
-            onClick={loadDashboard}
-            disabled={loadingDash}
+            onClick={refreshAll}
+            disabled={loadingDash || loadingSentinels}
           >
-            <RefreshCw className={`w-4 h-4 ${loadingDash ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${loadingDash || loadingSentinels ? "animate-spin" : ""}`} />
             <span className="ml-2">Rafraîchir</span>
           </PremiumButton>
         )}
@@ -162,14 +216,6 @@ export default function NariaModerationAdmin() {
                     Mode prudent : confiance faible = log seul ; ban auto désactivé.
                   </div>
                 )}
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <PremiumButton variant="ghost" size="sm" onClick={() => setPanel("naria")}>
-                    Voir logs Naria
-                  </PremiumButton>
-                  <PremiumButton variant="ghost" size="sm" onClick={() => setPanel("shumi")}>
-                    Voir logs Shumi
-                  </PremiumButton>
-                </div>
               </>
             ) : (
               <div className="text-zinc-500 text-sm py-4">{loadingDash ? "Chargement…" : "Aucune donnée."}</div>
@@ -177,22 +223,15 @@ export default function NariaModerationAdmin() {
           </section>
         )}
 
-        {panel === "naria" && supreme && (
+        {activeSentinel && (
           <SentinelLogsPanel
-            sentinel="naria"
-            title={t("admin.mod.panel.naria")}
-            subtitle="Forum, profils, fil social, articles, guildes."
-            accent="#A855F7"
-            showScores
-          />
-        )}
-
-        {panel === "shumi" && supreme && (
-          <SentinelLogsPanel
-            sentinel="shumi"
-            title={t("admin.mod.panel.shumi")}
-            subtitle="Nexus Online — salons temps réel, trade, guildes."
-            accent="#22D3EE"
+            sentinel={activeSentinel.key}
+            title={activeSentinel.label}
+            subtitle={activeSentinel.subtitleKey ? t(activeSentinel.subtitleKey) : activeSentinel.subtitle}
+            accent={activeSentinel.accent}
+            showScores={supreme && activeSentinel.key === "naria"}
+            humanSentinel={activeSentinel.kind !== "system"}
+            supremeCanReview={supreme}
           />
         )}
 

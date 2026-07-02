@@ -21,17 +21,81 @@ from naria_system import (
 router = APIRouter()
 
 
+def _staff_log_filter() -> dict:
+    """Logs émis par un modérateur ou Sage humain (pas Naria / Shumi)."""
+    system_actors = [NARIA_USERNAME, SHUMI_USERNAME, "Vigile", "vigile"]
+    system_sources = [NARIA_SYSTEM_KEY, SHUMI_SYSTEM_KEY, "vigile"]
+    return {
+        "$or": [
+            {"actionSource": "staff"},
+            {"actorType": {"$in": ["admin", "moderator", "staff"]}},
+            {
+                "$and": [
+                    {"role": {"$in": ["admin", "moderator"]}},
+                    {"actorName": {"$nin": system_actors}},
+                ],
+            },
+            {
+                "$and": [
+                    {"actor": {"$exists": True, "$type": "string"}},
+                    {"actorName": {"$exists": False}},
+                    {"actionSource": {"$nin": system_sources}},
+                ],
+            },
+        ],
+    }
+
+
+def _actor_log_filter(*, user_id: str | None = None, username: str | None = None) -> dict:
+    """Logs émis par un acteur précis (modérateur humain, etc.)."""
+    clauses: list[dict] = []
+    if user_id:
+        clauses.append({"actorId": user_id})
+    if username:
+        clauses.extend([
+            {"actorName": username},
+            {"actor": username},
+        ])
+    if not clauses:
+        raise HTTPException(400, "Acteur invalide")
+    return {"$or": clauses} if len(clauses) > 1 else clauses[0]
+
+
+async def _resolve_sentinel_log_filter(db, sentinel: str) -> dict:
+    key = (sentinel or "").strip()
+    lowered = key.lower()
+    if lowered.startswith("user:"):
+        uid = key[5:].strip()
+        if not uid:
+            raise HTTPException(400, "Sentinelle invalide")
+        doc = await db.users.find_one({"user_id": uid}, {"_id": 0, "user_id": 1, "username": 1, "role": 1})
+        if not doc:
+            raise HTTPException(404, "Sentinelle introuvable")
+        if doc.get("role") not in ("moderator", "admin"):
+            raise HTTPException(400, "Cet héros n'est pas modérateur ou Sage")
+        return _actor_log_filter(user_id=uid, username=doc.get("username"))
+    return _sentinel_log_filter(lowered)
+
+
 def _sentinel_log_filter(sentinel: str) -> dict:
     key = (sentinel or "").strip().lower()
     if key == NARIA_SYSTEM_KEY:
+        community_types = list(COMMUNITY_MODERATION_CONTENT_TYPES)
         return {
             "$or": [
                 {"actionSource": NARIA_SYSTEM_KEY},
                 {"actorName": NARIA_USERNAME},
                 {
                     "$and": [
-                        {"actionSource": {"$exists": False}},
-                        {"contentType": {"$in": list(COMMUNITY_MODERATION_CONTENT_TYPES)}},
+                        {"actionSource": {"$nin": ["staff", SHUMI_SYSTEM_KEY, "vigile"]}},
+                        {"actorType": {"$nin": ["admin", "moderator", "staff"]}},
+                        {"contentType": {"$in": community_types}},
+                    ],
+                },
+                {
+                    "$and": [
+                        {"actionSource": "staff"},
+                        {"contentType": {"$in": community_types}},
                     ],
                 },
             ],
@@ -42,11 +106,30 @@ def _sentinel_log_filter(sentinel: str) -> dict:
             "$or": [
                 {"actionSource": SHUMI_SYSTEM_KEY},
                 {"actorName": {"$in": [SHUMI_USERNAME, "Vigile", "vigile"]}},
-                {"contentType": {"$in": nexus_types}},
-                {"contentType": {"$regex": "^nexus_"}},
+                {
+                    "$and": [
+                        {"actionSource": {"$nin": ["staff", NARIA_SYSTEM_KEY]}},
+                        {"actorType": {"$nin": ["admin", "moderator", "staff"]}},
+                        {"$or": [
+                            {"contentType": {"$in": nexus_types}},
+                            {"contentType": {"$regex": "^nexus_"}},
+                        ]},
+                    ],
+                },
+                {
+                    "$and": [
+                        {"actionSource": "staff"},
+                        {"$or": [
+                            {"contentType": {"$in": nexus_types}},
+                            {"contentType": {"$regex": "^nexus_"}},
+                        ]},
+                    ],
+                },
             ],
         }
-    raise HTTPException(400, "Sentinelle invalide (naria ou shumi)")
+    if key in ("staff", "human", "moderator"):
+        return _staff_log_filter()
+    raise HTTPException(400, "Sentinelle invalide (all, naria, shumi, staff ou user:{id})")
 
 
 def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_council_dep, now_utc):
@@ -82,7 +165,7 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
         return {"ok": True}
 
     @api.get("/admin/moderation/dashboard")
-    async def admin_moderation_dashboard(user: dict = Depends(get_staff_dep)):
+    async def admin_moderation_dashboard(user: dict = Depends(get_supreme_council_dep)):
         pending = await db.moderation_logs.count_documents({"status": "pending_review"})
         warnings_24h = await db.moderation_warnings.count_documents({
             "createdAt": {"$gte": (now_utc() - timedelta(hours=24)).isoformat()},
@@ -103,18 +186,99 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
             "auto_ban_enabled": naria.AUTO_BAN_ENABLED,
         }
 
+    @api.get("/admin/moderation/sentinels")
+    async def admin_moderation_sentinels(user: dict = Depends(get_staff_dep)):
+        """Liste des sentinelles affichées dans le panel (Naria, Shumi, modérateurs humains)."""
+        is_supreme = user.get("role") == "admin" or bool(user.get("is_nexus_supreme"))
+        sentinels: list[dict] = []
+
+        if is_supreme:
+            sentinels.extend([
+                {
+                    "key": "naria",
+                    "kind": "system",
+                    "username": NARIA_USERNAME,
+                    "label": NARIA_USERNAME,
+                    "subtitleKey": "admin.mod.sentinel.naria",
+                    "subtitle": "Forum, profils, fil social, articles, guildes.",
+                    "accent": "#A855F7",
+                },
+                {
+                    "key": "shumi",
+                    "kind": "system",
+                    "username": SHUMI_USERNAME,
+                    "label": SHUMI_USERNAME,
+                    "subtitleKey": "admin.mod.sentinel.shumi",
+                    "subtitle": "Nexus Online — salons temps réel, trade, guildes.",
+                    "accent": "#22D3EE",
+                },
+            ])
+            admins = await db.users.find(
+                {"role": "admin"},
+                {"_id": 0, "user_id": 1, "username": 1, "display_name": 1, "avatar_url": 1},
+            ).sort("username", 1).to_list(100)
+            for a in admins:
+                uname = a.get("username") or a["user_id"]
+                sentinels.append({
+                    "key": f"user:{a['user_id']}",
+                    "kind": "admin",
+                    "user_id": a["user_id"],
+                    "username": uname,
+                    "label": uname,
+                    "display_name": a.get("display_name") or uname,
+                    "avatar_url": a.get("avatar_url"),
+                    "subtitleKey": "admin.mod.sentinel.admin",
+                    "subtitle": "Sage — actions de modération.",
+                    "accent": "#9D4CDD",
+                })
+
+        mod_query = {"role": "moderator"}
+        if not is_supreme:
+            mod_query["user_id"] = user["user_id"]
+        mods = await db.users.find(
+            mod_query,
+            {"_id": 0, "user_id": 1, "username": 1, "display_name": 1, "avatar_url": 1},
+        ).sort("username", 1).to_list(100)
+
+        for m in mods:
+            uname = m.get("username") or m["user_id"]
+            sentinels.append({
+                "key": f"user:{m['user_id']}",
+                "kind": "moderator",
+                "user_id": m["user_id"],
+                "username": uname,
+                "label": uname,
+                "display_name": m.get("display_name") or uname,
+                "avatar_url": m.get("avatar_url"),
+                "subtitleKey": "admin.mod.sentinel.human",
+                "subtitle": "Sentinelle humaine — actions de modération.",
+                "accent": "#F97316",
+            })
+
+        return sentinels
+
     @api.get("/admin/moderation/logs")
     async def admin_moderation_logs(
         sentinel: str = "all",
         status: str = "all",
         limit: int = 100,
-        user: dict = Depends(get_supreme_council_dep),
+        user: dict = Depends(get_staff_dep),
     ):
+        is_supreme = user.get("role") == "admin" or bool(user.get("is_nexus_supreme"))
+        if not is_supreme:
+            own = f"user:{user['user_id']}"
+            if sentinel == "all" or sentinel in ("staff", "human", "moderator"):
+                sentinel = own
+            elif sentinel != own:
+                raise HTTPException(403, "Accès réservé à vos propres logs")
         q: dict = {}
         if status != "all":
             q["status"] = status
         if sentinel != "all":
-            q.update(_sentinel_log_filter(sentinel))
+            if sentinel.lower().startswith("user:"):
+                q.update(await _resolve_sentinel_log_filter(db, sentinel))
+            else:
+                q.update(_sentinel_log_filter(sentinel))
         return await db.moderation_logs.find(q, {"_id": 0}).sort("createdAt", -1).limit(min(limit, 200)).to_list(200)
 
     @api.get("/admin/moderation/warnings")
@@ -126,7 +290,7 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
         return await db.moderation_warnings.find(q, {"_id": 0}).sort("createdAt", -1).limit(200).to_list(200)
 
     @api.get("/admin/moderation/scores")
-    async def admin_moderation_scores(user: dict = Depends(get_staff_dep)):
+    async def admin_moderation_scores(user: dict = Depends(get_supreme_council_dep)):
         return await db.moderation_user_scores.find(
             {}, {"_id": 0},
         ).sort("score", -1).limit(100).to_list(100)
@@ -151,26 +315,56 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
         return {"ok": True, "log": log}
 
     @api.post("/admin/moderation/scores/{user_id}/reset")
-    async def admin_reset_score(user_id: str, user: dict = Depends(get_staff_dep)):
+    async def admin_reset_score(user_id: str, user: dict = Depends(get_supreme_council_dep)):
+        target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "username": 1})
         await naria.reset_user_score(db, user_id)
+        await naria.log_staff_action(
+            db,
+            staff=user,
+            action_type="score_reset",
+            reason="Score réinitialisé",
+            target_user_id=user_id,
+            target_username=(target or {}).get("username"),
+            severity="low",
+        )
         return {"ok": True}
 
     class ReduceScoreReq(BaseModel):
         amount: int = Field(2, ge=1, le=20)
 
     @api.post("/admin/moderation/scores/{user_id}/reduce")
-    async def admin_reduce_score(user_id: str, req: ReduceScoreReq, user: dict = Depends(get_staff_dep)):
+    async def admin_reduce_score(user_id: str, req: ReduceScoreReq, user: dict = Depends(get_supreme_council_dep)):
+        target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "username": 1})
         new_score = await naria.reduce_user_score(db, user_id, req.amount)
+        await naria.log_staff_action(
+            db,
+            staff=user,
+            action_type="score_reduce",
+            reason=f"Score réduit de {req.amount}",
+            target_user_id=user_id,
+            target_username=(target or {}).get("username"),
+            severity="low",
+            metadata={"amount": req.amount, "new_score": new_score},
+        )
         return {"ok": True, "score": new_score}
 
     @api.post("/admin/moderation/users/{user_id}/lift-restriction")
-    async def admin_lift_restriction(user_id: str, user: dict = Depends(get_staff_dep)):
-        target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "user_id": 1, "moderation_restricted_until": 1})
+    async def admin_lift_restriction(user_id: str, user: dict = Depends(get_supreme_council_dep)):
+        target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "user_id": 1, "moderation_restricted_until": 1, "username": 1})
         if not target:
             raise HTTPException(404, "Joueur introuvable")
         from moderation_guards import require_restriction_active
         require_restriction_active(target)
         await naria.lift_restriction(db, user_id)
+        await naria.log_staff_action(
+            db,
+            staff=user,
+            action_type="lift_restriction",
+            reason="Restriction levée",
+            target_user_id=user_id,
+            target_username=target.get("username"),
+            severity="low",
+        )
         return {"ok": True}
 
     class ManualWarningReq(BaseModel):
@@ -201,27 +395,16 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
             "readAt": None,
             "status": "active",
         })
-        await db.moderation_logs.insert_one({
-            "log_id": f"mlog_{uuid.uuid4().hex[:12]}",
-            "actor": user["username"],
-            "actorType": "admin",
-            "role": user.get("role"),
-            "user_id": user_id,
-            "username": target.get("username"),
-            "actionType": "warning",
-            "reason": req.reason or "Avertissement manuel",
-            "severity": "medium",
-            "contentType": None,
-            "contentId": None,
-            "originalTextPreview": req.message[:300],
-            "scoreAdded": 0,
-            "totalScore": 0,
-            "createdAt": now,
-            "metadata": {},
-            "reviewedBy": user["username"],
-            "reviewedAt": now,
-            "status": "approved",
-        })
+        await naria.log_staff_action(
+            db,
+            staff=user,
+            action_type="warning",
+            reason=req.reason or "Avertissement manuel",
+            target_user_id=user_id,
+            target_username=target.get("username"),
+            preview=req.message,
+            severity="medium",
+        )
         await push_notification(
             db, user_id, "moderation_warning",
             "Avertissement modération", req.message,
@@ -308,20 +491,55 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
         req: HideContentReq,
         user: dict = Depends(get_staff_dep),
     ):
-        msg = await db.friend_messages.find_one({"message_id": message_id}, {"_id": 0, "message_id": 1})
+        msg = await db.friend_messages.find_one({"message_id": message_id}, {"_id": 0})
         if not msg:
             raise HTTPException(404, "Message introuvable")
         await naria.hide_content(
             db, "friend_message", message_id, req.reason,
             actor_name=user.get("username") or "staff",
         )
+        from_user = msg.get("from_user")
+        target_username = None
+        if from_user:
+            u = await db.users.find_one({"user_id": from_user}, {"_id": 0, "username": 1})
+            target_username = (u or {}).get("username")
+        await naria.log_staff_action(
+            db,
+            staff=user,
+            action_type="hide",
+            reason=req.reason,
+            target_user_id=from_user,
+            target_username=target_username,
+            content_type="friend_message",
+            content_id=message_id,
+            preview=msg.get("text") or "",
+        )
         return {"ok": True}
 
     @api.post("/admin/moderation/friend-messages/{message_id}/restore")
     async def admin_restore_friend_message(message_id: str, user: dict = Depends(get_staff_dep)):
+        msg = await db.friend_messages.find_one({"message_id": message_id}, {"_id": 0})
+        if not msg:
+            raise HTTPException(404, "Message introuvable")
         ok = await naria.restore_content(db, "friend_message", message_id)
         if not ok:
             raise HTTPException(404, "Message introuvable ou déjà visible")
+        from_user = msg.get("from_user")
+        target_username = None
+        if from_user:
+            u = await db.users.find_one({"user_id": from_user}, {"_id": 0, "username": 1})
+            target_username = (u or {}).get("username")
+        await naria.log_staff_action(
+            db,
+            staff=user,
+            action_type="restore",
+            reason="Contenu restauré par le staff",
+            target_user_id=from_user,
+            target_username=target_username,
+            content_type="friend_message",
+            content_id=message_id,
+            preview=msg.get("text") or "",
+        )
         return {"ok": True}
 
     return api

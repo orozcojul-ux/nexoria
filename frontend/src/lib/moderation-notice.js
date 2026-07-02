@@ -3,9 +3,9 @@ import { Shield, ShieldAlert } from "lucide-react";
 import React from "react";
 
 /** Affiche un avertissement Naria/Shumi bien visible (toast long + événement global). */
-export function showModerationNotice({ message, actor, blocked = false }) {
+export function showModerationNotice({ message, actor, title: titleOverride, blocked = false }) {
   if (!message) return;
-  const title = actor ? `${actor} — Sentinelle` : "Modération";
+  const title = titleOverride || (actor ? `${actor} — Sentinelle` : "Modération");
 
   window.dispatchEvent(new CustomEvent("nexoria:moderation-notice", {
     detail: { message, actor, title, blocked },
@@ -14,7 +14,7 @@ export function showModerationNotice({ message, actor, blocked = false }) {
   toast.custom(
     () => (
       <div
-        className={`flex gap-3 p-4 rounded-xl border shadow-lg max-w-md ${
+        className={`flex gap-3 p-4 rounded-2xl border shadow-lg max-w-md overflow-hidden ${
           blocked
             ? "border-red-500/40 bg-red-950/95"
             : "border-amber-500/40 bg-amber-950/95"
@@ -30,7 +30,7 @@ export function showModerationNotice({ message, actor, blocked = false }) {
         </div>
       </div>
     ),
-    { duration: blocked ? 14000 : 10000, id: "naria-moderation-notice" },
+    { duration: blocked ? 14000 : 10000, id: "naria-moderation-notice", className: "!rounded-2xl !overflow-hidden" },
   );
 }
 

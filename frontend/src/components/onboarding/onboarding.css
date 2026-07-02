@@ -1,0 +1,771 @@
+/* Guide du Nouveau Héros — thème RPG fantasy */
+
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -10%, rgba(124, 58, 237, 0.35), transparent 58%),
+    radial-gradient(ellipse 50% 45% at 15% 85%, rgba(234, 179, 8, 0.12), transparent 55%),
+    radial-gradient(ellipse 45% 40% at 88% 75%, rgba(168, 85, 247, 0.15), transparent 50%),
+    linear-gradient(180deg, rgba(6, 4, 12, 0.97) 0%, rgba(2, 1, 6, 0.98) 100%);
+  backdrop-filter: blur(14px);
+  animation: tutorial-fade-in 0.45s ease;
+}
+
+.tutorial-overlay-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 70% 65% at 50% 50%, transparent 35%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.tutorial-overlay-motes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.tutorial-mote {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: rgba(252, 211, 77, 0.75);
+  box-shadow: 0 0 8px rgba(252, 211, 77, 0.5);
+  left: calc(5% + (var(--i) * 5.2%) * 1%);
+  top: calc(10% + (var(--i) * 4.7%) * 1%);
+  animation: tutorial-mote-float calc(4s + (var(--i) * 0.35s)) ease-in-out infinite;
+  opacity: 0.35;
+}
+
+@keyframes tutorial-mote-float {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.25; }
+  50% { transform: translateY(-18px) scale(1.3); opacity: 0.7; }
+}
+
+@keyframes tutorial-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes tutorial-rise {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes tutorial-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.tutorial-shell {
+  position: relative;
+  z-index: 1;
+  width: min(980px, 100%);
+  max-height: min(92vh, 840px);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.875rem;
+  animation: tutorial-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 768px) {
+  .tutorial-shell {
+    grid-template-columns: 272px 1fr;
+    align-items: stretch;
+  }
+}
+
+/* Panneaux ornés */
+.tutorial-panel {
+  position: relative;
+  border-radius: 0.35rem;
+  border: 2px solid rgba(180, 130, 50, 0.45);
+  background:
+    linear-gradient(165deg, rgba(28, 18, 42, 0.98) 0%, rgba(10, 6, 18, 0.99) 45%, rgba(6, 4, 10, 1) 100%);
+  box-shadow:
+    0 0 0 1px rgba(234, 179, 8, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 1px 0 rgba(255, 220, 150, 0.06),
+    0 28px 90px rgba(0, 0, 0, 0.75),
+    0 0 60px rgba(88, 28, 135, 0.15);
+  overflow: hidden;
+}
+
+.tutorial-panel--quest-log {
+  background:
+    linear-gradient(180deg, rgba(32, 22, 14, 0.95) 0%, rgba(18, 12, 8, 0.98) 100%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(180, 130, 50, 0.03) 2px,
+      rgba(180, 130, 50, 0.03) 4px
+    );
+  border-color: rgba(180, 130, 50, 0.55);
+}
+
+.tutorial-corner {
+  position: absolute;
+  width: 1.125rem;
+  height: 1.125rem;
+  pointer-events: none;
+  z-index: 2;
+  border-color: rgba(252, 211, 77, 0.65);
+  border-style: solid;
+}
+
+.tutorial-corner--tl { top: 0.45rem; left: 0.45rem; border-width: 2px 0 0 2px; }
+.tutorial-corner--tr { top: 0.45rem; right: 0.45rem; border-width: 2px 2px 0 0; }
+.tutorial-corner--bl { bottom: 0.45rem; left: 0.45rem; border-width: 0 0 2px 2px; }
+.tutorial-corner--br { bottom: 0.45rem; right: 0.45rem; border-width: 0 2px 2px 0; }
+
+.tutorial-panel-glow {
+  position: absolute;
+  top: -45%;
+  right: -25%;
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.14), transparent 68%);
+  pointer-events: none;
+}
+
+.tutorial-checklist-panel {
+  padding: 1.15rem 1rem;
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .tutorial-checklist-panel {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.tutorial-main-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tutorial-header {
+  padding: 1.2rem 1.35rem 1rem;
+  border-bottom: 1px solid rgba(180, 130, 50, 0.2);
+  background: linear-gradient(180deg, rgba(255, 220, 150, 0.04) 0%, transparent 100%);
+}
+
+.tutorial-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.tutorial-naria-row {
+  display: flex;
+  gap: 0.875rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.tutorial-naria-avatar {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 9999px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(196, 181, 253, 0.55), rgba(88, 28, 135, 0.85) 55%, rgba(15, 8, 32, 0.98));
+  border: 2px solid rgba(252, 211, 77, 0.45);
+  box-shadow:
+    0 0 24px rgba(168, 85, 247, 0.35),
+    inset 0 0 12px rgba(252, 211, 77, 0.12);
+  color: #fef3c7;
+  flex-shrink: 0;
+}
+
+.tutorial-naria-name {
+  font-family: var(--font-display, serif);
+  font-size: 1.0625rem;
+  font-weight: 800;
+  color: #fef9c3;
+  line-height: 1.2;
+  text-shadow: 0 1px 8px rgba(234, 179, 8, 0.25);
+}
+
+.tutorial-naria-role {
+  font-size: 0.6875rem;
+  color: rgba(196, 181, 253, 0.85);
+  margin-top: 0.15rem;
+  font-style: italic;
+}
+
+.tutorial-quest-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #fde68a;
+  border: 1px solid rgba(234, 179, 8, 0.45);
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.18), rgba(120, 53, 15, 0.25));
+  border-radius: 0.2rem;
+  padding: 0.25rem 0.65rem;
+  margin-bottom: 0.45rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.tutorial-minimize-btn {
+  flex-shrink: 0;
+  padding: 0.45rem;
+  border-radius: 0.25rem;
+  color: rgba(252, 211, 77, 0.75);
+  border: 1px solid rgba(180, 130, 50, 0.35);
+  background: rgba(0, 0, 0, 0.25);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.tutorial-minimize-btn:hover {
+  color: #fef3c7;
+  border-color: rgba(252, 211, 77, 0.55);
+  background: rgba(180, 130, 50, 0.12);
+}
+
+/* Stepper — barre de quête */
+.tutorial-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.tutorial-stepper-track {
+  height: 6px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(180, 130, 50, 0.25);
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.tutorial-stepper-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7c3aed, #eab308, #f59e0b);
+  background-size: 200% 100%;
+  animation: tutorial-shimmer 4s linear infinite;
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.45);
+  transition: width 0.5s ease;
+}
+
+.tutorial-stepper-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(196, 181, 253, 0.75);
+  font-weight: 700;
+}
+
+.tutorial-stepper-percent {
+  color: rgba(252, 211, 77, 0.95);
+  font-family: var(--font-display, serif);
+}
+
+.tutorial-stepper-dots {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.tutorial-stepper-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(180, 130, 50, 0.3);
+  transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.tutorial-stepper-dot--current {
+  transform: rotate(45deg) scale(1.4);
+  background: rgba(168, 85, 247, 0.9);
+  border-color: rgba(252, 211, 77, 0.6);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.55);
+}
+
+.tutorial-stepper-dot--done {
+  background: rgba(34, 197, 94, 0.75);
+  border-color: rgba(74, 222, 128, 0.5);
+}
+
+.tutorial-body {
+  padding: 1.1rem 1.35rem 1.35rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Carte d'étape — parchemin */
+.tutorial-step-card {
+  position: relative;
+  padding: 1.15rem 1.25rem 1.25rem;
+  border-radius: 0.25rem;
+  border: 1px solid rgba(180, 130, 50, 0.35);
+  background:
+    linear-gradient(175deg, rgba(45, 32, 20, 0.85) 0%, rgba(28, 20, 12, 0.92) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 220, 150, 0.06),
+    inset 0 2px 24px rgba(0, 0, 0, 0.25);
+}
+
+.tutorial-step-card-frame {
+  position: absolute;
+  inset: 0.35rem;
+  border: 1px dashed rgba(180, 130, 50, 0.2);
+  border-radius: 0.15rem;
+  pointer-events: none;
+}
+
+.tutorial-step-scroll-icon {
+  position: absolute;
+  bottom: 0.65rem;
+  right: 0.75rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: rgba(180, 130, 50, 0.25);
+  pointer-events: none;
+}
+
+.tutorial-step-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(252, 211, 77, 0.95);
+  margin-bottom: 0.7rem;
+}
+
+.tutorial-step-title {
+  font-family: var(--font-display, serif);
+  font-size: clamp(1.3rem, 3.2vw, 1.625rem);
+  font-weight: 800;
+  color: #fef9c3;
+  margin-bottom: 0.65rem;
+  line-height: 1.22;
+  text-shadow: 0 2px 12px rgba(234, 179, 8, 0.2);
+}
+
+.tutorial-step-divider {
+  height: 1px;
+  margin-bottom: 0.85rem;
+  background: linear-gradient(90deg, transparent, rgba(180, 130, 50, 0.55), transparent);
+}
+
+.tutorial-step-text {
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: rgba(254, 243, 199, 0.88);
+}
+
+.tutorial-warning {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 0.25rem;
+  border: 1px solid rgba(251, 146, 60, 0.5);
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.35), rgba(251, 146, 60, 0.08));
+}
+
+.tutorial-warning-title {
+  font-family: var(--font-display, serif);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fdba74;
+  margin: 0 0 0.5rem;
+}
+
+.tutorial-warning-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.78rem;
+  color: rgba(254, 215, 170, 0.95);
+  line-height: 1.55;
+}
+
+.tutorial-rewards {
+  margin-top: 1.25rem;
+  padding: 0.9rem 1rem;
+  border-radius: 0.25rem;
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.08), rgba(168, 85, 247, 0.08));
+  box-shadow: inset 0 0 20px rgba(34, 211, 238, 0.05);
+}
+
+.tutorial-rewards-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #a5f3fc;
+  margin-bottom: 0.65rem;
+}
+
+.tutorial-rewards-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.tutorial-reward-chip {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.38rem 0.75rem;
+  border-radius: 0.2rem;
+  border: 1px solid rgba(252, 211, 77, 0.4);
+  background: linear-gradient(180deg, rgba(234, 179, 8, 0.18), rgba(120, 53, 15, 0.2));
+  color: #fef3c7;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.tutorial-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.9rem 1.35rem 1.2rem;
+  border-top: 1px solid rgba(180, 130, 50, 0.22);
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.28));
+}
+
+.tutorial-actions-left,
+.tutorial-actions-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.tutorial-btn {
+  font-family: var(--font-display, serif);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 0.25rem;
+  padding: 0.62rem 1.05rem;
+  border: 2px solid transparent;
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
+
+.tutorial-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tutorial-btn:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.tutorial-btn--primary {
+  color: #1a0a02;
+  background: linear-gradient(180deg, #fde047 0%, #f59e0b 55%, #d97706 100%);
+  border-color: rgba(252, 211, 77, 0.7);
+  box-shadow:
+    0 4px 0 rgba(120, 53, 15, 0.65),
+    0 6px 24px rgba(245, 158, 11, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.tutorial-btn--primary:not(:disabled):hover {
+  box-shadow:
+    0 4px 0 rgba(120, 53, 15, 0.65),
+    0 8px 32px rgba(245, 158, 11, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.tutorial-btn--ghost {
+  color: #e7e5e4;
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(180, 130, 50, 0.35);
+}
+
+.tutorial-btn--ghost:not(:disabled):hover {
+  background: rgba(180, 130, 50, 0.12);
+  border-color: rgba(252, 211, 77, 0.45);
+  color: #fef3c7;
+}
+
+.tutorial-btn--active {
+  border-color: rgba(168, 85, 247, 0.55);
+  color: #e9d5ff;
+  background: rgba(88, 28, 135, 0.25);
+}
+
+.tutorial-btn--violet {
+  color: #f3e8ff;
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.45), rgba(88, 28, 135, 0.55));
+  border-color: rgba(196, 181, 253, 0.45);
+  box-shadow: 0 3px 0 rgba(46, 16, 101, 0.6);
+}
+
+.tutorial-btn--violet:not(:disabled):hover {
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.55), rgba(88, 28, 135, 0.65));
+}
+
+.tutorial-btn--skip {
+  opacity: 0.55;
+  font-size: 0.65rem;
+  border-color: transparent;
+}
+
+/* Journal de quête */
+.tutorial-checklist-wrap,
+.tutorial-mobile-checklist {
+  display: block;
+}
+
+.tutorial-checklist-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid rgba(180, 130, 50, 0.25);
+  color: rgba(252, 211, 77, 0.85);
+}
+
+.tutorial-checklist-title {
+  font-family: var(--font-display, serif);
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(252, 211, 77, 0.95);
+  font-weight: 800;
+}
+
+.tutorial-checklist-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.tutorial-checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  font-size: 0.78rem;
+  color: rgba(214, 211, 209, 0.7);
+  padding: 0.55rem 0.4rem;
+  border-radius: 0.2rem;
+  border-left: 2px solid transparent;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.tutorial-checklist-item--current {
+  color: #fef3c7;
+  background: rgba(180, 130, 50, 0.12);
+  border-left-color: rgba(252, 211, 77, 0.65);
+}
+
+.tutorial-checklist-item--done {
+  color: #bbf7d0;
+}
+
+.tutorial-checklist-dot {
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 0.15rem;
+  transform: rotate(45deg);
+  border: 1px solid rgba(180, 130, 50, 0.4);
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  display: grid;
+  place-items: center;
+}
+
+.tutorial-checklist-dot svg {
+  transform: rotate(-45deg);
+}
+
+.tutorial-checklist-item--done .tutorial-checklist-dot {
+  background: rgba(34, 197, 94, 0.35);
+  border-color: rgba(34, 197, 94, 0.65);
+  color: #bbf7d0;
+}
+
+.tutorial-checklist-item--current .tutorial-checklist-dot {
+  border-color: rgba(252, 211, 77, 0.65);
+  box-shadow: 0 0 8px rgba(252, 211, 77, 0.35);
+}
+
+.tutorial-faq {
+  margin-top: 1rem;
+  border-top: 1px solid rgba(180, 130, 50, 0.2);
+  padding-top: 0.9rem;
+}
+
+.tutorial-faq-item {
+  margin-bottom: 0.75rem;
+}
+
+.tutorial-faq-q {
+  font-family: var(--font-display, serif);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #c4b5fd;
+}
+
+.tutorial-faq-a {
+  font-size: 0.75rem;
+  color: rgba(196, 181, 253, 0.75);
+  line-height: 1.55;
+  margin-top: 0.25rem;
+}
+
+.tutorial-help-btn {
+  position: fixed;
+  z-index: 9000;
+  right: 1rem;
+  bottom: 5.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-display, serif);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.25rem;
+  border: 2px solid rgba(180, 130, 50, 0.5);
+  background: linear-gradient(180deg, rgba(28, 18, 42, 0.96), rgba(10, 6, 18, 0.98));
+  color: #fef3c7;
+  box-shadow:
+    0 4px 0 rgba(60, 35, 10, 0.5),
+    0 8px 28px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+}
+
+.tutorial-help-btn:hover {
+  border-color: rgba(252, 211, 77, 0.65);
+  color: #fff;
+}
+
+.tutorial-resume-btn {
+  position: fixed;
+  z-index: 11900;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--font-display, serif);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.75rem 1.35rem;
+  border-radius: 0.25rem;
+  border: 2px solid rgba(252, 211, 77, 0.6);
+  background: linear-gradient(180deg, rgba(88, 28, 135, 0.95), rgba(12, 8, 20, 0.98));
+  color: #fef3c7;
+  box-shadow:
+    0 4px 0 rgba(46, 16, 101, 0.7),
+    0 12px 40px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  animation: tutorial-resume-pulse 2.5s ease-in-out infinite;
+}
+
+.tutorial-resume-btn:hover {
+  border-color: rgba(250, 204, 21, 0.85);
+  color: #fff;
+}
+
+@keyframes tutorial-resume-pulse {
+  0%, 100% { box-shadow: 0 4px 0 rgba(46, 16, 101, 0.7), 0 12px 40px rgba(0, 0, 0, 0.55); }
+  50% { box-shadow: 0 4px 0 rgba(46, 16, 101, 0.7), 0 12px 48px rgba(234, 179, 8, 0.25); }
+}
+
+.tutorial-nexus-hints {
+  position: absolute;
+  top: 4.5rem;
+  left: 1rem;
+  z-index: 50;
+  width: min(280px, calc(100vw - 2rem));
+  border-radius: 0.25rem;
+  border: 2px solid rgba(180, 130, 50, 0.35);
+  background: rgba(18, 12, 8, 0.94);
+  backdrop-filter: blur(10px);
+  padding: 0.85rem;
+  pointer-events: auto;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.tutorial-nexus-hints ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tutorial-nexus-hints li {
+  font-size: 0.72rem;
+  color: rgba(254, 243, 199, 0.88);
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(180, 130, 50, 0.15);
+  line-height: 1.45;
+}
+
+.tutorial-nexus-hints li:last-child {
+  border-bottom: none;
+}
+
+.tutorial-mobile-checklist {
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(180, 130, 50, 0.2);
+}
+
+@media (min-width: 768px) {
+  .tutorial-mobile-checklist {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .tutorial-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tutorial-actions-left,
+  .tutorial-actions-right {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .tutorial-btn--primary,
+  .tutorial-btn--violet {
+    flex: 1;
+    min-width: 0;
+  }
+}

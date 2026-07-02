@@ -9,6 +9,7 @@ import DiscordFab from "./DiscordFab";
 import GuildInvitePrompt from "./GuildInvitePrompt";
 import GameLegendModal, { useGameLegend, GameLegendAutoOpen } from "./GameLegendModal";
 import ModerationNoticeBanner from "./moderation/ModerationNoticeBanner";
+import TutorialHelpButton from "./onboarding/TutorialHelpButton";
 
 export default function Layout({ children }) {
   const { user } = useAuth();
@@ -53,6 +54,7 @@ export default function Layout({ children }) {
       </main>
 
       {!nexusOpen && <DiscordFab className="right-4 bottom-8" />}
+      {!nexusOpen && <TutorialHelpButton />}
 
       <GuildInvitePrompt />
 

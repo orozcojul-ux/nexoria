@@ -260,6 +260,7 @@ VIP_TITLES = frozenset({"ascendant_nexus"})
 BADGES = [
     # Participation
     {"id": "first_step", "name": "Premier Pas", "category": "participation", "icon": "Footprints", "rarity": "common", "description": "Premier post publié", "color": "#9CA3AF"},
+    {"id": "nouveau_heros", "name": "Nouveau Héros", "category": "participation", "icon": "Sparkles", "rarity": "rare", "description": "A accompli le Guide du Nouveau Héros", "color": "#EAB308"},
     {"id": "chatter_100", "name": "Bavard", "category": "participation", "icon": "MessageCircle", "rarity": "rare", "description": "100 messages écrits", "color": "#3B82F6"},
     {"id": "chatter_1000", "name": "Orateur", "category": "participation", "icon": "MessagesSquare", "rarity": "epic", "description": "1000 messages écrits", "color": "#A855F7"},
     {"id": "chatter_10000", "name": "Conteur Éternel", "category": "participation", "icon": "ScrollText", "rarity": "legendary", "description": "10000 messages écrits", "color": "#EAB308"},
