@@ -2,7 +2,12 @@
 import pytest
 from fastapi import HTTPException
 
-from naria_routes import _sentinel_log_filter, _staff_log_filter, _actor_log_filter
+from naria_routes import (
+    _actor_log_filter,
+    _is_duplicate_sentinel_staff,
+    _sentinel_log_filter,
+    _staff_log_filter,
+)
 
 
 class TestSentinelLogFilters:
@@ -57,3 +62,18 @@ class TestSentinelLogFilters:
     def test_actor_filter_requires_id(self):
         with pytest.raises(HTTPException):
             _actor_log_filter()
+
+
+class TestSentinelStaffDedup:
+    def test_skips_system_naria(self):
+        assert _is_duplicate_sentinel_staff({
+            "username": "Naria",
+            "system_key": "naria",
+            "is_system": True,
+        })
+
+    def test_skips_admin_named_naria(self):
+        assert _is_duplicate_sentinel_staff({"username": "Naria", "role": "admin"})
+
+    def test_keeps_human_moderator(self):
+        assert not _is_duplicate_sentinel_staff({"username": "ModPlayer", "role": "moderator"})

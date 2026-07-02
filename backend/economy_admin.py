@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Callable, Awaitable
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from economy_transactions import (
@@ -44,7 +44,7 @@ def register_economy_admin_routes(
         date_to: str | None = None,
         user_id: str | None = None,
         username: str | None = None,
-        type: str | None = None,
+        tx_type: str | None = Query(None, alias="type"),
         source: str | None = None,
         min_amount: int | None = None,
         max_amount: int | None = None,
@@ -57,7 +57,7 @@ def register_economy_admin_routes(
             date_to=date_to,
             user_id=user_id,
             username=username,
-            tx_type=type,
+            tx_type=tx_type,
             source=source,
             min_amount=min_amount,
             max_amount=max_amount,

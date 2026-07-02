@@ -16,7 +16,18 @@ from naria_system import (
     NEXUS_MODERATION_CONTENT_TYPES,
     SHUMI_SYSTEM_KEY,
     SHUMI_USERNAME,
+    is_system_user,
 )
+
+_OFFICIAL_SENTINEL_USERNAMES = frozenset({NARIA_USERNAME.lower(), SHUMI_USERNAME.lower()})
+
+
+def _is_duplicate_sentinel_staff(user_doc: dict) -> bool:
+    """Évite Naria/Shumi en double (entrée système + compte admin/mod)."""
+    if is_system_user(user_doc):
+        return True
+    uname = (user_doc.get("username") or "").strip().lower()
+    return uname in _OFFICIAL_SENTINEL_USERNAMES
 
 router = APIRouter()
 
@@ -218,6 +229,8 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
                 {"_id": 0, "user_id": 1, "username": 1, "display_name": 1, "avatar_url": 1},
             ).sort("username", 1).to_list(100)
             for a in admins:
+                if _is_duplicate_sentinel_staff(a):
+                    continue
                 uname = a.get("username") or a["user_id"]
                 sentinels.append({
                     "key": f"user:{a['user_id']}",
@@ -241,6 +254,8 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
         ).sort("username", 1).to_list(100)
 
         for m in mods:
+            if _is_duplicate_sentinel_staff(m):
+                continue
             uname = m.get("username") or m["user_id"]
             sentinels.append({
                 "key": f"user:{m['user_id']}",

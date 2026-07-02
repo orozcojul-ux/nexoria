@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Coins, TrendingUp, TrendingDown, AlertTriangle, Search, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
@@ -78,7 +78,10 @@ export default function EconomyAdmin() {
   const [richest, setRichest] = useState([]);
   const [items, setItems] = useState(null);
   const [tx, setTx] = useState({ items: [], total: 0, page: 1, pages: 1 });
-  const [txFilters, setTxFilters] = useState({ username: "", type: "", source: "", page: 1 });
+  const [txDraft, setTxDraft] = useState({ username: "", type: "", source: "" });
+  const [txQuery, setTxQuery] = useState({ username: "", type: "", source: "", page: 1 });
+  const [txLoading, setTxLoading] = useState(false);
+  const txRequestRef = useRef(0);
 
   const [userSearch, setUserSearch] = useState("");
   const [adjustTarget, setAdjustTarget] = useState(null);
@@ -86,35 +89,59 @@ export default function EconomyAdmin() {
   const [adjustReason, setAdjustReason] = useState("");
   const [adjusting, setAdjusting] = useState(false);
 
-  const loadAll = useCallback(async () => {
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, r, i, t] = await Promise.all([
+      const [s, r, i] = await Promise.all([
         api.get("/admin/economy/summary"),
         api.get("/admin/economy/top-richest"),
         api.get("/admin/economy/items-summary"),
-        api.get("/admin/economy/transactions", {
-          params: {
-            page: txFilters.page,
-            limit: 40,
-            username: txFilters.username || undefined,
-            type: txFilters.type || undefined,
-            source: txFilters.source || undefined,
-          },
-        }),
       ]);
       setSummary(s.data);
       setRichest(r.data?.items || []);
       setItems(i.data);
-      setTx(t.data || { items: [], total: 0, page: 1, pages: 1 });
     } catch (err) {
       toast.error(formatApiError(err) || "Impossible de charger l'économie");
     } finally {
       setLoading(false);
     }
-  }, [txFilters.page, txFilters.username, txFilters.type, txFilters.source]);
+  }, []);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  const loadTransactions = useCallback(async (query) => {
+    const reqId = ++txRequestRef.current;
+    setTxLoading(true);
+    try {
+      const username = query.username?.trim();
+      const { data } = await api.get("/admin/economy/transactions", {
+        params: {
+          page: query.page,
+          limit: 40,
+          username: username || undefined,
+          type: query.type || undefined,
+          source: query.source || undefined,
+        },
+      });
+      if (reqId !== txRequestRef.current) return;
+      setTx(data || { items: [], total: 0, page: 1, pages: 1 });
+    } catch (err) {
+      if (reqId !== txRequestRef.current) return;
+      toast.error(formatApiError(err) || "Impossible de charger les transactions");
+    } finally {
+      if (reqId === txRequestRef.current) setTxLoading(false);
+    }
+  }, []);
+
+  const applyTxFilters = useCallback(() => {
+    setTxQuery({
+      username: txDraft.username.trim(),
+      type: txDraft.type,
+      source: txDraft.source,
+      page: 1,
+    });
+  }, [txDraft]);
+
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+  useEffect(() => { loadTransactions(txQuery); }, [txQuery, loadTransactions]);
 
   const openUserAdmin = (username) => {
     setSearchParams({ tab: "users", q: username });
@@ -141,7 +168,7 @@ export default function EconomyAdmin() {
       setAdjustAmount(100);
       setAdjustTarget(null);
       setUserSearch("");
-      await loadAll();
+      await Promise.all([loadDashboard(), loadTransactions(txQuery)]);
     } catch (err) {
       toast.error(formatApiError(err) || "Échec de l'ajustement");
     } finally {
@@ -278,16 +305,23 @@ export default function EconomyAdmin() {
       {/* Transactions */}
       <PremiumCard className="p-4" testid="economy-transactions">
         <h3 className="font-display font-bold text-sm mb-3 text-violet-200">Journal des transactions</h3>
-        <div className="flex flex-wrap gap-2 mb-3">
+        <form
+          className="flex flex-wrap gap-2 mb-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            applyTxFilters();
+          }}
+        >
           <input
-            value={txFilters.username}
-            onChange={(e) => setTxFilters((f) => ({ ...f, username: e.target.value, page: 1 }))}
+            value={txDraft.username}
+            onChange={(e) => setTxDraft((f) => ({ ...f, username: e.target.value }))}
             placeholder="Pseudo…"
             className="bg-[#0A0A0E] border border-white/10 rounded px-2 py-1.5 text-xs w-36"
+            data-testid="economy-tx-username"
           />
           <select
-            value={txFilters.type}
-            onChange={(e) => setTxFilters((f) => ({ ...f, type: e.target.value, page: 1 }))}
+            value={txDraft.type}
+            onChange={(e) => setTxDraft((f) => ({ ...f, type: e.target.value }))}
             className="bg-[#0A0A0E] border border-white/10 rounded px-2 py-1.5 text-xs"
           >
             <option value="">Tous types</option>
@@ -297,8 +331,8 @@ export default function EconomyAdmin() {
             <option value="refund">Remboursement</option>
           </select>
           <select
-            value={txFilters.source}
-            onChange={(e) => setTxFilters((f) => ({ ...f, source: e.target.value, page: 1 }))}
+            value={txDraft.source}
+            onChange={(e) => setTxDraft((f) => ({ ...f, source: e.target.value }))}
             className="bg-[#0A0A0E] border border-white/10 rounded px-2 py-1.5 text-xs"
           >
             <option value="">Toutes sources</option>
@@ -306,8 +340,10 @@ export default function EconomyAdmin() {
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
-          <PremiumButton size="sm" onClick={loadAll}>Filtrer</PremiumButton>
-        </div>
+          <PremiumButton type="submit" size="sm" disabled={txLoading}>
+            {txLoading ? "Filtrage…" : "Filtrer"}
+          </PremiumButton>
+        </form>
         <DataTable
           rows={tx.items || []}
           empty="Aucune transaction — les nouvelles opérations apparaîtront ici."
@@ -334,9 +370,9 @@ export default function EconomyAdmin() {
         />
         {tx.pages > 1 && (
           <div className="flex justify-center gap-2 mt-3">
-            <PremiumButton size="sm" disabled={tx.page <= 1} onClick={() => setTxFilters((f) => ({ ...f, page: f.page - 1 }))}>Préc.</PremiumButton>
+            <PremiumButton size="sm" disabled={tx.page <= 1 || txLoading} onClick={() => setTxQuery((f) => ({ ...f, page: f.page - 1 }))}>Préc.</PremiumButton>
             <span className="text-xs text-zinc-500 self-center">Page {tx.page} / {tx.pages}</span>
-            <PremiumButton size="sm" disabled={tx.page >= tx.pages} onClick={() => setTxFilters((f) => ({ ...f, page: f.page + 1 }))}>Suiv.</PremiumButton>
+            <PremiumButton size="sm" disabled={tx.page >= tx.pages || txLoading} onClick={() => setTxQuery((f) => ({ ...f, page: f.page + 1 }))}>Suiv.</PremiumButton>
           </div>
         )}
       </PremiumCard>

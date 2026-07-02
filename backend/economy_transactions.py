@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -332,6 +333,14 @@ async def build_items_summary(db) -> dict[str, Any]:
     }
 
 
+def _username_filter_clause(username: str | None) -> dict[str, Any] | None:
+    term = (username or "").strip()
+    if not term:
+        return None
+    pattern = re.escape(term)
+    return {"username": {"$regex": pattern, "$options": "i"}}
+
+
 async def query_transactions(
     db,
     *,
@@ -355,8 +364,28 @@ async def query_transactions(
             q["created_at"]["$lte"] = date_to
     if user_id:
         q["user_id"] = user_id
-    if username:
-        q["username"] = {"$regex": username.strip(), "$options": "i"}
+    if username and (username or "").strip():
+        pattern = re.escape(username.strip())
+        clauses: list[dict[str, Any]] = [
+            {"username": {"$regex": pattern, "$options": "i"}},
+        ]
+        users = await db.users.find(
+            {
+                "$or": [
+                    {"username": {"$regex": pattern, "$options": "i"}},
+                    {"display_name": {"$regex": pattern, "$options": "i"}},
+                ],
+            },
+            {"_id": 0, "user_id": 1},
+        ).limit(100).to_list(100)
+        user_ids = list({u["user_id"] for u in users if u.get("user_id")})
+        if user_ids:
+            clauses.append({"user_id": {"$in": user_ids}})
+        user_filt: dict[str, Any] = {"$or": clauses} if len(clauses) > 1 else clauses[0]
+        if q:
+            q = {"$and": [q, user_filt]}
+        else:
+            q = user_filt
     if tx_type and tx_type in VALID_TYPES:
         q["type"] = tx_type
     if source and source in VALID_SOURCES:

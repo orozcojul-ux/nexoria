@@ -90,6 +90,15 @@ export default function NariaModerationAdmin() {
     loadDashboard();
   }, [loadSentinels, loadDashboard]);
 
+  const systemSentinels = useMemo(
+    () => sentinels.filter((s) => s.kind === "system"),
+    [sentinels],
+  );
+  const humanSentinels = useMemo(
+    () => sentinels.filter((s) => s.kind !== "system"),
+    [sentinels],
+  );
+
   const activeSentinel = useMemo(
     () => sentinels.find((s) => s.key === panel) || null,
     [sentinels, panel],
@@ -152,10 +161,10 @@ export default function NariaModerationAdmin() {
             {loadingSentinels && (
               <p className="text-xs text-zinc-600 px-1 italic">Chargement…</p>
             )}
-            {!loadingSentinels && sentinels.length === 0 && (
-              <p className="text-xs text-zinc-600 px-1 italic">Aucune sentinelle.</p>
+            {!loadingSentinels && humanSentinels.length === 0 && (
+              <p className="text-xs text-zinc-600 px-1 italic">Aucune sentinelle humaine.</p>
             )}
-            {sentinels.map((s) => (
+            {humanSentinels.map((s) => (
               <NavButton
                 key={s.key}
                 active={panel === s.key}
@@ -169,6 +178,16 @@ export default function NariaModerationAdmin() {
 
           {supreme && (
             <NavSection label={t("admin.mod.section.auto")}>
+              {systemSentinels.map((s) => (
+                <NavButton
+                  key={s.key}
+                  active={panel === s.key}
+                  onClick={() => setPanel(s.key)}
+                  icon={sentinelIcon(s)}
+                  label={s.label}
+                  accent={s.accent}
+                />
+              ))}
               <NavButton
                 active={panel === "overview"}
                 onClick={() => setPanel("overview")}
