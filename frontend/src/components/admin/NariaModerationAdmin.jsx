@@ -217,7 +217,7 @@ export default function NariaModerationAdmin() {
           <section className="space-y-4">
             <div>
               <h3 className="font-display font-bold text-lg text-violet-100">{t("admin.mod.panel.overview")}</h3>
-              <p className="text-sm text-zinc-500 mt-1">Statistiques globales de la modération automatisée.</p>
+              <p className="text-sm text-zinc-500 mt-1">Statistiques globales — Naria, Shumi et mesures du royaume.</p>
             </div>
             {dashboard ? (
               <>
@@ -232,7 +232,7 @@ export default function NariaModerationAdmin() {
                 {!dashboard.auto_ban_enabled && (
                   <div className="flex items-center gap-2 text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
-                    Mode prudent : confiance faible = log seul ; ban auto désactivé.
+                    Mode prudent : confiance faible = log seul ; ban sentinelle désactivé.
                   </div>
                 )}
               </>

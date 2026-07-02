@@ -2308,9 +2308,14 @@ async def referral_me(request: Request, user: dict = Depends(get_user_dep)):
     ) or {}
     count = int(fresh.get("referral_count", 0) or 0)
     claimed = set(fresh.get("referral_rewards_claimed", []) or [])
-    # Build a public-facing register link with the ref code.
-    origin = request.headers.get("origin") or os.environ.get("PUBLIC_SITE_URL", "")
-    link = f"{origin.rstrip('/')}/register?ref={code}" if origin else f"/register?ref={code}"
+    # Lien public d'inscription — URL absolue (prod par défaut).
+    base = (
+        request.headers.get("origin")
+        or os.environ.get("PUBLIC_SITE_URL")
+        or os.environ.get("FRONTEND_URL")
+        or "https://nexoria-game.fr"
+    ).rstrip("/")
+    link = f"{base}/register?ref={code}"
     milestones = [
         {
             "threshold": ms["threshold"],
@@ -6472,27 +6477,6 @@ async def admin_edit_user(user_id: str, req: UserEditReq, user: dict = Depends(g
                 "old_username": target.get("username"),
             })
         await db.users.update_one({"user_id": user_id}, {"$set": update})
-        if "role" in update and update["role"] != target.get("role"):
-            old_role = target.get("role") or "user"
-            new_role = update["role"]
-            if new_role == "moderator":
-                action_type, reason = "role_grant", "Promotion modérateur (Sentinelle)"
-            elif new_role == "admin":
-                action_type, reason = "role_grant", "Promotion Sage (admin)"
-            elif old_role in ("moderator", "admin") and new_role == "user":
-                action_type, reason = "role_revoke", f"Rétrogradation {old_role} → héros"
-            else:
-                action_type, reason = "role_change", f"Rôle {old_role} → {new_role}"
-            await naria.log_staff_action(
-                db,
-                staff=user,
-                action_type=action_type,
-                reason=reason,
-                target_user_id=user_id,
-                target_username=target.get("username"),
-                severity="low",
-                metadata={"old_role": old_role, "new_role": new_role},
-            )
         chronicle_text = build_staff_edit_chronicle(
             target, update, staff_username=user.get("username"),
         )
@@ -8228,19 +8212,6 @@ async def pin_thread(thread_id: str, user: dict = Depends(get_staff_dep)):
         raise HTTPException(404, "Sujet introuvable")
     pinned = not thread.get("pinned", False)
     await db.forum_threads.update_one({"thread_id": thread_id}, {"$set": {"pinned": pinned}})
-    author = await db.users.find_one({"user_id": thread["user_id"]}, {"_id": 0, "username": 1})
-    await naria.log_staff_action(
-        db,
-        staff=user,
-        action_type="forum_pin" if pinned else "forum_unpin",
-        reason=f"Sujet {'épinglé' if pinned else 'désépinglé'}",
-        target_user_id=thread["user_id"],
-        target_username=(author or {}).get("username"),
-        content_type="forum_thread",
-        content_id=thread_id,
-        preview=(thread.get("title") or "")[:200],
-        severity="low",
-    )
     return {"ok": True, "pinned": pinned}
 
 
@@ -8251,19 +8222,6 @@ async def lock_thread(thread_id: str, user: dict = Depends(get_staff_dep)):
         raise HTTPException(404, "Sujet introuvable")
     locked = not thread.get("locked", False)
     await db.forum_threads.update_one({"thread_id": thread_id}, {"$set": {"locked": locked}})
-    author = await db.users.find_one({"user_id": thread["user_id"]}, {"_id": 0, "username": 1})
-    await naria.log_staff_action(
-        db,
-        staff=user,
-        action_type="forum_lock" if locked else "forum_unlock",
-        reason=f"Sujet {'verrouillé' if locked else 'déverrouillé'}",
-        target_user_id=thread["user_id"],
-        target_username=(author or {}).get("username"),
-        content_type="forum_thread",
-        content_id=thread_id,
-        preview=(thread.get("title") or "")[:200],
-        severity="low",
-    )
     return {"ok": True, "locked": locked}
 
 
@@ -8338,7 +8296,9 @@ async def admin_pulse(user: dict = Depends(get_staff_dep)):
     open_tickets = await db.tickets.count_documents({"status": {"$ne": "closed"}})
     open_reports = await db.reports.count_documents({"status": "open"})
     banned = await db.users.count_documents({"banned_until": {"$gt": now.isoformat()}})
-    naria_pending = await db.moderation_logs.count_documents({"status": "pending_review"})
+    naria_pending = await db.moderation_logs.count_documents(
+        naria.merge_mongo_filters(naria.moderation_cases_filter(), {"status": "pending_review"}),
+    )
     onboarding_started = await db.onboarding_progress.count_documents({"tutorialStartedAt": {"$ne": None}})
     onboarding_completed = await db.onboarding_progress.count_documents({"completed": True})
     return {
@@ -9486,19 +9446,6 @@ async def admin_resolve_report(report_id: str, req: ReportStatusReq, user: dict 
             "resolved_by": user["username"] if req.status != "open" else None,
         }},
     )
-    if req.status in ("resolved", "dismissed"):
-        await naria.log_staff_action(
-            db,
-            staff=user,
-            action_type=f"report_{req.status}",
-            reason=existing.get("reason") or existing.get("category") or "Signalement",
-            target_user_id=existing.get("reported_user_id"),
-            target_username=existing.get("reported_username"),
-            content_type=existing.get("target_type") or "report",
-            content_id=existing.get("target_id") or report_id,
-            preview=existing.get("details") or existing.get("context_label") or "",
-            metadata={"report_id": report_id, "reporter": existing.get("reporter_username")},
-        )
     if req.status == "resolved" and existing.get("status") == "open":
         reporter_id = existing.get("reporter_id")
         if reporter_id:

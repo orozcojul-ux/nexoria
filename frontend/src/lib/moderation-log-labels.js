@@ -23,12 +23,12 @@ export const MOD_STATUS = {
   },
   approved: {
     label: "Confirmé",
-    hint: "L'équipe a validé l'action automatique de la sentinelle.",
+    hint: "L'équipe a validé la décision de la sentinelle.",
     tone: "emerald",
   },
   dismissed: {
     label: "Infondé",
-    hint: "L'équipe a annulé l'alerte — la mesure automatique était excessive.",
+    hint: "L'équipe a annulé l'alerte — la mesure était excessive.",
     tone: "zinc",
   },
   restored: {
@@ -43,8 +43,8 @@ export const MOD_ACTION = {
   warning: "Avertissement envoyé au joueur",
   block: "Publication refusée (non publié)",
   restrict: "Compte temporairement restreint",
-  ban: "Ban automatique appliqué",
-  ban_proposed: "Ban proposé — décision humaine requise",
+  ban: "Ban appliqué par la sentinelle",
+  ban_proposed: "Ban proposé — décision du Gardien Suprême requise",
   log: "Signal enregistré sans action",
 };
 

@@ -658,7 +658,7 @@ def _actor_payload(user: dict, *, action_source: str) -> dict:
         "username": user.get("username"),
         "display_name": user.get("display_name") or user.get("username"),
         "role": user.get("public_role") or user.get("role") or NARIA_PUBLIC_ROLE,
-        "actor_type": "system",
+        "actor_type": "sentinelle",
         "action_source": action_source,
     }
 
@@ -679,7 +679,7 @@ async def resolve_moderation_actor(db, content_type: str | None = None) -> dict:
             "username": defn.username,
             "display_name": defn.username,
             "role": defn.public_role,
-            "actor_type": "system",
+            "actor_type": "sentinelle",
             "action_source": key,
         }
     _moderation_actor_cache[key] = payload

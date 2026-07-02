@@ -34,8 +34,8 @@ function ActorPill({ log }) {
   const isStaff = source === "staff" || ["admin", "moderator", "staff"].includes(log.actorType);
   let cls = "bg-orange-500/15 text-orange-200 border-orange-500/30";
   let role = "Modérateur";
-  if (isNaria) { cls = "bg-violet-500/15 text-violet-200 border-violet-500/30"; role = "Sentinelle auto."; }
-  else if (isShumi) { cls = "bg-cyan-500/15 text-cyan-200 border-cyan-500/30"; role = "Modération auto."; }
+  if (isNaria) { cls = "bg-violet-500/15 text-violet-200 border-violet-500/30"; role = "Sentinelle"; }
+  else if (isShumi) { cls = "bg-cyan-500/15 text-cyan-200 border-cyan-500/30"; role = "Sentinelle"; }
   else if (isStaff) { role = "Équipe"; }
   return (
     <span className={`inline-flex flex-col gap-0.5 px-2 py-1 rounded-lg border text-[10px] uppercase tracking-wider ${cls}`}>

@@ -23,6 +23,42 @@ logger = logging.getLogger("nexoria.naria")
 
 NARIA_ACTOR = NARIA_USERNAME
 NARIA_ROLE = NARIA_PUBLIC_ROLE
+
+# Actions admin / gestion hors modération — exclues de la file sentinelles.
+NON_MODERATION_ACTION_TYPES = frozenset({
+    "role_grant",
+    "role_revoke",
+    "role_change",
+    "forum_pin",
+    "forum_unpin",
+    "forum_lock",
+    "forum_unlock",
+    "report_resolved",
+    "report_dismissed",
+    "score_reset",
+    "score_reduce",
+    "lift_restriction",
+})
+
+
+def merge_mongo_filters(*filters: dict) -> dict:
+    parts = [f for f in filters if f]
+    if not parts:
+        return {}
+    if len(parts) == 1:
+        return parts[0]
+    return {"$and": parts}
+
+
+def moderation_cases_filter() -> dict:
+    """Ne retient que les vrais cas de modération (contenu, sanctions, avertissements)."""
+    excluded = list(NON_MODERATION_ACTION_TYPES)
+    return {
+        "$and": [
+            {"actionType": {"$nin": excluded}},
+            {"action": {"$nin": excluded}},
+        ],
+    }
 MODERATION_ACTOR = NARIA_USERNAME
 MODERATION_ROLE = NARIA_PUBLIC_ROLE
 AUTO_BAN_ENABLED = False
@@ -115,7 +151,7 @@ async def _actor_fields(db, content_type: str = "generic") -> dict:
         "actorId": actor["user_id"],
         "actorName": actor["username"],
         "actorRole": actor["role"],
-        "actorType": actor.get("actor_type", "system"),
+        "actorType": actor.get("actor_type", "sentinelle"),
         "actionSource": source,
         "actor": actor["username"],
         "role": actor["role"],

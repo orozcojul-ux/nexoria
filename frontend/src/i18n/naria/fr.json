@@ -13,5 +13,5 @@
   "naria.restriction.temporary": "Tu ne peux plus publier temporairement. Temps restant : {minutes} min.",
   "naria.restriction.hour": "Tu ne peux plus publier temporairement (1 h). L'équipe a été alertée.",
   "naria.ban.notice": "Comportement grave détecté. Naria a signalé ton compte à l'équipe.",
-  "community.naria.official": "Modération automatisée officielle"
+  "community.naria.official": "Sentinelle officielle du Nexus"
 }

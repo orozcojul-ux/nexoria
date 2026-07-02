@@ -79,9 +79,9 @@ export const TRANSLATIONS_NARIA = {
     { es: "Comportamiento grave detectado.", de: "Schwerwiegendes Verhalten erkannt.", it: "Comportamento grave rilevato.", pt: "Comportamento grave detectado.", nl: "Ernstig gedrag gedetecteerd.", ja: "重大な行為が検出されました。" },
   ),
   "community.naria.official": T(
-    "Modération automatisée officielle",
-    "Official automated moderation",
-    { es: "Moderación automática oficial", de: "Offizielle automatisierte Moderation", it: "Moderazione automatizzata ufficiale", pt: "Moderação automatizada oficial", nl: "Officiële geautomatiseerde moderatie", ja: "公式自動モデレーション" },
+    "Sentinelle officielle du Nexus",
+    "Official Nexus Sentinel",
+    { es: "Centinela oficial del Nexus", de: "Offizielle Nexus-Sentinellin", it: "Sentinella ufficiale del Nexus", pt: "Sentinela oficial do Nexus", nl: "Officiële Nexus-Sentinell", ja: "ネクサス公式センチネル" },
   ),
   "community.naria.bio": T(
     "Naria veille sur le Nexus, analyse les échanges dans plusieurs langues et protège la communauté en temps réel.",

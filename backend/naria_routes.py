@@ -177,16 +177,23 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
 
     @api.get("/admin/moderation/dashboard")
     async def admin_moderation_dashboard(user: dict = Depends(get_supreme_council_dep)):
-        pending = await db.moderation_logs.count_documents({"status": "pending_review"})
+        mod_only = naria.moderation_cases_filter()
+        pending = await db.moderation_logs.count_documents(
+            naria.merge_mongo_filters(mod_only, {"status": "pending_review"}),
+        )
         warnings_24h = await db.moderation_warnings.count_documents({
             "createdAt": {"$gte": (now_utc() - timedelta(hours=24)).isoformat()},
         })
-        hidden = await db.moderation_logs.count_documents({"actionType": "hide"})
+        hidden = await db.moderation_logs.count_documents(
+            naria.merge_mongo_filters(mod_only, {"actionType": "hide"}),
+        )
         restricted = await db.users.count_documents({
             "moderation_restricted_until": {"$gt": now_utc().isoformat()},
         })
         high_scores = await db.moderation_user_scores.count_documents({"score": {"$gte": 5}})
-        bans = await db.moderation_logs.count_documents({"actionType": {"$in": ["ban", "ban_proposed"]}})
+        bans = await db.moderation_logs.count_documents(
+            naria.merge_mongo_filters(mod_only, {"actionType": {"$in": ["ban", "ban_proposed"]}}),
+        )
         return {
             "pending_alerts": pending,
             "warnings_recent": warnings_24h,
@@ -294,6 +301,7 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
                 q.update(await _resolve_sentinel_log_filter(db, sentinel))
             else:
                 q.update(_sentinel_log_filter(sentinel))
+        q = naria.merge_mongo_filters(naria.moderation_cases_filter(), q)
         return await db.moderation_logs.find(q, {"_id": 0}).sort("createdAt", -1).limit(min(limit, 200)).to_list(200)
 
     @api.get("/admin/moderation/warnings")
@@ -331,17 +339,7 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
 
     @api.post("/admin/moderation/scores/{user_id}/reset")
     async def admin_reset_score(user_id: str, user: dict = Depends(get_supreme_council_dep)):
-        target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "username": 1})
         await naria.reset_user_score(db, user_id)
-        await naria.log_staff_action(
-            db,
-            staff=user,
-            action_type="score_reset",
-            reason="Score réinitialisé",
-            target_user_id=user_id,
-            target_username=(target or {}).get("username"),
-            severity="low",
-        )
         return {"ok": True}
 
     class ReduceScoreReq(BaseModel):
@@ -349,18 +347,7 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
 
     @api.post("/admin/moderation/scores/{user_id}/reduce")
     async def admin_reduce_score(user_id: str, req: ReduceScoreReq, user: dict = Depends(get_supreme_council_dep)):
-        target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "username": 1})
         new_score = await naria.reduce_user_score(db, user_id, req.amount)
-        await naria.log_staff_action(
-            db,
-            staff=user,
-            action_type="score_reduce",
-            reason=f"Score réduit de {req.amount}",
-            target_user_id=user_id,
-            target_username=(target or {}).get("username"),
-            severity="low",
-            metadata={"amount": req.amount, "new_score": new_score},
-        )
         return {"ok": True, "score": new_score}
 
     @api.post("/admin/moderation/users/{user_id}/lift-restriction")
@@ -371,15 +358,6 @@ def register_naria_routes(api, *, db, get_user_dep, get_staff_dep, get_supreme_c
         from moderation_guards import require_restriction_active
         require_restriction_active(target)
         await naria.lift_restriction(db, user_id)
-        await naria.log_staff_action(
-            db,
-            staff=user,
-            action_type="lift_restriction",
-            reason="Restriction levée",
-            target_user_id=user_id,
-            target_username=target.get("username"),
-            severity="low",
-        )
         return {"ok": True}
 
     class ManualWarningReq(BaseModel):

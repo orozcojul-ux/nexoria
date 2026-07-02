@@ -86,7 +86,7 @@ export const TRANSLATIONS = {
   "admin.mod.panel.shumi": T("Shumi", "Shumi"),
   "admin.mod.panel.pm": T("Messagerie privée", "Private messages"),
   "admin.mod.section.sentinel": T("Sentinelles", "Sentinels"),
-  "admin.mod.section.auto": T("Modération auto", "Auto moderation"),
+  "admin.mod.section.auto": T("Sentinelles officielles", "Official sentinels"),
   "admin.mod.section.watch": T("Surveillance", "Monitoring"),
   "admin.mod.subtitle": T(
     "Naria, Shumi et chaque Sentinelle humaine (modérateur).",

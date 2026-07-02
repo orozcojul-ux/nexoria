@@ -141,7 +141,7 @@ export default function StaffMessagesModeration() {
 
       <p className="text-xs text-zinc-500 italic">
         Lecture réservée au staff — messagerie privée entre héros liés, commentaires fil et actualités.
-        Naria modère automatiquement ; masquez ici manuellement si besoin.
+        Naria veille sur le Nexus ; masquez ici manuellement si besoin.
       </p>
 
       {loading ? (
