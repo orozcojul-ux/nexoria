@@ -2831,7 +2831,6 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
             update["country_code"] = code
             update["country_source"] = "manual"
             update["country_synced_at"] = now_utc().isoformat()
-            discord_international.schedule_sync_country_role(db, user["user_id"], code)
     if "staff_nexus_auto_connect" in update:
         if user.get("role") not in ("admin", "moderator"):
             update.pop("staff_nexus_auto_connect", None)
@@ -2863,7 +2862,6 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         distinct_count = await db.user_languages.count_documents({"user_id": user["user_id"]})
         if distinct_count >= 2:
             await grant_badge(user["user_id"], "polyglot")
-        discord_international.schedule_sync_language_role(db, user["user_id"], update["language"])
 
     ops = {}
     if update:
@@ -2910,6 +2908,8 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
     sync_class_or_progress = "class_id" in update or "level" in update
     if sync_class_or_progress:
         discord_sync.schedule_sync(db, user["user_id"])
+    if "language" in update or "country_code" in raw:
+        discord_international.schedule_push_international_preferences(db, user["user_id"])
     if class_change_notify:
         username, old_name, new_name, is_initial = class_change_notify
         discord_rewards.schedule_class_change_notify(
@@ -9483,6 +9483,15 @@ async def discord_sync_me(user: dict = Depends(get_user_dep)):
         if fresh:
             result["user"] = public_user(fresh)
     return result
+
+
+@api.post("/discord/sync-preferences")
+async def discord_sync_preferences(user: dict = Depends(get_user_dep)):
+    """Push site language/country preferences to Discord roles."""
+    if not user.get("discord_id"):
+        return {"ok": False, "skipped": True, "reason": "no_discord_link"}
+    result = await discord_international.push_user_international_preferences(db, user["user_id"], user)
+    return {"ok": True, **result}
 
 
 @api.post("/admin/discord/sync-user/{target_user_id}")

@@ -1,12 +1,18 @@
 """Tests discord_international — préférences langue membre."""
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from discord_international import (
     country_flag_iso,
     country_spec,
     get_user_preferred_language,
     get_user_preferred_language_from_profile,
+    push_user_international_preferences,
     resolve_user_language,
     role_id_to_country,
     role_id_to_language,
+    sync_country_from_member,
     t_bot,
     valid_country_code,
 )
@@ -59,3 +65,43 @@ def test_country_spec_and_flag_iso():
     assert country_flag_iso("uk") == "gb"
     assert country_flag_iso("other") is None
     assert country_flag_iso("jp") == "jp"
+
+
+@pytest.mark.anyio
+async def test_sync_country_from_member_respects_manual_source(monkeypatch):
+    monkeypatch.setenv("DISCORD_ROLE_COUNTRY_FR_ID", "501")
+    db = MagicMock()
+    db.users.find_one = AsyncMock(return_value={
+        "country_code": "be",
+        "country_source": "manual",
+    })
+    result = await sync_country_from_member(db, "u1", {"roles": ["501"]})
+    assert result["updated"] is False
+    assert result["reason"] == "manual_country"
+
+
+@pytest.mark.anyio
+async def test_push_user_international_preferences(monkeypatch):
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", "token")
+    monkeypatch.setenv("DISCORD_GUILD_ID", "guild")
+    monkeypatch.setenv("DISCORD_ROLE_LANG_EN_ID", "111")
+    monkeypatch.setenv("DISCORD_ROLE_COUNTRY_BE_ID", "501")
+
+    db = MagicMock()
+    db.users.find_one = AsyncMock(return_value={
+        "discord_id": "123",
+        "language": "en",
+        "country_code": "be",
+        "country_source": "manual",
+    })
+
+    with patch("discord_international.apply_language_role", AsyncMock(return_value=True)) as lang_mock, \
+         patch("discord_international.apply_country_role", AsyncMock(return_value=True)) as country_mock:
+        result = await push_user_international_preferences(db, "u1")
+
+    assert result["language"] == "en"
+    assert result["country_code"] == "be"
+    assert result["language_applied"] is True
+    assert result["country_applied"] is True
+    lang_mock.assert_awaited_once_with(db, "u1", "en")
+    country_mock.assert_awaited_once_with(db, "u1", "be")

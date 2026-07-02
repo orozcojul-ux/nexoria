@@ -419,14 +419,14 @@ async def sync_discord_roles(db, user_id: str) -> dict:
                     msg = f"profile_updated; {profile_result.get('discord_display_name', '')}"
                 result.update({"ok": True, "applied": False, "reason": "no_change"})
                 await _log_sync(db, user_id, True, msg)
-                await discord_international.sync_language_role_if_missing(db, user_id, member, user)
                 user_fresh = await db.users.find_one(
                     {"user_id": user_id},
-                    {"country_code": 1, "_id": 0},
+                    {"discord_id": 1, "language": 1, "country_code": 1, "country_source": 1, "_id": 0},
                 )
-                await discord_international.sync_country_role_if_missing(
-                    db, user_id, member, user_fresh,
+                pref = await discord_international.push_user_international_preferences(
+                    db, user_id, user_fresh,
                 )
+                result["international"] = pref
                 return result
 
             await _modify_member_roles(
@@ -438,14 +438,14 @@ async def sync_discord_roles(db, user_id: str) -> dict:
                 db, user_id, True,
                 f"class={class_id or '-'}; tier={progression_name}; discord={profile_result.get('discord_display_name', '')}",
             )
-            await discord_international.sync_language_role_if_missing(db, user_id, member, user)
             user_fresh = await db.users.find_one(
                 {"user_id": user_id},
-                {"country_code": 1, "_id": 0},
+                {"discord_id": 1, "language": 1, "country_code": 1, "country_source": 1, "_id": 0},
             )
-            await discord_international.sync_country_role_if_missing(
-                db, user_id, member, user_fresh,
+            pref = await discord_international.push_user_international_preferences(
+                db, user_id, user_fresh,
             )
+            result["international"] = pref
             return result
     except Exception as e:
         result.update({"error": str(e)[:300]})

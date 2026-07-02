@@ -9,6 +9,7 @@ import { LANGS, LOCALE_MAP, LANG_CODES } from "@/lib/languages";
 import { persistLanguage, readStoredLanguage } from "@/i18n/index";
 import i18n, { appLangFromI18n, i18nLangFromApp } from "@/i18n/i18next";
 import { finalizeTranslation, sanitizeI18nVars } from "@/lib/i18n-safe";
+import { syncDiscordPreferences } from "@/lib/discord-preferences-sync";
 
 const LanguageContext = createContext(null);
 
@@ -40,7 +41,9 @@ function LanguageProviderInner({ children }) {
     applyAppLanguage(i18nInst, l);
     window.dispatchEvent(new CustomEvent("nexoria:language-changed", { detail: { language: l } }));
     if (getToken()) {
-      api.put("/profile", { language: l }).catch(() => {});
+      api.put("/profile", { language: l })
+        .then(() => syncDiscordPreferences())
+        .catch(() => {});
     }
   }, [i18nInst]);
 
@@ -52,7 +55,9 @@ function LanguageProviderInner({ children }) {
       applyAppLanguage(i18nInst, stored);
       const profileLang = user?.language && LANGS[user.language] ? user.language : null;
       if (profileLang && profileLang !== stored && getToken()) {
-        api.put("/profile", { language: stored }).catch(() => {});
+        api.put("/profile", { language: stored })
+          .then(() => syncDiscordPreferences())
+          .catch(() => {});
       }
       return;
     }

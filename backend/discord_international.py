@@ -314,15 +314,7 @@ async def apply_language_role(db, user_id: str, lang_code: str) -> bool:
 
 
 def schedule_sync_language_role(db, user_id: str, lang_code: str) -> None:
-    if not lang_code or not language_role_id(lang_code):
-        return
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return
-    task = loop.create_task(apply_language_role(db, user_id, lang_code))
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+    schedule_push_international_preferences(db, user_id)
 
 
 async def sync_language_from_member(db, user_id: str, member: dict, user: dict | None = None) -> dict:
@@ -347,6 +339,8 @@ async def sync_country_from_member(db, user_id: str, member: dict) -> dict:
         {"user_id": user_id},
         {"country_code": 1, "country_source": 1, "_id": 0},
     )
+    if (user or {}).get("country_source") == "manual":
+        return {"updated": False, "reason": "manual_country"}
     if (
         user
         and user.get("country_code") == role_country
@@ -403,13 +397,65 @@ async def apply_country_role(db, user_id: str, country_code: str) -> bool:
 
 
 def schedule_sync_country_role(db, user_id: str, country_code: str) -> None:
-    if not country_code or not country_role_id(country_code):
-        return
+    schedule_push_international_preferences(db, user_id)
+
+
+async def clear_country_roles(db, user_id: str) -> bool:
+    """Remove every configured country role from a linked Discord member."""
+    if not discord_sync.is_configured():
+        return False
+    user = await db.users.find_one({"user_id": user_id}, {"discord_id": 1, "_id": 0})
+    if not (user or {}).get("discord_id"):
+        return False
+    for spec in COUNTRY_SPECS:
+        rid = _env(spec["role_env"])
+        if not rid:
+            continue
+        await discord_sync.remove_extra_role(db, user_id, rid, reason="NEXORIA country cleared")
+    return True
+
+
+async def push_user_international_preferences(
+    db,
+    user_id: str,
+    user: dict | None = None,
+) -> dict:
+    """Push site language/country to Discord (site is source of truth when linked)."""
+    if not discord_sync.is_configured():
+        return {"skipped": True, "reason": "discord_not_configured"}
+    if user is None:
+        user = await db.users.find_one(
+            {"user_id": user_id},
+            {"discord_id": 1, "language": 1, "country_code": 1, "country_source": 1, "_id": 0},
+        )
+    if not user:
+        return {"skipped": True, "reason": "user_not_found"}
+    if not user.get("discord_id"):
+        return {"skipped": True, "reason": "no_discord_link"}
+
+    lang = get_user_preferred_language_from_profile(user)
+    lang_ok = await apply_language_role(db, user_id, lang)
+
+    code = (user.get("country_code") or "").strip().lower()
+    if code and valid_country_code(code):
+        country_ok = await apply_country_role(db, user_id, code)
+    else:
+        country_ok = await clear_country_roles(db, user_id)
+
+    return {
+        "language": lang,
+        "country_code": code or None,
+        "language_applied": lang_ok,
+        "country_applied": country_ok,
+    }
+
+
+def schedule_push_international_preferences(db, user_id: str) -> None:
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return
-    task = loop.create_task(apply_country_role(db, user_id, country_code))
+    task = loop.create_task(push_user_international_preferences(db, user_id))
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
 
