@@ -4,12 +4,13 @@
  */
 import React, { createContext, useContext, useEffect, useCallback, useMemo } from "react";
 import { I18nextProvider, useTranslation as useI18nNext } from "react-i18next";
-import api, { getToken } from "@/lib/api";
+import { getToken } from "@/lib/api";
 import { LANGS, LOCALE_MAP, LANG_CODES } from "@/lib/languages";
 import { persistLanguage, readStoredLanguage } from "@/i18n/index";
 import i18n, { appLangFromI18n, i18nLangFromApp } from "@/i18n/i18next";
 import { finalizeTranslation, sanitizeI18nVars } from "@/lib/i18n-safe";
-import { syncDiscordPreferences } from "@/lib/discord-preferences-sync";
+import { saveLanguagePreference } from "@/lib/save-preferences";
+import { updateUserPreferences } from "@/lib/user-preferences";
 
 const LanguageContext = createContext(null);
 
@@ -34,39 +35,6 @@ function LanguageProviderInner({ children }) {
   useEffect(() => {
     document.documentElement.lang = lang;
   }, [lang]);
-
-  const setLang = useCallback((l) => {
-    if (!LANGS[l]) return;
-    persistLanguage(l);
-    applyAppLanguage(i18nInst, l);
-    window.dispatchEvent(new CustomEvent("nexoria:language-changed", { detail: { language: l } }));
-    if (getToken()) {
-      api.put("/profile", { language: l })
-        .then(() => syncDiscordPreferences())
-        .catch(() => {});
-    }
-  }, [i18nInst]);
-
-  const syncFromUser = useCallback((user) => {
-    const stored = readStoredLanguage(LANG_CODES);
-
-    // Explicit local choice always wins over profile default (often "fr").
-    if (stored && LANGS[stored]) {
-      applyAppLanguage(i18nInst, stored);
-      const profileLang = user?.language && LANGS[user.language] ? user.language : null;
-      if (profileLang && profileLang !== stored && getToken()) {
-        api.put("/profile", { language: stored })
-          .then(() => syncDiscordPreferences())
-          .catch(() => {});
-      }
-      return;
-    }
-
-    if (user?.language && LANGS[user.language]) {
-      persistLanguage(user.language);
-      applyAppLanguage(i18nInst, user.language);
-    }
-  }, [i18nInst]);
 
   /** Backward-compatible t(key, vars?) or t(key, fallbackString) */
   const t = useCallback((key, varsOrFallback) => {
@@ -103,6 +71,35 @@ function LanguageProviderInner({ children }) {
     }
     return "—";
   }, [i18nT, lang]);
+
+  const setLang = useCallback((l) => {
+    if (!LANGS[l]) return;
+    persistLanguage(l);
+    applyAppLanguage(i18nInst, l);
+    window.dispatchEvent(new CustomEvent("nexoria:language-changed", { detail: { language: l } }));
+    if (getToken()) {
+      saveLanguagePreference(l, { t }).catch(() => {});
+    }
+  }, [i18nInst, t]);
+
+  const syncFromUser = useCallback((user) => {
+    const stored = readStoredLanguage(LANG_CODES);
+
+    // Explicit local choice always wins over profile default (often "fr").
+    if (stored && LANGS[stored]) {
+      applyAppLanguage(i18nInst, stored);
+      const profileLang = user?.language && LANGS[user.language] ? user.language : null;
+      if (profileLang && profileLang !== stored && getToken()) {
+        updateUserPreferences({ language: stored }).catch(() => {});
+      }
+      return;
+    }
+
+    if (user?.language && LANGS[user.language]) {
+      persistLanguage(user.language);
+      applyAppLanguage(i18nInst, user.language);
+    }
+  }, [i18nInst]);
 
   const fmtDate = useCallback((iso, opts = {}) => {
     if (!iso) return "—";

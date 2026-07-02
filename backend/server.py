@@ -93,6 +93,8 @@ import naria_moderation as naria
 from naria_routes import register_naria_routes
 from onboarding import register_onboarding_routes, ensure_indexes as ensure_onboarding_indexes
 import naria_system
+import user_preferences as user_preferences_service
+import discord_link_flow
 
 # ---------- DB ----------
 mongo_url = os.environ["MONGO_URL"]
@@ -1400,6 +1402,11 @@ class DiscordExchangeReq(BaseModel):
     referral_code: Optional[str] = None
 
 
+class DiscordLinkReq(BaseModel):
+    code: str = Field(..., min_length=1)
+    state: Optional[str] = Field(None, min_length=16, max_length=128)
+
+
 DISCORD_SIGNUP_XP_BONUS = int(os.environ.get("DISCORD_SIGNUP_XP_BONUS", "75"))
 DISCORD_SIGNUP_BADGE_ID = "discord_herald"
 # Discord role granted to heroes who reach the 25-referral milestone (optional).
@@ -2678,6 +2685,55 @@ class ProfileUpdateReq(BaseModel):
     nexus_chat_color: Optional[str] = Field(None, max_length=7)  # VIP: couleur tchat Nexus
 
 
+class UserPreferencesReq(BaseModel):
+    """Language/country preferences — stored on user profile + synced to Discord."""
+    language: Optional[str] = None
+    preferredLanguage: Optional[str] = None
+    country: Optional[str] = Field(None, max_length=12)
+    country_code: Optional[str] = Field(None, max_length=12)
+
+
+@api.patch("/users/me/preferences")
+async def patch_user_preferences(req: UserPreferencesReq, user: dict = Depends(get_user_dep)):
+    """Update language/country, persist in MongoDB, sync Discord roles."""
+    raw = req.model_dump(exclude_unset=True)
+    country_provided = "country" in raw or "country_code" in raw
+    try:
+        result = await user_preferences_service.save_user_preferences(
+            db,
+            user,
+            language=raw.get("language"),
+            preferred_language=raw.get("preferredLanguage"),
+            country=raw.get("country"),
+            country_code=raw.get("country_code"),
+            country_provided=country_provided,
+            sync_discord=True,
+        )
+    except user_preferences_service.PreferencesValidationError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    if "language" in raw or "preferredLanguage" in raw:
+        lang = result.get("language")
+        if lang:
+            await db.user_languages.update_one(
+                {"user_id": user["user_id"], "language": lang},
+                {"$set": {"last_used_at": now_utc().isoformat()},
+                 "$setOnInsert": {"user_id": user["user_id"], "language": lang, "first_used_at": now_utc().isoformat()}},
+                upsert=True,
+            )
+            distinct_count = await db.user_languages.count_documents({"user_id": user["user_id"]})
+            if distinct_count >= 2:
+                await grant_badge(user["user_id"], "polyglot")
+
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    payload = public_user(fresh or user)
+    payload["preferredLanguage"] = result.get("preferredLanguage")
+    payload["country"] = result.get("country")
+    payload["discordSyncStatus"] = result.get("discordSyncStatus")
+    payload["discordSync"] = result.get("discordSync")
+    return payload
+
+
 @api.get("/users/search")
 async def search_users(q: str, user: dict = Depends(get_user_dep)):
     q = (q or "").strip()
@@ -2908,8 +2964,17 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
     sync_class_or_progress = "class_id" in update or "level" in update
     if sync_class_or_progress:
         discord_sync.schedule_sync(db, user["user_id"])
+
+    discord_sync_result = None
     if "language" in update or "country_code" in raw:
-        discord_international.schedule_push_international_preferences(db, user["user_id"])
+        fresh_for_sync = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+        if fresh_for_sync:
+            discord_sync_result = await discord_international.sync_discord_language_country_roles(
+                db,
+                fresh_for_sync,
+                old_language=(user.get("language") or "").strip().lower() or None,
+                old_country=(user.get("country_code") or "").strip().lower() or None,
+            )
     if class_change_notify:
         username, old_name, new_name, is_initial = class_change_notify
         discord_rewards.schedule_class_change_notify(
@@ -2928,7 +2993,11 @@ async def update_profile(req: ProfileUpdateReq, user: dict = Depends(get_user_de
         await grant_xp(user["user_id"], 50, "story_written")
 
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
-    return public_user(fresh)
+    payload = public_user(fresh)
+    if discord_sync_result:
+        payload["discordSyncStatus"] = discord_sync_result.get("discordSyncStatus")
+        payload["discordSync"] = discord_sync_result
+    return payload
 
 
 @api.get("/profile/{username}")
@@ -6579,6 +6648,25 @@ def _discord_link_patch(existing: dict | None, profile: dict) -> dict:
     return patch
 
 
+async def _resolve_user_for_discord_link(request: Request, state: str | None) -> dict:
+    """Resolve NEXORIA user for Discord link — OAuth state (preferred) or live session."""
+    if state:
+        user_id = await discord_link_flow.consume_discord_oauth_state(db, state.strip(), purpose="link")
+        if not user_id:
+            raise HTTPException(
+                401,
+                detail={
+                    "code": "invalid_link_state",
+                    "message": "Liaison Discord expirée. Retournez dans Réglages et réessayez.",
+                },
+            )
+        user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+        if not user:
+            raise HTTPException(404, "Utilisateur introuvable")
+        return user
+    return await get_current_user(request, db)
+
+
 async def _create_maintenance_discord_user(profile: dict) -> dict:
     """Nouveau compte via Discord pendant la maintenance — lié dès la création."""
     user_id = generate_user_id()
@@ -6635,14 +6723,31 @@ async def discord_url():
     return {"url": discord_auth.build_authorize_url()}
 
 
+@api.get("/auth/discord/link-url")
+async def discord_link_url(user: dict = Depends(get_user_dep)):
+    """OAuth URL to link Discord to the current NEXORIA account (includes secure state)."""
+    if user.get("discord_id"):
+        raise HTTPException(
+            400,
+            detail={"code": "already_linked", "message": "Compte Discord déjà lié"},
+        )
+    if not discord_auth.is_configured():
+        raise HTTPException(503, detail={"code": "not_configured", "message": "Discord OAuth non configuré côté serveur"})
+    state = await discord_link_flow.create_discord_oauth_state(db, user["user_id"], purpose="link")
+    return {
+        "url": discord_auth.build_authorize_url(state=state),
+        "state": state,
+    }
+
+
 @api.post("/auth/discord/link")
 async def discord_link_account(
-    req: DiscordExchangeReq,
+    req: DiscordLinkReq,
     request: Request,
     response: Response,
-    user: dict = Depends(get_user_dep),
 ):
-    """Lie le compte Discord au profil NEXORIA déjà connecté (beta / réglages)."""
+    """Lie le compte Discord au profil NEXORIA (session ou jeton state OAuth)."""
+    user = await _resolve_user_for_discord_link(request, req.state)
     if user.get("discord_id"):
         raise HTTPException(
             400,
@@ -9488,10 +9593,8 @@ async def discord_sync_me(user: dict = Depends(get_user_dep)):
 @api.post("/discord/sync-preferences")
 async def discord_sync_preferences(user: dict = Depends(get_user_dep)):
     """Push site language/country preferences to Discord roles."""
-    if not user.get("discord_id"):
-        return {"ok": False, "skipped": True, "reason": "no_discord_link"}
-    result = await discord_international.push_user_international_preferences(db, user["user_id"], user)
-    return {"ok": True, **result}
+    result = await discord_international.sync_discord_language_country_roles(db, user)
+    return {"ok": result.get("discordSyncStatus") in ("success", "partial"), **result}
 
 
 @api.post("/admin/discord/sync-user/{target_user_id}")
@@ -9979,6 +10082,7 @@ async def startup():
     await db.users.create_index("user_id", unique=True)
     await db.users.create_index("username", unique=True)
     await db.user_sessions.create_index("session_token", unique=True)
+    await db.discord_oauth_states.create_index("state", unique=True)
     await db.posts.create_index("post_id", unique=True)
     await db.posts.create_index("created_at")
     await db.user_badges.create_index([("user_id", 1), ("badge_id", 1)], unique=True)

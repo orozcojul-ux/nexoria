@@ -45,18 +45,21 @@ def build_avatar_url(discord_user: dict, size: int = 256) -> str | None:
     return f"https://cdn.discordapp.com/avatars/{uid}/{avatar_hash}.{ext}?size={size}"
 
 
-def build_authorize_url() -> str:
+def build_authorize_url(*, state: str | None = None) -> str:
     """Construct the URL the user should be redirected to."""
     client_id = os.environ.get("DISCORD_CLIENT_ID", "")
     redirect = quote(os.environ.get("DISCORD_REDIRECT_URI", ""), safe="")
     scope = quote(OAUTH_SCOPES, safe="")
-    return (
+    url = (
         f"{DISCORD_API}/oauth2/authorize"
         f"?client_id={client_id}"
         f"&redirect_uri={redirect}"
         f"&response_type=code"
         f"&scope={scope}"
     )
+    if state:
+        url += f"&state={quote(state, safe='')}"
+    return url
 
 
 PROVISIONAL_EMAIL_DOMAIN = "@nexoria.local"

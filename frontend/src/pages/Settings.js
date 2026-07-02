@@ -183,8 +183,8 @@ function DiscordLinkSection({ user, refresh }) {
   const startDiscordOAuth = async () => {
     try {
       await startDiscordLinkOAuth();
-    } catch {
-      toast.error(t("login.discord_error"));
+    } catch (err) {
+      toast.error(formatApiError(err) || t("login.discord_error"));
     }
   };
 

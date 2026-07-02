@@ -1,12 +1,12 @@
 import React, { useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
-import api, { formatApiError } from "@/lib/api";
+import { formatApiError } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import FlagIcon from "@/components/FlagIcon";
 import { COUNTRIES } from "@/lib/countries";
 import { sfx } from "@/lib/sfx";
-import { syncDiscordPreferences } from "@/lib/discord-preferences-sync";
+import { saveCountryPreference } from "@/lib/save-preferences";
 
 export default function CountryPicker({ user, refresh, variant = "pills" }) {
   const { t } = useI18n();
@@ -20,11 +20,8 @@ export default function CountryPicker({ user, refresh, variant = "pills" }) {
     pickingRef.current = true;
     setSaving(true);
     try {
-      await api.put("/profile", { country_code: code });
+      await saveCountryPreference(code, { t, refresh });
       sfx.success();
-      toast.success(t("settings.country.changed"));
-      await syncDiscordPreferences();
-      await refresh?.();
     } catch (err) {
       toast.error(formatApiError(err) || t("settings.error.generic"));
     } finally {
@@ -37,11 +34,8 @@ export default function CountryPicker({ user, refresh, variant = "pills" }) {
     if (saving || !current) return;
     setSaving(true);
     try {
-      await api.put("/profile", { country_code: "" });
+      await saveCountryPreference("", { t, refresh });
       sfx.success();
-      toast.success(t("settings.country.cleared"));
-      await syncDiscordPreferences();
-      await refresh?.();
     } catch (err) {
       toast.error(formatApiError(err) || t("settings.error.generic"));
     } finally {

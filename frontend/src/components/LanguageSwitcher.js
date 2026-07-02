@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Globe, Check } from "lucide-react";
 import { toast } from "sonner";
+import { getToken } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import FlagIcon from "@/components/FlagIcon";
 
@@ -24,7 +25,9 @@ export default function LanguageSwitcher({ compact = false, variant = "dropdown"
     pickingRef.current = true;
     setOpen(false);
     setLang(code);
-    toast.success(t("settings.language_changed"));
+    if (!getToken()) {
+      toast.success(t("settings.language_changed"));
+    }
     window.setTimeout(() => { pickingRef.current = false; }, 400);
   };
 

@@ -89,19 +89,20 @@ async def test_push_user_international_preferences(monkeypatch):
 
     db = MagicMock()
     db.users.find_one = AsyncMock(return_value={
+        "user_id": "u1",
+        "username": "Hero",
         "discord_id": "123",
         "language": "en",
         "country_code": "be",
         "country_source": "manual",
     })
 
-    with patch("discord_international.apply_language_role", AsyncMock(return_value=True)) as lang_mock, \
-         patch("discord_international.apply_country_role", AsyncMock(return_value=True)) as country_mock:
+    with patch(
+        "discord_international.sync_discord_language_country_roles",
+        AsyncMock(return_value={"discordSyncStatus": "success", "rolesAdded": ["501:country:be"]}),
+    ) as sync_mock:
+        from discord_international import push_user_international_preferences
         result = await push_user_international_preferences(db, "u1")
 
-    assert result["language"] == "en"
-    assert result["country_code"] == "be"
-    assert result["language_applied"] is True
-    assert result["country_applied"] is True
-    lang_mock.assert_awaited_once_with(db, "u1", "en")
-    country_mock.assert_awaited_once_with(db, "u1", "be")
+    assert result["discordSyncStatus"] == "success"
+    sync_mock.assert_awaited_once()

@@ -9,7 +9,7 @@ import api, { formatApiError, extractBanDetail, setToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 import { useI18n } from "@/contexts/I18nContext";
-import { consumeDiscordLinkIntent, consumeDiscordLinkCredentials } from "@/lib/discordLink";
+import { consumeDiscordLinkIntent, consumeDiscordLinkCredentials, consumeDiscordLinkState, restoreTokenFromOAuthReturn } from "@/lib/discordLink";
 
 
 
@@ -152,8 +152,11 @@ export default function DiscordCallback() {
 
     (async () => {
 
+      restoreTokenFromOAuthReturn();
       const linkIntent = consumeDiscordLinkIntent();
       const linkCredentials = consumeDiscordLinkCredentials();
+      const linkState = consumeDiscordLinkState();
+      const oauthState = params.get("state") || linkState;
 
       try {
 
@@ -169,7 +172,7 @@ export default function DiscordCallback() {
             password: linkCredentials.password,
           }));
         } else if (linkIntent) {
-          ({ data } = await api.post("/auth/discord/link", { code }));
+          ({ data } = await api.post("/auth/discord/link", { code, state: oauthState || undefined }));
         } else {
           ({ data } = await api.post("/auth/discord/exchange", {
             code,
@@ -257,7 +260,7 @@ export default function DiscordCallback() {
 
         toast.error(formatApiError(err) || t("discord.callback.failed"));
 
-        navigate(linkIntent ? "/maintenance" : "/login");
+        navigate(linkIntent ? "/settings" : "/login");
 
       }
 
