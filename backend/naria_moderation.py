@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
@@ -11,9 +12,12 @@ from naria_language import detect_content_language, normalize_lang, resolve_user
 from naria_messages import get_message, hidden_placeholder, pick_user_message
 from naria_system import (
     NARIA_PUBLIC_ROLE,
+    NARIA_SYSTEM_KEY,
     NARIA_USERNAME,
     SHUMI_PUBLIC_ROLE,
     SHUMI_USERNAME,
+    is_official_sentinel,
+    is_system_user,
     resolve_moderation_actor,
     moderation_actor_system_key,
 )
@@ -61,7 +65,9 @@ def moderation_cases_filter() -> dict:
     }
 MODERATION_ACTOR = NARIA_USERNAME
 MODERATION_ROLE = NARIA_PUBLIC_ROLE
-AUTO_BAN_ENABLED = False
+AUTO_BAN_ENABLED = os.environ.get("NARIA_AUTO_BAN_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
+SENTINEL_AUTO_BAN_HOURS = max(1, int(os.environ.get("NARIA_AUTO_BAN_HOURS", "24") or "24"))
+SENTINEL_BAN_SCORE_THRESHOLD = max(5, int(os.environ.get("NARIA_BAN_SCORE_THRESHOLD", "8") or "8"))
 
 SCORE_DECAY_DAYS = 14
 SCORE_HALF_LIFE_DAYS = 7
@@ -116,6 +122,20 @@ def is_staff_user(user: dict | None) -> bool:
     if not user:
         return False
     return user.get("role") in ("admin", "moderator") or bool(user.get("is_nexus_supreme"))
+
+
+def is_moderation_exempt(user: dict | None) -> bool:
+    """Staff, sentinelles système et propriétaire — jamais sanctionnés par Naria/Shumi."""
+    if not user:
+        return False
+    if is_staff_user(user):
+        return True
+    if is_system_user(user) or is_official_sentinel(user):
+        return True
+    owner = os.environ.get("OWNER_USERNAME", "").strip()
+    if owner and (user.get("username") or "").strip() == owner:
+        return True
+    return False
 
 
 def account_age_days(user: dict | None) -> float:
@@ -263,6 +283,10 @@ def decide_action(
         action.warn = True
         action.block = True
         action.action = "block"
+        action.status = "blocked"
+        if AUTO_BAN_ENABLED and effective_score >= SENTINEL_BAN_SCORE_THRESHOLD:
+            action.auto_ban = True
+            action.action = "ban"
         key, msg = pick_user_message(
             analysis.hits, user_lang, block=True, hide=True, actor=actor_name,
         )
@@ -274,7 +298,12 @@ def decide_action(
     if analysis.max_severity == "critical" and conf >= 0.85 and effective_score >= 5:
         action.block = True
         action.warn = True
+        action.hide = True
         action.action = "block"
+        action.status = "blocked"
+        if AUTO_BAN_ENABLED and effective_score >= SENTINEL_BAN_SCORE_THRESHOLD:
+            action.auto_ban = True
+            action.action = "ban"
         key, msg = pick_user_message(analysis.hits, user_lang, block=True, actor=actor_name)
         action.user_message_key = key
         action.user_message = msg
@@ -299,19 +328,21 @@ def decide_action(
         action.hide = True
         action.warn = True
         action.restrict_minutes = 60
-        action.admin_alert = True
-        action.status = "pending_review"
         action.action = "restrict"
+        action.status = "applied"
+        if AUTO_BAN_ENABLED and effective_score >= SENTINEL_BAN_SCORE_THRESHOLD:
+            action.auto_ban = True
+            action.action = "ban"
     else:
         action.hide = True
         action.warn = True
-        action.admin_alert = True
-        action.propose_ban = True
-        action.status = "pending_review"
-        action.action = "propose_ban"
-        if AUTO_BAN_ENABLED and analysis.max_severity == "critical" and conf >= 0.92:
+        action.status = "applied"
+        if AUTO_BAN_ENABLED:
             action.auto_ban = True
             action.action = "ban"
+        else:
+            action.propose_ban = True
+            action.action = "propose_ban"
 
     key, msg = pick_user_message(
         analysis.hits, user_lang,
@@ -429,7 +460,7 @@ async def _build_action(
     is_duplicate: bool = False,
     content_type: str = "generic",
 ) -> tuple[AnalysisResult, ModerationAction] | None:
-    if is_staff_user(user):
+    if is_moderation_exempt(user):
         return None
 
     analysis = await _analyze(user, text, is_duplicate=is_duplicate, content_type=content_type)
@@ -502,8 +533,7 @@ async def preflight_content(
         return None
     analysis, action = built
     if action.block:
-        await _log_only(db, user, analysis, action, content_type, None, text)
-        await _send_moderation_warning(db, user, action, content_type=content_type)
+        await _apply_action(db, user, analysis, action, content_type, None, text)
         return action
     return None
 
@@ -714,7 +744,7 @@ async def _apply_action(db, user, analysis, action, content_type, content_id, te
     if content_id and action.hide:
         await hide_content(db, content_type, content_id, action.reason, user_lang, actor_name=actor_name)
 
-    if action.admin_alert or action.propose_ban:
+    if action.admin_alert or action.propose_ban or action.auto_ban:
         await push_staff_alert(
             db, "naria_alert", f"Alerte {actor_name}",
             f"{user.get('username')} [{user_lang}/{action.detected_language}] "
@@ -722,8 +752,18 @@ async def _apply_action(db, user, analysis, action, content_type, content_id, te
             sound="war", icon="Shield", link="/admin?tab=moderation",
         )
 
-    if action.auto_ban:
-        await apply_naria_ban(db, user, action.reason, hours=24, language=user_lang, actor=actor)
+    if action.auto_ban or (action.propose_ban and AUTO_BAN_ENABLED):
+        if not is_moderation_exempt(user):
+            banned = await apply_naria_ban(
+                db, user, action.reason,
+                hours=SENTINEL_AUTO_BAN_HOURS,
+                language=user_lang,
+                actor=actor,
+            )
+            if banned:
+                action.auto_ban = True
+                action.action = "ban"
+                action.status = "applied"
 
     payload = _log_payload(user, analysis, action, content_type, content_id, text, actor)
     payload.update({
@@ -838,9 +878,13 @@ async def restore_content(db, content_type: str, content_id: str) -> bool:
 
 
 async def apply_naria_ban(db, user: dict, reason: str, hours: int = 24, language: str = "fr", *, actor: dict | None = None) -> bool:
-    """Applique un ban site. Retourne False si le héros est déjà banni."""
+    """Applique un ban site immédiat (Naria / Shumi). Retourne False si déjà banni ou exempt."""
     import nexus_world
     from moderation_guards import is_site_ban_active
+
+    if is_moderation_exempt(user):
+        logger.info("Skip sentinel ban: exempt user %s", user.get("username"))
+        return False
 
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "banned_until": 1, "username": 1})
     if fresh and is_site_ban_active(fresh):
@@ -850,9 +894,12 @@ async def apply_naria_ban(db, user: dict, reason: str, hours: int = 24, language
     if actor is None:
         actor = await _actor_fields(db)
 
+    actor_name = actor.get("actorName") or NARIA_ACTOR
     banned_until = (now_utc() + timedelta(hours=hours)).isoformat()
     user_id = user["user_id"]
-    ban_reason = get_message("naria.ban.notice", language, actor=actor.get("actorName") or NARIA_ACTOR)[:300] if reason else reason[:300]
+    ban_reason = get_message("naria.ban.notice", language, actor=actor_name)[:300]
+    if reason and reason.strip():
+        ban_reason = f"{ban_reason} — {reason.strip()[:200]}"
     await db.users.update_one(
         {"user_id": user_id},
         {"$set": {"banned_until": banned_until, "ban_reason": ban_reason}},
@@ -867,16 +914,30 @@ async def apply_naria_ban(db, user: dict, reason: str, hours: int = 24, language
         "user_id": user_id,
         "username": user.get("username"),
         "banned_by": actor["actorId"],
-        "banned_by_name": actor["actorName"],
+        "banned_by_name": actor_name,
         "duration_hours": hours,
         "banned_until": banned_until,
         "reason": ban_reason,
         "created_at": now_iso(),
         "lifted": False,
-        "actor_type": actor.get("actorType", "system"),
-        "action_source": actor.get("actionSource", "shumi"),
+        "actor_type": actor.get("actorType", "sentinelle"),
+        "action_source": actor.get("actionSource", NARIA_SYSTEM_KEY if actor_name == NARIA_USERNAME else "shumi"),
         "language": language,
+        "source": "sentinel_auto",
     })
+    await push_notification(
+        db,
+        user_id,
+        "site_ban",
+        get_message("naria.title", language, actor=actor_name),
+        ban_reason,
+        sound="war",
+        icon="Shield",
+        link="/tickets",
+        actor_id=actor.get("actorId"),
+        actor_name=actor_name,
+        params={"banned_until": banned_until, "reason": ban_reason, "actor_name": actor_name},
+    )
     return True
 
 

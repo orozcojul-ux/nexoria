@@ -96,8 +96,24 @@ class TestNariaIntelligence:
         )
         assert mult < 1.0
 
-    def test_auto_ban_disabled(self):
-        assert naria.AUTO_BAN_ENABLED is False
+    def test_auto_ban_enabled_by_default(self):
+        assert naria.AUTO_BAN_ENABLED is True
+
+    def test_high_score_triggers_immediate_ban(self):
+        r = analyze_content("espèce de connard fils de pute", user_language="fr")
+        user = {"user_id": "u1", "username": "Toxic", "level": 3, "created_at": "2026-01-01T00:00:00+00:00"}
+        action = naria.decide_action(
+            12, r, user=user, score_doc={"score": 10, "warnings_count": 2},
+            content_type="nexus_room_chat",
+        )
+        assert action.auto_ban is True
+        assert action.action == "ban"
+        assert action.status in ("applied", "blocked")
+
+    def test_staff_exempt_from_moderation(self):
+        assert naria.is_moderation_exempt({"role": "admin", "username": "Sage"})
+        assert naria.is_moderation_exempt({"system_key": "naria", "is_system": True})
+        assert not naria.is_moderation_exempt({"username": "Hero", "role": "user"})
 
     def test_decay_score(self):
         from datetime import datetime, timezone, timedelta

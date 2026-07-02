@@ -232,7 +232,7 @@ export default function NariaModerationAdmin() {
                 {!dashboard.auto_ban_enabled && (
                   <div className="flex items-center gap-2 text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
-                    Mode prudent : confiance faible = log seul ; ban sentinelle désactivé.
+                    Mode prudent : confiance faible = log seul ; ban sentinelle désactivé (NARIA_AUTO_BAN_ENABLED=0).
                   </div>
                 )}
               </>
