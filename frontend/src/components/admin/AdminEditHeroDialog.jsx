@@ -88,6 +88,15 @@ export default function AdminEditHeroDialog({ target, onClose, onDone, t }) {
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  const titleOptions = useMemo(() => {
+    const list = [...titles];
+    const current = form.active_title;
+    if (current && !list.some((ti) => ti.id === current)) {
+      list.unshift({ id: current, name: `${current} (actuel)` });
+    }
+    return list;
+  }, [titles, form.active_title]);
+
   const meta = useMemo(() => [
     { label: "Rang", value: target.rank || "—" },
     { label: "Classe", value: target.class_name || "—" },
@@ -259,7 +268,7 @@ export default function AdminEditHeroDialog({ target, onClose, onDone, t }) {
             </Field>
             <Field label={FIELD_LABELS.active_title} className="sm:col-span-2">
               <select value={form.active_title} onChange={(e) => set("active_title", e.target.value)} className={inputCls} data-testid="edit-active_title">
-                {titles.map((ti) => (
+                {titleOptions.map((ti) => (
                   <option key={ti.id} value={ti.id}>{ti.name}</option>
                 ))}
               </select>

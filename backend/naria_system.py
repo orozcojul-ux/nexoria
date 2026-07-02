@@ -485,6 +485,56 @@ async def migrate_team_profile_user_id(db, new_user_id: str, *, legacy_user_id: 
     return 1
 
 
+async def ensure_system_sentinels(db) -> None:
+    """Crée ou resynchronise Naria et Shumi (idempotent — safe au démarrage serveur)."""
+    import logging
+
+    logger = logging.getLogger("nexoria.naria_system")
+    await ensure_indexes(db)
+
+    for system_key, defn in SENTINEL_REGISTRY.items():
+        existing = await find_system_sentinel(db, system_key)
+        doc = build_system_sentinel_document(
+            defn,
+            user_id=existing.get("user_id") if existing else None,
+            existing=existing,
+        )
+
+        if existing:
+            sync_keys = (
+                "system_key", "username", "display_name", "show_in_community_team", "show_in_team",
+                "is_moderation_actor", "is_system", "is_system_account", "can_login",
+                "public_role", "team_role", "is_active", "auth_provider", "account_type",
+            )
+            patch = {k: doc[k] for k in sync_keys if existing.get(k) != doc.get(k)}
+            if patch:
+                patch["updated_at"] = now_iso()
+                await db.users.update_one({"user_id": existing["user_id"]}, {"$set": patch})
+                logger.info("Sentinelle synchronisée (%s): %s", defn.username, ", ".join(patch.keys()))
+            user_id = existing["user_id"]
+        else:
+            collision = await db.users.find_one({
+                "username": doc["username"],
+                "system_key": {"$ne": doc["system_key"]},
+            })
+            if collision:
+                logger.warning(
+                    "Sentinelle %s non créée — username déjà pris (user_id=%s)",
+                    defn.username, collision.get("user_id"),
+                )
+                continue
+            await db.users.insert_one(doc)
+            user_id = doc["user_id"]
+            logger.info("Sentinelle système créée: %s (user_id=%s)", defn.username, user_id)
+
+        if system_key == NARIA_SYSTEM_KEY and defn.legacy_user_id:
+            migrated = await migrate_team_profile_user_id(
+                db, user_id, legacy_user_id=defn.legacy_user_id,
+            )
+            if migrated:
+                logger.info("Profil équipe Naria migré depuis %s", defn.legacy_user_id)
+
+
 async def ensure_indexes(db) -> None:
     await db.users.create_index("system_key", unique=True, sparse=True)
 
@@ -620,7 +670,9 @@ async def load_community_sentinels_for_team(db, profiles: dict, owner_username: 
         if not defn.show_in_community_team:
             continue
         user = await find_system_sentinel(db, key)
-        if not user or not user.get("show_in_community_team", True):
+        if not user:
+            continue
+        if not user.get("show_in_community_team", defn.show_in_community_team):
             continue
         row = merge_official_sentinel_team_row(user, profiles.get(user["user_id"]), owner_username)
         if row.get("team_visible", True):

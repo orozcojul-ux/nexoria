@@ -246,7 +246,15 @@ TITLES = [
     {"id": "ambassadeur_nexus", "name": "Ambassadeur du Nexus", "unlock_level": 1},
     {"id": "ascendant_nexus", "name": "Ascendant du Nexus", "unlock_level": 1},
     {"id": "beta_tester", "name": "Beta Testeur", "unlock_level": 1},
+    {"id": "sentinelle", "name": "Sentinelle", "unlock_level": 1},
 ]
+
+# Titres réservés aux comptes Sentinelles (Naria, Shumi) — non sélectionnables par les joueurs.
+SYSTEM_TITLES = frozenset({"sentinelle"})
+
+
+def all_title_ids() -> frozenset[str]:
+    return frozenset(t["id"] for t in TITLES)
 
 SHOP_ONLY_TITLES = frozenset({"starforged", "void_walker"})
 

@@ -40,7 +40,7 @@ from auth import (
 )
 from game_data import (
     CLASSES, SKILLS, KINGDOM_BUILDINGS, RARITIES, TITLES, BADGES, SHOP_ONLY_TITLES,
-    REFERRAL_TITLES, VIP_TITLES,
+    REFERRAL_TITLES, VIP_TITLES, SYSTEM_TITLES, all_title_ids,
     QUEST_TEMPLATES, ITEM_TEMPLATES, xp_for_level, level_from_xp, rank_from_level,
     COMMUNITY_CHALLENGES, class_portrait_path, is_class_portrait_url, normalize_class_id,
     resolve_class_id, class_repair_patch,
@@ -1767,6 +1767,8 @@ async def get_titles(user: dict = Depends(get_user_dep)):
     owned_ids = {r.get("title_id") for r in owned if r.get("title_id")}
     out = []
     for t in TITLES:
+        if t["id"] in SYSTEM_TITLES:
+            continue
         shop_only = t["id"] in SHOP_ONLY_TITLES
         requires_ownership = shop_only or t["id"] in REFERRAL_TITLES or t["id"] in VIP_TITLES
         if requires_ownership:
@@ -2997,6 +2999,10 @@ async def set_title(req: TitleReq, user: dict = Depends(get_user_dep)):
     title = next((t for t in TITLES if t["id"] == req.title_id), None)
     if not title:
         raise HTTPException(400, "Titre invalide")
+    if req.title_id in SYSTEM_TITLES:
+        from naria_system import is_official_sentinel
+        if not is_official_sentinel(user):
+            raise HTTPException(400, "Titre réservé")
     shop_owned = await db.user_titles.find_one({
         "user_id": user["user_id"],
         "$or": [{"title_id": req.title_id}, {"sku": f"title_{req.title_id}"}],
@@ -5241,8 +5247,7 @@ async def staff_update_user_profile(user_id: str, req: StaffProfileUpdateReq, us
         if not owned:
             raise HTTPException(400, "Ce cadre n'a pas été acquis par ce héros")
     if "active_title" in update:
-        title_ids = {t["id"] for t in TITLES}
-        if update["active_title"] not in title_ids:
+        if update["active_title"] not in all_title_ids():
             raise HTTPException(400, "Titre invalide")
     if "avatar_url" in update:
         update["avatar_url"] = upload_storage.normalize_public_media_url(update["avatar_url"])
@@ -6364,8 +6369,7 @@ async def admin_edit_user(user_id: str, req: UserEditReq, user: dict = Depends(g
             raise HTTPException(400, "Classe secondaire invalide")
         update["secondary_class_id"] = sec
     if "active_title" in update:
-        title_ids = {t["id"] for t in TITLES}
-        if update["active_title"] not in title_ids:
+        if update["active_title"] not in all_title_ids():
             raise HTTPException(400, "Titre invalide")
     if "skill_points" in update:
         if update["skill_points"] < 0 or update["skill_points"] > 9999:
@@ -7031,20 +7035,7 @@ class TeamMemberProfileReq(BaseModel):
 async def admin_get_team_page(user: dict = Depends(get_admin_dep)):
     """Liste staff + fiches présentation (sans modifier les rangs)."""
     settings = await team_page_service.get_team_page_settings(db)
-    profiles = await team_page_service.load_team_profiles_map(db)
-    staff_rows = await db.users.find(
-        {"role": {"$in": ["admin", "moderator"]}},
-        {"_id": 0, "user_id": 1, "username": 1, "display_name": 1, "role": 1,
-         "avatar_url": 1, "discord_avatar_url": 1, "level": 1, "class_name": 1},
-    ).to_list(100)
-    merged_rows = [
-        team_page_service.merge_team_member(u, profiles.get(u["user_id"]), OWNER_USERNAME)
-        for u in staff_rows
-    ]
-    merged_rows = team_page_service.sort_team_members(merged_rows)
-    for row in await team_page_service.load_community_team_sentinels(db, profiles, OWNER_USERNAME):
-        merged_rows.append(row)
-    merged_rows = team_page_service.sort_team_members(merged_rows)
+    merged_rows = await team_page_service.build_team_members(db, OWNER_USERNAME, include_hidden=True)
     members = [team_page_service.member_to_admin_dict(m) for m in merged_rows]
     return {"settings": settings, "members": members}
 
@@ -7066,11 +7057,11 @@ async def admin_update_team_page_settings(req: TeamPageSettingsReq, user: dict =
 
 @api.put("/admin/team-page/members/{user_id}")
 async def admin_update_team_member_profile(user_id: str, req: TeamMemberProfileReq, user: dict = Depends(get_admin_dep)):
-    is_naria, naria_user = await team_page_service.resolve_team_member_id(db, user_id)
-    if is_naria:
-        if not naria_user:
-            raise HTTPException(404, "Sentinelle introuvable — exécutez create_system_sentinels.py --apply")
-        user_id = naria_user["user_id"]
+    is_sentinel, sentinel_user = await team_page_service.resolve_team_member_id(db, user_id)
+    if is_sentinel:
+        if not sentinel_user:
+            raise HTTPException(404, "Sentinelle introuvable — redémarrez le serveur ou exécutez create_system_sentinels.py --apply")
+        user_id = sentinel_user["user_id"]
     else:
         target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "user_id": 1, "username": 1, "role": 1})
         if not target:
@@ -10007,6 +9998,10 @@ async def startup():
     await db.beta_applications.create_index([("status", 1), ("created_at", -1)])
     await naria.ensure_indexes(db)
     await naria_system.ensure_indexes(db)
+    try:
+        await naria_system.ensure_system_sentinels(db)
+    except Exception as e:
+        logger.warning("NEXORIA: sentinel sync skipped — %s", e)
     await ensure_onboarding_indexes(db)
     craft_service.register_craft_hooks(_craft_helpers())
     try:

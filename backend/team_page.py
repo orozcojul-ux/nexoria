@@ -182,28 +182,52 @@ async def load_community_team_sentinels(db, profiles: dict, owner_username: str)
     return await load_community_sentinels_for_team(db, profiles, owner_username)
 
 
-async def build_public_team(db, owner_username: str) -> tuple[dict, list[dict]]:
-    settings = await get_team_page_settings(db)
+async def build_team_members(
+    db,
+    owner_username: str,
+    *,
+    include_hidden: bool = False,
+) -> list[dict]:
     profiles = await load_team_profiles_map(db)
     staff_rows = await db.users.find(
         {"role": {"$in": ["admin", "moderator"]}},
         {"_id": 0, "user_id": 1, "username": 1, "display_name": 1, "role": 1,
+         "system_key": 1, "is_system": 1, "is_moderation_actor": 1,
          "avatar_url": 1, "discord_avatar_url": 1, "level": 1, "rank": 1,
-         "active_title": 1, "class_name": 1, "quote": 1, "bio": 1, "location": 1,
-         "public_role": 1, "team_role": 1},
-    ).to_list(50)
+         "active_title": 1, "class_id": 1, "class_name": 1, "quote": 1, "bio": 1,
+         "location": 1, "public_role": 1, "team_role": 1},
+    ).to_list(100)
 
-    merged = []
+    merged_by_id: dict[str, dict] = {}
+
+    def _upsert(row: dict) -> None:
+        if not include_hidden and not row.get("team_visible", True):
+            return
+        uid = row.get("user_id")
+        if not uid:
+            return
+        prev = merged_by_id.get(uid)
+        if prev is None:
+            merged_by_id[uid] = row
+            return
+        if row.get("is_official_sentinel") and not prev.get("is_official_sentinel"):
+            merged_by_id[uid] = row
+
     for u in staff_rows:
-        row = merge_team_member(u, profiles.get(u["user_id"]), owner_username)
-        if row.get("team_visible", True):
-            merged.append(row)
+        if is_official_sentinel(u):
+            continue
+        _upsert(merge_team_member(u, profiles.get(u["user_id"]), owner_username))
 
-    naria_rows = await load_community_team_sentinels(db, profiles, owner_username)
-    for row in naria_rows:
-        merged.append(row)
+    for row in await load_community_team_sentinels(db, profiles, owner_username):
+        _upsert(row)
 
-    return settings, sort_team_members(merged)
+    return sort_team_members(list(merged_by_id.values()))
+
+
+async def build_public_team(db, owner_username: str) -> tuple[dict, list[dict]]:
+    settings = await get_team_page_settings(db)
+    members = await build_team_members(db, owner_username, include_hidden=False)
+    return settings, members
 
 
 def member_to_admin_dict(m: dict) -> dict:

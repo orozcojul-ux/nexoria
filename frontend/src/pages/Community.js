@@ -109,10 +109,11 @@ function TeamMemberCard({ member }) {
 
           {isHumanModerator ? (
             <div className="team-card-badges">
-              <span className="team-card-pill team-card-pill--mod">{gradeLabel}</span>
-              {member.team_moderator_trial && (
-                <span className="team-card-pill team-card-pill--trial">{t("community.teamModerator.trialShort")}</span>
-              )}
+              <span className={`team-card-pill ${member.team_moderator_trial ? "team-card-pill--trial" : "team-card-pill--mod"}`}>
+                {member.team_moderator_trial
+                  ? t("community.teamModerator.trial")
+                  : t("community.teamModerator.label")}
+              </span>
             </div>
           ) : isOfficialSentinel ? (
             <div className="team-card-badges">

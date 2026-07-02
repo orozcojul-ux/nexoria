@@ -20,6 +20,12 @@ from naria_system import (
 )
 
 
+def test_sentinelle_title_in_catalog():
+    from game_data import all_title_ids, SYSTEM_TITLES
+    assert "sentinelle" in all_title_ids()
+    assert "sentinelle" in SYSTEM_TITLES
+
+
 def test_build_naria_document_has_required_fields():
     doc = build_naria_document()
     assert doc["username"] == NARIA_USERNAME

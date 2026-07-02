@@ -38,7 +38,7 @@ function TeamCardPreview({ member, form, t }) {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  const showModBadge = member.is_official_sentinel || member.role === "moderator";
+  const showModBadge = member.role === "moderator" && !member.is_official_sentinel;
   const modBadgeLabel = form.moderator_trial
     ? t("community.teamModerator.trial")
     : t("community.teamModerator.label");
@@ -236,11 +236,13 @@ export default function TeamPageAdmin() {
             const visuals = getStaffVisuals(m);
             const active = selectedId === m.user_id;
             const avatar = m.is_automated_sentinel ? null : getUserAvatarUrl(m);
-            const gradeLabel = (m.is_official_sentinel || m.role === "moderator")
-              ? (m.profile?.moderator_trial ? t("community.teamModerator.trial") : t("community.teamModerator.label"))
-              : m.is_nexus_supreme
-                ? "Gardien Suprême"
-                : (visuals?.label || m.role);
+            const gradeLabel = m.is_official_sentinel
+              ? (m.system_key === "shumi" ? t("community.shumi.badge") : t("community.naria.badge"))
+              : m.role === "moderator"
+                ? (m.profile?.moderator_trial ? t("community.teamModerator.trial") : t("community.teamModerator.label"))
+                : m.is_nexus_supreme
+                  ? "Gardien Suprême"
+                  : (visuals?.label || m.role);
             const accent = getStaffVisuals(m)?.color || (visuals?.color || "#888");
             return (
               <button
@@ -330,7 +332,7 @@ export default function TeamPageAdmin() {
                 <input className={inputCls} value={form.specialtiesText ?? (form.specialties || []).join(", ")} onChange={(e) => setForm((f) => ({ ...f, specialtiesText: e.target.value }))} placeholder="Modération, Discord, Événements" data-testid="team-member-specialties" />
               </Field>
 
-              {(selected.is_official_sentinel || selected.role === "moderator") && (
+              {selected.role === "moderator" && !selected.is_official_sentinel && (
                 <label className="flex items-start gap-3 cursor-pointer rounded-lg border border-orange-500/25 bg-orange-500/[0.06] px-3 py-3">
                   <input
                     type="checkbox"
