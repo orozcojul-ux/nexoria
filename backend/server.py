@@ -5834,13 +5834,11 @@ async def create_ecu_checkout(req: EcusCheckoutReq, user: dict = Depends(get_use
         raise HTTPException(503, "Le paiement par carte n'est pas encore configuré. Réessayez bientôt.")
     frontend = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
     total_ecus = pack["ecus"] + pack.get("bonus", 0)
+    order_id = f"ecu_{uuid.uuid4().hex[:12]}"
     try:
         session = _stripe.checkout.Session.create(
             mode="payment",
-            # Ne pas lister payment_method_types : laisser Stripe afficher
-            # automatiquement tous les moyens activés dans le Dashboard
-            # (Google Pay, Apple Pay, Link, CB, etc.) selon l'éligibilité client.
-            automatic_payment_methods={"enabled": True},
+            payment_method_types=["card"],
             line_items=[{
                 "quantity": 1,
                 "price_data": {
@@ -5859,16 +5857,29 @@ async def create_ecu_checkout(req: EcusCheckoutReq, user: dict = Depends(get_use
                 "user_id": user["user_id"],
                 "pack_id": pack["id"],
                 "ecus": str(total_ecus),
+                "order_id": order_id,
             },
         )
         logger.info(
-            "[stripe] Checkout créé avec automatic_payment_methods — session %s pack %s (%s Écus)",
-            session.id, pack["id"], total_ecus,
+            "[stripe] Checkout créé — session %s pack %s (%s Écus) user %s",
+            session.id, pack["id"], total_ecus, user["user_id"],
         )
     except Exception as e:
-        logger.error(f"[stripe] checkout create failed: {e}")
-        raise HTTPException(502, "Impossible de créer la session de paiement.")
+        stripe_code = getattr(e, "code", None)
+        stripe_message = getattr(e, "user_message", None) or str(e)
+        logger.error(
+            "[stripe] checkout create failed code=%s message=%s pack_id=%s user_id=%s",
+            stripe_code, stripe_message, pack["id"], user["user_id"],
+        )
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": "stripe_checkout_failed",
+                "message": "Impossible de créer la session de paiement.",
+            },
+        )
     await db.ecu_orders.insert_one({
+        "order_id": order_id,
         "session_id": session.id,
         "user_id": user["user_id"],
         "pack_id": pack["id"],
