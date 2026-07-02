@@ -16,6 +16,7 @@ const EMPTY_PROFILE = {
   bio: "",
   specialties: [],
   moderator_trial: false,
+  sentinelle_trial: false,
 };
 
 function Field({ label, hint, children }) {
@@ -39,9 +40,13 @@ function TeamCardPreview({ member, form, t }) {
     .map((s) => s.trim())
     .filter(Boolean);
   const showModBadge = member.role === "moderator" && !member.is_official_sentinel;
+  const showSentinelBadge = member.is_official_sentinel;
   const modBadgeLabel = form.moderator_trial
     ? t("community.teamModerator.trial")
     : t("community.teamModerator.label");
+  const sentinelBadgeLabel = form.sentinelle_trial
+    ? t("community.teamSentinelle.trial")
+    : (member.system_key === "shumi" ? t("community.shumi.badge") : t("community.naria.badge"));
 
   return (
     <div
@@ -68,6 +73,11 @@ function TeamCardPreview({ member, form, t }) {
           {showModBadge && (
             <p className="text-[10px] font-bold uppercase tracking-wider mt-1" style={{ color: accent }}>
               {modBadgeLabel}
+            </p>
+          )}
+          {showSentinelBadge && (
+            <p className="text-[10px] font-bold uppercase tracking-wider mt-1" style={{ color: accent }}>
+              {sentinelBadgeLabel}
             </p>
           )}
           {form.nationality && (
@@ -174,6 +184,7 @@ export default function TeamPageAdmin() {
         bio: form.bio,
         specialties,
         moderator_trial: Boolean(form.moderator_trial),
+        sentinelle_trial: Boolean(form.sentinelle_trial),
       });
       setMembers((prev) => prev.map((m) => (
         m.user_id === selectedId ? { ...m, profile: data } : m
@@ -237,7 +248,7 @@ export default function TeamPageAdmin() {
             const active = selectedId === m.user_id;
             const avatar = m.is_automated_sentinel ? null : getUserAvatarUrl(m);
             const gradeLabel = m.is_official_sentinel
-              ? (m.system_key === "shumi" ? t("community.shumi.badge") : t("community.naria.badge"))
+              ? (m.profile?.sentinelle_trial ? t("community.teamSentinelle.trial") : (m.system_key === "shumi" ? t("community.shumi.badge") : t("community.naria.badge")))
               : m.role === "moderator"
                 ? (m.profile?.moderator_trial ? t("community.teamModerator.trial") : t("community.teamModerator.label"))
                 : m.is_nexus_supreme
@@ -345,6 +356,24 @@ export default function TeamPageAdmin() {
                     <span className="text-sm text-orange-100 font-semibold block">Modérateur(trice) en test</span>
                     <span className="text-[11px] text-zinc-500 block mt-0.5">
                       Affiche « Modérateur(trice) en test » sur la carte publique au lieu de « Modérateur(trice) ».
+                    </span>
+                  </span>
+                </label>
+              )}
+
+              {selected.is_official_sentinel && (
+                <label className="flex items-start gap-3 cursor-pointer rounded-lg border border-violet-500/25 bg-violet-500/[0.06] px-3 py-3">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={Boolean(form.sentinelle_trial)}
+                    onChange={(e) => setForm((f) => ({ ...f, sentinelle_trial: e.target.checked }))}
+                    data-testid="team-member-sentinelle-trial"
+                  />
+                  <span>
+                    <span className="text-sm text-violet-100 font-semibold block">Sentinelle en test</span>
+                    <span className="text-[11px] text-zinc-500 block mt-0.5">
+                      Affiche « Sentinelle en test » sur la carte publique (Naria, Shumi…).
                     </span>
                   </span>
                 </label>

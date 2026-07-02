@@ -380,6 +380,27 @@ a.team-card--clickable:focus-visible {
   object-fit: cover;
 }
 
+.team-card-country-flag {
+  position: absolute;
+  bottom: 0.1rem;
+  right: -0.2rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+  line-height: 0;
+  pointer-events: none;
+}
+
+.team-card-country-flag img {
+  display: block;
+}
+
 .team-card-profile-hint {
   position: absolute;
   bottom: -0.35rem;

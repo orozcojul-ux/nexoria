@@ -624,6 +624,9 @@ export const TRANSLATIONS_PAGES_EXT = {
   "community.teamModerator.trial": T("Modérateur(trice) en test", "Moderator (trial)", {
     es: "Moderador(a) en prueba", de: "Moderator(in) in Test", it: "Moderatore/trice in prova", pt: "Moderador(a) em teste", nl: "Moderator in test", ja: "モデレーター（試用）",
   }),
+  "community.teamSentinelle.trial": T("Sentinelle en test", "Sentinel (trial)", {
+    es: "Centinela en prueba", de: "Sentinelle in Test", it: "Sentinella in prova", pt: "Sentinela em teste", nl: "Sentinelle in test", ja: "センチネル（試用）",
+  }),
   "community.naria.automated": T("Officielle", "Official", {
     es: "Oficial", de: "Offiziell", it: "Ufficiale", pt: "Oficial", nl: "Officieel", ja: "公式",
   }),

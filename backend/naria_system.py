@@ -64,6 +64,8 @@ class SystemSentinelDef:
     show_in_team: bool
     is_moderation_actor: bool
     is_official_sentinel: bool
+    default_country_code: str = ""
+    default_nationality: str = ""
 
 
 SENTINEL_REGISTRY: dict[str, SystemSentinelDef] = {
@@ -82,6 +84,8 @@ SENTINEL_REGISTRY: dict[str, SystemSentinelDef] = {
         show_in_team=True,
         is_moderation_actor=True,
         is_official_sentinel=True,
+        default_country_code="fr",
+        default_nationality="France",
     ),
     SHUMI_SYSTEM_KEY: SystemSentinelDef(
         system_key=SHUMI_SYSTEM_KEY,
@@ -98,6 +102,8 @@ SENTINEL_REGISTRY: dict[str, SystemSentinelDef] = {
         show_in_team=True,
         is_moderation_actor=True,
         is_official_sentinel=True,
+        default_country_code="us",
+        default_nationality="USA",
     ),
 }
 
@@ -382,6 +388,8 @@ def build_system_sentinel_document(
         "following": 0,
         "beta_access": False,
     }
+    if defn.default_country_code:
+        doc["country_code"] = defn.default_country_code
 
     if existing:
         if existing.get("password_hash"):
@@ -419,13 +427,20 @@ build_vigile_document = build_shumi_document
 
 def merge_official_sentinel_team_row(user: dict, profile: dict | None, owner_username: str) -> dict:
     """Merge team_page profile onto an official community sentinel."""
-    from team_page import normalize_member_profile
+    from team_page import normalize_member_profile, resolve_team_country_fields
 
     p = normalize_member_profile(profile)
     tagline = p["tagline"] or user.get("quote") or ""
     bio = p["bio"] or user.get("bio") or ""
     role_label = p["role_label"] or user.get("public_role") or user.get("team_role") or "Sentinelle"
     defn = get_sentinel_def(user.get("system_key"))
+    default_country = defn.default_country_code if defn else ""
+    default_nationality = defn.default_nationality if defn else ""
+    nationality, country_code = resolve_team_country_fields(
+        user, profile,
+        default_country=default_country,
+        default_nationality=default_nationality,
+    )
     row = {
         **user,
         "is_nexus_supreme": False,
@@ -435,13 +450,15 @@ def merge_official_sentinel_team_row(user: dict, profile: dict | None, owner_use
         "active_title_name": "Sentinelle",
         "team_profile": p,
         "team_role_label": role_label,
-        "team_nationality": p["nationality"] or user.get("location") or "",
+        "team_nationality": nationality,
+        "team_country_code": country_code,
         "team_tagline": tagline,
         "team_bio": bio,
         "team_specialties": p["specialties"],
         "team_visible": p["visible"] if profile else user.get("show_in_community_team", True),
         "team_sort_order": p["sort_order"],
         "team_moderator_trial": p["moderator_trial"],
+        "team_sentinelle_trial": p["sentinelle_trial"],
     }
     if is_shumi_sentinel(user):
         row = apply_shumi_display_identity(row)
@@ -505,6 +522,7 @@ async def ensure_system_sentinels(db) -> None:
                 "system_key", "username", "display_name", "show_in_community_team", "show_in_team",
                 "is_moderation_actor", "is_system", "is_system_account", "can_login",
                 "public_role", "team_role", "is_active", "auth_provider", "account_type",
+                "country_code",
             )
             patch = {k: doc[k] for k in sync_keys if existing.get(k) != doc.get(k)}
             if patch:
@@ -533,6 +551,18 @@ async def ensure_system_sentinels(db) -> None:
             )
             if migrated:
                 logger.info("Profil équipe Naria migré depuis %s", defn.legacy_user_id)
+
+        if defn.default_nationality:
+            existing_profile = await db.team_page_profiles.find_one({"user_id": user_id}, {"_id": 0, "nationality": 1})
+            if not (existing_profile or {}).get("nationality"):
+                await db.team_page_profiles.update_one(
+                    {"user_id": user_id},
+                    {
+                        "$set": {"nationality": defn.default_nationality, "updated_by": "system"},
+                        "$setOnInsert": {"visible": True, "sort_order": 50},
+                    },
+                    upsert=True,
+                )
 
 
 async def ensure_indexes(db) -> None:

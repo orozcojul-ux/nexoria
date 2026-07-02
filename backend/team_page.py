@@ -27,11 +27,87 @@ DEFAULT_MEMBER_PROFILE = {
     "sort_order": 100,
     "role_label": "",
     "nationality": "",
+    "country_code": "",
     "tagline": "",
     "bio": "",
     "specialties": [],
     "moderator_trial": False,
+    "sentinelle_trial": False,
 }
+
+NATIONALITY_COUNTRY_ALIASES = {
+    "france": "fr",
+    "belgique": "be",
+    "suisse": "ch",
+    "canada": "ca",
+    "usa": "us",
+    "états-unis": "us",
+    "etats-unis": "us",
+    "united states": "us",
+    "royaume-uni": "uk",
+    "espagne": "es",
+    "allemagne": "de",
+    "italie": "it",
+    "brésil": "br",
+    "bresil": "br",
+    "pays-bas": "nl",
+    "japon": "jp",
+}
+
+
+def nationality_to_country_code(nationality: str) -> str:
+    key = (nationality or "").strip().lower()
+    return NATIONALITY_COUNTRY_ALIASES.get(key, "")
+
+
+def country_code_to_label(code: str) -> str:
+    from discord_international import country_spec
+
+    key = (code or "").strip().lower()
+    if not key or key == "other":
+        return ""
+    spec = country_spec(key)
+    if not spec:
+        return ""
+    name = spec.get("name") or ""
+    if " — " in name:
+        return name.split(" — ", 1)[1].strip()
+    return name.strip()
+
+
+def resolve_team_country_fields(
+    user: dict,
+    profile: dict | None,
+    *,
+    default_country: str = "",
+    default_nationality: str = "",
+) -> tuple[str, str]:
+    p = normalize_member_profile(profile)
+    admin_nationality = p["nationality"]
+    user_code = (user.get("country_code") or "").strip().lower()
+    profile_code = (p.get("country_code") or "").strip().lower()
+    default_code = (default_country or "").strip().lower()
+
+    country_code = (
+        user_code
+        or profile_code
+        or default_code
+        or nationality_to_country_code(admin_nationality)
+    )
+
+    nationality = admin_nationality
+    loc = (user.get("location") or "").strip()
+    if not nationality and loc and loc.lower() not in ("le nexus", "nexus"):
+        nationality = loc
+    if not nationality and country_code:
+        nationality = country_code_to_label(country_code)
+    if not nationality:
+        nationality = default_nationality or ""
+
+    if not country_code and nationality:
+        country_code = nationality_to_country_code(nationality)
+
+    return nationality, country_code
 
 PLAYABLE_CLASS_IDS = tuple(CLASSES.keys())
 
@@ -112,8 +188,10 @@ def normalize_member_profile(doc: dict | None) -> dict:
         base["sort_order"] = 100
     for key in ("role_label", "nationality", "tagline", "bio"):
         base[key] = str(doc.get(key) or "").strip()
+    base["country_code"] = str(doc.get("country_code") or "").strip().lower()
     base["specialties"] = normalize_specialties(doc.get("specialties"))
     base["moderator_trial"] = bool(doc.get("moderator_trial", False))
+    base["sentinelle_trial"] = bool(doc.get("sentinelle_trial", False))
     return base
 
 
@@ -140,19 +218,22 @@ def merge_team_member(user: dict, profile: dict | None, owner_username: str) -> 
     is_supreme = (user.get("username") or "").lower() == (owner_username or "").lower()
     tagline = p["tagline"] or user.get("quote") or ""
     bio = p["bio"] or user.get("bio") or ""
+    nationality, country_code = resolve_team_country_fields(user, profile)
     row = {
         **user,
         "is_nexus_supreme": is_supreme,
         "active_title_name": title_doc["name"] if title_doc else title_id.replace("_", " ").title(),
         "team_profile": p,
         "team_role_label": p["role_label"] or user.get("public_role") or user.get("team_role") or "",
-        "team_nationality": p["nationality"] or user.get("location") or "",
+        "team_nationality": nationality,
+        "team_country_code": country_code,
         "team_tagline": tagline,
         "team_bio": bio,
         "team_specialties": p["specialties"],
         "team_visible": p["visible"],
         "team_sort_order": p["sort_order"],
         "team_moderator_trial": p["moderator_trial"],
+        "team_sentinelle_trial": p["sentinelle_trial"],
     }
     if is_official_sentinel(user):
         return apply_team_card_class(merge_official_sentinel_team_row(user, profile, owner_username), user)
@@ -193,6 +274,7 @@ async def build_team_members(
         {"role": {"$in": ["admin", "moderator"]}},
         {"_id": 0, "user_id": 1, "username": 1, "display_name": 1, "role": 1,
          "system_key": 1, "is_system": 1, "is_moderation_actor": 1,
+         "country_code": 1,
          "avatar_url": 1, "discord_avatar_url": 1, "level": 1, "rank": 1,
          "active_title": 1, "class_id": 1, "class_name": 1, "quote": 1, "bio": 1,
          "location": 1, "public_role": 1, "team_role": 1},

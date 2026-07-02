@@ -68,8 +68,70 @@ async def test_build_team_includes_official_sentinels():
     assert mod_row["team_moderator_trial"] is True
 
 
+def test_merge_sentinelle_trial_on_official_sentinel():
+    from naria_system import merge_official_sentinel_team_row
+
+    shumi = {
+        "user_id": "usr_shumi",
+        "username": "Shumi",
+        "system_key": "shumi",
+        "role": "sentinelle",
+        "bio": "Bio",
+        "location": "Le Nexus",
+        "country_code": "us",
+    }
+    profile = normalize_member_profile({"user_id": "usr_shumi", "sentinelle_trial": True, "visible": True})
+    row = merge_official_sentinel_team_row(shumi, profile, "Owner")
+    assert row["team_sentinelle_trial"] is True
+    assert row["team_country_code"] == "us"
+    assert row["team_nationality"] == "USA"
+
+
+def test_official_sentinels_default_country_flags():
+    from naria_system import merge_official_sentinel_team_row
+
+    naria = {
+        "user_id": "usr_naria",
+        "username": "Naria",
+        "system_key": "naria",
+        "role": "sentinelle",
+        "location": "Le Nexus",
+        "country_code": "fr",
+    }
+    shumi = {
+        "user_id": "usr_shumi",
+        "username": "Shumi",
+        "system_key": "shumi",
+        "role": "sentinelle",
+        "location": "Le Nexus",
+        "country_code": "us",
+    }
+
+    naria_row = merge_official_sentinel_team_row(naria, None, "Owner")
+    shumi_row = merge_official_sentinel_team_row(shumi, None, "Owner")
+
+    assert naria_row["team_country_code"] == "fr"
+    assert naria_row["team_nationality"] == "France"
+    assert shumi_row["team_country_code"] == "us"
+    assert shumi_row["team_nationality"] == "USA"
+
+
 def test_merge_team_member_exposes_moderator_trial():
     user = {"user_id": "u1", "username": "TrialMod", "role": "moderator", "level": 5}
     profile = normalize_member_profile({"user_id": "u1", "moderator_trial": True, "visible": True})
     row = merge_team_member(user, profile, "Owner")
     assert row["team_moderator_trial"] is True
+
+
+def test_merge_team_member_uses_settings_country_for_staff():
+    user = {
+        "user_id": "u2",
+        "username": "BelgianMod",
+        "role": "moderator",
+        "level": 12,
+        "country_code": "be",
+        "location": "Le Nexus",
+    }
+    row = merge_team_member(user, None, "Owner")
+    assert row["team_country_code"] == "be"
+    assert row["team_nationality"] == "Belgique"

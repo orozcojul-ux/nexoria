@@ -8,7 +8,9 @@ import api from "@/lib/api";
 import { PageShell } from "@/components/ui-premium";
 import HeroName from "@/components/HeroName";
 import HeroCardOpener from "@/components/HeroCardOpener";
+import FlagIcon from "@/components/FlagIcon";
 import { getUserAvatarUrl } from "@/lib/user-avatar";
+import { countryFlagCode } from "@/lib/countries";
 import { getStaffVisuals, NEXUS_SUPREME, groupTeamMembersByGrade } from "@/lib/staff-roles";
 import { translateClassName } from "@/lib/translate-class";
 import { usePageBanner } from "@/lib/page-banners";
@@ -74,6 +76,9 @@ function TeamMemberCard({ member }) {
   const GradeIcon = member.is_nexus_supreme ? Crown : Shield;
   const roleLabel = member.team_role_label;
   const nationality = member.team_nationality;
+  const countryCode = (member.team_country_code || member.country_code || "").toLowerCase();
+  const flagCode = countryFlagCode(countryCode);
+  const countryLabel = nationality || (countryCode ? t(`country.${countryCode}`) : "");
   const tagline = member.team_tagline;
   const bio = member.team_bio;
   const specialties = member.team_specialties || [];
@@ -98,6 +103,11 @@ function TeamMemberCard({ member }) {
               member.username?.[0]?.toUpperCase() || "?"
             )}
           </div>
+          {flagCode && (
+            <span className="team-card-country-flag" title={countryLabel || undefined} aria-hidden>
+              <FlagIcon code={flagCode} size="sm" />
+            </span>
+          )}
           <span className="team-card-profile-hint">{t("community.viewProfile")}</span>
         </div>
 
@@ -117,7 +127,11 @@ function TeamMemberCard({ member }) {
             </div>
           ) : isOfficialSentinel ? (
             <div className="team-card-badges">
-              <span className="team-card-pill team-card-pill--official">{getSentinelBadgeLabel(member, t)}</span>
+              <span className={`team-card-pill ${member.team_sentinelle_trial ? "team-card-pill--trial" : "team-card-pill--official"}`}>
+                {member.team_sentinelle_trial
+                  ? t("community.teamSentinelle.trial")
+                  : getSentinelBadgeLabel(member, t)}
+              </span>
             </div>
           ) : isStaffGrade ? (
             <div className="team-card-grade" style={{ color: accent }}>
@@ -131,10 +145,10 @@ function TeamMemberCard({ member }) {
             <p className="team-card-role-muted">{t("community.teamModerator.label")}</p>
           )}
 
-          {nationality && (
+          {countryLabel && (
             <p className="team-card-nationality">
               <MapPin className="w-3 h-3" />
-              {nationality}
+              {countryLabel}
             </p>
           )}
         </div>

@@ -7029,6 +7029,7 @@ class TeamMemberProfileReq(BaseModel):
     bio: Optional[str] = Field("", max_length=600)
     specialties: Optional[List[str]] = Field(default_factory=list)
     moderator_trial: bool = False
+    sentinelle_trial: bool = False
 
 
 @api.get("/admin/team-page")
@@ -7078,6 +7079,7 @@ async def admin_update_team_member_profile(user_id: str, req: TeamMemberProfileR
         "bio": (req.bio or "").strip(),
         "specialties": team_page_service.normalize_specialties(req.specialties),
         "moderator_trial": req.moderator_trial,
+        "sentinelle_trial": req.sentinelle_trial,
         "updated_at": now_utc().isoformat(),
         "updated_by": user.get("username"),
     }
